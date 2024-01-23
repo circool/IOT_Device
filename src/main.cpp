@@ -14,7 +14,7 @@
 #define DEBUG_FEATURE_ENABLED
 #define WIFI_FEATURE_ENABLED
 #define OTA_FEATURE_ENABLED
-// #define SENSOR_TEMPERATURE_HUMITY_ENABLED
+#define SENSOR_TEMPERATURE_HUMITY_ENABLED
 //#define SENSOR_PRESENCE_ENABLED
 //#define SENSOR_LIGHTING_ENABLED
 //#define EEPROM_FEATURE_ENABLED
@@ -74,40 +74,49 @@
   // Возможные типы:
   // DHT11
   // DHT21
+  // DHT22
   // AM2320
   // AHT10
-  // AHT15
+//  #define AHT15
   // AHT20
   ////////////////////////////////
 
-  #ifdef DHT22
-    // TODO: Set params for sensor
-  #endif
+
+
 
   #ifdef DHT11
-    // TODO: Set params for sensor
+    #define SENSOR_SERIAL_BUS
+    #define SENSOR_TEMPERATURE_HUMITY_TYPE DHT11
+  #elif defined(DHT21)
+    #define SENSOR_SERIAL_BUS
+    #define SENSOR_TEMPERATURE_HUMITY_TYPE DHT21
+  #elif defined(DHT22)
+    #define SENSOR_SERIAL_BUS
+    #define SENSOR_TEMPERATURE_HUMITY_TYPE DHT22
+  #elif defined(AHT10)
+    #define SENSOR_IC2_BUS
+    #define SENSOR_TEMPERATURE_HUMITY_TYPE AHT10
+  #elif defined(AHT15)
+    #define SENSOR_IC2_BUS
+    #define SENSOR_TEMPERATURE_HUMITY_TYPE AHT15
+  #elif defined(AHT20)
+    #define SENSOR_IC2_BUS
+    #define SENSOR_TEMPERATURE_HUMITY_TYPE AHT20
+  #elif defined(AM2320)
+    #define SENSOR_IC2_BUS
+    #define SENSOR_TEMPERATURE_HUMITY_TYPE AM2320
   #endif
 
-  #ifdef AM2320
-    // TODO: Set params for sensor 
-  #endif
-
-  #ifdef AHT10
-    // TODO: Set params for sensor
-  #endif
-
-  #ifdef AHT15
-    #define SENSOR_TEMPERATURE_HUMITY_TYPE                AHT15
-    #include <Wire.h>
-    #include "SensorTemperatureHumidity.h"    
+  // Разные датчики подключаются по-разному
+  #ifdef SENSOR_IC2_BUS
     #define SENSOR_TEMPERATURE_HUMITY_ADDR                0x37      // i2c адрес 
     #define SDA                                           0         // SDA	GPIO0 (DIO)
     #define SCL                                           2         // SCL	GPIO2 (DIO)
     #define SENSOR_TEMPERATURE_HUMITY_READ_INTERVAL_SEC   10        // Рекомендуемая частота опроса датчика  
-  #endif
-
-  #ifdef AHT20
-    // TODO: Set params for sensor
+  #elif defined(SENSOR_SERIAL_BUS)
+    #define SENSOR_TEMPERATURE_HUMITY_ADDR                5         // Sensor pin
+    #define SENSOR_TEMPERATURE_HUMITY_READ_INTERVAL_SEC   10 
+    // DHT dht(SENSOR_TEMPERATURE_HUMITY_ADDR, SENSOR_TEMPERATURE_HUMITY_TYPE);       
   #endif
 
 #endif
