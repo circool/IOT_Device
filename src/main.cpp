@@ -14,7 +14,7 @@
 #define DEBUG_FEATURE_ENABLED
 #define WIFI_FEATURE_ENABLED
 #define OTA_FEATURE_ENABLED
-#define SENSOR_TEMPERATURE_HUMITY_ENABLED
+//#define SENSOR_TEMPERATURE_HUMITY_ENABLED
 //#define SENSOR_PRESENCE_ENABLED
 //#define SENSOR_LIGHTING_ENABLED
 //#define EEPROM_FEATURE_ENABLED
@@ -299,7 +299,7 @@
 
 #ifdef OTA_FEATURE_ENABLED
 // Обновление
-  #if defined(ESP8266)
+  #ifdef ESP8266
     #include <ESP8266WiFi.h>
     #include <ESPAsyncTCP.h>
   #elif defined(ESP32)
