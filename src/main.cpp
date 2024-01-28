@@ -3,21 +3,24 @@
 * WIFI_FEATURE_ENABLED    - Возможность подключения к сети wifi
 * DEBUG_FEATURE_ENABLED   - Вывод сообщений в консоль
 * OTA_FEATURE_ENABLED     - Возможность обновления прошивки по воздуху (зависит от WIFI_FEATURE_ENABLED)
-* SENSOR_TEMPERATURE_HUMITY_ENABLED (необходимо указать тип датчика SENSOR_TEMPERATURE_HUMITY_TYPE)
+* SWITCH_FEATURE_ENABLED  - Возможность управления состоянием выключателя
+* SENSOR_TEMP_HUM_ENABLED - Возможность измерения температуры и влажности
 * SENSOR_PRESENCE_ENABLED - Возможность использования датчика присутствия
 * SENSOR_LIGHTING_ENABLED - Возможность использования датчика освещения
 * EEPROM_FEATURE_ENABLED  - Возможность сохранения настроек в EEPROM 
 * и так далее
 */
-#define SWITCH_FEATURE_ENABLED
-#define MQTT_FEATURE_ENABLED
+//#define SWITCH_FEATURE_ENABLED
+//#define MQTT_FEATURE_ENABLED
 #define DEBUG_FEATURE_ENABLED
-#define WIFI_FEATURE_ENABLED
-#define OTA_FEATURE_ENABLED
-//#define SENSOR_TEMPERATURE_HUMITY_ENABLED
+//#define WIFI_FEATURE_ENABLED
+//#define OTA_FEATURE_ENABLED
+#define SENSOR_TEMP_HUM_ENABLED
 //#define SENSOR_PRESENCE_ENABLED
 //#define SENSOR_LIGHTING_ENABLED
 //#define EEPROM_FEATURE_ENABLED
+
+#include <Arduino.h>
 
 
 #ifdef OTA_FEATURE_ENABLED
@@ -30,9 +33,64 @@
   #define WIFI_FEATURE_ENABLED
 #endif
 
-#include <Arduino.h>
-#include "credentials.h"
+////////////////////////////////////////////////////////////////
+#ifdef SENSOR_TEMP_HUM_ENABLED
+bool sensor_temperature_found = false;
+  #define AHT10
+  // Переменные для работы с датчиком температуры и влажности
+  #define TEMPERATURE_LOW_RANGE   25            	// Значение температуры, при снижении до которого вентилятор следует выключить
+  #define TEMPERATURE_HIGH_RANGE  27            	// Значение температуры, при превышении которого следует включить вентилятор
+  #define HUMIDITY_LOW_RANGE      35            	// Значение влажности, при снижении до которого вентилятор следует выключить
+  #define HUMIDITY_HIGH_RANGE     40            	// Значение влажности, при превышении которого следует включить вентилятор  
+  #define SENSOR_DURATION         10              // Рекомендуемая частота опроса датчика
 
+  #ifdef DHT11
+    #define SENSOR_TYPE           DHT11
+    #define SENSOR_PIN            5
+    #include <DHT.h>  
+  #endif
+
+  #ifdef AHT10
+    #define SENSOR_TYPE   AHT10
+    // #include <Wire.h>
+    #include <Adafruit_AHTX0.h>
+    Adafruit_AHTX0 tempHumSensor;
+    sensors_event_t humidity, temperature;
+  #endif
+  
+  
+
+
+
+  #ifdef SWITCH_FEATURE_ENABLED
+    #ifdef SENSOR_TEMP_HUM_ENABLED
+      #ifdef SWITCH_FEATURE_ENABLED
+        
+        // double tempLowRange =  TEMPERATURE_LOW_RANGE;
+        // double tempHighRange = TEMPERATURE_HIGH_RANGE;
+        // double humLowRange = HUMIDITY_LOW_RANGE;
+        // double humHighRange = HUMIDITY_HIGH_RANGE;
+        
+        struct RangeSettings {
+            double lowHumRange; //
+            double highHumRange; //
+            double lowTempRange; //
+            double highTempRange; // 
+          RangeSettings(double lowHum=HUMIDITY_LOW_RANGE, double highHum=HUMIDITY_HIGH_RANGE, double lowTemp=TEMPERATURE_LOW_RANGE, double highTemp=TEMPERATURE_HIGH_RANGE)
+            : lowHumRange(lowHum), highHumRange(highHum), lowTempRange(lowTemp), highTempRange(highTemp)
+              {
+                // Additional initialization code, if needed
+              }    
+        };
+        
+        RangeSettings configuration;
+      #endif 
+    #endif  
+      
+  #endif
+
+
+#endif
 #ifdef SWITCH_FEATURE_ENABLED
   // Переменные для работы с выключателем
   // Для работы реле его нужно указать, заодно укажем какая команда для него будет управляющей
@@ -62,78 +120,19 @@
 
 #endif
 
-#ifdef SENSOR_TEMPERATURE_HUMITY_ENABLED
-  // Переменные для работы с датчиком температуры и влажности
-  #define TEMPERATURE_LOW_RANGE   25            	// Значение температуры, при снижении до которого вентилятор следует выключить
-  #define TEMPERATURE_HIGH_RANGE  27            	// Значение температуры, при превышении которого следует включить вентилятор
-  #define HUMIDITY_LOW_RANGE      35            	// Значение влажности, при снижении до которого вентилятор следует выключить
-  #define HUMIDITY_HIGH_RANGE     40            	// Значение влажности, при превышении которого следует включить вентилятор  
 
-  ////////////////////////////////
-  // Тип датчика
-  // Возможные типы:
-  // DHT11
-  // DHT21
-  // DHT22
-  // AM2320
-  // AHT10
-//  #define AHT15
-  // AHT20
-  ////////////////////////////////
-
-
-
-
-  #ifdef DHT11
-    #define SENSOR_SERIAL_BUS
-    #define SENSOR_TEMPERATURE_HUMITY_TYPE DHT11
-  #elif defined(DHT21)
-    #define SENSOR_SERIAL_BUS
-    #define SENSOR_TEMPERATURE_HUMITY_TYPE DHT21
-  #elif defined(DHT22)
-    #define SENSOR_SERIAL_BUS
-    #define SENSOR_TEMPERATURE_HUMITY_TYPE DHT22
-  #elif defined(AHT10)
-    #define SENSOR_IC2_BUS
-    #define SENSOR_TEMPERATURE_HUMITY_TYPE AHT10
-  #elif defined(AHT15)
-    #define SENSOR_IC2_BUS
-    #define SENSOR_TEMPERATURE_HUMITY_TYPE AHT15
-  #elif defined(AHT20)
-    #define SENSOR_IC2_BUS
-    #define SENSOR_TEMPERATURE_HUMITY_TYPE AHT20
-  #elif defined(AM2320)
-    #define SENSOR_IC2_BUS
-    #define SENSOR_TEMPERATURE_HUMITY_TYPE AM2320
-  #endif
-
-  // Разные датчики подключаются по-разному
-  #ifdef SENSOR_IC2_BUS
-    #define SENSOR_TEMPERATURE_HUMITY_ADDR                0x37      // i2c адрес 
-    #define SDA                                           0         // SDA	GPIO0 (DIO)
-    #define SCL                                           2         // SCL	GPIO2 (DIO)
-    #define SENSOR_TEMPERATURE_HUMITY_READ_INTERVAL_SEC   10        // Рекомендуемая частота опроса датчика  
-  #elif defined(SENSOR_SERIAL_BUS)
-    #define SENSOR_TEMPERATURE_HUMITY_ADDR                5         // Sensor pin
-    #define SENSOR_TEMPERATURE_HUMITY_READ_INTERVAL_SEC   10 
-    // DHT dht(SENSOR_TEMPERATURE_HUMITY_ADDR, SENSOR_TEMPERATURE_HUMITY_TYPE);       
-  #endif
-
-#endif
 
 #ifdef EEPROM_FEATURE_ENABLED
-  // TODO: Чтение и сохранение данных в память  
+  // TODO: Определение списка параметров сохраняемых в EEPROM
+     
 #endif
 
 #ifdef WIFI_FEATURE_ENABLED
+  #include "credentials.h"
   // Переменные и процедуры для работы с соединением wifi
   byte mac[6]; 
   #ifdef ESP8266 
     #include <ESP8266WiFi.h>
-    // #include <ESP8266WiFiMulti.h>
-    //ESP8266WiFiMulti wifiMulti;
-    //ESP8266WiFi wifiMulti;
-
   #elif defined(ESP32)
     #include <WiFi.h>
   #else
@@ -144,10 +143,11 @@
   const char* wifiPassword = WIFI_PASSWORD;
   
   unsigned long lastWiFiCheckTime = 0;
-  const unsigned long wifiCheckInterval = 10000; // Проверка WiFi каждые 10 секунд
-  boolean needShowConnectionInfo = true;  // Показывать сообщение о подключении только один раз
+  const unsigned long wifiCheckInterval = 10000;  // Проверка WiFi каждые 10 секунд
+  boolean needShowConnectionInfo = true;          // Показывать сообщение о подключении только один раз
 
   void checkWiFiConnection() {
+  
   unsigned long currentTime = millis();
   if (currentTime - lastWiFiCheckTime >= wifiCheckInterval) {
     lastWiFiCheckTime = currentTime;
@@ -316,6 +316,8 @@
 // --------------------------------
 
 void setup() {
+  
+  
 
   #ifdef DEBUG_FEATURE_ENABLED
     Serial.begin(115200); 
@@ -325,15 +327,48 @@ void setup() {
   #endif
 
   #ifdef EEPROM_FEATURE_ENABLED
-    
-
+    // TODO: Прочитать настройки из EEPROM
   #endif
 
+  #ifdef SENSOR_TEMP_HUM_ENABLED
+    
+    #ifdef DEBUG_FEATURE_ENABLED
+      Serial.print("Инициализация датчика температуры и влажности: ");
+    #endif
+
+    if(tempHumSensor.begin()){
+      sensor_temperature_found = true;
+      
+      #ifdef DEBUG_FEATURE_ENABLED
+        Serial.println("успешно");
+        
+        tempHumSensor.getEvent(&humidity, &temperature);
+        Serial.print("Текущие показания температуры: "); Serial.print(temperature.temperature); Serial.println(" ºC");
+        Serial.print("Текущие показания влажности: "); Serial.print(humidity.relative_humidity); Serial.println(" %");
+        
+      
+      
+      #endif
+
+    } else {
+      sensor_temperature_found = false;
+      
+      #ifdef DEBUG_FEATURE_ENABLED
+        Serial.println("датчик не найден");
+      #endif  
+    
+    };
+  #endif
+
+
   #ifdef WIFI_FEATURE_ENABLED
+   
     #ifdef DEBUG_FEATURE_ENABLED
       printf("Инициализия соединения WiFi.\n");
     #endif
+    
     WiFi.begin(ssid, wifiPassword);
+    
     #ifdef DEBUG_FEATURE_ENABLED
       WiFi.macAddress(mac);
       Serial.print("MAC адрес: ");
@@ -349,6 +384,7 @@ void setup() {
       Serial.print(":");
       Serial.println(mac[5],HEX);     
     #endif
+  
   #endif
   
   #ifdef SWITCH_FEATURE_ENABLED
@@ -370,10 +406,6 @@ void setup() {
   #endif
 
   #ifdef OTA_FEATURE_ENABLED
-    // while (WiFi.status() != WL_CONNECTED) {
-    //   delay(500);
-    //   Serial.print(".");
-    // }
     
     #ifdef DEBUG_FEATURE_ENABLED
       printf("Инициализация HTTP cервера для реализации функций OTA\n");
@@ -386,6 +418,10 @@ void setup() {
     AsyncElegantOTA.begin(&webServer);
     webServer.begin();
     
+    #ifdef DEBUG_FEATURE_ENABLED
+      printf("Инициализация HTTP cервера окончена.\n");
+    #endif
+  
   #endif
 
   #ifdef DEBUG_FEATURE_ENABLED
@@ -406,8 +442,17 @@ void loop() {
 
     #endif
 
+    #ifdef SENSOR_TEMP_HUM_ENABLED
+      // temperature = tempHumSensor.getTemperature();
+      // humidity = tempHumSensor.getHumidity();
+    #endif 
     
+    #ifdef SWITCH_FEATURE_ENABLED
+      calculateSwitchState(configuration);  
+    #endif
+       
 
     
 }
+
 
