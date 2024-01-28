@@ -35,14 +35,14 @@
 
 ////////////////////////////////////////////////////////////////
 #ifdef SENSOR_TEMP_HUM_ENABLED
-bool sensor_temperature_found = false;
+  
   #define AHT10
   // Переменные для работы с датчиком температуры и влажности
-  #define TEMPERATURE_LOW_RANGE   25            	// Значение температуры, при снижении до которого вентилятор следует выключить
-  #define TEMPERATURE_HIGH_RANGE  27            	// Значение температуры, при превышении которого следует включить вентилятор
-  #define HUMIDITY_LOW_RANGE      35            	// Значение влажности, при снижении до которого вентилятор следует выключить
-  #define HUMIDITY_HIGH_RANGE     40            	// Значение влажности, при превышении которого следует включить вентилятор  
-  #define SENSOR_DURATION         10              // Рекомендуемая частота опроса датчика
+  // #define TEMPERATURE_LOW_RANGE   25            	// Значение температуры, при снижении до которого вентилятор следует выключить
+  // #define TEMPERATURE_HIGH_RANGE  27            	// Значение температуры, при превышении которого следует включить вентилятор
+  // #define HUMIDITY_LOW_RANGE      35            	// Значение влажности, при снижении до которого вентилятор следует выключить
+  // #define HUMIDITY_HIGH_RANGE     40            	// Значение влажности, при превышении которого следует включить вентилятор  
+  // #define SENSOR_DURATION         10              // Рекомендуемая частота опроса датчика
 
   #ifdef DHT11
     #define SENSOR_TYPE           DHT11
@@ -51,20 +51,61 @@ bool sensor_temperature_found = false;
   #endif
 
   #ifdef AHT10
-    #define SENSOR_TYPE   AHT10
-    // #include <Wire.h>
+    
+    #ifndef SENSOR_DURATION
+      #define SENSOR_DURATION 10
+    #endif
+    
     #include <Adafruit_AHTX0.h>
-    Adafruit_AHTX0 tempHumSensor;
-    sensors_event_t humidity, temperature;
+    
+    // Реализация датчика для AHT10
+    class Sensor {
+      private:
+        Adafruit_AHTX0 tempHumSensor;
+        sensors_event_t humidity, temperature;
+        int lastRead;
+        
+        void readData() {          
+          if (millis() - lastRead >= SENSOR_DURATION * 1000 || lastRead==0) {
+            tempHumSensor.getEvent(&humidity, &temperature);
+            lastRead = millis();
+          }
+        }
+        
+
+      public:
+        
+        bool initialization() { 
+          lastRead = 0;
+          return tempHumSensor.begin(); 
+        }
+        
+        double getTemperature() {
+          readData();
+          return temperature.temperature;
+        }
+
+        double getHumidity(){
+          readData();         
+          return humidity.relative_humidity;  
+        }
+
+        
+    };
+    
   #endif
-  
-  
+  // Датчик температуры и влажности
+  Sensor tempHumSensor;  
+  bool sensor_temperature_found = false;
+
+#endif
 
 
+#ifdef SWITCH_FEATURE_ENABLED
 
-  #ifdef SWITCH_FEATURE_ENABLED
     #ifdef SENSOR_TEMP_HUM_ENABLED
-      #ifdef SWITCH_FEATURE_ENABLED
+      
+      
         
         // double tempLowRange =  TEMPERATURE_LOW_RANGE;
         // double tempHighRange = TEMPERATURE_HIGH_RANGE;
@@ -84,24 +125,20 @@ bool sensor_temperature_found = false;
         };
         
         RangeSettings configuration;
-      #endif 
+
     #endif  
       
-  #endif
 
-
-#endif
-#ifdef SWITCH_FEATURE_ENABLED
   // Переменные для работы с выключателем
   // Для работы реле его нужно указать, заодно укажем какая команда для него будет управляющей
   // Подключение реле
-  #ifdef ESP8266
-    #define SWITCH_PIN     0
-  #elif defined(EPS32)
-    #define SWITCH_PIN     1
-  #else
-    #error "Unsupported platform. Define ESP8266 or ESP32."
-  #endif
+    #ifdef ESP8266
+      #define SWITCH_PIN     0
+    #elif defined(EPS32)
+      #define SWITCH_PIN     1
+    #else
+      #error "Unsupported platform. Define ESP8266 or ESP32."
+    #endif
   
   #ifdef MQTT_FEATURE_ENABLED
     // Управление выключателем по протоколу MQTT
@@ -119,7 +156,6 @@ bool sensor_temperature_found = false;
   #endif
 
 #endif
-
 
 
 #ifdef EEPROM_FEATURE_ENABLED
@@ -336,18 +372,13 @@ void setup() {
       Serial.print("Инициализация датчика температуры и влажности: ");
     #endif
 
-    if(tempHumSensor.begin()){
+    if(tempHumSensor.initialization()){
       sensor_temperature_found = true;
       
       #ifdef DEBUG_FEATURE_ENABLED
-        Serial.println("успешно");
-        
-        tempHumSensor.getEvent(&humidity, &temperature);
-        Serial.print("Текущие показания температуры: "); Serial.print(temperature.temperature); Serial.println(" ºC");
-        Serial.print("Текущие показания влажности: "); Serial.print(humidity.relative_humidity); Serial.println(" %");
-        
-      
-      
+        Serial.println("успешно");        
+        // Serial.print("Текущие показания температуры: "); Serial.print(tempHumSensor.getTemperature()); Serial.println(" ºC");
+        // Serial.print("Текущие показания влажности: "); Serial.print(tempHumSensor.getHumidity()); Serial.println(" %");
       #endif
 
     } else {
@@ -443,8 +474,9 @@ void loop() {
     #endif
 
     #ifdef SENSOR_TEMP_HUM_ENABLED
-      // temperature = tempHumSensor.getTemperature();
-      // humidity = tempHumSensor.getHumidity();
+      if(sensor_temperature_found){
+
+      }
     #endif 
     
     #ifdef SWITCH_FEATURE_ENABLED
