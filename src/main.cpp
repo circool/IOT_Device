@@ -20,7 +20,7 @@
 
 //#define SENSOR_PRESENCE_ENABLED
 //#define SENSOR_LIGHTING_ENABLED
-//#define EEPROM_FEATURE_ENABLED
+#define EEPROM_FEATURE_ENABLED
 
 #include <Arduino.h>
 
@@ -131,9 +131,83 @@ double humHighRange = HUMIDITY_HIGH_RANGE;
 //RangeSettings configuration;
 #endif 
 
-#ifdef EEPROM_FEATURE_ENABLED
-// TODO: Определение списка параметров сохраняемых в EEPROM     
-#endif
+// #ifdef EEPROM_FEATURE_ENABLED
+#include <EEPROM.h>
+
+#define VALID_CHECKSUM 369
+
+struct DataConfig {
+    uint16_t checksum = VALID_CHECKSUM;
+    double lowHum = 0;
+    double highHum = 0;
+    double lowTemp = 0;
+    double highTemp = 0;
+    int size = sizeof(checksum) + (sizeof(double) * 4);
+};
+
+class Configuration {
+private:
+    DataConfig data;
+
+public:
+    bool isValid() {
+        read();
+        bool result = (data.checksum == VALID_CHECKSUM);
+        return result;
+    }
+
+    double getLowHum() {
+      uint16_t addr = 0;
+        EEPROM.begin(512);
+        EEPROM.get(addr, data);
+        return data.lowHum;
+    }
+
+    double getHighHum() {
+        return data.highHum;
+    }
+
+    double getLowTemp() {
+        return data.lowTemp;
+    }
+
+    double getHighTemp() {
+        return data.highTemp;
+    }
+
+    void read() {
+        uint16_t addr = 0;
+        EEPROM.begin(sizeof(data));
+        EEPROM.get(addr, data);
+    }
+
+    void write() {
+        uint16_t addr = 0;
+        EEPROM.put(addr, data);
+        EEPROM.commit();
+    }
+
+    Configuration() {
+        data.checksum = 0;
+        data.lowHum = 0;
+        data.highHum = 0;
+        data.lowTemp = 0;
+        data.highTemp = 0;
+        data.size = 0;
+    }
+
+    Configuration(DataConfig data) {
+        this->data = data;
+    }
+};
+
+DataConfig dataConfiguration;
+Configuration deviceConfig(dataConfiguration);
+
+
+
+
+// #endif
 
 #ifdef WIFI_FEATURE_ENABLED
 #include "credentials.h"
@@ -304,45 +378,44 @@ void checkWiFiConnection() {
 
 #endif
   
-  
 
-  
-
-
-
-
-  
-  
-  // Обновление
-  #ifdef OTA_FEATURE_ENABLED
-    #ifdef ESP8266
-      #include <ESP8266WiFi.h>
-      #include <ESPAsyncTCP.h>
-    #elif defined(ESP32)
-      #include <WiFi.h>
-      #include <AsyncTCP.h>
-    #endif
-
-    #include <ESPAsyncWebServer.h>
-    #include <AsyncElegantOTA.h>  
-    AsyncWebServer webServer(80);
+// Обновление
+#ifdef OTA_FEATURE_ENABLED
+  #ifdef ESP8266
+    #include <ESP8266WiFi.h>
+    #include <ESPAsyncTCP.h>
+  #elif defined(ESP32)
+    #include <WiFi.h>
+    #include <AsyncTCP.h>
   #endif
+
+  #include <ESPAsyncWebServer.h>
+  #include <AsyncElegantOTA.h>  
+  AsyncWebServer webServer(80);
+#endif
 
 // --------------------------------
 
 void setup() {
 
-  #ifdef DEBUG_FEATURE_ENABLED
-    Serial.begin(115200); 
-    Serial.println();
-    delay(5000);
-    Serial.println("Выполняется инициализация устройства ... ");
-  #endif
 
-  // TODO: Прочитать настройки из EEPROM
-  #ifdef EEPROM_FEATURE_ENABLED
-    
-  #endif
+#ifdef DEBUG_FEATURE_ENABLED
+  Serial.begin(115200); 
+  Serial.println();
+  delay(5000);
+  Serial.println("Выполняется инициализация устройства ... ");
+#endif
+
+if(deviceConfig.isValid()) {
+  Serial.println("EEPROM ready");
+
+} else {
+  Serial.printf("EEPROM not ready, %f\n", deviceConfig.getLowHum());
+
+} 
+
+
+
 
   #ifdef SENSOR_TEMP_HUM_ENABLED
     
@@ -476,5 +549,3 @@ void loop() {
 
     
 }
-
-
