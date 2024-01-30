@@ -10,3 +10,4 @@ platformio.ini
 *secret*.*
 *cred*.*
 .DS_Store
+.disabled
