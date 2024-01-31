@@ -1,11 +1,20 @@
 /* Здесь задаются параметры реализации
 * DEBUG_ENABLE        - Включить режим отладки (вывод сообщений в консоль)
-* OTA_ENABLED         - Возможность обновления прошивки по воздуху
+* OTA_ENABLE         - Возможность обновления прошивки по воздуху
 * SENSOR_TYPE         - Тип используемого датчика (если применимо)
 * SWITCH_PIN          - Управляющий выход для выключателя или реле (если применимо)
 */
-#define DEBUG_ENABLE
-// #define OTA_ENABLE
+// #define DEBUG_ENABLE
+#define OTA_ENABLE
+/*
+WARNING: Для исключения ошибок при компиляции в platformIo.ini:
+```
+lib_deps = 	
+  me-no-dev/ESP Async WebServer @ ^1.2.3 на https://github.com/me-no-dev/ESPAsyncWebServer.git
+
+build_flags=-DELEGANTOTA_USE_ASYNC_WEBSERVER=1
+```
+*/  
 
 #define SWITCH_PIN  4
 
@@ -18,24 +27,25 @@
 * 1     - Датчик температуры/влажности отправляющий показания MQTT брокеру
 * 2     - Выключатель управляемый по протоколу MQTT
 */
-#define DEVICE_TYPE 1
+#define DEVICE_TYPE 0
 
 /* Здесь задается тип датчика
-* 0     - AHT10
-* 1     - TODO
-* 2     - TODO
+* 1     - AHT10
+* 2     - DHT11
+* 3     - TODO
 */
 
-#define SENSOR_TYPE 0
-#if DEVICE_TYPE == 0
+// #define SENSOR_TYPE 0
+
+#if DEVICE_TYPE == 1
 #define FAN_CONTROL_FEATURE_ENABLED
 #endif
 
-#if DEVICE_TYPE == 1
+#if DEVICE_TYPE == 2
 #define SENSOR_TEMP_HUM_ENABLED
 #endif
 
-#if DEVICE_TYPE == 2
+#if DEVICE_TYPE == 3
 #define SWITCH_FEATURE_ENABLED
 #endif
 
@@ -44,7 +54,7 @@
 ////////////////////////////////////////////////////////////////
 
 // Устройство поддерживающее обновление прошивки по воздуху
-#ifdef OTA_ENABLED
+#ifdef OTA_ENABLE
 #ifndef WIFI_FEATURE_ENABLED
 #define WIFI_FEATURE_ENABLED
 #endif
@@ -102,10 +112,10 @@
 ////////////////////////////////////////////////////////////////
 // Объявление 
 ////////////////////////////////////////////////////////////////
-
+#include "credentials.h"
 // Соединение WIFI
 #ifdef WIFI_FEATURE_ENABLED
-#include "credentials.h"
+
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
@@ -155,54 +165,43 @@ void checkWiFiConnection() {
 #ifdef OTA_ENABLE
 
 #if defined(ESP8266)
-  // #include <ESP8266WiFi.h>
   #include <ESPAsyncTCP.h>
 #elif defined(ESP32)
-  // #include <WiFi.h>
   #include <AsyncTCP.h>
 #endif
 
-#include <ElegantOTA.h>
-// #include <AsyncElegantOTA.h>
 #include <ESPAsyncWebServer.h>
-AsyncWebServer webServer(80);
+#include <ElegantOTA.h>
 
-//  
+AsyncWebServer server(80);
 unsigned long ota_progress_millis = 0;
 
+
+
 void onOTAStart() {
-  // Log when OTA has started
-  Serial.println("OTA update started!");
-  // <Add your own code here>
+#ifdef DEBUG_ENABLE
+  Serial.println("Запущено обновление по воздуху");
+#endif
 }
 
 void onOTAProgress(size_t current, size_t final) {
-  // Log every 1 second
+  
   if (millis() - ota_progress_millis > 1000) {
     ota_progress_millis = millis();
-    Serial.printf("OTA Progress Current: %u bytes, Final: %u bytes\n", current, final);
+    Serial.printf("Обновление: %u байт, из: %u \n", current, final);
   }
 }
 
 void onOTAEnd(bool success) {
   // Log when OTA has finished
   if (success) {
-    Serial.println("OTA update finished successfully!");
+    Serial.println("Обновление окончено");
   } else {
-    Serial.println("There was an error during OTA update!");
+    Serial.println("Ошибка обновления!");
   }
   
 }
 
-#ifdef ESP8266
-#include <ESP8266WiFi.h>
-#include <ESPAsyncTCP.h>
-#endif
-
-#ifdef ESP32
-#include <AsyncTCP.h>
-#include <WiFi.h>
-#endif
 
 #endif
 
@@ -270,6 +269,7 @@ void checkMqttConnection() {
 #define TEMPERATURE_LOW_RANGE   27
 #define TEMPERATURE_HIGH_RANGE  29
 #define FAN_TIME_DELAY          30
+
 #endif
 
 
@@ -404,6 +404,7 @@ public:
 };
 
 Config deviceConfig;
+
 #endif
 
 
@@ -429,7 +430,6 @@ void publishSensorState() {
 #endif
 
 #include <Adafruit_AHTX0.h>
-
 
 class Sensor {
  private:
@@ -521,18 +521,27 @@ void setup() {
 #endif
 
 #ifdef OTA_ENABLE
+  // WiFi.mode(WIFI_STA);
+  // WiFi.begin(ssid, password);
+  // Serial.println("");
+  // while (WiFi.status() != WL_CONNECTED) {
+  //   delay(500);
+  //   Serial.print(".");
+  // }
+  // Serial.println(WiFi.localIP());
 
-  webServer.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", "Hi! This is ElegantOTA AsyncDemo.");
+  server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
+    request->send(200, "text/html", "<html><body><a href='/update'>Страница обновления</a></body></html>");
   });
 
-  ElegantOTA.begin(&webServer);    // Start ElegantOTA
+  ElegantOTA.begin(&server);    
   // ElegantOTA callbacks
+
   ElegantOTA.onStart(onOTAStart);
   ElegantOTA.onProgress(onOTAProgress);
   ElegantOTA.onEnd(onOTAEnd);
 
-  webServer.begin();
+  server.begin();
   Serial.println("HTTP server started");
 
 #endif
@@ -583,7 +592,7 @@ void setup() {
 
 
 #ifdef DEBUG_ENABLE
-  printf("Инициализация устройства окончена.\n");
+printf("Инициализация устройства окончена.\n");
 #endif
   
 }
