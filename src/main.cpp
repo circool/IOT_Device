@@ -167,12 +167,14 @@ void checkWiFiConnection() {
 
 #if defined(ESP8266)
   #include <ESPAsyncTCP.h>
+  #include <AsyncElegantOTA.h>
 #elif defined(ESP32)
   #include <AsyncTCP.h>
+  #include <ElegantOTA.h>
 #endif
 
 #include <ESPAsyncWebServer.h>
-#include <ElegantOTA.h>
+
 
 AsyncWebServer server(80);
 unsigned long ota_progress_millis = 0;
@@ -526,11 +528,18 @@ void setup() {
     request->send(200, "text/html", "<html><body><a href='/update'>Страница обновления</a></body></html>");
   });
 
+  #if defined(ESP32)
   ElegantOTA.begin(&server);    
   ElegantOTA.onStart(onOTAStart);
   ElegantOTA.onProgress(onOTAProgress);
   ElegantOTA.onEnd(onOTAEnd);
   server.begin();
+  #elif defined(ESP8266)
+  AsyncElegantOTA.begin(&server);    
+  server.begin();
+  #endif
+  
+
   #ifdef DEBUG_ENABLE
   Serial.println("HTTP сервер доступен по адресу ");
   #endif
@@ -588,8 +597,10 @@ void loop() {
     checkWiFiConnection();   
     #endif
 
-    #ifdef OTA_ENABLE
-    ElegantOTA.loop();
+    #ifdef OTA_ENABLE    
+    #if defined(ESP32)
+      ElegantOTA.loop();
+    #endif
     #endif
 
     #ifdef MQTT_FEATURE_ENABLE  
