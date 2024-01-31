@@ -5,7 +5,7 @@
 .vscode/ipch
 .vscode/*
 *.code-workspace
-platformio.ini
+
 
 *secret*.*
 *cred*.*
