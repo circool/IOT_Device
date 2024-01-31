@@ -431,11 +431,15 @@ class Sensor {
   Adafruit_AHTX0 tempHumSensor;
   sensors_event_t humidity, temperature;
   int lastRead;
-
+  double lastTemp, lastHum;
+  
   void readData() {
     if (millis() - lastRead >= SENSOR_DURATION * 1000 || lastRead == 0) {
       tempHumSensor.getEvent(&humidity, &temperature);
       lastRead = millis();
+      lastHum = humidity.relative_humidity;
+      lastTemp = temperature.temperature;
+
       #ifdef DEBUG_ENABLE
       Serial.println("Чтение показаний датчика");Serial.println();
       #endif
@@ -450,12 +454,12 @@ class Sensor {
 
   double getTemperature() {
     readData();
-    return temperature.temperature;
+    return lastTemp;
   }
 
   double getHumidity() {
     readData();
-    return humidity.relative_humidity;
+    return lastHum;
   }
 };
 
@@ -598,6 +602,7 @@ void loop() {
     if(sensor_temperature_found){
       double curTemperature = tempHumSensor.getTemperature();
       double curHumidity = tempHumSensor.getHumidity();
+      // Опубликовать показания датчика при изменении
       if(!(curTemperature == temperature || curHumidity == humidity)) {
         
         #ifdef DEBUG_ENABLE
@@ -606,8 +611,8 @@ void loop() {
 
         temperature = curTemperature;
         humidity = curHumidity;
-        
         publishSensorState();
+        
         #ifdef DEBUG_ENABLE
         Serial.println("Показания датчика опубликованы");
         #endif
