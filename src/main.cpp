@@ -1,13 +1,28 @@
-/* Здесь задаются параметры реализации
-* DEBUG_ENABLE        - Включить режим отладки (вывод сообщений в консоль)
-* OTA_ENABLE         - Возможность обновления прошивки по воздуху
-* SENSOR_TYPE         - Тип используемого датчика (если применимо)
-* SWITCH_PIN          - Управляющий выход для выключателя или реле (если применимо)
+// Платформа
+#ifdef ESP8266
+#elif defined(ESP32)
+#else
+#error "Неизвестная платформа. Приложение расчитано на устройства ESP8266 или ESP32."
+#endif
+
+/* Здесь задается тип устройства
+* 1     - Выключатель управляемый по протоколу MQTT, состоянием датчика температуры/влажности или по таймеру
+* 2     - Датчик температуры/влажности отправляющий показания MQTT брокеру
+* 3     - Выключатель управляемый по протоколу MQTT
 */
-// #define DEBUG_ENABLE
+#define DEVICE_TYPE 2
+
+/* Здесь задаются дополнительные параметры 
+* DEBUG_ENABLE    - Включить режим отладки (вывод сообщений в консоль)
+* OTA_ENABLE      - Возможность обновления прошивки по воздуху
+* SENSOR_TYPE     - Тип используемого датчика (если применимо)
+* SWITCH_PIN      - Управляющий выход для выключателя или реле (если применимо)
+*/
+#define DEBUG_ENABLE
+#define SWITCH_PIN    4
 #define OTA_ENABLE
-/*
-WARNING: Для исключения ошибок при компиляции в platformIo.ini:
+/* OTA WARNING: 
+Для исключения ошибок при компиляции в platformIo.ini:
 ```
 lib_deps = 	
   me-no-dev/ESP Async WebServer @ ^1.2.3 на https://github.com/me-no-dev/ESPAsyncWebServer.git
@@ -16,113 +31,99 @@ build_flags=-DELEGANTOTA_USE_ASYNC_WEBSERVER=1
 ```
 */  
 
-#define SWITCH_PIN  4
-
-////////////////////////////////////////////////////////////////
-// Функциональный состав устройства 
-////////////////////////////////////////////////////////////////
-
-/* Здесь задается тип устройства
-* 0     - Выключатель управляемый по протоколу MQTT или состоянием датчика температуры/влажности или по таймеру
-* 1     - Датчик температуры/влажности отправляющий показания MQTT брокеру
-* 2     - Выключатель управляемый по протоколу MQTT
-*/
-#define DEVICE_TYPE 0
-
 /* Здесь задается тип датчика
-* 1     - AHT10
-* 2     - DHT11
+* 1     - AHT10 
+* 2     - DHT11 + SENSOR_PIN
 * 3     - TODO
 */
-
-// #define SENSOR_TYPE 0
-
-#if DEVICE_TYPE == 1
-#define FAN_CONTROL_FEATURE_ENABLED
-#endif
-
-#if DEVICE_TYPE == 2
-#define SENSOR_TEMP_HUM_ENABLED
-#endif
-
-#if DEVICE_TYPE == 3
-#define SWITCH_FEATURE_ENABLED
-#endif
+#define SENSOR_TYPE   1
+#define SENSOR_PIN    0
 
 ////////////////////////////////////////////////////////////////
 // Зависимости
 ////////////////////////////////////////////////////////////////
+#if DEVICE_TYPE == 1
+#define FAN_CONTROL_FEATURE_ENABLE
+#endif
 
-// Устройство поддерживающее обновление прошивки по воздуху
+#if DEVICE_TYPE == 2
+#define SENSOR_TEMP_HUM_ENABLE
+#ifndef SENSOR_TYPE
+#error "Не указан тип датчика"
+#endif
+#endif
+
+#if DEVICE_TYPE == 3
+#define SWITCH_FEATURE_ENABLE
+#endif
+
+// Обновление прошивки по воздуху
 #ifdef OTA_ENABLE
-#ifndef WIFI_FEATURE_ENABLED
-#define WIFI_FEATURE_ENABLED
+#ifndef WIFI_FEATURE_ENABLE
+#define WIFI_FEATURE_ENABLE
 #endif
 #endif
 
-// Выключатель управляемый по MQTT
-#ifdef SWITCH_FEATURE_ENABLED
+// Выключатель
+#ifdef SWITCH_FEATURE_ENABLE
 
-#ifndef WIFI_FEATURE_ENABLED
-#define WIFI_FEATURE_ENABLED
+#ifndef WIFI_FEATURE_ENABLE
+#define WIFI_FEATURE_ENABLE
 #endif
 
-#ifndef MQTT_FEATURE_ENABLED
-#define MQTT_FEATURE_ENABLED
+#ifndef MQTT_FEATURE_ENABLE
+#define MQTT_FEATURE_ENABLE
 #endif
 
 #endif
 
 // Вентилятор
-#ifdef FAN_CONTROL_FEATURE_ENABLED
+#ifdef FAN_CONTROL_FEATURE_ENABLE
 
-#ifndef WIFI_FEATURE_ENABLED
-#define WIFI_FEATURE_ENABLED
+#ifndef WIFI_FEATURE_ENABLE
+#define WIFI_FEATURE_ENABLE
 #endif
 
-#ifndef MQTT_FEATURE_ENABLED
-#define MQTT_FEATURE_ENABLED
+#ifndef MQTT_FEATURE_ENABLE
+#define MQTT_FEATURE_ENABLE
 #endif
 
-#ifndef SENSOR_TEMP_HUM_ENABLED
-#define SENSOR_TEMP_HUM_ENABLED
+#ifndef SENSOR_TEMP_HUM_ENABLE
+#define SENSOR_TEMP_HUM_ENABLE
 #endif
 
-#ifndef SWITCH_FEATURE_ENABLED
-#define SWITCH_FEATURE_ENABLED
-#endif
-
-#endif
-
-#ifdef SENSOR_TEMP_HUM_ENABLED
-
-#ifndef WIFI_FEATURE_ENABLED
-#define WIFI_FEATURE_ENABLED
-#endif
-
-#ifndef MQTT_FEATURE_ENABLED
-#define MQTT_FEATURE_ENABLED
+#ifndef SWITCH_FEATURE_ENABLE
+#define SWITCH_FEATURE_ENABLE
 #endif
 
 #endif
 
+// Датчик температуры/влажности
+#ifdef SENSOR_TEMP_HUM_ENABLE
 
-#include <Arduino.h>
+#ifndef WIFI_FEATURE_ENABLE
+#define WIFI_FEATURE_ENABLE
+#endif
+
+#ifndef MQTT_FEATURE_ENABLE
+#define MQTT_FEATURE_ENABLE
+#endif
+
+#endif
 
 ////////////////////////////////////////////////////////////////
-// Объявление 
+// Объявление зависимостей, глобальных переменных и классов
 ////////////////////////////////////////////////////////////////
+// #include <Arduino.h>
 #include "credentials.h"
-// Соединение WIFI
-#ifdef WIFI_FEATURE_ENABLED
 
+// Соединение WIFI
+#ifdef WIFI_FEATURE_ENABLE
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
 #elif defined(ESP32)
 #include <WiFi.h>
-#else
-#error "Unsupported platform. Define ESP8266 or ESP32."
 #endif
 
 byte mac[6];
@@ -205,10 +206,8 @@ void onOTAEnd(bool success) {
 
 #endif
 
-
-
 // Канал для брокера
-#ifdef MQTT_FEATURE_ENABLED
+#ifdef MQTT_FEATURE_ENABLE
 
 WiFiClient espClient;
 #include <PubSubClient.h>
@@ -260,9 +259,8 @@ void checkMqttConnection() {
 
 #endif
 
-
 // Обработка команды конфигурации для управляемого вентилятора
-#ifdef FAN_CONTROL_FEATURE_ENABLED
+#ifdef FAN_CONTROL_FEATURE_ENABLE
 
 #define HUMIDITY_LOW_RANGE      60
 #define HUMIDITY_HIGH_RANGE     70
@@ -272,9 +270,8 @@ void checkMqttConnection() {
 
 #endif
 
-
 // Выключатель
-#ifdef SWITCH_FEATURE_ENABLED
+#ifdef SWITCH_FEATURE_ENABLE
 
 // Топики для выключателя
 char switchStateTopic[31];
@@ -313,9 +310,8 @@ void callbackSwitchCommand(char* topic, byte* payload, unsigned int length){
 
 #endif
 
-
 // Хранение настроек вентилятора в EEPROM
-#ifdef EEPROM_FEATURE_ENABLED
+#ifdef EEPROM_FEATURE_ENABLE
 
 #include <EEPROM.h>
 
@@ -407,9 +403,8 @@ Config deviceConfig;
 
 #endif
 
-
 // Датчик температуры/влажности
-#ifdef SENSOR_TEMP_HUM_ENABLED
+#ifdef SENSOR_TEMP_HUM_ENABLE
 bool sensor_temperature_found = false;
 double temperature, humidity;
 
@@ -423,10 +418,10 @@ void publishSensorState() {
 }
 
 // Реализация датчика для AHT10
-#if SENSOR_TYPE == 0
+#if SENSOR_TYPE == 1
 
 #ifndef SENSOR_DURATION
-#define SENSOR_DURATION 2
+#define SENSOR_DURATION 10
 #endif
 
 #include <Adafruit_AHTX0.h>
@@ -441,6 +436,9 @@ class Sensor {
     if (millis() - lastRead >= SENSOR_DURATION * 1000 || lastRead == 0) {
       tempHumSensor.getEvent(&humidity, &temperature);
       lastRead = millis();
+      #ifdef DEBUG_ENABLE
+      Serial.println("Чтение показаний датчика");Serial.println();
+      #endif
     }
   }
 
@@ -482,7 +480,7 @@ void setup() {
   Serial.println("Выполняется инициализация устройства ... ");
 #endif
 
-#ifdef EEPROM_FEATURE_ENABLED
+#ifdef EEPROM_FEATURE_ENABLE
 
   deviceConfig.read();
   if(!deviceConfig.isValid()){
@@ -492,7 +490,7 @@ void setup() {
 
 #endif
 
-#ifdef WIFI_FEATURE_ENABLED
+#ifdef WIFI_FEATURE_ENABLE
   
   #ifdef DEBUG_ENABLE
     printf("Инициализия соединения WiFi.\n");
@@ -517,38 +515,24 @@ void setup() {
     Serial.println(mac[5],HEX);     
   #endif
   
-
 #endif
 
-#ifdef OTA_ENABLE
-  // WiFi.mode(WIFI_STA);
-  // WiFi.begin(ssid, password);
-  // Serial.println("");
-  // while (WiFi.status() != WL_CONNECTED) {
-  //   delay(500);
-  //   Serial.print(".");
-  // }
-  // Serial.println(WiFi.localIP());
-
+#ifdef OTA_ENABLE  
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(200, "text/html", "<html><body><a href='/update'>Страница обновления</a></body></html>");
   });
 
   ElegantOTA.begin(&server);    
-  // ElegantOTA callbacks
-
   ElegantOTA.onStart(onOTAStart);
   ElegantOTA.onProgress(onOTAProgress);
   ElegantOTA.onEnd(onOTAEnd);
-
   server.begin();
-  Serial.println("HTTP server started");
-
+  #ifdef DEBUG_ENABLE
+  Serial.println("HTTP сервер доступен по адресу ");
+  #endif
 #endif
 
-
-
-#ifdef MQTT_FEATURE_ENABLED
+#ifdef MQTT_FEATURE_ENABLE
 
   client.setServer(mqttServer, 1883);
   snprintf(mqttId, sizeof(mqttId), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -556,40 +540,38 @@ void setup() {
 
 #endif
 
-#ifdef SWITCH_FEATURE_ENABLED
+#ifdef SWITCH_FEATURE_ENABLE
   digitalWrite(SWITCH_PIN, HIGH);
   snprintf(switchStateTopic, sizeof(switchStateTopic), "%s/switch/state", mqttId);
   snprintf(switchControlTopic, sizeof(switchControlTopic), "%s/switch/c", mqttId);
   client.setCallback(callbackSwitchCommand);
 #endif
 
-#ifdef SENSOR_TEMP_HUM_ENABLED
-    snprintf(temperatureStateTopic, sizeof(temperatureStateTopic), "%s/sensor/temperature", mqttId);
-    snprintf(humidityStateTopic, sizeof(humidityStateTopic), "%s/sensor/humidity", mqttId);
+#ifdef SENSOR_TEMP_HUM_ENABLE
+  snprintf(temperatureStateTopic, sizeof(temperatureStateTopic), "%s/sensor/temperature", mqttId);
+  snprintf(humidityStateTopic, sizeof(humidityStateTopic), "%s/sensor/humidity", mqttId);
+  
+  #ifdef DEBUG_ENABLE
+  Serial.print("Инициализация датчика температуры и влажности: ");
+  #endif
+
+  if(tempHumSensor.initialization()){
+    sensor_temperature_found = true;
     
     #ifdef DEBUG_ENABLE
-      Serial.print("Инициализация датчика температуры и влажности: ");
+    Serial.println("успешно");        
+    Serial.printf("Текущие показания датчика: температура %2.2f ºC, влажность %2.2f%%\n", tempHumSensor.getTemperature(),tempHumSensor.getHumidity());
     #endif
 
-    if(tempHumSensor.initialization()){
-      sensor_temperature_found = true;
-      
-      #ifdef DEBUG_ENABLE
-        Serial.println("успешно");        
-        Serial.printf("Текущие показания датчика: температура %2.2f ºC, влажность %2.2f%%\n", tempHumSensor.getTemperature(),tempHumSensor.getHumidity());
-        delay(5000);
-      #endif
-
-    } else {
-      sensor_temperature_found = false;
-      
-      #ifdef DEBUG_ENABLE
-        Serial.println("датчик не найден");
-      #endif  
+  } else {
+    sensor_temperature_found = false;
     
-    };
+    #ifdef DEBUG_ENABLE
+    Serial.println("датчик не найден");
+    #endif  
+  
+  };
 #endif
-
 
 #ifdef DEBUG_ENABLE
 printf("Инициализация устройства окончена.\n");
@@ -598,37 +580,38 @@ printf("Инициализация устройства окончена.\n");
 }
 
 void loop() {
-    #ifdef WIFI_FEATURE_ENABLED   
-      checkWiFiConnection();   
+    #ifdef WIFI_FEATURE_ENABLE   
+    checkWiFiConnection();   
     #endif
 
     #ifdef OTA_ENABLE
-      ElegantOTA.loop();
+    ElegantOTA.loop();
     #endif
 
-    #ifdef MQTT_FEATURE_ENABLED  
-      if (WiFi.status() == WL_CONNECTED) {
-        checkMqttConnection(); 
-      }
+    #ifdef MQTT_FEATURE_ENABLE  
+    if (WiFi.status() == WL_CONNECTED) {
+      checkMqttConnection(); 
+    }
     #endif
 
-    #ifdef SENSOR_TEMP_HUM_ENABLED
-      if(sensor_temperature_found){
-        double curTemperature = tempHumSensor.getTemperature();
-        double curHumidity = tempHumSensor.getHumidity();
-        if(!(curTemperature == temperature) || (curHumidity == humidity)) {
-          
-          #ifdef DEBUG_ENABLE
-            Serial.printf("Temperature: %.2fC, Humidity: %.2f%% \r", curTemperature, curHumidity);
-          #endif
+    #ifdef SENSOR_TEMP_HUM_ENABLE
+    if(sensor_temperature_found){
+      double curTemperature = tempHumSensor.getTemperature();
+      double curHumidity = tempHumSensor.getHumidity();
+      if(!(curTemperature == temperature || curHumidity == humidity)) {
+        
+        #ifdef DEBUG_ENABLE
+        Serial.printf("Temperature: %.2fC, Humidity: %.2f%% \n", curTemperature, curHumidity);
+        #endif
 
-          temperature = curTemperature;
-          humidity = curHumidity;
-          publishSensorState();
-        };
-      }
+        temperature = curTemperature;
+        humidity = curHumidity;
+        
+        publishSensorState();
+        #ifdef DEBUG_ENABLE
+        Serial.println("Показания датчика опубликованы");
+        #endif
+      };
+    }
     #endif 
-       
-
-    
 }
