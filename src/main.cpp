@@ -541,7 +541,7 @@ void setup() {
   
 
   #ifdef DEBUG_ENABLE
-  Serial.println("HTTP сервер доступен по адресу ");
+  Serial.println("Создан HTTP сервер"); 
   #endif
 #endif
 
