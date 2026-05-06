@@ -5,9 +5,7 @@
 .vscode/ipch
 .vscode/*
 *.code-workspace
-
-
 *secret*.*
 *cred*.*
 .DS_Store
-.disabled
+.disabled/*

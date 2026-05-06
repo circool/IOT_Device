@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<export version="E">
+  <design>
+    <source>/Volumes/Macintosh HD/Users/vladimir/Documents/Development/PlatformIO/Projects/IOT_Device/Fan/Fan.kicad_sch</source>
+    <date/>
+    <tool>Eeschema (6.0.11-0)</tool>
+    <sheet number="1" name="/" tstamps="/">
+      <title_block>
+        <title>Управляемый вентилятор</title>
+        <company/>
+        <rev/>
+        <date/>
+        <source>Fan.kicad_sch</source>
+        <comment number="1" value=""/>
+        <comment number="2" value=""/>
+        <comment number="3" value=""/>
+        <comment number="4" value=""/>
+        <comment number="5" value=""/>
+        <comment number="6" value=""/>
+        <comment number="7" value=""/>
+        <comment number="8" value=""/>
+        <comment number="9" value=""/>
+      </title_block>
+    </sheet>
+  </design>
+  <components>
+    <comp ref="J1">
+      <value>SENSOR</value>
+      <footprint>Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical</footprint>
+      <libsource lib="Connector" part="Conn_01x04_Male" description="Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>48ef646c-1779-47a8-a35d-23e8ff07ebc5</tstamps>
+    </comp>
+    <comp ref="J2">
+      <value>PROG</value>
+      <footprint>Connector_PinHeader_2.54mm:PinHeader_1x04_P2.54mm_Vertical</footprint>
+      <libsource lib="Connector" part="Conn_01x04_Male" description="Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>d23609f5-79db-43ae-b6e9-4219c6e15a65</tstamps>
+    </comp>
+    <comp ref="PS1">
+      <value>3.3V 700mA</value>
+      <footprint>Converter_ACDC:Converter_ADCD_China</footprint>
+      <libsource lib="Converter_ACDC" part="RAC20-12DK" description="20 Watt Dual Output AC/DC power supply ±12V ±833mA"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>a503ec41-ba1e-4a8f-8079-83d7d680146e</tstamps>
+    </comp>
+    <comp ref="R1">
+      <value>10K</value>
+      <footprint>Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal</footprint>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>76e29427-c9a1-4fde-bd7f-89cb917d2e83</tstamps>
+    </comp>
+    <comp ref="R2">
+      <value>10K</value>
+      <footprint>Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal</footprint>
+      <fields>
+        <field name="Spice_Netlist_Enabled">Y</field>
+        <field name="Spice_Primitive">I</field>
+      </fields>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="Spice_Primitive" value="I"/>
+      <property name="Spice_Netlist_Enabled" value="Y"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>52f2d3f0-a46e-471f-aaeb-d3011303da2f</tstamps>
+    </comp>
+    <comp ref="R3">
+      <value>10K</value>
+      <footprint>Resistor_THT:R_Axial_DIN0204_L3.6mm_D1.6mm_P5.08mm_Horizontal</footprint>
+      <libsource lib="Device" part="R" description="Resistor"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>55d698b1-8609-41de-8ccf-0c694fbd1445</tstamps>
+    </comp>
+    <comp ref="S1">
+      <value>G3MB-202P</value>
+      <footprint>OptoDevice:Finder_34.81</footprint>
+      <datasheet>https://gfinder.findernet.com/public/attachments/34/EN/S34USAEN.pdf</datasheet>
+      <libsource lib="Relay_SolidState" part="34.81-8240" description="Ultra-slim - Solid State Relay, 2A, 240V AC output, Zero crossing switching"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>c5d15fdd-7180-4a88-8c67-b61a0ad05d30</tstamps>
+    </comp>
+    <comp ref="SW1">
+      <value>AC 220</value>
+      <footprint>TerminalBlock_RND:TerminalBlock_RND_205-00001_1x02_P5.00mm_Horizontal</footprint>
+      <libsource lib="Connector" part="Screw_Terminal_01x02" description="Generic screw terminal, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>82a37d96-4e9c-47f3-9d56-7665bc641caa</tstamps>
+    </comp>
+    <comp ref="SW2">
+      <value>FAN</value>
+      <footprint>TerminalBlock_RND:TerminalBlock_RND_205-00001_1x02_P5.00mm_Horizontal</footprint>
+      <libsource lib="Connector" part="Screw_Terminal_01x02" description="Generic screw terminal, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>560ce718-465e-4b7f-8a61-fb1cc9ce598e</tstamps>
+    </comp>
+    <comp ref="U1">
+      <value>ESP-12F</value>
+      <footprint>RF_Module:ESP-12E</footprint>
+      <datasheet>http://wiki.ai-thinker.com/_media/esp8266/esp8266_series_modules_user_manual_v1.1.pdf</datasheet>
+      <libsource lib="RF_Module" part="ESP-12F" description="802.11 b/g/n Wi-Fi Module"/>
+      <property name="Sheetname" value=""/>
+      <property name="Sheetfile" value="Fan.kicad_sch"/>
+      <sheetpath names="/" tstamps="/"/>
+      <tstamps>d98911fc-bb22-43a3-a6e9-6cdb0bbb3b0a</tstamps>
+    </comp>
+  </components>
+  <libparts>
+    <libpart lib="Connector" part="Conn_01x04_Male">
+      <description>Generic connector, single row, 01x04, script generated (kicad-library-utils/schlib/autogen/connector/)</description>
+      <docs>~</docs>
+      <footprints>
+        <fp>Connector*:*_1x??_*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">Conn_01x04_Male</field>
+        <field name="Datasheet">~</field>
+      </fields>
+      <pins>
+        <pin num="1" name="Pin_1" type="passive"/>
+        <pin num="2" name="Pin_2" type="passive"/>
+        <pin num="3" name="Pin_3" type="passive"/>
+        <pin num="4" name="Pin_4" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Connector" part="Screw_Terminal_01x02">
+      <description>Generic screw terminal, single row, 01x02, script generated (kicad-library-utils/schlib/autogen/connector/)</description>
+      <docs>~</docs>
+      <footprints>
+        <fp>TerminalBlock*:*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">J</field>
+        <field name="Value">Screw_Terminal_01x02</field>
+        <field name="Datasheet">~</field>
+      </fields>
+      <pins>
+        <pin num="1" name="Pin_1" type="passive"/>
+        <pin num="2" name="Pin_2" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="Converter_ACDC" part="RAC20-12DK">
+      <description>20 Watt Dual Output AC/DC power supply ±12V ±833mA</description>
+      <docs>https://recom-power.com/pdf/Powerline_AC-DC/RAC20-K.pdf</docs>
+      <footprints>
+        <fp>Converter*ACDC*Recom*RAC20*DK*THT*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">PS</field>
+        <field name="Value">RAC20-12DK</field>
+        <field name="Footprint">Converter_ACDC:Converter_ACDC_Recom_RAC20-xxDK_THT</field>
+        <field name="Datasheet">https://recom-power.com/pdf/Powerline_AC-DC/RAC20-K.pdf</field>
+      </fields>
+      <pins>
+        <pin num="1" name="AC(N)" type="power_in"/>
+        <pin num="2" name="AC(L)" type="power_in"/>
+        <pin num="3" name="-Vout" type="power_out"/>
+        <pin num="4" name="Com" type="power_out"/>
+        <pin num="5" name="+Vout" type="power_out"/>
+      </pins>
+    </libpart>
+    <libpart lib="Device" part="R">
+      <description>Resistor</description>
+      <docs>~</docs>
+      <footprints>
+        <fp>R_*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">R</field>
+        <field name="Value">R</field>
+        <field name="Datasheet">~</field>
+      </fields>
+      <pins>
+        <pin num="1" name="" type="passive"/>
+        <pin num="2" name="" type="passive"/>
+      </pins>
+    </libpart>
+    <libpart lib="RF_Module" part="ESP-12F">
+      <description>802.11 b/g/n Wi-Fi Module</description>
+      <docs>http://wiki.ai-thinker.com/_media/esp8266/esp8266_series_modules_user_manual_v1.1.pdf</docs>
+      <footprints>
+        <fp>ESP?12*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">ESP-12F</field>
+        <field name="Footprint">RF_Module:ESP-12E</field>
+        <field name="Datasheet">http://wiki.ai-thinker.com/_media/esp8266/esp8266_series_modules_user_manual_v1.1.pdf</field>
+      </fields>
+      <pins>
+        <pin num="1" name="~{RST}" type="input"/>
+        <pin num="2" name="ADC" type="input"/>
+        <pin num="3" name="EN" type="input"/>
+        <pin num="4" name="GPIO16" type="bidirectional"/>
+        <pin num="5" name="GPIO14" type="bidirectional"/>
+        <pin num="6" name="GPIO12" type="bidirectional"/>
+        <pin num="7" name="GPIO13" type="bidirectional"/>
+        <pin num="8" name="VCC" type="power_in"/>
+        <pin num="9" name="CS0" type="input"/>
+        <pin num="10" name="MISO" type="bidirectional"/>
+        <pin num="11" name="GPIO9" type="bidirectional"/>
+        <pin num="12" name="GPIO10" type="bidirectional"/>
+        <pin num="13" name="MOSI" type="bidirectional"/>
+        <pin num="14" name="SCLK" type="bidirectional"/>
+        <pin num="15" name="GND" type="power_in"/>
+        <pin num="16" name="GPIO15" type="bidirectional"/>
+        <pin num="17" name="GPIO2" type="bidirectional"/>
+        <pin num="18" name="GPIO0" type="bidirectional"/>
+        <pin num="19" name="GPIO4" type="bidirectional"/>
+        <pin num="20" name="GPIO5" type="bidirectional"/>
+        <pin num="21" name="GPIO3/RXD" type="bidirectional"/>
+        <pin num="22" name="GPIO1/TXD" type="bidirectional"/>
+      </pins>
+    </libpart>
+    <libpart lib="Relay_SolidState" part="34.81-8240">
+      <description>Ultra-slim - Solid State Relay, 2A, 240V AC output, Zero crossing switching</description>
+      <docs>https://gfinder.findernet.com/public/attachments/34/EN/S34USAEN.pdf</docs>
+      <footprints>
+        <fp>Finder*34.81*</fp>
+      </footprints>
+      <fields>
+        <field name="Reference">U</field>
+        <field name="Value">34.81-8240</field>
+        <field name="Footprint">OptoDevice:Finder_34.81</field>
+        <field name="Datasheet">https://gfinder.findernet.com/public/attachments/34/EN/S34USAEN.pdf</field>
+      </fields>
+      <pins>
+        <pin num="11" name="" type="passive"/>
+        <pin num="14" name="" type="passive"/>
+        <pin num="A1" name="" type="passive"/>
+        <pin num="A2" name="" type="passive"/>
+      </pins>
+    </libpart>
+  </libparts>
+  <libraries>
+    <library logical="Connector">
+      <uri>/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols//Connector.kicad_sym</uri>
+    </library>
+    <library logical="Converter_ACDC">
+      <uri>/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols//Converter_ACDC.kicad_sym</uri>
+    </library>
+    <library logical="Device">
+      <uri>/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols//Device.kicad_sym</uri>
+    </library>
+    <library logical="RF_Module">
+      <uri>/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols//RF_Module.kicad_sym</uri>
+    </library>
+    <library logical="Relay_SolidState">
+      <uri>/Applications/KiCad/KiCad.app/Contents/SharedSupport/symbols//Relay_SolidState.kicad_sym</uri>
+    </library>
+  </libraries>
+  <nets>
+    <net code="1" name="/RXD">
+      <node ref="J2" pin="4" pinfunction="Pin_4" pintype="passive"/>
+      <node ref="U1" pin="21" pinfunction="GPIO3/RXD" pintype="bidirectional"/>
+    </net>
+    <net code="2" name="/SCL">
+      <node ref="J1" pin="4" pinfunction="Pin_4" pintype="passive"/>
+      <node ref="U1" pin="20" pinfunction="GPIO5" pintype="bidirectional"/>
+    </net>
+    <net code="3" name="/SDA">
+      <node ref="J1" pin="2" pinfunction="Pin_2" pintype="passive"/>
+      <node ref="U1" pin="19" pinfunction="GPIO4" pintype="bidirectional"/>
+    </net>
+    <net code="4" name="/TXD">
+      <node ref="J2" pin="3" pinfunction="Pin_3" pintype="passive"/>
+      <node ref="U1" pin="22" pinfunction="GPIO1/TXD" pintype="bidirectional"/>
+    </net>
+    <net code="5" name="/VCC">
+      <node ref="J1" pin="1" pinfunction="Pin_1" pintype="passive"/>
+      <node ref="J2" pin="1" pinfunction="Pin_1" pintype="passive"/>
+      <node ref="PS1" pin="5" pinfunction="+Vout" pintype="power_out"/>
+      <node ref="R1" pin="1" pintype="passive"/>
+      <node ref="R2" pin="1" pintype="passive"/>
+      <node ref="U1" pin="8" pinfunction="VCC" pintype="power_in"/>
+    </net>
+    <net code="6" name="GND">
+      <node ref="J1" pin="3" pinfunction="Pin_3" pintype="passive"/>
+      <node ref="J2" pin="2" pinfunction="Pin_2" pintype="passive"/>
+      <node ref="PS1" pin="3" pinfunction="-Vout" pintype="power_out"/>
+      <node ref="R3" pin="2" pintype="passive"/>
+      <node ref="S1" pin="A2" pintype="passive"/>
+      <node ref="U1" pin="15" pinfunction="GND" pintype="power_in"/>
+    </net>
+    <net code="7" name="Net-(PS1-Pad1)">
+      <node ref="PS1" pin="1" pinfunction="AC(N)" pintype="power_in"/>
+      <node ref="S1" pin="14" pintype="passive"/>
+      <node ref="SW1" pin="1" pinfunction="Pin_1" pintype="passive"/>
+    </net>
+    <net code="8" name="Net-(PS1-Pad2)">
+      <node ref="PS1" pin="2" pinfunction="AC(L)" pintype="power_in"/>
+      <node ref="SW1" pin="2" pinfunction="Pin_2" pintype="passive"/>
+      <node ref="SW2" pin="1" pinfunction="Pin_1" pintype="passive"/>
+    </net>
+    <net code="9" name="Net-(R1-Pad2)">
+      <node ref="R1" pin="2" pintype="passive"/>
+      <node ref="U1" pin="1" pinfunction="~{RST}" pintype="input"/>
+    </net>
+    <net code="10" name="Net-(R2-Pad2)">
+      <node ref="R2" pin="2" pintype="passive"/>
+      <node ref="U1" pin="3" pinfunction="EN" pintype="input"/>
+    </net>
+    <net code="11" name="Net-(R3-Pad1)">
+      <node ref="R3" pin="1" pintype="passive"/>
+      <node ref="U1" pin="16" pinfunction="GPIO15" pintype="bidirectional"/>
+    </net>
+    <net code="12" name="Net-(S1-Pad11)">
+      <node ref="S1" pin="11" pintype="passive"/>
+      <node ref="SW2" pin="2" pinfunction="Pin_2" pintype="passive"/>
+    </net>
+    <net code="13" name="Net-(S1-PadA1)">
+      <node ref="S1" pin="A1" pintype="passive"/>
+      <node ref="U1" pin="5" pinfunction="GPIO14" pintype="bidirectional"/>
+    </net>
+    <net code="14" name="unconnected-(PS1-Pad4)">
+      <node ref="PS1" pin="4" pinfunction="Com" pintype="power_out+no_connect"/>
+    </net>
+    <net code="15" name="unconnected-(U1-Pad2)">
+      <node ref="U1" pin="2" pinfunction="ADC" pintype="input+no_connect"/>
+    </net>
+    <net code="16" name="unconnected-(U1-Pad4)">
+      <node ref="U1" pin="4" pinfunction="GPIO16" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="17" name="unconnected-(U1-Pad6)">
+      <node ref="U1" pin="6" pinfunction="GPIO12" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="18" name="unconnected-(U1-Pad7)">
+      <node ref="U1" pin="7" pinfunction="GPIO13" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="19" name="unconnected-(U1-Pad9)">
+      <node ref="U1" pin="9" pinfunction="CS0" pintype="input+no_connect"/>
+    </net>
+    <net code="20" name="unconnected-(U1-Pad10)">
+      <node ref="U1" pin="10" pinfunction="MISO" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="21" name="unconnected-(U1-Pad11)">
+      <node ref="U1" pin="11" pinfunction="GPIO9" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="22" name="unconnected-(U1-Pad12)">
+      <node ref="U1" pin="12" pinfunction="GPIO10" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="23" name="unconnected-(U1-Pad13)">
+      <node ref="U1" pin="13" pinfunction="MOSI" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="24" name="unconnected-(U1-Pad14)">
+      <node ref="U1" pin="14" pinfunction="SCLK" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="25" name="unconnected-(U1-Pad17)">
+      <node ref="U1" pin="17" pinfunction="GPIO2" pintype="bidirectional+no_connect"/>
+    </net>
+    <net code="26" name="unconnected-(U1-Pad18)">
+      <node ref="U1" pin="18" pinfunction="GPIO0" pintype="bidirectional+no_connect"/>
+    </net>
+  </nets>
+</export>
