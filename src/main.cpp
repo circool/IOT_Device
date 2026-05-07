@@ -117,8 +117,14 @@ void setup() {
   }
   mqtt_setupTopics(config.mqttClientId);
   
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   fan_init();
+  #endif
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   sensor_init();
+  #endif
+  
   mqtt_init();
   
   if (configValid && strlen(config.wifiSsid) > 0) {
@@ -127,13 +133,6 @@ void setup() {
   } else {
     Serial.println("No valid config, starting AP mode");
     web_initAP();
-  }
-  
-  if (config.delaySeconds > 0 && config.automaticMode) {
-    fan_resetDelayTimer();
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[MAIN] Delay ON timer started: %d seconds\n", config.delaySeconds);
-    #endif
   }
 }
 
@@ -151,36 +150,37 @@ void loop() {
     if (mqtt_isConnected()) {
       mqttClient.loop();
       
-      static unsigned long lastKeepAlive = 0;
-      if (millis() - lastKeepAlive > MQTT_KEEPALIVE_SEC * 1000) {
-        lastKeepAlive = millis();
+      static unsigned long lastOnlinePublish = 0;
+      if (millis() - lastOnlinePublish > MQTT_KEEPALIVE_SEC * 1000) {
         mqttClient.publish(lastWillTopic, "Online", true);
+        lastOnlinePublish = millis();
       }
     }
   }
   
   checkWiFi();
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   sensor_read();
+  #endif
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   fan_update();
+  #endif
   
   if (mqtt_isConnected()) {
-    static float lastPublishedTemp = 0;
-    static float lastPublishedHum = 0;
-    
-    if (sensor_isOk() && (currentTemp != lastPublishedTemp || currentHum != lastPublishedHum)) {
-      mqtt_publishSensor();
-      lastPublishedTemp = currentTemp;
-      lastPublishedHum = currentHum;
-      #ifdef DEBUG_ENABLE
-        Serial.println("[MAIN] Sensor published (value changed)");
-      #endif
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    if (sensor_isOk()) {
+      static float lastPublishedTemp = -999;
+      static float lastPublishedHum = -999;
+      
+      if (currentTemp != lastPublishedTemp || currentHum != lastPublishedHum) {
+        mqtt_publishSensor();
+        lastPublishedTemp = currentTemp;
+        lastPublishedHum = currentHum;
+      }
     }
-    
-    static unsigned long lastStatePublish = 0;
-    if (millis() - lastStatePublish > STATE_PUBLISH_INTERVAL_MS) {
-      mqtt_publishState();
-      lastStatePublish = millis();
-    }
+    #endif
   }
   
   web_update();

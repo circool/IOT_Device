@@ -1,4 +1,7 @@
 #include "sensor.h"
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+
 #include "config.h"
 
 float currentTemp = 0;
@@ -25,16 +28,12 @@ void sensor_init() {
     dht.begin();
     sensorOk = true;
     Serial.println("[SENSOR] DHT initialized");
-  #else
-    #error "Unknown SENSOR_TYPE! Define SENSOR_TYPE as 1 (AHT10) or 2 (DHT11/22)"
   #endif
 }
 
 void sensor_read() {
-  // Если датчик не инициализирован - не читаем
   if (!sensorOk) return;
   
-  // Проверяем интервал
   if (millis() - lastSensorRead < config.sensorInterval * 1000UL) {
     return;
   }
@@ -81,3 +80,5 @@ float sensor_getTemperature() {
 float sensor_getHumidity() {
   return currentHum;
 }
+
+#endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 2

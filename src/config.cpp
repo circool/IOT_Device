@@ -16,55 +16,48 @@ uint16_t crc16(const uint8_t* data, size_t len) {
   return crc;
 }
 
-void config_loadFromCredentials() {
+// Внутренняя функция - загрузка из credentials.h
+static void config_loadFromCredentials() {
   #if HAS_CREDENTIALS
     #ifdef DEBUG_ENABLE
-      Serial.println("[CONFIG] Loading defaults from credentials.h");
+      Serial.println("[CONFIG] Loading from credentials.h");
     #endif
     
     if (strlen(SSID_NAME) > 0) {
       strncpy(config.wifiSsid, SSID_NAME, sizeof(config.wifiSsid) - 1);
       config.wifiSsid[sizeof(config.wifiSsid) - 1] = '\0';
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] Loaded SSID: %s\n", config.wifiSsid);
-      #endif
+    } else {
+      memset(config.wifiSsid, 0, sizeof(config.wifiSsid));
     }
     
     if (strlen(WIFI_PASSWORD) > 0) {
       strncpy(config.wifiPassword, WIFI_PASSWORD, sizeof(config.wifiPassword) - 1);
       config.wifiPassword[sizeof(config.wifiPassword) - 1] = '\0';
-      #ifdef DEBUG_ENABLE
-        Serial.println("[CONFIG] Loaded WiFi password");
-      #endif
+    } else {
+      memset(config.wifiPassword, 0, sizeof(config.wifiPassword));
     }
     
     if (strlen(MQTT_ADDRESS) > 0) {
       strncpy(config.mqttBroker, MQTT_ADDRESS, sizeof(config.mqttBroker) - 1);
       config.mqttBroker[sizeof(config.mqttBroker) - 1] = '\0';
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] Loaded MQTT Broker: %s\n", config.mqttBroker);
-      #endif
+    } else {
+      memset(config.mqttBroker, 0, sizeof(config.mqttBroker));
     }
     
     config.mqttPort = MQTT_PORT;
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[CONFIG] Loaded MQTT Port: %d\n", config.mqttPort);
-    #endif
     
     if (strlen(MQTT_USER) > 0) {
       strncpy(config.mqttUser, MQTT_USER, sizeof(config.mqttUser) - 1);
       config.mqttUser[sizeof(config.mqttUser) - 1] = '\0';
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] Loaded MQTT User: %s\n", config.mqttUser);
-      #endif
+    } else {
+      memset(config.mqttUser, 0, sizeof(config.mqttUser));
     }
     
     if (strlen(MQTT_PASSWORD) > 0) {
       strncpy(config.mqttPassword, MQTT_PASSWORD, sizeof(config.mqttPassword) - 1);
       config.mqttPassword[sizeof(config.mqttPassword) - 1] = '\0';
-      #ifdef DEBUG_ENABLE
-        Serial.println("[CONFIG] Loaded MQTT password");
-      #endif
+    } else {
+      memset(config.mqttPassword, 0, sizeof(config.mqttPassword));
     }
   #else
     #ifdef DEBUG_ENABLE
@@ -75,38 +68,48 @@ void config_loadFromCredentials() {
 
 void config_setDefaults() {
   #ifdef DEBUG_ENABLE
-    Serial.println("[CONFIG] Setting defaults");
+    Serial.println("[CONFIG] Setting defaults (hardware + credentials)");
   #endif
+  
+  // Полностью обнуляем структуру
+  memset(&config, 0, sizeof(Config));
   
   config.magic = 0x5A6B;
   config.crc = 0;
   
-  memset(config.wifiSsid, 0, sizeof(config.wifiSsid));
-  memset(config.wifiPassword, 0, sizeof(config.wifiPassword));
-  memset(config.mqttBroker, 0, sizeof(config.mqttBroker));
-  memset(config.mqttUser, 0, sizeof(config.mqttUser));
-  memset(config.mqttPassword, 0, sizeof(config.mqttPassword));
-  memset(config.mqttClientId, 0, sizeof(config.mqttClientId));
+  // MQTT порт по умолчанию
+  config.mqttPort = MQTT_PORT;
   
-  config.mqttPort = 1883;
-  config.lowHum = DEFAULT_LOW_HUM;
-  config.highHum = DEFAULT_HIGH_HUM;
-  config.lowTemp = DEFAULT_LOW_TEMP;
-  config.highTemp = DEFAULT_HIGH_TEMP;
-  config.delaySeconds = DEFAULT_DELAY_SECONDS;
-  config.automaticMode = DEFAULT_AUTOMATIC_MODE;
-  config.slowModeEnabled = DEFAULT_SLOW_MODE;
-  config.slowModeDuty = SLOW_MODE_DUTY_CYCLE;
-  config.sensorInterval = SENSOR_DURATION;
-  config.maxOnTime = MAX_ON_TIME_SEC;
-  config.setSwitchOff = DEFAULT_SET_SWITCH_OFF;
-  config.scheduleCount = 0;
+  // Условные поля в зависимости от типа устройства
+  #if DEVICE_TYPE == 1
+    config.lowHum = DEFAULT_LOW_HUM;
+    config.highHum = DEFAULT_HIGH_HUM;
+    config.lowTemp = DEFAULT_LOW_TEMP;
+    config.highTemp = DEFAULT_HIGH_TEMP;
+    config.automaticMode = DEFAULT_AUTOMATIC_MODE;
+  #endif
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    config.delaySeconds = DEFAULT_DELAY_SECONDS;
+    config.slowModeEnabled = DEFAULT_SLOW_MODE;
+    config.slowModeDuty = SLOW_MODE_DUTY_CYCLE;
+    config.maxOnTime = MAX_ON_TIME_SEC;
+    config.forceOffOnBoot = DEFAULT_FORCE_OFF_ON_BOOT;
+    config.scheduleCount = 0;
+    memset(config.schedule, 0, sizeof(config.schedule));
+  #endif
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    config.sensorInterval = SENSOR_DURATION;
+  #endif
+  
   memset(config.reserved, 0, sizeof(config.reserved));
   
+  // Загружаем WiFi/MQTT из credentials.h
   config_loadFromCredentials();
   
   #ifdef DEBUG_ENABLE
-    Serial.println("[CONFIG] Defaults set");
+    Serial.println("[CONFIG] Defaults set (hardware + credentials)");
   #endif
 }
 
@@ -114,11 +117,13 @@ void config_clear() {
   #ifdef DEBUG_ENABLE
     Serial.println("[CONFIG] Clearing configuration");
   #endif
-  config_setDefaults();
-  config_write();
+  
+  config_setDefaults();  // hardware defaults + credentials
+  config_write();        // сохраняем в EEPROM
   configValid = false;
+  
   #ifdef DEBUG_ENABLE
-    Serial.println("[CONFIG] Configuration cleared");
+    Serial.println("[CONFIG] Configuration cleared and saved");
   #endif
 }
 
@@ -127,8 +132,9 @@ void config_read() {
     Serial.println("[CONFIG] Reading from EEPROM...");
   #endif
   
-  uint8_t* ptr = (uint8_t*)&config;
+  memset(&config, 0, sizeof(Config));
   
+  uint8_t* ptr = (uint8_t*)&config;
   for (size_t i = 0; i < sizeof(Config); i++) {
     ptr[i] = EEPROM.read(i);
   }
@@ -143,6 +149,9 @@ void config_read() {
   if (config.magic == 0x5A6B) {
     uint16_t savedCrc = config.crc;
     config.crc = 0;
+    
+    memset(config.reserved, 0, sizeof(config.reserved));
+    
     uint16_t calcCrc = crc16((uint8_t*)&config, sizeof(Config));
     
     #ifdef DEBUG_ENABLE
@@ -167,8 +176,13 @@ void config_read() {
     #endif
   }
   
+  // EEPROM невалиден - устанавливаем defaults (включая credentials)
   configValid = false;
   config_setDefaults();
+  
+  #ifdef DEBUG_ENABLE
+    Serial.println("[CONFIG] Using defaults (hardware + credentials)");
+  #endif
 }
 
 void config_write() {
@@ -180,6 +194,9 @@ void config_write() {
   
   uint16_t oldCrc = config.crc;
   config.crc = 0;
+  
+  memset(config.reserved, 0, sizeof(config.reserved));
+  
   config.crc = crc16((uint8_t*)&config, sizeof(Config));
   
   #ifdef DEBUG_ENABLE
@@ -199,13 +216,15 @@ void config_write() {
   #endif
   
   Config verify;
+  memset(&verify, 0, sizeof(Config));
+  
   uint8_t* vptr = (uint8_t*)&verify;
   for (size_t i = 0; i < sizeof(Config); i++) {
     vptr[i] = EEPROM.read(i);
   }
   
-  // Убрана переменная verifyCrc
   verify.crc = 0;
+  memset(verify.reserved, 0, sizeof(verify.reserved));
   uint16_t calcVerifyCrc = crc16((uint8_t*)&verify, sizeof(Config));
   
   #ifdef DEBUG_ENABLE
@@ -244,16 +263,38 @@ void config_print() {
   Serial.printf("WiFi Password: %s\n", config.wifiPassword[0] ? "***" : "(empty)");
   Serial.printf("MQTT Broker: '%s:%d'\n", config.mqttBroker, config.mqttPort);
   Serial.printf("MQTT User: '%s'\n", config.mqttUser);
-  Serial.printf("Temp range: %.1f - %.1f\n", config.lowTemp, config.highTemp);
-  Serial.printf("Hum range: %.1f - %.1f\n", config.lowHum, config.highHum);
-  Serial.printf("Delay: %d sec, Auto: %d, Slow: %d, Duty: %d\n", 
-    config.delaySeconds, config.automaticMode, config.slowModeEnabled, config.slowModeDuty);
-  Serial.printf("SET_SWITCH_OFF: %s\n", config.setSwitchOff ? "ON (выключаем при старте)" : "OFF (сохраняем состояние)");
+  Serial.printf("MQTT Client ID: '%s'\n", config.mqttClientId);
+  
+  #if DEVICE_TYPE == 1
+    Serial.printf("Temp range: %.1f - %.1f\n", config.lowTemp, config.highTemp);
+    Serial.printf("Hum range: %.1f - %.1f\n", config.lowHum, config.highHum);
+    Serial.printf("Auto mode: %s\n", config.automaticMode ? "ON" : "OFF");
+  #endif
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    Serial.printf("Delay: %d sec\n", config.delaySeconds);
+    Serial.printf("Slow mode: %s, Duty: %d\n", 
+                  config.slowModeEnabled ? "ON" : "OFF", 
+                  config.slowModeDuty);
+    Serial.printf("MaxOnTime: %d sec\n", config.maxOnTime);
+    Serial.printf("Force OFF on boot: %s\n", config.forceOffOnBoot ? "ON" : "OFF");
+    Serial.printf("Schedules: %d\n", config.scheduleCount);
+  #endif
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    Serial.printf("Sensor interval: %d sec\n", config.sensorInterval);
+    Serial.printf("Sensor type: %d\n", SENSOR_TYPE);
+    #if SENSOR_TYPE == 2
+      Serial.printf("Sensor pin: %d\n", SENSOR_PIN);
+    #endif
+  #endif
+  
   Serial.printf("CRC: 0x%04X\n", config.crc);
   Serial.printf("Config valid: %s\n", configValid ? "YES" : "NO");
-  #if HAS_CREDENTIALS
+  Serial.printf("AP mode: %s\n", apMode ? "YES" : "NO");
+  
+  if (!configValid && HAS_CREDENTIALS) {
     Serial.println("Credentials: loaded from credentials.h");
-  #else
-    Serial.println("Credentials: no credentials.h found");
-  #endif
+  } 
+  Serial.println("=================");
 }

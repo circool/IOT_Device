@@ -16,8 +16,13 @@ extern PubSubClient mqttClient;
 extern char devicePrefix[18];
 extern char lastWillTopic[32];
 
-extern char switchStateTopic[50];
-extern char switchControlTopic[50];
+// Общие для всех типов
+extern char resetControlTopic[50];
+
+// DEVICE_TYPE 1 (вентилятор с датчиками)
+#if DEVICE_TYPE == 1
+extern char fanStateTopic[50];
+extern char fanControlTopic[50];
 extern char slowModeStateTopic[50];
 extern char slowModeControlTopic[50];
 extern char slowModeDutyStateTopic[50];
@@ -37,9 +42,22 @@ extern char delaySecControlTopic[50];
 extern char autoModeStateTopic[50];
 extern char autoModeControlTopic[50];
 extern char errorTopic[50];
+#endif
+
+// DEVICE_TYPE 2 (только датчик)
+#if DEVICE_TYPE == 2
+extern char tempStateTopic[50];
+extern char humStateTopic[50];
+#endif
+
+// DEVICE_TYPE 3 (управляемый выключатель)
+#if DEVICE_TYPE == 3
+extern char switchStateTopic[50];
+extern char switchControlTopic[50];
+#endif
 
 void mqtt_init();
-void mqtt_setupTopics(const char* mac);
+void mqtt_setupTopics(const char* prefix);
 void mqtt_reconnect();
 void mqtt_publishState();
 void mqtt_publishSensor();

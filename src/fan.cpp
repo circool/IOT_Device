@@ -1,246 +1,217 @@
 #include "fan.h"
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+
 #include "config.h"
 #include "sensor.h"
+#include "mqtt.h"
 
 bool manualOverride = false;
-bool fanShouldBeOn = false;
-unsigned long fanOnStartTime = 0;
-unsigned long delayOnTimer = 0;
-bool delayOnActive = false;
-unsigned long lastRelayCheck = 0;
-bool lastRelayError = false;
+bool fanOn = false;
+unsigned long fanStartTime = 0;
+unsigned long delayTimer = 0;
+bool delayActive = false;
 
 void fan_init() {
+  pinMode(SWITCH_PIN, OUTPUT);
+  
   #ifdef ESP32
     ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
-    ledcAttachPin(SWITCH_PIN, 0);
   #elif defined(ESP8266)
-    pinMode(SWITCH_PIN, OUTPUT);
     analogWriteFreq(PWM_FREQUENCY);
-    analogWriteRange((1 << PWM_RESOLUTION) - 1);
+    analogWriteRange(255);
   #endif
   
-  bool currentPinState = false;
-  #ifdef ESP8266
-    currentPinState = (digitalRead(SWITCH_PIN) == HIGH);
-  #endif
+  bool currentPinState = (digitalRead(SWITCH_PIN) == HIGH);
   
-  if (config.setSwitchOff) {
-    fanShouldBeOn = false;
-    fan_applyPwmOrDigital(false);
+  if (config.forceOffOnBoot) {
+    fanOn = false;
+    digitalWrite(SWITCH_PIN, LOW);
     #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] SET_SWITCH_OFF enabled - forcing OFF");
-    #endif
-    delay(50);
-    #ifdef ESP8266
-      if (digitalRead(SWITCH_PIN) == HIGH) {
-        #ifdef DEBUG_ENABLE
-          Serial.println("[FAN] WARNING: Relay did not turn OFF!");
-        #endif
-        lastRelayError = true;
-      }
+      Serial.println("[FAN] Force OFF on boot - forcing OFF");
     #endif
   } else {
-    fanShouldBeOn = currentPinState;
+    fanOn = currentPinState;
     #ifdef DEBUG_ENABLE
-      Serial.printf("[FAN] SET_SWITCH_OFF disabled - synced with pin state: %s\n", 
-                    fanShouldBeOn ? "ON" : "OFF");
+      Serial.printf("[FAN] Keep state on boot - synced with pin state: %s\n", 
+                    fanOn ? "ON" : "OFF");
     #endif
   }
   
   manualOverride = false;
-  delayOnActive = false;
-  delayOnTimer = 0;
-  fanOnStartTime = 0;
-  lastRelayCheck = 0;
-  lastRelayError = false;
+  delayActive = false;
+  delayTimer = 0;
+  fanStartTime = 0;
 }
 
-void fan_resetDelayTimer() {
-  if (config.delaySeconds > 0) {
-    delayOnActive = true;
-    delayOnTimer = millis() + config.delaySeconds * 1000UL;
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[FAN] Delay ON timer started: %d seconds\n", config.delaySeconds);
-    #endif
+void fan_set(bool on) {
+  if (fanOn == on) return;
+  
+  fanOn = on;
+  
+  if (fanOn) {
+    fanStartTime = millis();
   } else {
-    delayOnActive = false;
-    #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] Delay ON timer disabled (delaySeconds = 0)");
-    #endif
+    fanStartTime = 0;
   }
-}
-
-bool fan_cancelDelayTimer() {
-  if (delayOnActive) {
-    delayOnActive = false;
-    #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] Delay ON timer cancelled");
-    #endif
-    return true;
-  }
-  return false;
-}
-
-void fan_applyPwmOrDigital(bool on) {
+  
   if (on) {
     if (config.slowModeEnabled) {
       #ifdef ESP32
+        ledcAttachPin(SWITCH_PIN, 0);
         ledcWrite(0, config.slowModeDuty);
       #elif defined(ESP8266)
         analogWrite(SWITCH_PIN, config.slowModeDuty);
       #endif
     } else {
       #ifdef ESP32
-        ledcWrite(0, (1 << PWM_RESOLUTION) - 1);
+        ledcDetachPin(SWITCH_PIN);
+        digitalWrite(SWITCH_PIN, HIGH);
       #elif defined(ESP8266)
         digitalWrite(SWITCH_PIN, HIGH);
       #endif
     }
   } else {
     #ifdef ESP32
-      ledcWrite(0, 0);
+      ledcDetachPin(SWITCH_PIN);
+      digitalWrite(SWITCH_PIN, LOW);
     #elif defined(ESP8266)
       digitalWrite(SWITCH_PIN, LOW);
     #endif
   }
   
-  delay(10);
-  #ifdef ESP8266
-    bool realState = (digitalRead(SWITCH_PIN) == HIGH);
-    if (realState != on) {
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[FAN] WARNING: Relay state mismatch! Expected: %s, Real: %s\n", 
-                      on ? "ON" : "OFF", realState ? "ON" : "OFF");
-      #endif
-      lastRelayError = true;
-    } else {
-      lastRelayError = false;
+  #ifdef DEBUG_ENABLE
+    delay(10);
+    bool pinState = (digitalRead(SWITCH_PIN) == HIGH);
+    if (!config.slowModeEnabled && pinState != on) {
+      Serial.printf("[FAN] WARNING: Pin state mismatch! Expected: %s, Real: %s\n", 
+                    on ? "ON" : "OFF", pinState ? "ON" : "OFF");
     }
+    Serial.println(on ? "[FAN] Fan turned ON" : "[FAN] Fan turned OFF");
   #endif
 }
 
-void fan_set(bool on) {
-  if (fanShouldBeOn != on) {
-    fanShouldBeOn = on;
-    if (fanShouldBeOn) {
-      fanOnStartTime = millis();
-    } else {
-      fanOnStartTime = 0;
-    }
-    fan_applyPwmOrDigital(fanShouldBeOn);
+bool fan_getState() {
+  return fanOn;
+}
+
+bool fan_getRealState() {
+  return fanOn;
+}
+
+void fan_setOverrideMode(bool override) {
+  if (override) {
+    manualOverride = true;
+    delayActive = false;
     #ifdef DEBUG_ENABLE
-      Serial.println(fanShouldBeOn ? "[FAN] Fan turned ON" : "[FAN] Fan turned OFF");
+      Serial.println("[FAN] Manual override mode ON");
+    #endif
+  } else {
+    manualOverride = false;
+    #ifdef DEBUG_ENABLE
+      Serial.println("[FAN] Manual override mode OFF (auto mode)");
     #endif
   }
 }
 
-bool fan_getState() {
-  return fanShouldBeOn;
-}
-
-bool fan_getRealState() {
-  #ifdef ESP8266
-    return (digitalRead(SWITCH_PIN) == HIGH);
-  #elif defined(ESP32)
-    return fanShouldBeOn;
-  #endif
-}
-
-bool fan_getRealStateForMqtt() {
-  bool realState = fan_getRealState();
-  fan_checkRelayConsistency();
-  return realState;
-}
-
-void fan_toggle() {
-  fan_set(!fanShouldBeOn);
-}
-
 void fan_checkMaxOnTime() {
-  if (fanShouldBeOn && fanOnStartTime != 0 && 
-      (millis() - fanOnStartTime) > config.maxOnTime * 1000UL) {
+  if (fanOn && fanStartTime != 0 && 
+      (millis() - fanStartTime) > config.maxOnTime * 1000UL) {
     #ifdef DEBUG_ENABLE
       Serial.println("[FAN] Max on time exceeded, forcing OFF");
     #endif
     fan_set(false);
+    if (config.delaySeconds > 0 && !manualOverride) {
+      fan_delayTimer(true);
+    }
   }
 }
 
-void fan_checkRelayConsistency() {
-  if (millis() - lastRelayCheck < 10000) return;
-  lastRelayCheck = millis();
-  
-  bool realState = fan_getRealState();
-  
-  if (realState != fanShouldBeOn) {
-    if (!lastRelayError) {
-      lastRelayError = true;
+bool fan_delayTimer(bool start) {
+  if (start) {
+    if (config.delaySeconds > 0) {
+      delayActive = true;
+      delayTimer = millis() + config.delaySeconds * 1000UL;
       #ifdef DEBUG_ENABLE
-        Serial.printf("[FAN] RELAY ERROR! Expected: %s, Real: %s\n", 
-                      fanShouldBeOn ? "ON" : "OFF", realState ? "ON" : "OFF");
+        Serial.printf("[FAN] Delay ON timer started: %d seconds\n", config.delaySeconds);
       #endif
+      return false;
     }
+    delayActive = false;
+    return false;
   } else {
-    if (lastRelayError) {
-      lastRelayError = false;
+    if (delayActive && millis() >= delayTimer) {
+      delayActive = false;
+      fan_set(true);
       #ifdef DEBUG_ENABLE
-        Serial.println("[FAN] Relay error cleared");
+        Serial.println("[FAN] Delay ON timer finished - turning ON");
       #endif
+      return true;
     }
-  }
-}
-
-void fan_checkDelayTimer() {
-  if (delayOnActive && millis() >= delayOnTimer) {
-    delayOnActive = false;
-    manualOverride = true;      // Переводим в ручной режим
-    fan_set(true);
-    #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] Delay ON timer finished - turning ON (manual mode set)");
-    #endif
+    return false;
   }
 }
 
 void fan_update() {
-  fan_checkDelayTimer();
+  fan_delayTimer(false);
   
-  bool newShouldBeOn = fanShouldBeOn;
-
-  if (!manualOverride && config.automaticMode && sensor_isOk()) {
+  if (manualOverride) {
+    fan_checkMaxOnTime();
+    return;
+  }
+  
+  bool sensorDecision = fanOn;
+  bool timerDecision = false;
+  
+  #if DEVICE_TYPE == 1
+  if (sensor_isOk()) {
     bool tempExceed = (currentTemp >= config.highTemp);
     bool humExceed = (currentHum >= config.highHum);
     bool tempLow = (currentTemp <= config.lowTemp);
     bool humLow = (currentHum <= config.lowHum);
     
     if (tempExceed || humExceed) {
-      newShouldBeOn = true;
-      if (fan_cancelDelayTimer()) {
-        #ifdef DEBUG_ENABLE
-          Serial.println("[FAN] Delay timer cancelled due to conditions exceeded");
-        #endif
-      }
-      if (newShouldBeOn != fanShouldBeOn) {
-        #ifdef DEBUG_ENABLE
-          Serial.println("[FAN] Conditions exceeded - turning ON");
-        #endif
-      }
+      sensorDecision = true;
     } else if (tempLow && humLow) {
-      newShouldBeOn = false;
-      if (newShouldBeOn != fanShouldBeOn) {
-        #ifdef DEBUG_ENABLE
-          Serial.println("[FAN] Conditions normal - turning OFF");
-        #endif
-      }
-    } else {
-      newShouldBeOn = fanShouldBeOn;
+      sensorDecision = false;
     }
   }
-
-  if (newShouldBeOn != fanShouldBeOn) {
-    fan_set(newShouldBeOn);
+  #endif
+  
+  if (config.delaySeconds > 0) {
+    if (!fanOn && !delayActive) {
+      fan_delayTimer(true);
+    }
+    if (fanOn) {
+      timerDecision = true;
+    }
+  }
+  
+  bool newFanOn;
+  #if DEVICE_TYPE == 1
+  if (sensor_isOk() && config.delaySeconds > 0) {
+    newFanOn = sensorDecision || timerDecision;
+  } else if (sensor_isOk()) {
+    newFanOn = sensorDecision;
+  } else if (config.delaySeconds > 0) {
+    newFanOn = timerDecision;
+  } else {
+    newFanOn = fanOn;
+  }
+  #else
+  if (config.delaySeconds > 0) {
+    newFanOn = timerDecision;
+  } else {
+    newFanOn = fanOn;
+  }
+  #endif
+  
+  if (newFanOn != fanOn) {
+    fan_set(newFanOn);
+    mqtt_publishState();
   }
   
   fan_checkMaxOnTime();
-  fan_checkRelayConsistency();
 }
+
+#endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 3

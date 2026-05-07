@@ -2,27 +2,25 @@
 #define FAN_H
 
 #include <Arduino.h>
+#include "config.h"
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 
 extern bool manualOverride;
-extern bool fanShouldBeOn;
-extern unsigned long fanOnStartTime;
-extern unsigned long delayOnTimer;
-extern bool delayOnActive;
-extern unsigned long lastRelayCheck;
-extern bool lastRelayError;
+extern bool fanOn;
+extern unsigned long fanStartTime;
+extern unsigned long delayTimer;
+extern bool delayActive;
 
 void fan_init();
 void fan_update();
 void fan_set(bool on);
-void fan_toggle();
 bool fan_getState();
 bool fan_getRealState();
-bool fan_getRealStateForMqtt();
-void fan_applyPwmOrDigital(bool on);
+void fan_setOverrideMode(bool override);
 void fan_checkMaxOnTime();
-void fan_resetDelayTimer();
-bool fan_cancelDelayTimer();
-void fan_checkRelayConsistency();
-void fan_checkDelayTimer();
+bool fan_delayTimer(bool start);
+
+#endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 
 #endif
