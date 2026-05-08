@@ -1,0 +1,43 @@
+Group   gFan32 "Вентилятор ESP-32"    <fan> (loc_Cabinet,g_Sensors) ["Fan"]
+
+Switch fan_esp32_state "Статус подключения" <f7:antenna_radiowaves_left_right> 	(gFan32) ["Status"] {
+	channel="mqtt:topic:local:fan_esp32:state", on="Online", off="Offline"
+}
+
+Switch fan_esp32_fan "Вытяжка" <oh:switch>	(gFan32,loc_Cabinet) ["Fan","Switch"]  {
+	channel="mqtt:topic:local:fan_esp32:fan"
+}
+
+
+Number:Dimensionless fan_esp32_humidity "Влажность  [%d]" <humidity> (gFan32,loc_Cabinet,gHumidities)      
+	["Measurement","Humidity"] 
+		{ channel="mqtt:topic:local:fan_esp32:humidity" }
+
+Number:Temperature fan_esp32_temperature "Температура [%.2f °C]" <temperature> (gFan32,loc_Cabinet,gTemperatures) ["Measurement","Temperature"] {
+        channel="mqtt:topic:local:fan_esp32:temperature"
+}
+
+Number  fan_esp32_lohum "Low Humidity range [%.2f %]" <humidity> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
+        channel="mqtt:topic:local:fan_esp32:lohum"
+
+}
+
+Number  fan_esp32_hihum "High Humidity range [%.2f %]" <humidity> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
+        channel="mqtt:topic:local:fan_esp32:hihum"
+
+}
+
+Number  fan_esp32_lotemp "Low Temperature range [%.2f °C]" <temperature_cold> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
+        channel="mqtt:topic:local:fan_esp32:lotemp"
+
+}
+
+Number  fan_esp32_hitemp "High Temperature range [%.2f °C]" <temperature_hot> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
+        channel="mqtt:topic:local:fan_esp32:hitemp"
+
+}
+
+Number 	fan_esp32_delay "Fan delay [%d sec]" <clock> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
+        channel="mqtt:topic:local:fan_esp32:delay"
+
+}

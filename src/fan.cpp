@@ -156,13 +156,21 @@ void fan_update() {
   fan_delayTimer(false);
   
   if (manualOverride) {
-    fan_checkMaxOnTime();
     return;
   }
   
-  bool sensorDecision = fanOn;
-  bool timerDecision = false;
+  bool timerOn = false;
+  bool sensorOn = fanOn;
   
+  // Таймер
+  if (config.delaySeconds > 0) {
+    if (!fanOn && !delayActive) {
+      fan_delayTimer(true);
+    }
+    timerOn = !delayActive && (delayTimer > 0);
+  }
+  
+  // Датчики (только TYPE 1)
   #if DEVICE_TYPE == 1
   if (sensor_isOk()) {
     bool tempExceed = (currentTemp >= config.highTemp);
@@ -171,44 +179,17 @@ void fan_update() {
     bool humLow = (currentHum <= config.lowHum);
     
     if (tempExceed || humExceed) {
-      sensorDecision = true;
+      sensorOn = true;
     } else if (tempLow && humLow) {
-      sensorDecision = false;
+      sensorOn = false;
     }
   }
   #endif
   
-  if (config.delaySeconds > 0) {
-    if (!fanOn && !delayActive) {
-      fan_delayTimer(true);
-    }
-    if (fanOn) {
-      timerDecision = true;
-    }
-  }
-  
-  bool newFanOn;
-  #if DEVICE_TYPE == 1
-  if (sensor_isOk() && config.delaySeconds > 0) {
-    newFanOn = sensorDecision || timerDecision;
-  } else if (sensor_isOk()) {
-    newFanOn = sensorDecision;
-  } else if (config.delaySeconds > 0) {
-    newFanOn = timerDecision;
+  if (timerOn || sensorOn) {
+    fan_set(true);
   } else {
-    newFanOn = fanOn;
-  }
-  #else
-  if (config.delaySeconds > 0) {
-    newFanOn = timerDecision;
-  } else {
-    newFanOn = fanOn;
-  }
-  #endif
-  
-  if (newFanOn != fanOn) {
-    fan_set(newFanOn);
-    mqtt_publishState();
+    fan_set(false);
   }
   
   fan_checkMaxOnTime();

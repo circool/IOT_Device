@@ -160,7 +160,7 @@ String web_getStatusPage(int refreshInterval) {
   html += "<div class='sensor-value' style='color:" + tempColor + ";'>" + String(currentTemp) + " °C</div>";
   html += "<div class='sensor-label'>Температура";
   #if DEVICE_TYPE == 1
-  html += " (от " + String(config.lowTemp) + " до " + String(config.highTemp) + ")";
+  html += " (выкл: " + String(config.lowTemp) + " вкл: " + String(config.highTemp) + ")";
   #endif
   html += " °C</div></div>";
   
@@ -168,7 +168,7 @@ String web_getStatusPage(int refreshInterval) {
   html += "<div class='sensor-value' style='color:" + humColor + ";'>" + String(currentHum) + " %</div>";
   html += "<div class='sensor-label'>Влажность";
   #if DEVICE_TYPE == 1
-  html += " (от " + String(config.lowHum) + " до " + String(config.highHum) + ")";
+  html += " (выкл: " + String(config.lowHum) + " вкл: " + String(config.highHum) + ")";
   #endif
   html += " %</div></div>";
   

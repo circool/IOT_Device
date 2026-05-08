@@ -1,0 +1,68 @@
+Bridge mqtt:broker:local [ 
+  host=MQTT_ADDRESS, 
+  secure=false, 
+  username=MQTT_USER, 
+  password=MQTT_PASSWORD
+] {
+
+
+Thing topic fan_esp32 "Вентилятор esp32" [ availabilityTopic="fan_esp32/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {
+
+      Type switch : state "Состояние" [
+        stateTopic="fan_esp32/status", on="Online", off="Offline"
+      ]
+
+      Type switch : fan "Вентилятор" [
+        stateTopic="fan_esp32/state" , on="ON", off="OFF",
+        commandTopic="fan_esp32/c/state", on="1", off="0"
+      ]
+
+      Type number : humidity "Влажность" [
+        stateTopic="fan_esp32/sensor/humidity"
+      ]
+      
+      Type number : lohum "Low Hummidity Range" [
+        stateTopic="fan_esp32/sensor/lowHum",
+        commandTopic="fan_esp32/c/sensor/lowHum",
+        min=0,
+        max=100,
+        unit="%"
+      ]
+
+      Type number : hihum "High Humidity Range" [
+        stateTopic="fan_esp32/sensor/highHum",
+        commandTopic="fan_esp32/c/sensor/highHum",
+        min=0,
+        max=100,
+        unit="%"
+      ]
+
+
+      Type number : temperature  "Температура" [
+        stateTopic="fan_esp32/sensor/temperature"
+      ]
+
+      Type number : lotemp  "Low Temperature Range" [
+        stateTopic="fan_esp32/sensor/lowTemp",
+        commandTopic="fan_esp32/c/sensor/lowTemp",
+        unit="°C",
+        min=-50,
+        max=50
+      ]
+
+      Type number : hitemp  "High Temperature Range" [
+        stateTopic="fan_esp32/sensor/highTemp",
+        commandTopic="fan_esp32/c/sensor/highTemp",
+        unit="°C",
+        min=-50,
+        max=50
+      ] 
+
+      Type number : delay  "Fan delay" [
+        stateTopic="fan_esp32/sensor/fanDelay",
+        commandTopic="fan_esp32/c/sensor/fanDelay",
+        unit="sec",
+        min=0
+      ]
+  }
+}

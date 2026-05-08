@@ -96,7 +96,13 @@ void checkAPFallback() {
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println("\nSmart Fan Device Starting...");
+  #if DEVICE_TYPE == 1
+    Serial.println("\nSmart Fan Starting...");
+  #elif DEVICE_TYPE == 2
+    Serial.println("\nSmart Sensor Starting...");
+  #elif DEVICE_TYPE == 3
+    Serial.println("\nSmart Switch Starting...");
+  #endif
   
   checkResetButton();
   

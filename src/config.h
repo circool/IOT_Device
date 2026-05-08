@@ -108,15 +108,15 @@
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   #ifndef DEFAULT_DELAY_SECONDS
-    #define DEFAULT_DELAY_SECONDS 60
+    #define DEFAULT_DELAY_SECONDS 60 // Включение исполнительного механизма по прошествии этого периода (по таймеру)
   #endif
 
   #ifndef DEFAULT_SLOW_MODE
-    #define DEFAULT_SLOW_MODE false
+    #define DEFAULT_SLOW_MODE false // Использовать ШИМ
   #endif
 
   #ifndef DEFAULT_FORCE_OFF_ON_BOOT
-    #define DEFAULT_FORCE_OFF_ON_BOOT true
+    #define DEFAULT_FORCE_OFF_ON_BOOT true // При инициализации выключать исполнительный механизм
   #endif
 #endif
 
