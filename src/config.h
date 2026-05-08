@@ -8,7 +8,7 @@
 
 // Тип устройства
 #ifndef DEVICE_TYPE
-  #define DEVICE_TYPE 3           // 1 – вентилятор с датчиками, 2 – только датчик, 3 – управляемый выключатель
+  #define DEVICE_TYPE 1           // 1 – вентилятор с датчиками, 2 – только датчик, 3 – управляемый выключатель
 #endif
 
 // Тип датчика (только для DEVICE_TYPE 1 или 2)
@@ -121,6 +121,15 @@
 #endif
 
 // ======================== НАСТРОЙКИ MQTT ========================
+#if DEVICE_TYPE == 1
+  #define DEVICE_PREFIX "fan"
+#elif DEVICE_TYPE == 2
+  #define DEVICE_PREFIX "sensor"
+#elif DEVICE_TYPE == 3
+  #define DEVICE_PREFIX "switch"
+#else
+  #define DEVICE_PREFIX "device"
+#endif
 
 #ifndef STATE_PUBLISH_INTERVAL_MS
   #define STATE_PUBLISH_INTERVAL_MS 3000

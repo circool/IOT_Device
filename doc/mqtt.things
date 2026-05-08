@@ -5,23 +5,23 @@ Bridge mqtt:broker:local [
   password=MQTT_PASSWORD
 ] {
 
+  // ==================== TYPE 1: Вентилятор с датчиком ====================
+  Thing topic fan_esp32 "Вентилятор esp32" [ availabilityTopic="fan_esp32/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {
 
-Thing topic fan_esp32 "Вентилятор esp32" [ availabilityTopic="fan_esp32/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {
-
-      Type switch : state "Состояние" [
+      Type switch : status "Состояние" [
         stateTopic="fan_esp32/status", on="Online", off="Offline"
       ]
 
-      Type switch : fan "Вентилятор" [
-        stateTopic="fan_esp32/state" , on="ON", off="OFF",
-        commandTopic="fan_esp32/c/state", on="1", off="0"
+      Type switch : fan_state "Вентилятор" [
+        stateTopic="fan_esp32/fan/state", on="ON", off="OFF",
+        commandTopic="fan_esp32/c/fan/state", on="1", off="0"
       ]
 
-      Type number : humidity "Влажность" [
+      Type number : sensor_humidity "Влажность" [
         stateTopic="fan_esp32/sensor/humidity"
       ]
       
-      Type number : lohum "Low Hummidity Range" [
+      Type number : sensor_lowHum "Low Humidity Range" [
         stateTopic="fan_esp32/sensor/lowHum",
         commandTopic="fan_esp32/c/sensor/lowHum",
         min=0,
@@ -29,7 +29,7 @@ Thing topic fan_esp32 "Вентилятор esp32" [ availabilityTopic="fan_esp3
         unit="%"
       ]
 
-      Type number : hihum "High Humidity Range" [
+      Type number : sensor_highHum "High Humidity Range" [
         stateTopic="fan_esp32/sensor/highHum",
         commandTopic="fan_esp32/c/sensor/highHum",
         min=0,
@@ -37,12 +37,11 @@ Thing topic fan_esp32 "Вентилятор esp32" [ availabilityTopic="fan_esp3
         unit="%"
       ]
 
-
-      Type number : temperature  "Температура" [
+      Type number : sensor_temperature "Температура" [
         stateTopic="fan_esp32/sensor/temperature"
       ]
 
-      Type number : lotemp  "Low Temperature Range" [
+      Type number : sensor_lowTemp "Low Temperature Range" [
         stateTopic="fan_esp32/sensor/lowTemp",
         commandTopic="fan_esp32/c/sensor/lowTemp",
         unit="°C",
@@ -50,7 +49,7 @@ Thing topic fan_esp32 "Вентилятор esp32" [ availabilityTopic="fan_esp3
         max=50
       ]
 
-      Type number : hitemp  "High Temperature Range" [
+      Type number : sensor_highTemp "High Temperature Range" [
         stateTopic="fan_esp32/sensor/highTemp",
         commandTopic="fan_esp32/c/sensor/highTemp",
         unit="°C",
@@ -58,11 +57,76 @@ Thing topic fan_esp32 "Вентилятор esp32" [ availabilityTopic="fan_esp3
         max=50
       ] 
 
-      Type number : delay  "Fan delay" [
-        stateTopic="fan_esp32/sensor/fanDelay",
-        commandTopic="fan_esp32/c/sensor/fanDelay",
+      Type number : fan_delaySec "Fan delay" [
+        stateTopic="fan_esp32/fan/delaySec",
+        commandTopic="fan_esp32/c/fan/delaySec",
         unit="sec",
         min=0
+      ]
+
+      Type switch : fan_slowMode "Slow Mode" [
+        stateTopic="fan_esp32/fan/slowMode", on="1", off="0",
+        commandTopic="fan_esp32/c/fan/slowMode", on="1", off="0"
+      ]
+
+      Type number : fan_slowModeDuty "Slow Mode Duty" [
+        stateTopic="fan_esp32/fan/slowModeDuty",
+        commandTopic="fan_esp32/c/fan/slowModeDuty",
+        min=0,
+        max=255
+      ]
+
+      Type switch : fan_autoMode "Auto Mode" [
+        stateTopic="fan_esp32/fan/autoMode", on="1", off="0",
+        commandTopic="fan_esp32/c/fan/autoMode", on="1", off="0"
+      ]
+  }
+
+  // ==================== TYPE 2: Только датчик ====================
+  Thing topic sensor_esp32 "Датчик esp32" [ availabilityTopic="sensor_esp32/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {
+
+      Type switch : status "Состояние" [
+        stateTopic="sensor_esp32/status", on="Online", off="Offline"
+      ]
+
+      Type number : sensor_humidity "Влажность" [
+        stateTopic="sensor_esp32/sensor/humidity"
+      ]
+      
+      Type number : sensor_temperature "Температура" [
+        stateTopic="sensor_esp32/sensor/temperature"
+      ]
+  }
+
+  // ==================== TYPE 3: Управляемый выключатель ====================
+  Thing topic switch_esp32 "Выключатель esp32" [ availabilityTopic="switch_esp32/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {
+
+      Type switch : status "Состояние" [
+        stateTopic="switch_esp32/status", on="Online", off="Offline"
+      ]
+
+      Type switch : switch_state "Выключатель" [
+        stateTopic="switch_esp32/switch/state", on="ON", off="OFF",
+        commandTopic="switch_esp32/c/switch/state", on="1", off="0"
+      ]
+
+      Type number : switch_delaySec "Delay" [
+        stateTopic="switch_esp32/switch/delaySec",
+        commandTopic="switch_esp32/c/switch/delaySec",
+        unit="sec",
+        min=0
+      ]
+
+      Type switch : switch_slowMode "Slow Mode" [
+        stateTopic="switch_esp32/switch/slowMode", on="1", off="0",
+        commandTopic="switch_esp32/c/switch/slowMode", on="1", off="0"
+      ]
+
+      Type number : switch_slowModeDuty "Slow Mode Duty" [
+        stateTopic="switch_esp32/switch/slowModeDuty",
+        commandTopic="switch_esp32/c/switch/slowModeDuty",
+        min=0,
+        max=255
       ]
   }
 }

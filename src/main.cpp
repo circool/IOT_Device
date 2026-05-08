@@ -165,12 +165,12 @@ void setup() {
     
     // Генерация MQTT Client ID если пуст
     if (strlen(config.mqttClientId) == 0) {
-      uint8_t mac[6];
-      WiFi.macAddress(mac);
-      snprintf(config.mqttClientId, sizeof(config.mqttClientId), 
-               "device_%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-      config_write();
-    }
+    uint8_t mac[6];
+    WiFi.macAddress(mac);
+    snprintf(config.mqttClientId, sizeof(config.mqttClientId), 
+             DEVICE_PREFIX "_%02X%02X%02X", mac[3], mac[4], mac[5]);
+    config_write();
+}
     
     mqtt_setupTopics(config.mqttClientId);
     

@@ -1,43 +1,96 @@
+// ==================== TYPE 1: Вентилятор с датчиком ====================
+// Client ID: fan_esp32
+
 Group   gFan32 "Вентилятор ESP-32"    <fan> (loc_Cabinet,g_Sensors) ["Fan"]
 
-Switch fan_esp32_state "Статус подключения" <f7:antenna_radiowaves_left_right> 	(gFan32) ["Status"] {
-	channel="mqtt:topic:local:fan_esp32:state", on="Online", off="Offline"
+Switch fan_esp32_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gFan32) ["Status"] {
+    channel="mqtt:topic:local:fan_esp32:status", on="Online", off="Offline"
 }
 
-Switch fan_esp32_fan "Вытяжка" <oh:switch>	(gFan32,loc_Cabinet) ["Fan","Switch"]  {
-	channel="mqtt:topic:local:fan_esp32:fan"
+Switch fan_esp32_fan_state "Вытяжка" <oh:switch> (gFan32,loc_Cabinet) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_esp32:fan_state"
+}
+
+Number:Dimensionless fan_esp32_sensor_humidity "Влажность [%d %%]" <humidity> (gFan32,loc_Cabinet,gHumidities) ["Measurement","Humidity"] { 
+    channel="mqtt:topic:local:fan_esp32:sensor_humidity" 
+}
+
+Number:Temperature fan_esp32_sensor_temperature "Температура [%.2f °C]" <temperature> (gFan32,loc_Cabinet,gTemperatures) ["Measurement","Temperature"] {
+    channel="mqtt:topic:local:fan_esp32:sensor_temperature"
+}
+
+Number fan_esp32_sensor_lowHum "Low Humidity [%.2f %%]" <humidity> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_esp32:sensor_lowHum"
+}
+
+Number fan_esp32_sensor_highHum "High Humidity [%.2f %%]" <humidity> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_esp32:sensor_highHum"
+}
+
+Number fan_esp32_sensor_lowTemp "Low Temperature [%.2f °C]" <temperature_cold> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_esp32:sensor_lowTemp"
+}
+
+Number fan_esp32_sensor_highTemp "High Temperature [%.2f °C]" <temperature_hot> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_esp32:sensor_highTemp"
+}
+
+Number fan_esp32_fan_delaySec "Fan delay [%d sec]" <clock> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_esp32:fan_delaySec"
+}
+
+Switch fan_esp32_fan_slowMode "Slow Mode" <oh:switch> (gFan32,loc_Cabinet) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_esp32:fan_slowMode"
+}
+
+Number fan_esp32_fan_slowModeDuty "Slow Mode Duty [%d]" <slider> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_esp32:fan_slowModeDuty"
+}
+
+Switch fan_esp32_fan_autoMode "Auto Mode" <oh:switch> (gFan32,loc_Cabinet) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_esp32:fan_autoMode"
 }
 
 
-Number:Dimensionless fan_esp32_humidity "Влажность  [%d]" <humidity> (gFan32,loc_Cabinet,gHumidities)      
-	["Measurement","Humidity"] 
-		{ channel="mqtt:topic:local:fan_esp32:humidity" }
+// ==================== TYPE 2: Только датчик ====================
+// Client ID: sensor_esp32
 
-Number:Temperature fan_esp32_temperature "Температура [%.2f °C]" <temperature> (gFan32,loc_Cabinet,gTemperatures) ["Measurement","Temperature"] {
-        channel="mqtt:topic:local:fan_esp32:temperature"
+Group   gSensor32 "Датчик ESP-32"    <temperature> (loc_Living,g_Sensors) ["Sensor"]
+
+Switch sensor_esp32_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gSensor32) ["Status"] {
+    channel="mqtt:topic:local:sensor_esp32:status", on="Online", off="Offline"
 }
 
-Number  fan_esp32_lohum "Low Humidity range [%.2f %]" <humidity> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
-        channel="mqtt:topic:local:fan_esp32:lohum"
-
+Number:Dimensionless sensor_esp32_sensor_humidity "Влажность [%d %%]" <humidity> (gSensor32,loc_Living,gHumidities) ["Measurement","Humidity"] { 
+    channel="mqtt:topic:local:sensor_esp32:sensor_humidity" 
 }
 
-Number  fan_esp32_hihum "High Humidity range [%.2f %]" <humidity> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
-        channel="mqtt:topic:local:fan_esp32:hihum"
-
+Number:Temperature sensor_esp32_sensor_temperature "Температура [%.2f °C]" <temperature> (gSensor32,loc_Living,gTemperatures) ["Measurement","Temperature"] {
+    channel="mqtt:topic:local:sensor_esp32:sensor_temperature"
 }
 
-Number  fan_esp32_lotemp "Low Temperature range [%.2f °C]" <temperature_cold> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
-        channel="mqtt:topic:local:fan_esp32:lotemp"
 
+// ==================== TYPE 3: Управляемый выключатель ====================
+// Client ID: switch_esp32
+
+Group   gSwitch32 "Выключатель ESP-32"    <switch> (loc_Garage,g_Switches) ["Switch"]
+
+Switch switch_esp32_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gSwitch32) ["Status"] {
+    channel="mqtt:topic:local:switch_esp32:status", on="Online", off="Offline"
 }
 
-Number  fan_esp32_hitemp "High Temperature range [%.2f °C]" <temperature_hot> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
-        channel="mqtt:topic:local:fan_esp32:hitemp"
-
+Switch switch_esp32_switch_state "Выключатель" <oh:switch> (gSwitch32,loc_Garage) ["Switch"] {
+    channel="mqtt:topic:local:switch_esp32:switch_state"
 }
 
-Number 	fan_esp32_delay "Fan delay [%d sec]" <clock> (gFan32,loc_Cabinet)      ["Fan","Setpoint"] {
-        channel="mqtt:topic:local:fan_esp32:delay"
+Number switch_esp32_switch_delaySec "Delay [%d sec]" <clock> (gSwitch32,loc_Garage) ["Switch","Setpoint"] {
+    channel="mqtt:topic:local:switch_esp32:switch_delaySec"
+}
 
+Switch switch_esp32_switch_slowMode "Slow Mode" <oh:switch> (gSwitch32,loc_Garage) ["Switch"] {
+    channel="mqtt:topic:local:switch_esp32:switch_slowMode"
+}
+
+Number switch_esp32_switch_slowModeDuty "Slow Mode Duty [%d]" <slider> (gSwitch32,loc_Garage) ["Switch","Setpoint"] {
+    channel="mqtt:topic:local:switch_esp32:switch_slowModeDuty"
 }
