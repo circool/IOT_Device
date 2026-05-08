@@ -38,12 +38,10 @@
 
 String apSSID;
 
-// Обработчик переключения (общий для TYPE 1 и 3)
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 void handleToggle() {
   fan_setOverrideMode(true);
   fan_set(!fan_getState());
-  mqtt_publishState();
 }
 #endif
 
@@ -78,7 +76,6 @@ String web_getConfigPage() {
   }
   html += "</div><form method='POST' action='/save'>";
   
-  // Общие настройки сети и MQTT
   html += "<h3>Настройки сети</h3>";
   html += "<label>WiFi SSID:</label><input type='text' name='wifiSsid' required value='" + String(config.wifiSsid) + "'>";
   html += "<label>WiFi Password:</label><input type='password' name='wifiPassword' placeholder='(не показан)'>";
@@ -92,7 +89,6 @@ String web_getConfigPage() {
   html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль MQTT</div>";
   html += "<label>MQTT Client ID:</label><input type='text' name='mqttClientId' value='" + String(config.mqttClientId) + "'>";
   
-  // DEVICE_TYPE 1: вентилятор с датчиками
   #if DEVICE_TYPE == 1
   html += "<h3>Настройки датчиков</h3>";
   html += "<div class='row'><div><label>Low Temp (°C):</label><input type='number' step='0.1' name='lowTemp' value='" + String(config.lowTemp) + "'></div>";
@@ -112,13 +108,11 @@ String web_getConfigPage() {
   html += "<label><input type='checkbox' name='automaticMode' value='1' " + String(config.automaticMode ? "checked" : "") + "> Автоматический режим</label>";
   #endif
   
-  // DEVICE_TYPE 2: только датчик
   #if DEVICE_TYPE == 2
   html += "<h3>Настройки датчиков</h3>";
   html += "<div><label>Интервал датчика (сек):</label><input type='number' name='sensorInterval' min='2' max='300' value='" + String(config.sensorInterval) + "'></div>";
   #endif
   
-  // DEVICE_TYPE 3: управляемый выключатель
   #if DEVICE_TYPE == 3
   html += "<h3>Настройки управления</h3>";
   html += "<label>Задержка ВКЛЮЧЕНИЯ (сек):</label><input type='number' name='delaySeconds' min='0' max='3600' value='" + String(config.delaySeconds) + "'>";
@@ -158,7 +152,6 @@ String web_getStatusPage(int refreshInterval) {
   
   html += "<h1>" + String(config.mqttClientId) + "</h1>";
   
-  // Датчики (TYPE 1 и 2)
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   html += "<div class='flex-container'>";
   
@@ -189,7 +182,6 @@ String web_getStatusPage(int refreshInterval) {
   html += "</div>";
   #endif
   
-  // Вентилятор (TYPE 1) или Выключатель (TYPE 3)
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   bool state = fan_getRealState();
   String stateColor = state ? "#f44336" : "#2196F3";
@@ -208,7 +200,6 @@ String web_getStatusPage(int refreshInterval) {
   html += "</a>";
   #endif
   
-  // Информация
   html += "<hr><div class='info'>Обновление: " + String(refreshInterval) + " сек<br>";
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   html += "Опрос датчика: " + String(config.sensorInterval) + " сек<br>";
@@ -399,11 +390,11 @@ void web_saveConfig() {
 #endif
 
 void web_init() {
-  // Клиентский режим - обычный веб-сервер
   int refreshInterval = 2;
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  refreshInterval = config.sensorInterval / 2;
-  if (refreshInterval < 2) refreshInterval = 2;
+  unsigned long elapsed = (millis() - lastSensorRead) / 1000;
+  int timeUntilNextRead = config.sensorInterval - elapsed;
+  refreshInterval = (timeUntilNextRead > 2) ? timeUntilNextRead : 2;
   if (refreshInterval > 10) refreshInterval = 10;
   #endif
   
@@ -472,7 +463,6 @@ void web_initAP() {
     });
     server.addHandler(new CaptiveRequestHandler());
   #elif defined(ESP32)
-    
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ request->send(200, "text/html", web_getConfigPage()); });
     server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ web_saveConfig(request); });
     server.on("/resetall", HTTP_GET, [](AsyncWebServerRequest *request){

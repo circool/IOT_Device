@@ -9,10 +9,8 @@ PubSubClient mqttClient(espClient);
 char devicePrefix[18];
 char lastWillTopic[32];
 
-// Общие для всех типов
 char resetControlTopic[50];
 
-// DEVICE_TYPE 1 (вентилятор с датчиками)
 #if DEVICE_TYPE == 1
 char fanStateTopic[50];
 char fanControlTopic[50];
@@ -37,13 +35,11 @@ char autoModeControlTopic[50];
 char errorTopic[50];
 #endif
 
-// DEVICE_TYPE 2 (только датчик)
 #if DEVICE_TYPE == 2
 char tempStateTopic[50];
 char humStateTopic[50];
 #endif
 
-// DEVICE_TYPE 3 (управляемый выключатель)
 #if DEVICE_TYPE == 3
 char switchStateTopic[50];
 char switchControlTopic[50];
@@ -54,11 +50,9 @@ unsigned long lastMqttReconnect = 0;
 void mqtt_setupTopics(const char* prefix) {
   strcpy(devicePrefix, prefix);
   
-  // Общие топики
   snprintf(lastWillTopic, sizeof(lastWillTopic), "%s/status", devicePrefix);
   snprintf(resetControlTopic, sizeof(resetControlTopic), "%s/c/system/reset", devicePrefix);
   
-  // DEVICE_TYPE 1: вентилятор с датчиками
   #if DEVICE_TYPE == 1
   snprintf(fanStateTopic, sizeof(fanStateTopic), "%s/fan/state", devicePrefix);
   snprintf(fanControlTopic, sizeof(fanControlTopic), "%s/c/fan/state", devicePrefix);
@@ -83,13 +77,11 @@ void mqtt_setupTopics(const char* prefix) {
   snprintf(errorTopic, sizeof(errorTopic), "%s/error", devicePrefix);
   #endif
   
-  // DEVICE_TYPE 2: только датчик
   #if DEVICE_TYPE == 2
   snprintf(tempStateTopic, sizeof(tempStateTopic), "%s/sensor/temperature", devicePrefix);
   snprintf(humStateTopic, sizeof(humStateTopic), "%s/sensor/humidity", devicePrefix);
   #endif
   
-  // DEVICE_TYPE 3: управляемый выключатель
   #if DEVICE_TYPE == 3
   snprintf(switchStateTopic, sizeof(switchStateTopic), "%s/switch/state", devicePrefix);
   snprintf(switchControlTopic, sizeof(switchControlTopic), "%s/c/switch/state", devicePrefix);
@@ -186,7 +178,6 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     Serial.printf("[MQTT] Command received: %s = %s\n", topic, msg.c_str());
   #endif
   
-  // Общие для всех типов
   if (strcmp(topic, resetControlTopic) == 0) {
     if (msg == "1") {
       #ifdef DEBUG_MQTT
@@ -201,32 +192,25 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   }
   
   #if DEVICE_TYPE == 1
-  // Оперативные команды
   if (strcmp(topic, fanControlTopic) == 0) {
     if (msg == "ON" || msg == "1") { 
       fan_setOverrideMode(true);
       fan_set(true);
-      mqtt_publishState();
     } else if (msg == "OFF" || msg == "0") { 
       fan_setOverrideMode(true);
       fan_set(false);
-      mqtt_publishState();
     }
   }
   else if (strcmp(topic, autoModeControlTopic) == 0) {
     if (msg == "AUTO" || msg == "1") { 
       fan_setOverrideMode(false);
-      mqtt_publishState();
     } else if (msg == "0") {
       fan_setOverrideMode(true);
-      mqtt_publishState();
     }
   }
-  // Конфигурационные команды
   else if (strcmp(topic, slowModeControlTopic) == 0) {
     config.slowModeEnabled = (msg == "1" || msg == "ON");
     config_write();
-    // Принудительно переприменить состояние пина
     if (fanOn) {
       if (config.slowModeEnabled) {
         #ifdef ESP32
@@ -317,11 +301,9 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     if (msg == "ON" || msg == "1") { 
       fan_setOverrideMode(true);
       fan_set(true);
-      mqtt_publishState();
     } else if (msg == "OFF" || msg == "0") { 
       fan_setOverrideMode(true);
       fan_set(false);
-      mqtt_publishState();
     }
   }
   #endif
@@ -350,7 +332,6 @@ void mqtt_reconnect() {
     
     mqtt_publishOnline();
     
-    // Общие подписки
     mqttClient.subscribe(resetControlTopic, 1);
     
     #if DEVICE_TYPE == 1
@@ -375,7 +356,7 @@ void mqtt_reconnect() {
     
     mqtt_publishState();
     mqtt_publishSensor();
-    mqtt_publishConfig();  // публикуем конфигурацию при подключении
+    mqtt_publishConfig();
   } else {
     Serial.printf("[MQTT] Failed to connect, state=%d\n", mqttClient.state());
   }
