@@ -13,8 +13,11 @@
 #include "web.h"
 
 unsigned long lastWiFiCheck = 0;
-unsigned long lastAPFallbackCheck = 0;
+unsigned long lastMQTTAttempt = 0;
+unsigned long wifiLostTime = 0;
 bool wifiConnected = false;
+bool wifiConnecting = false;
+unsigned long wifiConnectStartTime = 0;
 
 void checkResetButton() {
   pinMode(RESET_PIN, INPUT_PULLUP);
@@ -28,167 +31,210 @@ void checkResetButton() {
   }
 }
 
-void setup_wifi() {
+// Асинхронное подключение к WiFi (неблокирующее)
+void wifi_beginAsync() {
   if (strlen(config.wifiSsid) == 0) {
-    Serial.println("No WiFi SSID configured, staying in AP mode");
+    Serial.println("[WIFI] No SSID configured");
     return;
   }
   
+  if (wifiConnected || wifiConnecting) return;
+  
+  Serial.printf("[WIFI] Starting async connection to %s\n", config.wifiSsid);
   WiFi.mode(WIFI_STA);
   WiFi.begin(config.wifiSsid, config.wifiPassword);
-  Serial.print("Connecting to WiFi");
-  
-  int attempts = 0;
-  while (WiFi.status() != WL_CONNECTED && attempts < 40) {
-    delay(500);
-    Serial.print(".");
-    attempts++;
-  }
+  wifiConnecting = true;
+  wifiConnectStartTime = millis();
+  wifiLostTime = 0;
+}
+
+void wifi_checkAsync() {
+  if (!wifiConnecting) return;
   
   if (WiFi.status() == WL_CONNECTED) {
-    Serial.println("\nWiFi connected, IP: " + WiFi.localIP().toString());
     wifiConnected = true;
+    wifiConnecting = false;
+    wifiLostTime = 0;
+    Serial.println("[WIFI] Connected! IP: " + WiFi.localIP().toString());
+    
+    // Отключаем AP если он был активен
     if (apMode) {
       WiFi.softAPdisconnect(true);
       apMode = false;
-      Serial.println("AP mode disabled");
     }
-  } else {
-    Serial.println("\nWiFi connection failed");
+    
+    // Запускаем MQTT после успешного WiFi
+    mqtt_init();
+    
+  } else if (millis() - wifiConnectStartTime > 30000) {
+    // Таймаут 30 секунд
+    Serial.println("[WIFI] Connection timeout");
+    wifiConnecting = false;
     wifiConnected = false;
   }
 }
 
-void checkWiFi() {
-  if (apMode) return;
+void mqtt_checkAsync() {
+  if (!wifiConnected) return;
+  if (!configValid) return;
+  
+  // Попытка подключения к MQTT не чаще чем раз в 5 секунд
+  if (!mqtt_isConnected() && (millis() - lastMQTTAttempt > 5000)) {
+    lastMQTTAttempt = millis();
+    mqtt_reconnect();
+  }
+  
+  // Если подключены - обслуживаем MQTT
+  if (mqtt_isConnected()) {
+    mqttClient.loop();
+    
+    // Публикация статуса Online каждые 10 секунд
+    static unsigned long lastOnline = 0;
+    if (millis() - lastOnline > 10000) {
+      mqtt_publishOnline();
+      lastOnline = millis();
+    }
+  }
+}
+
+void publishDataIfNeeded() {
+  if (!mqtt_isConnected()) return;
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+  if (sensor_isOk()) {
+    static float lastTemp = 0, lastHum = 0;
+    const float EPSILON = 0.05;  // порог 0.05°C
+    if (fabs(currentTemp - lastTemp) > EPSILON || fabs(currentHum - lastHum) > EPSILON) {
+        mqtt_publishSensor();
+        lastTemp = currentTemp;
+        lastHum = currentHum;
+    }
+  }
+  #endif
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+  static bool lastState = false;
+  if (fan_getState() != lastState) {
+    mqtt_publishState();
+    lastState = fan_getState();
+  }
+  #endif
+}
+
+void checkWiFiFallbackToAP() {
+  // Только если есть конфигурация WiFi и не в AP режиме
   if (strlen(config.wifiSsid) == 0) return;
-  if (millis() - lastWiFiCheck < WIFI_CHECK_INTERVAL_MS) return;
-  lastWiFiCheck = millis();
-  
-  if (WiFi.status() != WL_CONNECTED) {
-    wifiConnected = false;
-    setup_wifi();
-  } else {
-    wifiConnected = true;
-  }
-}
-
-void checkAPFallback() {
   if (apMode) return;
-  
-  if (!configValid && !apMode) {
-    Serial.println("Config invalid, starting AP mode");
-    web_initAP();
+  if (wifiConnected) {
+    wifiLostTime = 0;
     return;
   }
   
-  if (wifiConnected) return;
-  
-  if (millis() - lastAPFallbackCheck < AP_FALLBACK_TIMEOUT_MS) return;
-  lastAPFallbackCheck = millis();
-  
-  if (!apMode && strlen(config.wifiSsid) > 0 && WiFi.status() != WL_CONNECTED) {
-    Serial.println("No WiFi for 2 minutes, starting AP mode");
-    web_initAP();
+  // Если WiFi не подключён и нет попытки подключения
+  if (!wifiConnected && !wifiConnecting) {
+    if (wifiLostTime == 0) {
+      wifiLostTime = millis();
+      Serial.println("[MAIN] WiFi lost, starting fallback timer");
+    } else if (millis() - wifiLostTime > AP_FALLBACK_TIMEOUT_MS) {
+      Serial.println("[MAIN] WiFi lost for too long, switching to AP mode");
+      web_initAP();
+      wifiLostTime = 0;
+    }
   }
 }
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  #if DEVICE_TYPE == 1
-    Serial.println("\nSmart Fan Starting...");
-  #elif DEVICE_TYPE == 2
-    Serial.println("\nSmart Sensor Starting...");
-  #elif DEVICE_TYPE == 3
-    Serial.println("\nSmart Switch Starting...");
-  #endif
+  Serial.println("\n==========================================");
+  Serial.println("Device starting...");
+  Serial.println("==========================================");
   
   checkResetButton();
   
+  // 1. Инициализация EEPROM и загрузка конфигурации
   config_init();
   config_print();
   
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  char deviceMac[18];
-  snprintf(deviceMac, sizeof(deviceMac), "%02X:%02X:%02X:%02X:%02X:%02X", 
-           mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+  // 2. Определяем тип запуска
+  bool hasValidConfig = (configValid && strlen(config.wifiSsid) > 0);
   
-  if (strlen(config.mqttClientId) == 0) {
-    snprintf(config.mqttClientId, sizeof(config.mqttClientId), "fan_%s", deviceMac);
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[MAIN] Auto-generated MQTT Client ID: %s\n", config.mqttClientId);
+  if (hasValidConfig) {
+    // ========== ОБЫЧНЫЙ РЕЖИМ ==========
+    Serial.println("[MAIN] Normal mode - starting with saved config");
+    
+    // Генерация MQTT Client ID если пуст
+    if (strlen(config.mqttClientId) == 0) {
+      uint8_t mac[6];
+      WiFi.macAddress(mac);
+      snprintf(config.mqttClientId, sizeof(config.mqttClientId), 
+               "device_%02X%02X%02X%02X%02X%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+      config_write();
+    }
+    
+    mqtt_setupTopics(config.mqttClientId);
+    
+    // Инициализация железа (НЕ БЛОКИРУЕТСЯ)
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    fan_init();
     #endif
-  }
-  mqtt_setupTopics(config.mqttClientId);
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  fan_init();
-  #endif
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  sensor_init();
-  #endif
-  
-  mqtt_init();
-  
-  if (configValid && strlen(config.wifiSsid) > 0) {
-    setup_wifi();
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    sensor_init();
+    #endif
+    
+    // Запускаем асинхронное подключение к WiFi
+    wifi_beginAsync();
+    
+    // Запускаем веб-сервер в КЛИЕНТСКОМ режиме
     web_init();
+    
   } else {
-    Serial.println("No valid config, starting AP mode");
+    // ========== РЕЖИМ НАСТРОЙКИ ==========
+    Serial.println("[MAIN] Configuration mode - starting AP for setup");
+    
+    // Запускаем AP режим для настройки (defaults уже загружены в config_read)
     web_initAP();
   }
 }
 
 void loop() {
-  checkAPFallback();
-  
-  if (apMode) {
+  // Режим настройки (нет валидной конфигурации)
+  if (!configValid || strlen(config.wifiSsid) == 0) {
     web_update();
     delay(100);
     return;
   }
   
-  if (wifiConnected) {
-    mqtt_reconnect();
-    if (mqtt_isConnected()) {
-      mqttClient.loop();
-      
-      static unsigned long lastOnlinePublish = 0;
-      if (millis() - lastOnlinePublish > MQTT_KEEPALIVE_SEC * 1000) {
-        mqttClient.publish(lastWillTopic, "Online", true);
-        lastOnlinePublish = millis();
-      }
-    }
-  }
+  // ========== ОСНОВНАЯ ФУНКЦИОНАЛЬНОСТЬ (ВЫПОЛНЯЕТСЯ ВСЕГДА) ==========
   
-  checkWiFi();
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  sensor_read();
-  #endif
-  
+  // Управление вентилятором (не зависит от WiFi/MQTT)
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   fan_update();
   #endif
   
-  if (mqtt_isConnected()) {
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    if (sensor_isOk()) {
-      static float lastPublishedTemp = -999;
-      static float lastPublishedHum = -999;
-      
-      if (currentTemp != lastPublishedTemp || currentHum != lastPublishedHum) {
-        mqtt_publishSensor();
-        lastPublishedTemp = currentTemp;
-        lastPublishedHum = currentHum;
-      }
-    }
-    #endif
+  // Чтение датчика (не зависит от WiFi/MQTT)
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+  sensor_read();
+  #endif
+  
+  // ========== ВТОРОСТЕПЕННАЯ ФУНКЦИОНАЛЬНОСТЬ (АСИНХРОННО) ==========
+  
+  // Асинхронное подключение к WiFi
+  wifi_checkAsync();
+  
+  // Проверка необходимости перехода в AP режим при потере WiFi
+  checkWiFiFallbackToAP();
+  
+  // Асинхронное подключение к MQTT и публикация данных
+  if (wifiConnected) {
+    mqtt_checkAsync();
+    publishDataIfNeeded();
   }
   
+  // Обслуживание веб-сервера
   web_update();
-  delay(100);
+  
+  // Небольшая задержка для стабильности
+  delay(50);
 }

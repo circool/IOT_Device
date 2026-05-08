@@ -24,8 +24,9 @@ void sensor_init() {
       sensorOk = false;
       Serial.println("[SENSOR] AHT10 not found! Sensor will be disabled.");
     }
-  #elif SENSOR_TYPE == 2
+  #elif SENSOR_TYPE == 2    
     dht.begin();
+    delay(2000);  // задержка для стабилизации DHT
     sensorOk = true;
     Serial.println("[SENSOR] DHT initialized");
   #endif

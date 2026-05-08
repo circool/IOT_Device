@@ -165,23 +165,19 @@ void config_read() {
         Serial.println("[CONFIG] Config is VALID");
       #endif
       return;
-    } else {
-      #ifdef DEBUG_ENABLE
+    } else {      
         Serial.printf("[CONFIG] CRC mismatch! EEPROM: 0x%04X, Calculated: 0x%04X\n", savedCrc, calcCrc);
-      #endif
     }
   } else {
-    #ifdef DEBUG_ENABLE
       Serial.println("[CONFIG] Magic mismatch! Config is INVALID");
-    #endif
   }
   
-  // EEPROM невалиден - устанавливаем defaults (включая credentials)
+  // EEPROM невалиден - загружаем defaults из credentials.h
   configValid = false;
   config_setDefaults();
   
   #ifdef DEBUG_ENABLE
-    Serial.println("[CONFIG] Using defaults (hardware + credentials)");
+    Serial.println("[CONFIG] Using defaults (hardware + credentials) for setup mode");
   #endif
 }
 
@@ -238,9 +234,7 @@ void config_write() {
     #endif
     configValid = true;
   } else {
-    #ifdef DEBUG_ENABLE
-      Serial.println("[CONFIG] Verification FAILED!");
-    #endif
+    Serial.println("[CONFIG] Verification FAILED!");
     config.crc = oldCrc;
     configValid = false;
   }

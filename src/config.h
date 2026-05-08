@@ -248,7 +248,6 @@ void config_init();
 void config_read();
 void config_write();
 void config_setDefaults();
-bool config_isValid();
 uint16_t crc16(const uint8_t* data, size_t len);
 void config_print();
 void config_clear();

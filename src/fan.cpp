@@ -42,6 +42,15 @@ void fan_init() {
   delayActive = false;
   delayTimer = 0;
   fanStartTime = 0;
+  
+  // Запуск таймера отложенного включения при старте
+  // Игнорируется, если вентилятор уже включён (forceOffOnBoot = false и пин был HIGH)
+  if (config.delaySeconds > 0 && !fanOn && !manualOverride) {
+    fan_delayTimer(true);
+    #ifdef DEBUG_ENABLE
+      Serial.printf("[FAN] Initial delay timer started: %d seconds\n", config.delaySeconds);
+    #endif
+  }
 }
 
 void fan_set(bool on) {
@@ -115,12 +124,13 @@ void fan_setOverrideMode(bool override) {
 }
 
 void fan_checkMaxOnTime() {
-  if (fanOn && fanStartTime != 0 && 
+  if (fanOn && fanStartTime != 0 && config.maxOnTime > 0 &&
       (millis() - fanStartTime) > config.maxOnTime * 1000UL) {
     #ifdef DEBUG_ENABLE
       Serial.println("[FAN] Max on time exceeded, forcing OFF");
     #endif
     fan_set(false);
+    // Таймер отложенного включения запускается после принудительного выключения
     if (config.delaySeconds > 0 && !manualOverride) {
       fan_delayTimer(true);
     }
@@ -142,7 +152,7 @@ bool fan_delayTimer(bool start) {
   } else {
     if (delayActive && millis() >= delayTimer) {
       delayActive = false;
-      fan_set(true);
+      manualOverride = true;
       #ifdef DEBUG_ENABLE
         Serial.println("[FAN] Delay ON timer finished - turning ON");
       #endif
@@ -153,45 +163,65 @@ bool fan_delayTimer(bool start) {
 }
 
 void fan_update() {
-  fan_delayTimer(false);
-  
+  // Ручной режим - наивысший приоритет
   if (manualOverride) {
     return;
   }
   
-  bool timerOn = false;
-  bool sensorOn = fanOn;
+  bool sensorShouldBeOn = false;
+  bool timerExpired = false;
   
-  // Таймер
-  if (config.delaySeconds > 0) {
-    if (!fanOn && !delayActive) {
-      fan_delayTimer(true);
-    }
-    timerOn = !delayActive && (delayTimer > 0);
-  }
-  
-  // Датчики (только TYPE 1)
+  // 1. Проверка датчиков (автоматический режим) - только для TYPE 1
   #if DEVICE_TYPE == 1
-  if (sensor_isOk()) {
-    bool tempExceed = (currentTemp >= config.highTemp);
-    bool humExceed = (currentHum >= config.highHum);
+  if (config.automaticMode && sensor_isOk()) {
+    bool tempHigh = (currentTemp >= config.highTemp);
+    bool humHigh = (currentHum >= config.highHum);
     bool tempLow = (currentTemp <= config.lowTemp);
     bool humLow = (currentHum <= config.lowHum);
     
-    if (tempExceed || humExceed) {
-      sensorOn = true;
+    if (tempHigh || humHigh) {
+      sensorShouldBeOn = true;
     } else if (tempLow && humLow) {
-      sensorOn = false;
+      sensorShouldBeOn = false;
+    } else {
+      // Гистерезис - сохраняем текущее состояние
+      sensorShouldBeOn = fanOn;
     }
   }
   #endif
   
-  if (timerOn || sensorOn) {
-    fan_set(true);
+  // 2. Проверка таймера отложенного включения
+  timerExpired = fan_delayTimer(false);
+  
+  // 3. Логика ИЛИ - если датчик хочет включить ИЛИ таймер истёк
+  if (sensorShouldBeOn || timerExpired) {
+    if (!fanOn) {
+      fan_set(true);
+      // Если включились по таймеру или датчику - отменяем таймер
+      if (delayActive) {
+        delayActive = false;
+        #ifdef DEBUG_ENABLE
+          Serial.println("[FAN] Timer cancelled - fan turned ON by sensor");
+        #endif
+      }
+    }
   } else {
-    fan_set(false);
+    // Ни датчик, ни таймер не требуют включения
+    if (fanOn) {
+      fan_set(false);
+      // Запускаем таймер после выключения (если не активен)
+      if (config.delaySeconds > 0 && !delayActive && !manualOverride) {
+        fan_delayTimer(true);
+      }
+    } else {
+      // Устройство выключено - проверяем нужно ли запустить таймер
+      if (config.delaySeconds > 0 && !delayActive && !manualOverride && !sensorShouldBeOn) {
+        fan_delayTimer(true);
+      }
+    }
   }
   
+  // 4. Контроль максимального времени работы (работает всегда, даже в ручном режиме)
   fan_checkMaxOnTime();
 }
 

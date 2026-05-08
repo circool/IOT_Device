@@ -206,20 +206,20 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     if (msg == "ON" || msg == "1") { 
       fan_setOverrideMode(true);
       fan_set(true);
-      mqtt_publishState();  // <-- ДОБАВЛЕНО
+      mqtt_publishState();
     } else if (msg == "OFF" || msg == "0") { 
       fan_setOverrideMode(true);
       fan_set(false);
-      mqtt_publishState();  // <-- ДОБАВЛЕНО
+      mqtt_publishState();
     }
   }
   else if (strcmp(topic, autoModeControlTopic) == 0) {
     if (msg == "AUTO" || msg == "1") { 
       fan_setOverrideMode(false);
-      mqtt_publishState();  // <-- ДОБАВЛЕНО
+      mqtt_publishState();
     } else if (msg == "0") {
       fan_setOverrideMode(true);
-      mqtt_publishState();  // <-- ДОБАВЛЕНО
+      mqtt_publishState();
     }
   }
   // Конфигурационные команды
@@ -317,11 +317,11 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     if (msg == "ON" || msg == "1") { 
       fan_setOverrideMode(true);
       fan_set(true);
-      mqtt_publishState();  // <-- ДОБАВЛЕНО
+      mqtt_publishState();
     } else if (msg == "OFF" || msg == "0") { 
       fan_setOverrideMode(true);
       fan_set(false);
-      mqtt_publishState();  // <-- ДОБАВЛЕНО
+      mqtt_publishState();
     }
   }
   #endif
@@ -377,9 +377,7 @@ void mqtt_reconnect() {
     mqtt_publishSensor();
     mqtt_publishConfig();  // публикуем конфигурацию при подключении
   } else {
-    #ifdef DEBUG_MQTT
-      Serial.printf("[MQTT] Failed to connect, state=%d\n", mqttClient.state());
-    #endif
+    Serial.printf("[MQTT] Failed to connect, state=%d\n", mqttClient.state());
   }
 }
 

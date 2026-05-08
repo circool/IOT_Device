@@ -6,6 +6,7 @@
 
 #ifdef ESP32
   #include <WiFi.h>
+  #include <ESPAsyncWebServer.h>
   #include <ElegantOTA.h>
   #include <DNSServer.h>
   DNSServer dnsServer;
@@ -15,6 +16,7 @@
   
 #elif defined(ESP8266)
   #include <ESP8266WiFi.h>
+  #include <ESP8266WebServer.h>
   #include <ElegantOTA.h>
   #include <DNSServer.h>
   DNSServer dnsServer;
@@ -116,6 +118,18 @@ String web_getConfigPage() {
   html += "<div><label>Интервал датчика (сек):</label><input type='number' name='sensorInterval' min='2' max='300' value='" + String(config.sensorInterval) + "'></div>";
   #endif
   
+  // DEVICE_TYPE 3: управляемый выключатель
+  #if DEVICE_TYPE == 3
+  html += "<h3>Настройки управления</h3>";
+  html += "<label>Задержка ВКЛЮЧЕНИЯ (сек):</label><input type='number' name='delaySeconds' min='0' max='3600' value='" + String(config.delaySeconds) + "'>";
+  html += "<label>maxOnTime (сек):</label><input type='number' name='maxOnTime' min='60' max='86400' value='" + String(config.maxOnTime) + "'>";
+  html += "<h3>Slow Mode</h3>";
+  html += "<label><input type='checkbox' name='slowModeEnabled' value='1' " + String(config.slowModeEnabled ? "checked" : "") + "> Включить</label>";
+  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' min='0' max='255' value='" + String(config.slowModeDuty) + "'>";
+  html += "<h3>Поведение при старте</h3>";
+  html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(config.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
+  #endif
+  
   html += "<input type='submit' value='Сохранить и перезагрузить'>";
   html += "</form>";
   html += "<div class='warning'>После сохранения устройство перезагрузится.</div>";
@@ -199,7 +213,7 @@ String web_getStatusPage(int refreshInterval) {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   html += "Опрос датчика: " + String(config.sensorInterval) + " сек<br>";
   #endif
-  #if DEVICE_TYPE == 1
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   html += "Задержка вкл: " + String(config.delaySeconds) + " сек<br>";
   html += "maxOnTime: " + String(config.maxOnTime) + " сек</div>";
   #endif
@@ -268,6 +282,25 @@ void web_saveConfig(AsyncWebServerRequest *request) {
   config.automaticMode = request->hasParam("automaticMode", true);
   #endif
   
+  #if DEVICE_TYPE == 3
+  if (request->hasParam("maxOnTime", true)) {
+    config.maxOnTime = request->getParam("maxOnTime", true)->value().toInt();
+    if (config.maxOnTime < 60) config.maxOnTime = 60;
+    if (config.maxOnTime > 86400) config.maxOnTime = 86400;
+  }
+  if (request->hasParam("delaySeconds", true)) {
+    config.delaySeconds = request->getParam("delaySeconds", true)->value().toInt();
+    if (config.delaySeconds < 0) config.delaySeconds = 0;
+    if (config.delaySeconds > 3600) config.delaySeconds = 3600;
+  }
+  config.slowModeEnabled = request->hasParam("slowModeEnabled", true);
+  if (request->hasParam("slowModeDuty", true)) {
+    config.slowModeDuty = request->getParam("slowModeDuty", true)->value().toInt();
+    if (config.slowModeDuty > 255) config.slowModeDuty = 255;
+  }
+  config.forceOffOnBoot = request->hasParam("forceOffOnBoot", true);
+  #endif
+  
   if (strlen(config.wifiSsid) == 0 || strlen(config.mqttBroker) == 0) {
     request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='3;url=/'></head><body><div style='text-align:center;margin-top:50px;'><h2 style='color:#f44336;'>Ошибка!</h2><p>SSID и MQTT Broker обязательны!</p></div></body></html>");
     return;
@@ -334,6 +367,25 @@ void web_saveConfig() {
   config.automaticMode = server.hasArg("automaticMode");
   #endif
   
+  #if DEVICE_TYPE == 3
+  if (server.hasArg("maxOnTime")) {
+    config.maxOnTime = server.arg("maxOnTime").toInt();
+    if (config.maxOnTime < 60) config.maxOnTime = 60;
+    if (config.maxOnTime > 86400) config.maxOnTime = 86400;
+  }
+  if (server.hasArg("delaySeconds")) {
+    config.delaySeconds = server.arg("delaySeconds").toInt();
+    if (config.delaySeconds < 0) config.delaySeconds = 0;
+    if (config.delaySeconds > 3600) config.delaySeconds = 3600;
+  }
+  config.slowModeEnabled = server.hasArg("slowModeEnabled");
+  if (server.hasArg("slowModeDuty")) {
+    config.slowModeDuty = server.arg("slowModeDuty").toInt();
+    if (config.slowModeDuty > 255) config.slowModeDuty = 255;
+  }
+  config.forceOffOnBoot = server.hasArg("forceOffOnBoot");
+  #endif
+  
   if (strlen(config.wifiSsid) == 0 || strlen(config.mqttBroker) == 0) {
     server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='3;url=/'></head><body><div style='text-align:center;margin-top:50px;'><h2 style='color:#f44336;'>Ошибка!</h2><p>SSID и MQTT Broker обязательны!</p></div></body></html>");
     return;
@@ -346,50 +398,8 @@ void web_saveConfig() {
 }
 #endif
 
-void web_initAP() {
-  if (apMode) return;
-  
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  apSSID = "SmartFan_" + String(mac[4], HEX) + String(mac[5], HEX);
-  
-  WiFi.mode(WIFI_AP);
-  WiFi.softAP(apSSID.c_str());
-  
-  Serial.println("AP Mode started");
-  Serial.printf("SSID: %s\n", apSSID.c_str());
-  Serial.printf("IP: %s\n", AP_IP_ADDRESS);
-  
-  dnsServer.start(DNS_PORT, "*", IPAddress(192, 168, 4, 1));
-  
-  #ifdef ESP8266
-    server.close();
-    server.on("/", [](){ server.send(200, "text/html", web_getConfigPage()); });
-    server.on("/save", web_saveConfig);
-    server.on("/resetall", [](){
-      config_clear();
-      server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=http://" + String(AP_IP_ADDRESS) + "/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
-      delay(1000);
-      ESP.restart();
-    });
-    server.addHandler(new CaptiveRequestHandler());
-  #elif defined(ESP32)
-    server.reset();
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ request->send(200, "text/html", web_getConfigPage()); });
-    server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ web_saveConfig(request); });
-    server.on("/resetall", HTTP_GET, [](AsyncWebServerRequest *request){
-      config_clear();
-      request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=http://" + String(AP_IP_ADDRESS) + "/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
-      delay(1000);
-      ESP.restart();
-    });
-  #endif
-  
-  server.begin();
-  apMode = true;
-}
-
 void web_init() {
+  // Клиентский режим - обычный веб-сервер
   int refreshInterval = 2;
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   refreshInterval = config.sensorInterval / 2;
@@ -431,7 +441,52 @@ void web_init() {
   Serial.println("[WEB] ElegantOTA initialized");
   
   server.begin();
-  Serial.println("Web server started on port 80");
+  Serial.println("[WEB] Web server started on port 80 (client mode)");
+}
+
+void web_initAP() {
+  if (apMode) return;
+  
+  apMode = true;
+  
+  uint8_t mac[6];
+  WiFi.macAddress(mac);
+  apSSID = "SmartFan_" + String(mac[4], HEX) + String(mac[5], HEX);
+  
+  WiFi.mode(WIFI_AP);
+  WiFi.softAP(apSSID.c_str());
+  WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
+  
+  dnsServer.start(DNS_PORT, "*", IPAddress(192, 168, 4, 1));
+  
+  Serial.printf("[WEB] AP started: %s, IP: %s\n", apSSID.c_str(), AP_IP_ADDRESS);
+  
+  #ifdef ESP8266
+    server.on("/", [](){ server.send(200, "text/html", web_getConfigPage()); });
+    server.on("/save", web_saveConfig);
+    server.on("/resetall", [](){
+      config_clear();
+      server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=http://" + String(AP_IP_ADDRESS) + "/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
+      delay(1000);
+      ESP.restart();
+    });
+    server.addHandler(new CaptiveRequestHandler());
+  #elif defined(ESP32)
+    
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ request->send(200, "text/html", web_getConfigPage()); });
+    server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ web_saveConfig(request); });
+    server.on("/resetall", HTTP_GET, [](AsyncWebServerRequest *request){
+      config_clear();
+      request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=http://" + String(AP_IP_ADDRESS) + "/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
+      delay(1000);
+      ESP.restart();
+    });
+    server.onNotFound([](AsyncWebServerRequest *request){
+      request->redirect("http://" + String(AP_IP_ADDRESS) + "/");
+    });
+  #endif
+  
+  server.begin();
 }
 
 void web_update() {
