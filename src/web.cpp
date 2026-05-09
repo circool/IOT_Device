@@ -21,19 +21,7 @@
   #include <DNSServer.h>
   DNSServer dnsServer;
   const byte DNS_PORT = 53;
-  
   ESP8266WebServer server(80);
-  
-  class CaptiveRequestHandler : public RequestHandler {
-  public:
-    CaptiveRequestHandler() {}
-    bool canHandle(HTTPMethod method, String uri) { return true; }
-    bool handle(ESP8266WebServer& server, HTTPMethod requestMethod, String requestUri) {
-      server.sendHeader("Location", "http://" + String(AP_IP_ADDRESS) + "/", true);
-      server.send(302, "text/plain", "");
-      return true;
-    }
-  };
 #endif
 
 String apSSID;
@@ -442,14 +430,21 @@ void web_initAP() {
   
   uint8_t mac[6];
   WiFi.macAddress(mac);
-  apSSID = "SmartFan_" + String(mac[4], HEX) + String(mac[5], HEX);
+  #if DEVICE_TYPE == 1
+    apSSID = "Fan_";
+  #elif DEVICE_TYPE == 2
+    apSSID = "Sensor_";
+  #elif DEVICE_TYPE == 3
+    apSSID = "Switch_";
+  #else
+    apSSID = "Device_";
+  #endif
+  apSSID += String(mac[4], HEX) + String(mac[5], HEX);
   
   WiFi.mode(WIFI_AP);
-  WiFi.softAP(apSSID.c_str());
   WiFi.softAPConfig(IPAddress(192, 168, 4, 1), IPAddress(192, 168, 4, 1), IPAddress(255, 255, 255, 0));
-  
+  WiFi.softAP(apSSID.c_str());
   dnsServer.start(DNS_PORT, "*", IPAddress(192, 168, 4, 1));
-  
   Serial.printf("[WEB] AP started: %s, IP: %s\n", apSSID.c_str(), AP_IP_ADDRESS);
   
   #ifdef ESP8266
@@ -461,7 +456,11 @@ void web_initAP() {
       delay(1000);
       ESP.restart();
     });
-    server.addHandler(new CaptiveRequestHandler());
+    server.onNotFound([]() {
+      server.sendHeader("Location", "http://" + String(AP_IP_ADDRESS) + "/", true);
+      server.send(302, "text/plain", "");
+    });
+
   #elif defined(ESP32)
     server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ request->send(200, "text/html", web_getConfigPage()); });
     server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ web_saveConfig(request); });

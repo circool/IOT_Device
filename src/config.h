@@ -201,15 +201,6 @@
 #endif
 
 // ======================== СТРУКТУРА КОНФИГУРАЦИИ ========================
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-struct ScheduleEntry {
-  uint8_t hour;
-  uint8_t minute;
-  bool state;
-};
-#endif
-
 struct Config {
   uint16_t magic;
   uint16_t crc;
@@ -240,12 +231,6 @@ struct Config {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     uint16_t sensorInterval;
   #endif
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    uint8_t scheduleCount;
-    ScheduleEntry schedule[10];
-  #endif
-  
   uint8_t reserved[31];
 };
 

@@ -68,7 +68,7 @@ static void config_loadFromCredentials() {
 
 void config_setDefaults() {
   #ifdef DEBUG_ENABLE
-    Serial.println("[CONFIG] Setting defaults (hardware + credentials)");
+    Serial.println("[CONFIG] Setting defaults");
   #endif
   
   // Полностью обнуляем структуру
@@ -95,8 +95,6 @@ void config_setDefaults() {
     config.slowModeDuty = SLOW_MODE_DUTY_CYCLE;
     config.maxOnTime = MAX_ON_TIME_SEC;
     config.forceOffOnBoot = DEFAULT_FORCE_OFF_ON_BOOT;
-    config.scheduleCount = 0;
-    memset(config.schedule, 0, sizeof(config.schedule));
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
@@ -108,8 +106,33 @@ void config_setDefaults() {
   // Загружаем WiFi/MQTT из credentials.h
   config_loadFromCredentials();
   
+    // Генерируем MQTT Client ID если пуст
+  if (strlen(config.mqttClientId) == 0) {
+    #if defined(ESP8266)
+      uint32_t chipId = ESP.getChipId();
+      uint16_t suffix = chipId & 0xFFFF;
+    #elif defined(ESP32)
+      uint64_t mac64 = ESP.getEfuseMac();
+      uint8_t mac[6];
+      mac[0] = mac64 & 0xFF;           
+      mac[1] = (mac64 >> 8) & 0xFF;    
+      mac[2] = (mac64 >> 16) & 0xFF;   
+      mac[3] = (mac64 >> 24) & 0xFF;   
+      mac[4] = (mac64 >> 32) & 0xFF;   
+      mac[5] = (mac64 >> 40) & 0xFF;   
+      uint16_t suffix = (mac[4] << 8) | mac[5];
+    #endif
+    snprintf(config.mqttClientId, sizeof(config.mqttClientId), 
+             "%s_%04X", DEVICE_PREFIX, suffix);
+    #ifdef DEBUG_ENABLE
+      Serial.printf("[CONFIG] Generated MQTT Client ID: %s\n", config.mqttClientId);
+    #endif
+
+    
+  }
+  
   #ifdef DEBUG_ENABLE
-    Serial.println("[CONFIG] Defaults set (hardware + credentials)");
+    Serial.println("[CONFIG] Defaults set");
   #endif
 }
 
@@ -143,8 +166,12 @@ void config_read() {
     Serial.printf("[CONFIG] Read magic: 0x%04X (expected 0x5A6B)\n", config.magic);
     Serial.printf("[CONFIG] Read WiFi SSID: '%s'\n", config.wifiSsid);
     Serial.printf("[CONFIG] Read MQTT Broker: '%s'\n", config.mqttBroker);
+    Serial.printf("[CONFIG] Read MQTT User: '%s'\n", config.mqttUser);
+    Serial.printf("[CONFIG] Read MQTT Client ID: '%s'\n", config.mqttClientId);
     Serial.printf("[CONFIG] Read CRC from EEPROM: 0x%04X\n", config.crc);
   #endif
+  
+  bool eepromValid = false;
   
   if (config.magic == 0x5A6B) {
     uint16_t savedCrc = config.crc;
@@ -160,11 +187,10 @@ void config_read() {
     
     if (calcCrc == savedCrc) {
       config.crc = savedCrc;
-      configValid = true;
+      eepromValid = true;
       #ifdef DEBUG_ENABLE
-        Serial.println("[CONFIG] Config is VALID");
+        Serial.println("[CONFIG] CRC is VALID");
       #endif
-      return;
     } else {      
         Serial.printf("[CONFIG] CRC mismatch! EEPROM: 0x%04X, Calculated: 0x%04X\n", savedCrc, calcCrc);
     }
@@ -172,13 +198,86 @@ void config_read() {
       Serial.println("[CONFIG] Magic mismatch! Config is INVALID");
   }
   
-  // EEPROM невалиден - загружаем defaults из credentials.h
-  configValid = false;
-  config_setDefaults();
+  // Проверка валидности всех полей
+  bool dataValid = true;
   
-  #ifdef DEBUG_ENABLE
-    Serial.println("[CONFIG] Using defaults (hardware + credentials) for setup mode");
+  // MQTT порт - должен быть в диапазоне 1-65535
+  if (config.mqttPort < 1 || config.mqttPort > 65535) {
+    Serial.printf("[CONFIG] Invalid MQTT port: %d\n", config.mqttPort);
+    dataValid = false;
+  }
+  
+  // WiFi SSID - не пустой
+  if (strlen(config.wifiSsid) == 0) {
+    Serial.println("[CONFIG] WiFi SSID is empty");
+    dataValid = false;
+  }
+  
+  // MQTT Broker - не пустой
+  if (strlen(config.mqttBroker) == 0) {
+    Serial.println("[CONFIG] MQTT Broker is empty");
+    dataValid = false;
+  }
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    // slowModeDuty - должен быть 0-255
+    if (config.slowModeDuty > 255) {
+      Serial.printf("[CONFIG] Invalid slowModeDuty: %d\n", config.slowModeDuty);
+      dataValid = false;
+    }
   #endif
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    // sensorInterval - должен быть > 0
+    if (config.sensorInterval == 0) {
+      Serial.printf("[CONFIG] Invalid sensorInterval: %d\n", config.sensorInterval);
+      dataValid = false;
+    }
+  #endif
+  
+  #if DEVICE_TYPE == 1
+    // lowTemp/highTemp - диапазон -40..85
+    if (config.lowTemp < -40 || config.lowTemp > 85) {
+      Serial.printf("[CONFIG] Invalid lowTemp: %.1f\n", config.lowTemp);
+      dataValid = false;
+    }
+    if (config.highTemp < -40 || config.highTemp > 85) {
+      Serial.printf("[CONFIG] Invalid highTemp: %.1f\n", config.highTemp);
+      dataValid = false;
+    }
+    if (config.lowTemp >= config.highTemp) {
+      Serial.printf("[CONFIG] lowTemp (%.1f) >= highTemp (%.1f)\n", config.lowTemp, config.highTemp);
+      dataValid = false;
+    }
+    
+    // lowHum/highHum - диапазон 0..100
+    if (config.lowHum < 0 || config.lowHum > 100) {
+      Serial.printf("[CONFIG] Invalid lowHum: %.1f\n", config.lowHum);
+      dataValid = false;
+    }
+    if (config.highHum < 0 || config.highHum > 100) {
+      Serial.printf("[CONFIG] Invalid highHum: %.1f\n", config.highHum);
+      dataValid = false;
+    }
+    if (config.lowHum >= config.highHum) {
+      Serial.printf("[CONFIG] lowHum (%.1f) >= highHum (%.1f)\n", config.lowHum, config.highHum);
+      dataValid = false;
+    }
+  #endif
+  
+  // Решение: валиден ли конфиг?
+  if (eepromValid && dataValid) {
+    configValid = true;
+    #ifdef DEBUG_ENABLE
+      Serial.println("[CONFIG] Config is VALID (EEPROM)");
+    #endif
+  } else {
+    configValid = false;
+    config_setDefaults();
+    #ifdef DEBUG_ENABLE
+      Serial.println("[CONFIG] Using defaults for setup mode");
+    #endif
+  }
 }
 
 void config_write() {
@@ -272,7 +371,6 @@ void config_print() {
                   config.slowModeDuty);
     Serial.printf("MaxOnTime: %d sec\n", config.maxOnTime);
     Serial.printf("Force OFF on boot: %s\n", config.forceOffOnBoot ? "ON" : "OFF");
-    Serial.printf("Schedules: %d\n", config.scheduleCount);
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
