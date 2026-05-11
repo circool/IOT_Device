@@ -1,6 +1,7 @@
 #include "config.h"
 
 Config config;
+Config staticConfig;            // Копия конфигурации для веб-интерфейса
 bool configValid = false;
 bool apMode = false;
 String configLastError = "";
@@ -188,8 +189,6 @@ bool config_validate() {
       #endif
       valid = false;
     }
-
-
     
     if (config.slowModeDuty > 255) {
       if (configLastError.length() == 0) configLastError = "Slow mode duty must be 0-255";
@@ -376,6 +375,9 @@ void config_write() {
       Serial.println("[CONFIG] Verification PASSED");
     #endif
     configValid = true;
+    
+    // Обновляем статическую копию для веб-интерфейса
+    memcpy(&staticConfig, &config, sizeof(Config));
   } else {
     Serial.println("[CONFIG] Verification FAILED!");
     config.crc = oldCrc;
@@ -392,6 +394,12 @@ void config_init() {
     Serial.printf("[CONFIG] EEPROM size: %d bytes\n", EEPROM.length());
   #endif
   config_read();
+  
+  // Создаём копию для веб-интерфейса
+  memcpy(&staticConfig, &config, sizeof(Config));
+  #ifdef DEBUG_ENABLE
+    Serial.println("[CONFIG] Static config copy created for web interface");
+  #endif
 }
 
 void config_print() {

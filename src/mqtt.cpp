@@ -23,6 +23,8 @@ char slowModeDutyStateTopic[56];
 char slowModeDutyControlTopic[56];
 char delaySecStateTopic[56];
 char delaySecControlTopic[56];
+char autoModeStateTopic[56];
+char autoModeControlTopic[56];
 #endif
 
 // Общие для TYPE 1 и TYPE 2
@@ -41,8 +43,6 @@ char lowTempControlTopic[56];
 char highTempControlTopic[56];
 char lowHumControlTopic[56];
 char highHumControlTopic[56];
-char autoModeStateTopic[56];
-char autoModeControlTopic[56];
 char errorTopic[56];
 #endif
 
@@ -66,6 +66,8 @@ void mqtt_setupTopics(const char* prefix) {
   snprintf(slowModeDutyControlTopic, sizeof(slowModeDutyControlTopic), "%s/c/fan/slowModeDuty", devicePrefix);
   snprintf(delaySecStateTopic, sizeof(delaySecStateTopic), "%s/fan/delaySec", devicePrefix);
   snprintf(delaySecControlTopic, sizeof(delaySecControlTopic), "%s/c/fan/delaySec", devicePrefix);
+  snprintf(autoModeStateTopic, sizeof(autoModeStateTopic), "%s/fan/autoMode", devicePrefix);
+  snprintf(autoModeControlTopic, sizeof(autoModeControlTopic), "%s/c/fan/autoMode", devicePrefix);
   #elif DEVICE_TYPE == 3
   snprintf(stateTopic, sizeof(stateTopic), "%s/switch/state", devicePrefix);
   snprintf(controlTopic, sizeof(controlTopic), "%s/c/switch/state", devicePrefix);
@@ -75,6 +77,8 @@ void mqtt_setupTopics(const char* prefix) {
   snprintf(slowModeDutyControlTopic, sizeof(slowModeDutyControlTopic), "%s/c/switch/slowModeDuty", devicePrefix);
   snprintf(delaySecStateTopic, sizeof(delaySecStateTopic), "%s/switch/delaySec", devicePrefix);
   snprintf(delaySecControlTopic, sizeof(delaySecControlTopic), "%s/c/switch/delaySec", devicePrefix);
+  snprintf(autoModeStateTopic, sizeof(autoModeStateTopic), "%s/switch/autoMode", devicePrefix);
+  snprintf(autoModeControlTopic, sizeof(autoModeControlTopic), "%s/c/switch/autoMode", devicePrefix);
   #endif
   #endif
   
@@ -94,8 +98,6 @@ void mqtt_setupTopics(const char* prefix) {
   snprintf(highTempControlTopic, sizeof(highTempControlTopic), "%s/c/sensor/highTemp", devicePrefix);
   snprintf(lowHumControlTopic, sizeof(lowHumControlTopic), "%s/c/sensor/lowHum", devicePrefix);
   snprintf(highHumControlTopic, sizeof(highHumControlTopic), "%s/c/sensor/highHum", devicePrefix);
-  snprintf(autoModeStateTopic, sizeof(autoModeStateTopic), "%s/fan/autoMode", devicePrefix);
-  snprintf(autoModeControlTopic, sizeof(autoModeControlTopic), "%s/c/fan/autoMode", devicePrefix);
   snprintf(errorTopic, sizeof(errorTopic), "%s/error", devicePrefix);
   #endif
   
@@ -112,19 +114,14 @@ void mqtt_publishState() {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   bool realState = fan_getRealState();
   mqttClient.publish(stateTopic, realState ? "ON" : "OFF");
-  #endif
-  
-  #if DEVICE_TYPE == 1
   mqttClient.publish(autoModeStateTopic, config.automaticMode ? "1" : "0");
   #endif
   
   #ifdef DEBUG_MQTT
-    #if DEVICE_TYPE == 1
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     Serial.printf("[MQTT] State published: state=%s, auto=%s\n", 
                   fan_getRealState() ? "ON" : "OFF", 
                   config.automaticMode ? "1" : "0");
-    #elif DEVICE_TYPE == 3
-    Serial.printf("[MQTT] State published: state=%s\n", fan_getRealState() ? "ON" : "OFF");
     #endif
   #endif
 }
@@ -136,6 +133,7 @@ void mqtt_publishConfig() {
   mqttClient.publish(slowModeStateTopic, config.slowModeEnabled ? "1" : "0");
   mqttClient.publish(slowModeDutyStateTopic, String(config.slowModeDuty).c_str());
   mqttClient.publish(delaySecStateTopic, String(config.delaySeconds).c_str());
+  mqttClient.publish(autoModeStateTopic, config.automaticMode ? "1" : "0");
   #endif
   
   #if DEVICE_TYPE == 1
@@ -143,18 +141,17 @@ void mqtt_publishConfig() {
   mqttClient.publish(highTempStateTopic, String(config.highTemp).c_str());
   mqttClient.publish(lowHumStateTopic, String(config.lowHum).c_str());
   mqttClient.publish(highHumStateTopic, String(config.highHum).c_str());
-  mqttClient.publish(autoModeStateTopic, config.automaticMode ? "1" : "0");
   #endif
   
   #ifdef DEBUG_MQTT
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    Serial.printf("[MQTT] Config published: slow=%d, duty=%d, delay=%d",
-                  config.slowModeEnabled, config.slowModeDuty, config.delaySeconds);
+    Serial.printf("[MQTT] Config published: slow=%d, duty=%d, delay=%d, auto=%s",
+                  config.slowModeEnabled, config.slowModeDuty, config.delaySeconds,
+                  config.automaticMode ? "ON" : "OFF");
     #endif
     #if DEVICE_TYPE == 1
-    Serial.printf(", T(%.1f-%.1f), H(%.1f-%.1f), auto=%s\n",
-                  config.lowTemp, config.highTemp, config.lowHum, config.highHum,
-                  config.automaticMode ? "ON" : "OFF");
+    Serial.printf(", T(%.1f-%.1f), H(%.1f-%.1f)\n",
+                  config.lowTemp, config.highTemp, config.lowHum, config.highHum);
     #else
     Serial.println();
     #endif
@@ -166,14 +163,15 @@ void mqtt_publishSensor() {
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (sensor_isOk()) {
-    mqttClient.publish(tempStateTopic, String(currentTemp).c_str());
     mqttClient.publish(humStateTopic, String(currentHum).c_str());
+    mqttClient.publish(tempStateTopic, String(currentTemp).c_str());
     #ifdef DEBUG_MQTT
       Serial.printf("[MQTT] Sensor published: T=%.2f°C, H=%.2f%%\n", currentTemp, currentHum);
     #endif
   }
   #endif
 }
+
 
 void mqtt_publishOnline() {
   if (!mqttClient.connected()) return;
@@ -219,15 +217,13 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   if (strcmp(topic, controlTopic) == 0) {
     
     if (msg == "ON" || msg == "1") { 
-      #if DEVICE_TYPE == 1
+      #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
       config.automaticMode = false;  // переходим в ручной режим
-      // config_write();
       #endif
       fan_set(true);
     } else if (msg == "OFF" || msg == "0") { 
-      #if DEVICE_TYPE == 1
+      #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
       config.automaticMode = false;  // переходим в ручной режим
-      // config_write();
       #endif
       fan_set(false);
     }
@@ -272,11 +268,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
       mqtt_publishConfig();
     }
   }
-  #endif
-  
-  #if DEVICE_TYPE == 1
-  
-  if (strcmp(topic, autoModeControlTopic) == 0) {
+  else if (strcmp(topic, autoModeControlTopic) == 0) {
     if (msg == "AUTO" || msg == "1") { 
       fan_setOverrideMode(true);   // включаем авто
     } else if (msg == "0") {
@@ -285,7 +277,11 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     mqtt_publishState();
     mqtt_publishConfig();
   }
-  else if (strcmp(topic, lowTempControlTopic) == 0) {
+  #endif
+  
+  #if DEVICE_TYPE == 1
+  
+  if (strcmp(topic, lowTempControlTopic) == 0) {
     config.lowTemp = msg.toFloat();
     if (config_validate()) {
       config_write();
@@ -348,10 +344,10 @@ void mqtt_reconnect() {
     mqttClient.subscribe(slowModeControlTopic, 1);
     mqttClient.subscribe(slowModeDutyControlTopic, 1);
     mqttClient.subscribe(delaySecControlTopic, 1);
+    mqttClient.subscribe(autoModeControlTopic, 1);
     #endif
     
     #if DEVICE_TYPE == 1
-    mqttClient.subscribe(autoModeControlTopic, 1);
     mqttClient.subscribe(lowTempControlTopic, 1);
     mqttClient.subscribe(highTempControlTopic, 1);
     mqttClient.subscribe(lowHumControlTopic, 1);

@@ -146,16 +146,11 @@
 // ======================== НАСТРОЙКИ WIFI ========================
 
 #ifndef WIFI_CHECK_INTERVAL_MS
-  #define WIFI_CHECK_INTERVAL_MS 5000
+  #define WIFI_CHECK_INTERVAL_MS 10000
 #endif
 
 #ifndef AP_FALLBACK_TIMEOUT_MS
   #define AP_FALLBACK_TIMEOUT_MS 120000
-#endif
-
-// ======================== ВЕБ-СТРАНИЦА СОСТОЯНИЯ ========================
-#ifndef WEB_STATUS_ENABLED
-  #define WEB_STATUS_ENABLED 1      // 1 - страница статуса включена, 0 - отключена (экономия Flash)
 #endif
 
 // ======================== ОТЛАДКА ========================
@@ -170,6 +165,11 @@
 
 #ifndef WEB_RESET_ENABLED
   #define WEB_RESET_ENABLED 0       // разрешить сброс через веб-интерфейс (0 – запретить)
+#endif
+
+// ======================== ВЕБ-СТРАНИЦА СОСТОЯНИЯ ========================
+#ifndef WEB_STATUS_ENABLED
+  #define WEB_STATUS_ENABLED 1      // 1 - страница статуса включена, 0 - отключена (экономия Flash)
 #endif
 
 // ======================== ПОДКЛЮЧЕНИЕ CREDENTIALS ========================
@@ -249,6 +249,7 @@ struct Config {
 };
 
 extern Config config;
+extern Config staticConfig;         // Копия конфигурации для веб-интерфейса (read-only)
 extern bool configValid;
 extern bool apMode;
 extern String configLastError;   

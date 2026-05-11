@@ -8,6 +8,7 @@ Switch fan_0F7C_status "Статус подключения" <f7:antenna_radiowa
     channel="mqtt:topic:local:fan_0F7C:status", on="Online", off="Offline"
 }
 
+
 Switch fan_0F7C_fan_state "Вытяжка" <oh:switch> (gFan0F7C,loc_Bathroom) ["Fan","Switch"] {
     channel="mqtt:topic:local:fan_0F7C:fan_state"
 }

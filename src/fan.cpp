@@ -70,7 +70,7 @@ void fan_init() {
   delayTimer = 0;
   fanStartTime = fanOn ? millis() : 0;
   
-  #if DEVICE_TYPE == 1
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   if (!config.automaticMode) {
     #ifdef DEBUG_ENABLE
       Serial.println("[FAN] Starting in MANUAL mode");
@@ -80,7 +80,7 @@ void fan_init() {
   
   // Запуск таймера отложенного включения при старте
   if (config.delaySeconds > 0 && !fanOn 
-      #if DEVICE_TYPE == 1
+      #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
       && config.automaticMode
       #endif
      ) {
@@ -150,7 +150,7 @@ bool fan_getRealState() {
 }
 
 void fan_setOverrideMode(bool automatic) {
-  #if DEVICE_TYPE == 1
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   config.automaticMode = automatic;
   if (!automatic) {
     delayActive = false;
@@ -170,7 +170,7 @@ void fan_checkMaxOnTime() {
     #endif
     fan_set(false);
     
-    #if DEVICE_TYPE == 1
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     config.automaticMode = false;
     config_write();
     #ifdef DEBUG_ENABLE
@@ -195,7 +195,7 @@ bool fan_delayTimer(bool start) {
   } else {
     if (delayActive && millis() >= delayTimer) {
       delayActive = false;
-      #if DEVICE_TYPE == 1
+      #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
       config.automaticMode = false;
       #ifdef DEBUG_ENABLE
         Serial.println("[FAN] Delay ON timer finished - switching to MANUAL mode (temporary)");
@@ -231,7 +231,7 @@ void fan_update() {
     // но изменение состояния (выключение) сбросило бы startingPulseActive.
   }
 
-  #if DEVICE_TYPE == 1
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   // Ручной режим - только проверка maxOnTime
   if (!config.automaticMode) {
     fan_checkMaxOnTime();

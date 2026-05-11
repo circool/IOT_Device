@@ -29,50 +29,17 @@ static bool otaInitialized = false;
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 void handleToggle() {
-  #if DEVICE_TYPE == 1
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   config.automaticMode = false;  // переходим в ручной режим
   #endif
   fan_set(!fan_getState());
 }
 
-#if DEVICE_TYPE == 1
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 void handleAutoMode() {
   fan_setOverrideMode(true);  // включаем автоматический режим
 }
 #endif
-#endif
-
-#if DEVICE_TYPE == 1
-// Читает сохранённое значение automaticMode из EEPROM (не текущее runtime)
-static bool getStoredAutoMode() {
-  // Сохраняем текущий runtime automaticMode
-  bool currentAutoMode = config.automaticMode;
-  
-  // Читаем сырые байты конфигурации из EEPROM
-  Config storedConfig;
-  memset(&storedConfig, 0, sizeof(Config));
-  uint8_t* ptr = (uint8_t*)&storedConfig;
-  for (size_t i = 0; i < sizeof(Config); i++) {
-    ptr[i] = EEPROM.read(i);
-  }
-  
-  // Восстанавливаем runtime значение обратно
-  config.automaticMode = currentAutoMode;
-  
-  // Проверяем magic и CRC, чтобы убедиться что данные валидны
-  if (storedConfig.magic == 0x5A6B) {
-    uint16_t savedCrc = storedConfig.crc;
-    storedConfig.crc = 0;
-    memset(storedConfig.reserved, 0, sizeof(storedConfig.reserved));
-    uint16_t calcCrc = crc16((uint8_t*)&storedConfig, sizeof(Config));
-    if (calcCrc == savedCrc) {
-      return storedConfig.automaticMode;
-    }
-  }
-  
-  // Если EEPROM невалиден, возвращаем значение по умолчанию
-  return DEFAULT_AUTOMATIC_MODE;
-}
 #endif
 
 String web_getConfigPage(String errorMsg) {
@@ -111,7 +78,7 @@ String web_getConfigPage(String errorMsg) {
     html += "IP адрес: <strong>" + String(AP_IP_ADDRESS) + "</strong><br>";
     html += "Режим: <strong>Точка доступа (AP)</strong>";
   } else {
-    html += "WiFi сеть: <strong>" + String(config.wifiSsid) + "</strong><br>";
+    html += "WiFi сеть: <strong>" + String(staticConfig.wifiSsid) + "</strong><br>";
     html += "IP адрес: <strong>" + WiFi.localIP().toString() + "</strong><br>";
     html += "Режим: <strong>Клиент WiFi</strong>";
   }
@@ -122,53 +89,53 @@ String web_getConfigPage(String errorMsg) {
   }
   
   html += "<h3>Настройки сети</h3>";
-  html += "<label>WiFi SSID:</label><input type='text' name='wifiSsid' required value='" + String(config.wifiSsid) + "'>";
+  html += "<label>WiFi SSID:</label><input type='text' name='wifiSsid' required value='" + String(staticConfig.wifiSsid) + "'>";
   html += "<label>WiFi Password:</label><input type='password' name='wifiPassword' placeholder='(не показан)'>";
   html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль WiFi</div>";
   
   html += "<h3>MQTT настройки</h3>";
-  html += "<div class='row'><div><label>MQTT Broker:</label><input type='text' name='mqttBroker' required value='" + String(config.mqttBroker) + "'></div>";
-  html += "<div><label>MQTT Port:</label><input type='number' name='mqttPort' required value='" + String(config.mqttPort) + "'></div></div>";
-  html += "<div class='row'><div><label>MQTT User:</label><input type='text' name='mqttUser' value='" + String(config.mqttUser) + "'></div>";
+  html += "<div class='row'><div><label>MQTT Broker:</label><input type='text' name='mqttBroker' required value='" + String(staticConfig.mqttBroker) + "'></div>";
+  html += "<div><label>MQTT Port:</label><input type='number' name='mqttPort' required value='" + String(staticConfig.mqttPort) + "'></div></div>";
+  html += "<div class='row'><div><label>MQTT User:</label><input type='text' name='mqttUser' value='" + String(staticConfig.mqttUser) + "'></div>";
   html += "<div><label>MQTT Password:</label><input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>";
   html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль MQTT</div>";
-  html += "<label>MQTT Client ID:</label><input type='text' name='mqttClientId' required value='" + String(config.mqttClientId) + "'>";
+  html += "<label>MQTT Client ID:</label><input type='text' name='mqttClientId' required value='" + String(staticConfig.mqttClientId) + "'>";
   
   #if DEVICE_TYPE == 1
   html += "<h3>Настройки датчиков</h3>";
-  html += "<div class='row'><div><label>Low Temp (°C):</label><input type='number' step='0.1' name='lowTemp' required value='" + String(config.lowTemp) + "'></div>";
-  html += "<div><label>High Temp (°C):</label><input type='number' step='0.1' name='highTemp' required value='" + String(config.highTemp) + "'></div></div>";
-  html += "<div class='row'><div><label>Low Hum (%):</label><input type='number' step='0.1' name='lowHum' required value='" + String(config.lowHum) + "'></div>";
-  html += "<div><label>High Hum (%):</label><input type='number' step='0.1' name='highHum' required value='" + String(config.highHum) + "'></div></div>";
-  html += "<div class='row'><div><label>Интервал опроса датчика (сек)</label><input type='number' name='sensorInterval' required value='" + String(config.sensorInterval) + "'></div>";
-  html += "<div><label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(config.maxOnTime) + "'></div></div>";
+  html += "<div class='row'><div><label>Low Temp (°C):</label><input type='number' step='0.1' name='lowTemp' required value='" + String(staticConfig.lowTemp) + "'></div>";
+  html += "<div><label>High Temp (°C):</label><input type='number' step='0.1' name='highTemp' required value='" + String(staticConfig.highTemp) + "'></div></div>";
+  html += "<div class='row'><div><label>Low Hum (%):</label><input type='number' step='0.1' name='lowHum' required value='" + String(staticConfig.lowHum) + "'></div>";
+  html += "<div><label>High Hum (%):</label><input type='number' step='0.1' name='highHum' required value='" + String(staticConfig.highHum) + "'></div></div>";
+  html += "<div class='row'><div><label>Интервал опроса датчика (сек)</label><input type='number' name='sensorInterval' required value='" + String(staticConfig.sensorInterval) + "'></div>";
+  html += "<div><label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(staticConfig.maxOnTime) + "'></div></div>";
   html += "<h3>Управление</h3>";
-  html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(config.delaySeconds) + "'>";
+  html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(staticConfig.delaySeconds) + "'>";
   html += "<h3>Тихий режим</h3>";
-  html += "<label><input type='checkbox' name='slowModeEnabled' value='1' " + String(config.slowModeEnabled ? "checked" : "") + "> Включить</label>";
-  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' required value='" + String(config.slowModeDuty) + "'>";
+  html += "<label><input type='checkbox' name='slowModeEnabled' value='1' " + String(staticConfig.slowModeEnabled ? "checked" : "") + "> Включить</label>";
+  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' required value='" + String(staticConfig.slowModeDuty) + "'>";
   html += "<h3>Поведение при старте</h3>";
-  html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(config.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
+  html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(staticConfig.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
   html += "<h3>Режимы работы</h3>";
-  // Показываем сохранённое значение из EEPROM, а не текущее runtime-состояние
-  bool storedAutoMode = getStoredAutoMode();
-  html += "<label><input type='checkbox' name='automaticMode' value='1' " + String(storedAutoMode ? "checked" : "") + "> Автоматический режим</label>";
+  html += "<label><input type='checkbox' name='automaticMode' value='1' " + String(staticConfig.automaticMode ? "checked" : "") + "> Автоматический режим</label>";
   #endif
   
   #if DEVICE_TYPE == 2
   html += "<h3>Настройки датчиков</h3>";
-  html += "<div><label>Интервал опроса датчика (сек)</label><input type='number' name='sensorInterval' required value='" + String(config.sensorInterval) + "'></div>";
+  html += "<div><label>Интервал опроса датчика (сек)</label><input type='number' name='sensorInterval' required value='" + String(staticConfig.sensorInterval) + "'></div>";
   #endif
   
   #if DEVICE_TYPE == 3
   html += "<h3>Настройки управления</h3>";
-  html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(config.delaySeconds) + "'>";
-  html += "<label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(config.maxOnTime) + "'>";
+  html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(staticConfig.delaySeconds) + "'>";
+  html += "<label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(staticConfig.maxOnTime) + "'>";
   html += "<h3>Тихий режим</h3>";
-  html += "<label><input type='checkbox' name='slowModeEnabled' value='1' " + String(config.slowModeEnabled ? "checked" : "") + "> Включить</label>";
-  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' required value='" + String(config.slowModeDuty) + "'>";
+  html += "<label><input type='checkbox' name='slowModeEnabled' value='1' " + String(staticConfig.slowModeEnabled ? "checked" : "") + "> Включить</label>";
+  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' required value='" + String(staticConfig.slowModeDuty) + "'>";
   html += "<h3>Поведение при старте</h3>";
-  html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(config.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
+  html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(staticConfig.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
+  html += "<h3>Режимы работы</h3>";
+  html += "<label><input type='checkbox' name='automaticMode' value='1' " + String(staticConfig.automaticMode ? "checked" : "") + "> Автоматический режим</label>";
   #endif
   
   html += "<input type='submit' value='Сохранить и перезагрузить'>";
@@ -241,6 +208,7 @@ String web_getStatusPage(int refreshInterval) {
   #else
   String label = "Выключатель";
   String toggleUrl = "/switch/toggle";
+  String autoUrl = "/switch/auto";
   #endif
   
   html += "<a href='" + toggleUrl + "'>";
@@ -248,7 +216,7 @@ String web_getStatusPage(int refreshInterval) {
   html += "<div style='font-size:2em;font-weight:bold;color:" + stateColor + ";'>" + label + ": " + stateText + "</div></div>";
   html += "</a>";
   
-  #if DEVICE_TYPE == 1
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   String modeText = config.automaticMode ? "АВТО" : "РУЧНОЙ";
   String modeColor = config.automaticMode ? "#4CAF50" : "#f44336";
   html += "<div class='status-card' style='background:" + modeColor + "20; border:2px solid " + modeColor + ";'>";
@@ -261,7 +229,6 @@ String web_getStatusPage(int refreshInterval) {
   html += "Опрос датчика " + String(config.sensorInterval) + " сек<br>";
   #endif
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  // html += "Принудительно включить через " + String(config.delaySeconds) + " сек<br>";
   if (delayActive && delayTimer > 0) {
     unsigned long now = millis();
     if (now < delayTimer) {
@@ -275,7 +242,6 @@ String web_getStatusPage(int refreshInterval) {
   } else {
     html += "Принудительное включение: <strong>отключено</strong><br>";
   }
-  // html += "Аварийное отключение через " + String(config.maxOnTime) + " сек</div>";
   if (fanOn && config.maxOnTime > 0 && fanStartTime > 0) {
     unsigned long elapsed = (millis() - fanStartTime) / 1000;
     if (elapsed < config.maxOnTime) {
@@ -292,7 +258,7 @@ String web_getStatusPage(int refreshInterval) {
   #endif
   
   html += "<div class='button-group'>";
-  #if DEVICE_TYPE == 1
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   if (!config.automaticMode) {
     html += "<a href='" + autoUrl + "'><button>Автоматический режим</button></a>";
   }
@@ -405,6 +371,7 @@ void web_saveConfig(AsyncWebServerRequest *request) {
     if (p) config.slowModeDuty = p->value().toInt();
   }
   config.forceOffOnBoot = request->hasParam("forceOffOnBoot", true);
+  config.automaticMode = request->hasParam("automaticMode", true);
   #endif
   
   if (!config_validate()) {
@@ -468,6 +435,7 @@ void web_saveConfig() {
   config.slowModeEnabled = server.hasArg("slowModeEnabled");
   if (server.hasArg("slowModeDuty")) config.slowModeDuty = server.arg("slowModeDuty").toInt();
   config.forceOffOnBoot = server.hasArg("forceOffOnBoot");
+  config.automaticMode = server.hasArg("automaticMode");
   #endif
   
   if (!config_validate()) {
@@ -569,6 +537,10 @@ void web_init() {
         handleToggle(); 
         request->redirect("/"); 
       });
+      server.on("/switch/auto", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        handleAutoMode(); 
+        request->redirect("/"); 
+      });
       #endif
     #elif defined(ESP8266)
       #if DEVICE_TYPE == 1
@@ -585,6 +557,11 @@ void web_init() {
       #elif DEVICE_TYPE == 3
       server.on("/switch/toggle", [](){ 
         handleToggle(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+      });
+      server.on("/switch/auto", [](){ 
+        handleAutoMode(); 
         server.sendHeader("Location", "/", true); 
         server.send(302, "text/plain", ""); 
       });

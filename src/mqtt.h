@@ -30,6 +30,8 @@ extern char slowModeDutyStateTopic[56];
 extern char slowModeDutyControlTopic[56];
 extern char delaySecStateTopic[56];
 extern char delaySecControlTopic[56];
+extern char autoModeStateTopic[56];
+extern char autoModeControlTopic[56];
 #endif
 
 // Общие для TYPE 1 и TYPE 2 (датчик)
@@ -48,8 +50,6 @@ extern char lowTempControlTopic[56];
 extern char highTempControlTopic[56];
 extern char lowHumControlTopic[56];
 extern char highHumControlTopic[56];
-extern char autoModeStateTopic[56];
-extern char autoModeControlTopic[56];
 extern char errorTopic[56];
 #endif
 
