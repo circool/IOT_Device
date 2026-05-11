@@ -1,132 +1,141 @@
 Bridge mqtt:broker:local [ 
-  host=MQTT_ADDRESS, 
+  host=localhost, 
   secure=false, 
-  username=MQTT_USER, 
+  username=openhabian, 
   password=MQTT_PASSWORD
 ] {
 
-  // ==================== TYPE 1: Вентилятор с датчиком ====================
-  Thing topic fan_esp32 "Вентилятор esp32" [ availabilityTopic="fan_esp32/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {
-
-      Type switch : status "Состояние" [
-        stateTopic="fan_esp32/status", on="Online", off="Offline"
+  Thing topic fan_0F7C "Вентилятор ванная" [ availabilityTopic="fan_0F7C/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {  
+    Channels:
+      Type switch : status "Состояние" [ 
+        stateTopic="fan_0F7C/status", on="Online", off="Offline"
       ]
 
-      Type switch : fan_state "Вентилятор" [
-        stateTopic="fan_esp32/fan/state", on="ON", off="OFF",
-        commandTopic="fan_esp32/c/fan/state", on="1", off="0"
+      Type switch : fan_state "Вытяжка" [ 
+        stateTopic="fan_0F7C/fan/state", on="ON", off="OFF",
+        commandTopic="fan_0F7C/c/fan/state", on="1", off="0"
       ]
 
-      Type number : sensor_humidity "Влажность" [
-        stateTopic="fan_esp32/sensor/humidity"
+      Type number : sensor_humidity "Влажность" [ 
+        stateTopic="fan_0F7C/sensor/humidity",
+	unit="%"
       ]
       
-      Type number : sensor_lowHum "Low Humidity Range" [
-        stateTopic="fan_esp32/sensor/lowHum",
-        commandTopic="fan_esp32/c/sensor/lowHum",
-        min=0,
-        max=100,
-        unit="%"
+      Type number : sensor_lowHum "Low Humidity Range" [ 
+        stateTopic="fan_0F7C/sensor/lowHum",
+        commandTopic="fan_0F7C/c/sensor/lowHum",
+        min=0, max=100, unit="%"
       ]
 
-      Type number : sensor_highHum "High Humidity Range" [
-        stateTopic="fan_esp32/sensor/highHum",
-        commandTopic="fan_esp32/c/sensor/highHum",
-        min=0,
-        max=100,
-        unit="%"
+      Type number : sensor_highHum "High Humidity Range" [ 
+        stateTopic="fan_0F7C/sensor/highHum",
+        commandTopic="fan_0F7C/c/sensor/highHum",
+        min=0, max=100, unit="%"
       ]
 
-      Type number : sensor_temperature "Температура" [
-        stateTopic="fan_esp32/sensor/temperature"
+      Type number : sensor_temperature "Температура" [ 
+        stateTopic="fan_0F7C/sensor/temperature"
       ]
 
-      Type number : sensor_lowTemp "Low Temperature Range" [
-        stateTopic="fan_esp32/sensor/lowTemp",
-        commandTopic="fan_esp32/c/sensor/lowTemp",
-        unit="°C",
-        min=-50,
-        max=50
+      Type number : sensor_lowTemp "Low Temperature Range" [ 
+        stateTopic="fan_0F7C/sensor/lowTemp",
+        commandTopic="fan_0F7C/c/sensor/lowTemp",
+        min=-50, max=50, unit="°C"
       ]
 
-      Type number : sensor_highTemp "High Temperature Range" [
-        stateTopic="fan_esp32/sensor/highTemp",
-        commandTopic="fan_esp32/c/sensor/highTemp",
-        unit="°C",
-        min=-50,
-        max=50
-      ] 
-
-      Type number : fan_delaySec "Fan delay" [
-        stateTopic="fan_esp32/fan/delaySec",
-        commandTopic="fan_esp32/c/fan/delaySec",
-        unit="sec",
-        min=0
+      Type number : sensor_highTemp "High Temperature Range" [ 
+        stateTopic="fan_0F7C/sensor/highTemp",
+        commandTopic="fan_0F7C/c/sensor/highTemp",
+        min=-50, max=50, unit="°C"
       ]
 
-      Type switch : fan_slowMode "Slow Mode" [
-        stateTopic="fan_esp32/fan/slowMode", on="1", off="0",
-        commandTopic="fan_esp32/c/fan/slowMode", on="1", off="0"
+      Type number : fan_delaySec "Fan delay" [ 
+        stateTopic="fan_0F7C/fan/delaySec",
+        commandTopic="fan_0F7C/c/fan/delaySec",
+        min=0, unit="sec"
       ]
 
-      Type number : fan_slowModeDuty "Slow Mode Duty" [
-        stateTopic="fan_esp32/fan/slowModeDuty",
-        commandTopic="fan_esp32/c/fan/slowModeDuty",
-        min=0,
-        max=255
+      Type switch : fan_slowMode "Slow Mode" [ 
+        stateTopic="fan_0F7C/fan/slowMode", on="1", off="0",
+        commandTopic="fan_0F7C/c/fan/slowMode", on="1", off="0"
       ]
 
-      Type switch : fan_autoMode "Auto Mode" [
-        stateTopic="fan_esp32/fan/autoMode", on="1", off="0",
-        commandTopic="fan_esp32/c/fan/autoMode", on="1", off="0"
+      Type number : fan_slowModeDuty "Slow Mode Duty" [ 
+        stateTopic="fan_0F7C/fan/slowModeDuty",
+        commandTopic="fan_0F7C/c/fan/slowModeDuty",
+        min=0, max=255
+      ]
+
+      Type switch : fan_autoMode "Auto Mode" [ 
+        stateTopic="fan_0F7C/fan/autoMode", on="1", off="0",
+        commandTopic="fan_0F7C/c/fan/autoMode", on="1", off="0"
       ]
   }
 
-  // ==================== TYPE 2: Только датчик ====================
-  Thing topic sensor_esp32 "Датчик esp32" [ availabilityTopic="sensor_esp32/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {
-
-      Type switch : status "Состояние" [
-        stateTopic="sensor_esp32/status", on="Online", off="Offline"
+  Thing topic fan_1F32 "Вентилятор туалет" [ availabilityTopic="fan_1F32/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {  
+    Channels:
+      Type switch : status "Состояние" [ 
+        stateTopic="fan_1F32/status", on="Online", off="Offline"
       ]
 
-      Type number : sensor_humidity "Влажность" [
-        stateTopic="sensor_esp32/sensor/humidity"
+      Type switch : fan_state "Вытяжка" [ 
+        stateTopic="fan_1F32/fan/state", on="ON", off="OFF",
+        commandTopic="fan_1F32/c/fan/state", on="1", off="0"
+      ]
+
+      Type number : sensor_humidity "Влажность" [ 
+        stateTopic="fan_1F32/sensor/humidity",
+	      unit="%"
       ]
       
-      Type number : sensor_temperature "Температура" [
-        stateTopic="sensor_esp32/sensor/temperature"
-      ]
-  }
-
-  // ==================== TYPE 3: Управляемый выключатель ====================
-  Thing topic switch_esp32 "Выключатель esp32" [ availabilityTopic="switch_esp32/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {
-
-      Type switch : status "Состояние" [
-        stateTopic="switch_esp32/status", on="Online", off="Offline"
+      Type number : sensor_lowHum "Low Humidity Range" [ 
+        stateTopic="fan_1F32/sensor/lowHum",
+        commandTopic="fan_1F32/c/sensor/lowHum",
+        min=0, max=100, unit="%"
       ]
 
-      Type switch : switch_state "Выключатель" [
-        stateTopic="switch_esp32/switch/state", on="ON", off="OFF",
-        commandTopic="switch_esp32/c/switch/state", on="1", off="0"
+      Type number : sensor_highHum "High Humidity Range" [ 
+        stateTopic="fan_1F32/sensor/highHum",
+        commandTopic="fan_1F32/c/sensor/highHum",
+        min=0, max=100, unit="%"
       ]
 
-      Type number : switch_delaySec "Delay" [
-        stateTopic="switch_esp32/switch/delaySec",
-        commandTopic="switch_esp32/c/switch/delaySec",
-        unit="sec",
-        min=0
+      Type number : sensor_temperature "Температура" [ 
+        stateTopic="fan_1F32/sensor/temperature"
       ]
 
-      Type switch : switch_slowMode "Slow Mode" [
-        stateTopic="switch_esp32/switch/slowMode", on="1", off="0",
-        commandTopic="switch_esp32/c/switch/slowMode", on="1", off="0"
+      Type number : sensor_lowTemp "Low Temperature Range" [ 
+        stateTopic="fan_1F32/sensor/lowTemp",
+        commandTopic="fan_1F32/c/sensor/lowTemp",
+        min=-50, max=50, unit="°C"
       ]
 
-      Type number : switch_slowModeDuty "Slow Mode Duty" [
-        stateTopic="switch_esp32/switch/slowModeDuty",
-        commandTopic="switch_esp32/c/switch/slowModeDuty",
-        min=0,
-        max=255
+      Type number : sensor_highTemp "High Temperature Range" [ 
+        stateTopic="fan_1F32/sensor/highTemp",
+        commandTopic="fan_1F32/c/sensor/highTemp",
+        min=-50, max=50, unit="°C"
+      ]
+
+      Type number : fan_delaySec "Fan delay" [ 
+        stateTopic="fan_1F32/fan/delaySec",
+        commandTopic="fan_1F32/c/fan/delaySec",
+        min=0, unit="sec"
+      ]
+
+      Type switch : fan_slowMode "Slow Mode" [ 
+        stateTopic="fan_1F32/fan/slowMode", on="1", off="0",
+        commandTopic="fan_1F32/c/fan/slowMode", on="1", off="0"
+      ]
+
+      Type number : fan_slowModeDuty "Slow Mode Duty" [ 
+        stateTopic="fan_1F32/fan/slowModeDuty",
+        commandTopic="fan_1F32/c/fan/slowModeDuty",
+        min=0, max=255
+      ]
+
+      Type switch : fan_autoMode "Auto Mode" [ 
+        stateTopic="fan_1F32/fan/autoMode", on="1", off="0",
+        commandTopic="fan_1F32/c/fan/autoMode", on="1", off="0"
       ]
   }
 }

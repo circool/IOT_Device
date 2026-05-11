@@ -115,13 +115,14 @@ void mqtt_publishState() {
   #endif
   
   #if DEVICE_TYPE == 1
-  mqttClient.publish(autoModeStateTopic, manualOverride ? "0" : "1");
+  mqttClient.publish(autoModeStateTopic, config.automaticMode ? "1" : "0");
   #endif
   
   #ifdef DEBUG_MQTT
     #if DEVICE_TYPE == 1
     Serial.printf("[MQTT] State published: state=%s, auto=%s\n", 
-                  fan_getRealState() ? "ON" : "OFF", manualOverride ? "0" : "1");
+                  fan_getRealState() ? "ON" : "OFF", 
+                  config.automaticMode ? "1" : "0");
     #elif DEVICE_TYPE == 3
     Serial.printf("[MQTT] State published: state=%s\n", fan_getRealState() ? "ON" : "OFF");
     #endif
@@ -151,8 +152,9 @@ void mqtt_publishConfig() {
                   config.slowModeEnabled, config.slowModeDuty, config.delaySeconds);
     #endif
     #if DEVICE_TYPE == 1
-    Serial.printf(", T(%.1f-%.1f), H(%.1f-%.1f)\n",
-                  config.lowTemp, config.highTemp, config.lowHum, config.highHum);
+    Serial.printf(", T(%.1f-%.1f), H(%.1f-%.1f), auto=%s\n",
+                  config.lowTemp, config.highTemp, config.lowHum, config.highHum,
+                  config.automaticMode ? "ON" : "OFF");
     #else
     Serial.println();
     #endif
@@ -200,6 +202,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     Serial.printf("[MQTT] Command received: %s = %s\n", topic, msg.c_str());
   #endif
   
+  #if MQTT_RESET_ENABLED
   if (strcmp(topic, resetControlTopic) == 0) {
     if (msg == "1") {
       mqtt_publishOffline();
@@ -209,60 +212,55 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     }
     return;
   }
+  #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   
   if (strcmp(topic, controlTopic) == 0) {
+    
     if (msg == "ON" || msg == "1") { 
-      fan_setOverrideMode(true);
+      #if DEVICE_TYPE == 1
+      config.automaticMode = false;  // переходим в ручной режим
+      // config_write();
+      #endif
       fan_set(true);
     } else if (msg == "OFF" || msg == "0") { 
-      fan_setOverrideMode(true);
+      #if DEVICE_TYPE == 1
+      config.automaticMode = false;  // переходим в ручной режим
+      // config_write();
+      #endif
       fan_set(false);
     }
+    
+    mqtt_publishState();
   }
   else if (strcmp(topic, slowModeControlTopic) == 0) {
     config.slowModeEnabled = (msg == "1" || msg == "ON");
-    config_write();
-    if (fanOn) {
-      if (config.slowModeEnabled) {
-        #ifdef ESP32
-          ledcAttachPin(SWITCH_PIN, 0);
-          ledcWrite(0, config.slowModeDuty);
-        #elif defined(ESP8266)
-          analogWrite(SWITCH_PIN, config.slowModeDuty);
-        #endif
-      } else {
-        #ifdef ESP32
-          ledcDetachPin(SWITCH_PIN);
-          digitalWrite(SWITCH_PIN, HIGH);
-        #elif defined(ESP8266)
-          digitalWrite(SWITCH_PIN, HIGH);
-        #endif
+    if (config_validate()) {
+      config_write();
+      if (fanOn) {
+        fan_set(true);  // переприменить с новыми настройками
       }
+      mqtt_publishConfig();
     }
-    mqtt_publishConfig();
   }
   else if (strcmp(topic, slowModeDutyControlTopic) == 0) {
-    int val = msg.toInt();
-    if (val >= 0 && val <= 255) {
-      config.slowModeDuty = val;
+    config.slowModeDuty = msg.toInt();
+    if (config_validate()) {
       config_write();
       if (fanOn && config.slowModeEnabled) {
-        #ifdef ESP32
-          ledcWrite(0, config.slowModeDuty);
-        #elif defined(ESP8266)
-          analogWrite(SWITCH_PIN, config.slowModeDuty);
-        #endif
+        fan_set(true);  // переприменить с новой скважностью
       }
       mqtt_publishConfig();
     }
   }
   else if (strcmp(topic, delaySecControlTopic) == 0) {
     int newDelay = msg.toInt();
-    if (newDelay >= 0 && newDelay <= 3600) {
+    int oldDelay = config.delaySeconds;
+    config.delaySeconds = newDelay;
+    if (config_validate()) {
       if (delayActive) {
-        long remaining = (delayTimer - millis()) + (newDelay - config.delaySeconds) * 1000L;
+        long remaining = (delayTimer - millis()) + (newDelay - oldDelay) * 1000L;
         if (remaining > 0) {
           delayTimer = millis() + remaining;
         } else {
@@ -270,7 +268,6 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
           fan_set(true);
         }
       }
-      config.delaySeconds = newDelay;
       config_write();
       mqtt_publishConfig();
     }
@@ -281,39 +278,37 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   
   if (strcmp(topic, autoModeControlTopic) == 0) {
     if (msg == "AUTO" || msg == "1") { 
-      fan_setOverrideMode(false);
+      fan_setOverrideMode(true);   // включаем авто
     } else if (msg == "0") {
-      fan_setOverrideMode(true);
+      fan_setOverrideMode(false);  // включаем ручной
     }
+    mqtt_publishState();
+    mqtt_publishConfig();
   }
   else if (strcmp(topic, lowTempControlTopic) == 0) {
-    float val = msg.toFloat();
-    if (val >= -40.0 && val <= 85.0) {
-      config.lowTemp = val;
+    config.lowTemp = msg.toFloat();
+    if (config_validate()) {
       config_write();
       mqtt_publishConfig();
     }
   }
   else if (strcmp(topic, highTempControlTopic) == 0) {
-    float val = msg.toFloat();
-    if (val >= -40.0 && val <= 85.0) {
-      config.highTemp = val;
+    config.highTemp = msg.toFloat();
+    if (config_validate()) {
       config_write();
       mqtt_publishConfig();
     }
   }
   else if (strcmp(topic, lowHumControlTopic) == 0) {
-    float val = msg.toFloat();
-    if (val >= 0.0 && val <= 100.0) {
-      config.lowHum = val;
+    config.lowHum = msg.toFloat();
+    if (config_validate()) {
       config_write();
       mqtt_publishConfig();
     }
   }
   else if (strcmp(topic, highHumControlTopic) == 0) {
-    float val = msg.toFloat();
-    if (val >= 0.0 && val <= 100.0) {
-      config.highHum = val;
+    config.highHum = msg.toFloat();
+    if (config_validate()) {
       config_write();
       mqtt_publishConfig();
     }
@@ -344,7 +339,9 @@ void mqtt_reconnect() {
     
     mqtt_publishOnline();
     
+    #if MQTT_RESET_ENABLED
     mqttClient.subscribe(resetControlTopic, 1);
+    #endif
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     mqttClient.subscribe(controlTopic, 1);

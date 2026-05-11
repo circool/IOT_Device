@@ -25,31 +25,84 @@
 #endif
 
 String apSSID;
+static bool otaInitialized = false;
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 void handleToggle() {
-  fan_setOverrideMode(true);
+  #if DEVICE_TYPE == 1
+  config.automaticMode = false;  // переходим в ручной режим
+  #endif
   fan_set(!fan_getState());
+}
+
+#if DEVICE_TYPE == 1
+void handleAutoMode() {
+  fan_setOverrideMode(true);  // включаем автоматический режим
+}
+#endif
+#endif
+
+#if DEVICE_TYPE == 1
+// Читает сохранённое значение automaticMode из EEPROM (не текущее runtime)
+static bool getStoredAutoMode() {
+  // Сохраняем текущий runtime automaticMode
+  bool currentAutoMode = config.automaticMode;
+  
+  // Читаем сырые байты конфигурации из EEPROM
+  Config storedConfig;
+  memset(&storedConfig, 0, sizeof(Config));
+  uint8_t* ptr = (uint8_t*)&storedConfig;
+  for (size_t i = 0; i < sizeof(Config); i++) {
+    ptr[i] = EEPROM.read(i);
+  }
+  
+  // Восстанавливаем runtime значение обратно
+  config.automaticMode = currentAutoMode;
+  
+  // Проверяем magic и CRC, чтобы убедиться что данные валидны
+  if (storedConfig.magic == 0x5A6B) {
+    uint16_t savedCrc = storedConfig.crc;
+    storedConfig.crc = 0;
+    memset(storedConfig.reserved, 0, sizeof(storedConfig.reserved));
+    uint16_t calcCrc = crc16((uint8_t*)&storedConfig, sizeof(Config));
+    if (calcCrc == savedCrc) {
+      return storedConfig.automaticMode;
+    }
+  }
+  
+  // Если EEPROM невалиден, возвращаем значение по умолчанию
+  return DEFAULT_AUTOMATIC_MODE;
 }
 #endif
 
-String web_getConfigPage() {
+String web_getConfigPage(String errorMsg) {
   String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
   html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-  html += "<title>Smart Fan Configuration</title>";
+#if DEVICE_TYPE == 1
+  html += "<title>Fan Configuration</title>";
+#elif DEVICE_TYPE == 2
+  html += "<title>Sensor Configuration</title>";
+#elif DEVICE_TYPE == 3
+  html += "<title>Switch Configuration</title>";
+#else
+  html += "<title>Device Configuration</title>";
+#endif
   html += "<style>";
   html += "body{font-family:Arial;margin:20px;background:#f0f0f0;}";
   html += ".container{max-width:700px;margin:auto;background:white;padding:20px;border-radius:10px;}";
   html += "h1{color:#2c3e50;}h3{color:#2c3e50;border-bottom:1px solid #ccc;padding-bottom:5px;}";
   html += "label{display:block;margin-top:10px;font-weight:bold;}";
-  html += "input[type=text],input[type=password],input[type=number]{width:100%;padding:8px;margin:5px 0;border:1px solid #ccc;border-radius:4px;font-size:1.2em}";
+  html += "input[type=text],input[type=password],input[type=number]{width:100%;padding:8px;margin:5px 0;border:1px solid #ccc;border-radius:4px;font-size:1.2em;box-sizing:border-box;}";
   html += "input[type=checkbox]{width:20px;height:20px;margin-right:10px;vertical-align:middle;cursor:pointer;transform:scale(1.5);}";
-  html += "input[type=submit]{background:#2c3e50;color:white;padding:10px 20px;margin-top:20px;border:none;border-radius:4px;cursor:pointer;width:100%;font-size:1em}";
+  html += "input[type=submit]{background:#2c3e50;color:white;padding:10px 20px;margin-top:20px;border:none;border-radius:4px;cursor:pointer;width:100%;font-size:1em;box-sizing:border-box;}";
   html += "input[type=submit]:hover{background:#1a252f;}";
   html += ".info{background:#e7f3ff;padding:10px;border-radius:5px;margin:10px 0;}";
   html += ".warning{background:#fff3cd;padding:10px;border-radius:5px;margin:10px 0;color:#856404;}";
+  html += ".error{background:#ffebee;padding:10px;border-radius:5px;margin:10px 0;color:#c62828;}";
   html += ".row{display:flex;gap:10px;}.row>div{flex:1;}";
   html += ".password-hint{color:#7f8c8d;margin-top:-2px;margin-bottom:8px;}";
+  html += ".ota-btn{background:#555;color:white;padding:10px 20px;margin-top:10px;border:none;border-radius:4px;cursor:pointer;font-size:1em;text-align:center;text-decoration:none;display:block;box-sizing:border-box;}";
+  html += ".ota-btn:hover{background:#333;}";
   html += "</style></head><body><div class='container'>";
   html += "<h1>Настройка устройства</h1>";
   html += "<div class='info'><strong>Текущее состояние</strong><br>";
@@ -64,62 +117,69 @@ String web_getConfigPage() {
   }
   html += "</div><form method='POST' action='/save'>";
   
+  if (errorMsg.length() > 0) {
+    html += "<div class='error'><strong>Ошибка:</strong> " + errorMsg + "</div>";
+  }
+  
   html += "<h3>Настройки сети</h3>";
   html += "<label>WiFi SSID:</label><input type='text' name='wifiSsid' required value='" + String(config.wifiSsid) + "'>";
   html += "<label>WiFi Password:</label><input type='password' name='wifiPassword' placeholder='(не показан)'>";
   html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль WiFi</div>";
   
   html += "<h3>MQTT настройки</h3>";
-  html += "<div class='row'><div><label>MQTT Broker:</label><input type='text' name='mqttBroker' value='" + String(config.mqttBroker) + "'></div>";
-  html += "<div><label>MQTT Port:</label><input type='number' name='mqttPort' value='" + String(config.mqttPort) + "'></div></div>";
+  html += "<div class='row'><div><label>MQTT Broker:</label><input type='text' name='mqttBroker' required value='" + String(config.mqttBroker) + "'></div>";
+  html += "<div><label>MQTT Port:</label><input type='number' name='mqttPort' required value='" + String(config.mqttPort) + "'></div></div>";
   html += "<div class='row'><div><label>MQTT User:</label><input type='text' name='mqttUser' value='" + String(config.mqttUser) + "'></div>";
   html += "<div><label>MQTT Password:</label><input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>";
   html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль MQTT</div>";
-  html += "<label>MQTT Client ID:</label><input type='text' name='mqttClientId' value='" + String(config.mqttClientId) + "'>";
+  html += "<label>MQTT Client ID:</label><input type='text' name='mqttClientId' required value='" + String(config.mqttClientId) + "'>";
   
   #if DEVICE_TYPE == 1
   html += "<h3>Настройки датчиков</h3>";
-  html += "<div class='row'><div><label>Low Temp (°C):</label><input type='number' step='0.1' name='lowTemp' value='" + String(config.lowTemp) + "'></div>";
-  html += "<div><label>High Temp (°C):</label><input type='number' step='0.1' name='highTemp' value='" + String(config.highTemp) + "'></div></div>";
-  html += "<div class='row'><div><label>Low Hum (%):</label><input type='number' step='0.1' name='lowHum' value='" + String(config.lowHum) + "'></div>";
-  html += "<div><label>High Hum (%):</label><input type='number' step='0.1' name='highHum' value='" + String(config.highHum) + "'></div></div>";
-  html += "<div class='row'><div><label>Интервал датчика (сек):</label><input type='number' name='sensorInterval' min='2' max='300' value='" + String(config.sensorInterval) + "'></div>";
-  html += "<div><label>maxOnTime (сек):</label><input type='number' name='maxOnTime' min='60' max='86400' value='" + String(config.maxOnTime) + "'></div></div>";
+  html += "<div class='row'><div><label>Low Temp (°C):</label><input type='number' step='0.1' name='lowTemp' required value='" + String(config.lowTemp) + "'></div>";
+  html += "<div><label>High Temp (°C):</label><input type='number' step='0.1' name='highTemp' required value='" + String(config.highTemp) + "'></div></div>";
+  html += "<div class='row'><div><label>Low Hum (%):</label><input type='number' step='0.1' name='lowHum' required value='" + String(config.lowHum) + "'></div>";
+  html += "<div><label>High Hum (%):</label><input type='number' step='0.1' name='highHum' required value='" + String(config.highHum) + "'></div></div>";
+  html += "<div class='row'><div><label>Интервал опроса датчика (сек)</label><input type='number' name='sensorInterval' required value='" + String(config.sensorInterval) + "'></div>";
+  html += "<div><label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(config.maxOnTime) + "'></div></div>";
   html += "<h3>Управление</h3>";
-  html += "<label>Задержка ВКЛЮЧЕНИЯ (сек):</label><input type='number' name='delaySeconds' min='0' max='3600' value='" + String(config.delaySeconds) + "'>";
-  html += "<h3>Slow Mode</h3>";
+  html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(config.delaySeconds) + "'>";
+  html += "<h3>Тихий режим</h3>";
   html += "<label><input type='checkbox' name='slowModeEnabled' value='1' " + String(config.slowModeEnabled ? "checked" : "") + "> Включить</label>";
-  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' min='0' max='255' value='" + String(config.slowModeDuty) + "'>";
+  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' required value='" + String(config.slowModeDuty) + "'>";
   html += "<h3>Поведение при старте</h3>";
   html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(config.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
   html += "<h3>Режимы работы</h3>";
-  html += "<label><input type='checkbox' name='automaticMode' value='1' " + String(config.automaticMode ? "checked" : "") + "> Автоматический режим</label>";
+  // Показываем сохранённое значение из EEPROM, а не текущее runtime-состояние
+  bool storedAutoMode = getStoredAutoMode();
+  html += "<label><input type='checkbox' name='automaticMode' value='1' " + String(storedAutoMode ? "checked" : "") + "> Автоматический режим</label>";
   #endif
   
   #if DEVICE_TYPE == 2
   html += "<h3>Настройки датчиков</h3>";
-  html += "<div><label>Интервал датчика (сек):</label><input type='number' name='sensorInterval' min='2' max='300' value='" + String(config.sensorInterval) + "'></div>";
+  html += "<div><label>Интервал опроса датчика (сек)</label><input type='number' name='sensorInterval' required value='" + String(config.sensorInterval) + "'></div>";
   #endif
   
   #if DEVICE_TYPE == 3
   html += "<h3>Настройки управления</h3>";
-  html += "<label>Задержка ВКЛЮЧЕНИЯ (сек):</label><input type='number' name='delaySeconds' min='0' max='3600' value='" + String(config.delaySeconds) + "'>";
-  html += "<label>maxOnTime (сек):</label><input type='number' name='maxOnTime' min='60' max='86400' value='" + String(config.maxOnTime) + "'>";
-  html += "<h3>Slow Mode</h3>";
+  html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(config.delaySeconds) + "'>";
+  html += "<label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(config.maxOnTime) + "'>";
+  html += "<h3>Тихий режим</h3>";
   html += "<label><input type='checkbox' name='slowModeEnabled' value='1' " + String(config.slowModeEnabled ? "checked" : "") + "> Включить</label>";
-  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' min='0' max='255' value='" + String(config.slowModeDuty) + "'>";
+  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' required value='" + String(config.slowModeDuty) + "'>";
   html += "<h3>Поведение при старте</h3>";
   html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(config.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
   #endif
   
   html += "<input type='submit' value='Сохранить и перезагрузить'>";
   html += "</form>";
-  html += "<div class='warning'>После сохранения устройство перезагрузится.</div>";
+  html += "<a href='/update' class='ota-btn'>Обновить прошивку (OTA)</a>";
   html += "</div></body></html>";
   
   return html;
 }
 
+#if WEB_STATUS_ENABLED
 String web_getStatusPage(int refreshInterval) {
   String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
   html += "<meta http-equiv='refresh' content='" + String(refreshInterval) + "'>";
@@ -134,7 +194,7 @@ String web_getStatusPage(int refreshInterval) {
   html += ".info{color:#7f8c8d;margin-top:20px;text-align:center;}";
   html += "button{background:#2c3e50;color:white;padding:10px;border:none;border-radius:4px;cursor:pointer;margin:5px;font-size:1em}";
   html += ".flex-container{display:flex;flex-wrap:wrap;justify-content:center;}";
-  html += ".button-group{display:flex;justify-content:center;gap:10px;margin-top:20px;}";
+  html += ".button-group{display:flex;justify-content:center;gap:10px;margin-top:20px;flex-wrap:wrap;}";
   html += "a{text-decoration:none;}";
   html += "</style></head><body><div class='container'>";
   
@@ -177,6 +237,7 @@ String web_getStatusPage(int refreshInterval) {
   #if DEVICE_TYPE == 1
   String label = "Вентилятор";
   String toggleUrl = "/fan/toggle";
+  String autoUrl = "/fan/auto";
   #else
   String label = "Выключатель";
   String toggleUrl = "/switch/toggle";
@@ -186,76 +247,144 @@ String web_getStatusPage(int refreshInterval) {
   html += "<div class='status-card' style='background:" + stateColor + "20; border:2px solid " + stateColor + ";'>";
   html += "<div style='font-size:2em;font-weight:bold;color:" + stateColor + ";'>" + label + ": " + stateText + "</div></div>";
   html += "</a>";
+  
+  #if DEVICE_TYPE == 1
+  String modeText = config.automaticMode ? "АВТО" : "РУЧНОЙ";
+  String modeColor = config.automaticMode ? "#4CAF50" : "#f44336";
+  html += "<div class='status-card' style='background:" + modeColor + "20; border:2px solid " + modeColor + ";'>";
+  html += "<div style='font-size:1.5em;font-weight:bold;color:" + modeColor + ";'>Режим: " + modeText + "</div></div>";
+  #endif
   #endif
   
   html += "<hr><div class='info'>Обновление: " + String(refreshInterval) + " сек<br>";
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  html += "Опрос датчика: " + String(config.sensorInterval) + " сек<br>";
+  html += "Опрос датчика " + String(config.sensorInterval) + " сек<br>";
   #endif
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  html += "Задержка вкл: " + String(config.delaySeconds) + " сек<br>";
-  html += "maxOnTime: " + String(config.maxOnTime) + " сек</div>";
+  // html += "Принудительно включить через " + String(config.delaySeconds) + " сек<br>";
+  if (delayActive && delayTimer > 0) {
+    unsigned long now = millis();
+    if (now < delayTimer) {
+      unsigned long remaining = (delayTimer - now + 999) / 1000;
+      html += "Принудительное включение через <strong>" + String(remaining) + "</strong> сек<br>";
+    } else {
+      html += "Принудительное включение: <strong>выполняется...</strong><br>";
+    }
+  } else if (config.delaySeconds > 0) {
+    html += "Принудительное включение: настроено на " + String(config.delaySeconds) + " сек<br>";
+  } else {
+    html += "Принудительное включение: <strong>отключено</strong><br>";
+  }
+  // html += "Аварийное отключение через " + String(config.maxOnTime) + " сек</div>";
+  if (fanOn && config.maxOnTime > 0 && fanStartTime > 0) {
+    unsigned long elapsed = (millis() - fanStartTime) / 1000;
+    if (elapsed < config.maxOnTime) {
+      unsigned long remaining = config.maxOnTime - elapsed;
+      html += "Аварийное отключение через <strong>" + String(remaining) + "</strong> сек</div>";
+    } else {
+      html += "Аварийное отключение: <strong>сейчас</strong></div>";
+    }
+  } else if (config.maxOnTime > 0) {
+    html += "Аварийное отключение: неактивно (лимит " + String(config.maxOnTime) + " сек)</div>";
+  } else {
+    html += "Аварийное отключение: <strong>отключено</strong></div>";
+  }
   #endif
   
   html += "<div class='button-group'>";
-  html += "<a href='/update'><button>Обновить прошивку (OTA)</button></a>";
+  #if DEVICE_TYPE == 1
+  if (!config.automaticMode) {
+    html += "<a href='" + autoUrl + "'><button>Автоматический режим</button></a>";
+  }
+  #endif
+
   html += "<a href='/config'><button>Настройки</button></a>";
   html += "</div></div></body></html>";
   
   return html;
 }
+#endif // WEB_STATUS_ENABLED
 
 #ifdef ESP32
 void web_saveConfig(AsyncWebServerRequest *request) {
-  if (request->hasParam("wifiSsid", true))
-    request->getParam("wifiSsid", true)->value().toCharArray(config.wifiSsid, sizeof(config.wifiSsid));
-  if (request->hasParam("wifiPassword", true)) {
-    String pwd = request->getParam("wifiPassword", true)->value();
-    if (pwd.length() > 0) pwd.toCharArray(config.wifiPassword, sizeof(config.wifiPassword));
+  if (request->hasParam("wifiSsid", true)) {
+    AsyncWebParameter* p = request->getParam("wifiSsid", true);
+    if (p) p->value().toCharArray(config.wifiSsid, sizeof(config.wifiSsid));
   }
-  if (request->hasParam("mqttBroker", true))
-    request->getParam("mqttBroker", true)->value().toCharArray(config.mqttBroker, sizeof(config.mqttBroker));
-  if (request->hasParam("mqttPort", true))
-    config.mqttPort = request->getParam("mqttPort", true)->value().toInt();
-  if (request->hasParam("mqttUser", true))
-    request->getParam("mqttUser", true)->value().toCharArray(config.mqttUser, sizeof(config.mqttUser));
+  if (request->hasParam("wifiPassword", true)) {
+    AsyncWebParameter* p = request->getParam("wifiPassword", true);
+    if (p) {
+      String pwd = p->value();
+      if (pwd.length() > 0) pwd.toCharArray(config.wifiPassword, sizeof(config.wifiPassword));
+    }
+  }
+  if (request->hasParam("mqttBroker", true)) {
+    AsyncWebParameter* p = request->getParam("mqttBroker", true);
+    if (p) p->value().toCharArray(config.mqttBroker, sizeof(config.mqttBroker));
+  }
+  if (request->hasParam("mqttPort", true)) {
+    AsyncWebParameter* p = request->getParam("mqttPort", true);
+    if (p) config.mqttPort = p->value().toInt();
+  }
+  if (request->hasParam("mqttUser", true)) {
+    AsyncWebParameter* p = request->getParam("mqttUser", true);
+    if (p) p->value().toCharArray(config.mqttUser, sizeof(config.mqttUser));
+  }
   if (request->hasParam("mqttPassword", true)) {
-    String pwd = request->getParam("mqttPassword", true)->value();
-    if (pwd.length() > 0) pwd.toCharArray(config.mqttPassword, sizeof(config.mqttPassword));
+    AsyncWebParameter* p = request->getParam("mqttPassword", true);
+    if (p) {
+      String pwd = p->value();
+      if (pwd.length() > 0) pwd.toCharArray(config.mqttPassword, sizeof(config.mqttPassword));
+    }
   }
   if (request->hasParam("mqttClientId", true)) {
-    String cid = request->getParam("mqttClientId", true)->value();
-    if (cid.length() > 0) cid.toCharArray(config.mqttClientId, sizeof(config.mqttClientId));
-    else config.mqttClientId[0] = '\0';
+    AsyncWebParameter* p = request->getParam("mqttClientId", true);
+    if (p) {
+      String cid = p->value();
+      if (cid.length() > 0 && cid.length() < sizeof(config.mqttClientId)) {
+        cid.toCharArray(config.mqttClientId, sizeof(config.mqttClientId));
+      } else if (cid.length() == 0) {
+        config.mqttClientId[0] = '\0';
+      }
+    }
   }
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (request->hasParam("sensorInterval", true)) {
-    config.sensorInterval = request->getParam("sensorInterval", true)->value().toInt();
-    if (config.sensorInterval < 2) config.sensorInterval = 2;
-    if (config.sensorInterval > 300) config.sensorInterval = 300;
+    AsyncWebParameter* p = request->getParam("sensorInterval", true);
+    if (p) config.sensorInterval = p->value().toInt();
   }
   #endif
   
   #if DEVICE_TYPE == 1
-  if (request->hasParam("lowTemp", true)) config.lowTemp = request->getParam("lowTemp", true)->value().toFloat();
-  if (request->hasParam("highTemp", true)) config.highTemp = request->getParam("highTemp", true)->value().toFloat();
-  if (request->hasParam("lowHum", true)) config.lowHum = request->getParam("lowHum", true)->value().toFloat();
-  if (request->hasParam("highHum", true)) config.highHum = request->getParam("highHum", true)->value().toFloat();
+  if (request->hasParam("lowTemp", true)) {
+    AsyncWebParameter* p = request->getParam("lowTemp", true);
+    if (p) config.lowTemp = p->value().toFloat();
+  }
+  if (request->hasParam("highTemp", true)) {
+    AsyncWebParameter* p = request->getParam("highTemp", true);
+    if (p) config.highTemp = p->value().toFloat();
+  }
+  if (request->hasParam("lowHum", true)) {
+    AsyncWebParameter* p = request->getParam("lowHum", true);
+    if (p) config.lowHum = p->value().toFloat();
+  }
+  if (request->hasParam("highHum", true)) {
+    AsyncWebParameter* p = request->getParam("highHum", true);
+    if (p) config.highHum = p->value().toFloat();
+  }
   if (request->hasParam("maxOnTime", true)) {
-    config.maxOnTime = request->getParam("maxOnTime", true)->value().toInt();
-    if (config.maxOnTime < 60) config.maxOnTime = 60;
-    if (config.maxOnTime > 86400) config.maxOnTime = 86400;
+    AsyncWebParameter* p = request->getParam("maxOnTime", true);
+    if (p) config.maxOnTime = p->value().toInt();
   }
   if (request->hasParam("delaySeconds", true)) {
-    config.delaySeconds = request->getParam("delaySeconds", true)->value().toInt();
-    if (config.delaySeconds < 0) config.delaySeconds = 0;
-    if (config.delaySeconds > 3600) config.delaySeconds = 3600;
+    AsyncWebParameter* p = request->getParam("delaySeconds", true);
+    if (p) config.delaySeconds = p->value().toInt();
   }
   config.slowModeEnabled = request->hasParam("slowModeEnabled", true);
   if (request->hasParam("slowModeDuty", true)) {
-    config.slowModeDuty = request->getParam("slowModeDuty", true)->value().toInt();
-    if (config.slowModeDuty > 255) config.slowModeDuty = 255;
+    AsyncWebParameter* p = request->getParam("slowModeDuty", true);
+    if (p) config.slowModeDuty = p->value().toInt();
   }
   config.forceOffOnBoot = request->hasParam("forceOffOnBoot", true);
   config.automaticMode = request->hasParam("automaticMode", true);
@@ -263,25 +392,23 @@ void web_saveConfig(AsyncWebServerRequest *request) {
   
   #if DEVICE_TYPE == 3
   if (request->hasParam("maxOnTime", true)) {
-    config.maxOnTime = request->getParam("maxOnTime", true)->value().toInt();
-    if (config.maxOnTime < 60) config.maxOnTime = 60;
-    if (config.maxOnTime > 86400) config.maxOnTime = 86400;
+    AsyncWebParameter* p = request->getParam("maxOnTime", true);
+    if (p) config.maxOnTime = p->value().toInt();
   }
   if (request->hasParam("delaySeconds", true)) {
-    config.delaySeconds = request->getParam("delaySeconds", true)->value().toInt();
-    if (config.delaySeconds < 0) config.delaySeconds = 0;
-    if (config.delaySeconds > 3600) config.delaySeconds = 3600;
+    AsyncWebParameter* p = request->getParam("delaySeconds", true);
+    if (p) config.delaySeconds = p->value().toInt();
   }
   config.slowModeEnabled = request->hasParam("slowModeEnabled", true);
   if (request->hasParam("slowModeDuty", true)) {
-    config.slowModeDuty = request->getParam("slowModeDuty", true)->value().toInt();
-    if (config.slowModeDuty > 255) config.slowModeDuty = 255;
+    AsyncWebParameter* p = request->getParam("slowModeDuty", true);
+    if (p) config.slowModeDuty = p->value().toInt();
   }
   config.forceOffOnBoot = request->hasParam("forceOffOnBoot", true);
   #endif
   
-  if (strlen(config.wifiSsid) == 0 || strlen(config.mqttBroker) == 0) {
-    request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='3;url=/'></head><body><div style='text-align:center;margin-top:50px;'><h2 style='color:#f44336;'>Ошибка!</h2><p>SSID и MQTT Broker обязательны!</p></div></body></html>");
+  if (!config_validate()) {
+    request->send(200, "text/html", web_getConfigPage(configLastError));
     return;
   }
   
@@ -310,16 +437,16 @@ void web_saveConfig() {
   }
   if (server.hasArg("mqttClientId")) {
     String cid = server.arg("mqttClientId");
-    if (cid.length() > 0) cid.toCharArray(config.mqttClientId, sizeof(config.mqttClientId));
-    else config.mqttClientId[0] = '\0';
+    if (cid.length() > 0 && cid.length() < sizeof(config.mqttClientId)) {
+      cid.toCharArray(config.mqttClientId, sizeof(config.mqttClientId));
+    } else if (cid.length() == 0) {
+      config.mqttClientId[0] = '\0';
+    }
   }
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  if (server.hasArg("sensorInterval")) {
+  if (server.hasArg("sensorInterval"))
     config.sensorInterval = server.arg("sensorInterval").toInt();
-    if (config.sensorInterval < 2) config.sensorInterval = 2;
-    if (config.sensorInterval > 300) config.sensorInterval = 300;
-  }
   #endif
   
   #if DEVICE_TYPE == 1
@@ -327,46 +454,24 @@ void web_saveConfig() {
   if (server.hasArg("highTemp")) config.highTemp = server.arg("highTemp").toFloat();
   if (server.hasArg("lowHum")) config.lowHum = server.arg("lowHum").toFloat();
   if (server.hasArg("highHum")) config.highHum = server.arg("highHum").toFloat();
-  if (server.hasArg("maxOnTime")) {
-    config.maxOnTime = server.arg("maxOnTime").toInt();
-    if (config.maxOnTime < 60) config.maxOnTime = 60;
-    if (config.maxOnTime > 86400) config.maxOnTime = 86400;
-  }
-  if (server.hasArg("delaySeconds")) {
-    config.delaySeconds = server.arg("delaySeconds").toInt();
-    if (config.delaySeconds < 0) config.delaySeconds = 0;
-    if (config.delaySeconds > 3600) config.delaySeconds = 3600;
-  }
+  if (server.hasArg("maxOnTime")) config.maxOnTime = server.arg("maxOnTime").toInt();
+  if (server.hasArg("delaySeconds")) config.delaySeconds = server.arg("delaySeconds").toInt();
   config.slowModeEnabled = server.hasArg("slowModeEnabled");
-  if (server.hasArg("slowModeDuty")) {
-    config.slowModeDuty = server.arg("slowModeDuty").toInt();
-    if (config.slowModeDuty > 255) config.slowModeDuty = 255;
-  }
+  if (server.hasArg("slowModeDuty")) config.slowModeDuty = server.arg("slowModeDuty").toInt();
   config.forceOffOnBoot = server.hasArg("forceOffOnBoot");
   config.automaticMode = server.hasArg("automaticMode");
   #endif
   
   #if DEVICE_TYPE == 3
-  if (server.hasArg("maxOnTime")) {
-    config.maxOnTime = server.arg("maxOnTime").toInt();
-    if (config.maxOnTime < 60) config.maxOnTime = 60;
-    if (config.maxOnTime > 86400) config.maxOnTime = 86400;
-  }
-  if (server.hasArg("delaySeconds")) {
-    config.delaySeconds = server.arg("delaySeconds").toInt();
-    if (config.delaySeconds < 0) config.delaySeconds = 0;
-    if (config.delaySeconds > 3600) config.delaySeconds = 3600;
-  }
+  if (server.hasArg("maxOnTime")) config.maxOnTime = server.arg("maxOnTime").toInt();
+  if (server.hasArg("delaySeconds")) config.delaySeconds = server.arg("delaySeconds").toInt();
   config.slowModeEnabled = server.hasArg("slowModeEnabled");
-  if (server.hasArg("slowModeDuty")) {
-    config.slowModeDuty = server.arg("slowModeDuty").toInt();
-    if (config.slowModeDuty > 255) config.slowModeDuty = 255;
-  }
+  if (server.hasArg("slowModeDuty")) config.slowModeDuty = server.arg("slowModeDuty").toInt();
   config.forceOffOnBoot = server.hasArg("forceOffOnBoot");
   #endif
   
-  if (strlen(config.wifiSsid) == 0 || strlen(config.mqttBroker) == 0) {
-    server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='3;url=/'></head><body><div style='text-align:center;margin-top:50px;'><h2 style='color:#f44336;'>Ошибка!</h2><p>SSID и MQTT Broker обязательны!</p></div></body></html>");
+  if (!config_validate()) {
+    server.send(200, "text/html", web_getConfigPage(configLastError));
     return;
   }
   
@@ -386,38 +491,112 @@ void web_init() {
   if (refreshInterval > 10) refreshInterval = 10;
   #endif
   
-  #ifdef ESP8266
-    server.on("/", [refreshInterval](){ server.send(200, "text/html", web_getStatusPage(refreshInterval)); });
-    server.on("/config", [](){ server.send(200, "text/html", web_getConfigPage()); });
-    server.on("/save", web_saveConfig);
-    server.on("/resetall", [](){
-      config_clear();
-      server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
-      delay(1000);
-      ESP.restart();
-    });
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    server.on("/fan/toggle", [](){ handleToggle(); server.sendHeader("Location", "/", true); server.send(302, "text/plain", ""); });
-    server.on("/switch/toggle", [](){ handleToggle(); server.sendHeader("Location", "/", true); server.send(302, "text/plain", ""); });
+  // Обработчик корневого пути
+  #if WEB_STATUS_ENABLED
+    #ifdef ESP32
+      server.on("/", HTTP_GET, [refreshInterval](AsyncWebServerRequest *request){ 
+        request->send(200, "text/html", web_getStatusPage(refreshInterval)); 
+      });
+    #elif defined(ESP8266)
+      server.on("/", [refreshInterval](){ 
+        server.send(200, "text/html", web_getStatusPage(refreshInterval)); 
+      });
     #endif
-  #elif defined(ESP32)
-    server.on("/", HTTP_GET, [refreshInterval](AsyncWebServerRequest *request){ request->send(200, "text/html", web_getStatusPage(refreshInterval)); });
-    server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request){ request->send(200, "text/html", web_getConfigPage()); });
-    server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ web_saveConfig(request); });
+  #else
+    // Страница статуса отключена – перенаправляем на конфигурацию
+    #ifdef ESP32
+      server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        request->redirect("/config"); 
+      });
+    #elif defined(ESP8266)
+      server.on("/", [](){ 
+        server.sendHeader("Location", "/config", true); 
+        server.send(302, "text/plain", ""); 
+      });
+    #endif
+  #endif
+  
+  // Страница конфигурации
+  #ifdef ESP32
+    server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request){ 
+      request->send(200, "text/html", web_getConfigPage("")); 
+    });
+    
+    server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ 
+      web_saveConfig(request); 
+    });
+    
+    #if WEB_RESET_ENABLED
     server.on("/resetall", HTTP_GET, [](AsyncWebServerRequest *request){
       config_clear();
       request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
       delay(1000);
       ESP.restart();
     });
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    server.on("/fan/toggle", HTTP_GET, [](AsyncWebServerRequest *request){ handleToggle(); request->redirect("/"); });
-    server.on("/switch/toggle", HTTP_GET, [](AsyncWebServerRequest *request){ handleToggle(); request->redirect("/"); });
+    #endif
+    
+  #elif defined(ESP8266)
+    server.on("/config", [](){ 
+      server.send(200, "text/html", web_getConfigPage("")); 
+    });
+    
+    server.on("/save", web_saveConfig);
+    
+    #if WEB_RESET_ENABLED
+    server.on("/resetall", [](){
+      config_clear();
+      server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
+      delay(1000);
+      ESP.restart();
+    });
     #endif
   #endif
   
-  ElegantOTA.begin(&server);
-  Serial.println("[WEB] ElegantOTA initialized");
+  // Специфичные обработчики только для нужных типов устройств
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    #ifdef ESP32
+      #if DEVICE_TYPE == 1
+      server.on("/fan/toggle", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        handleToggle(); 
+        request->redirect("/"); 
+      });
+      server.on("/fan/auto", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        handleAutoMode(); 
+        request->redirect("/"); 
+      });
+      #elif DEVICE_TYPE == 3
+      server.on("/switch/toggle", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        handleToggle(); 
+        request->redirect("/"); 
+      });
+      #endif
+    #elif defined(ESP8266)
+      #if DEVICE_TYPE == 1
+      server.on("/fan/toggle", [](){ 
+        handleToggle(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+      });
+      server.on("/fan/auto", [](){ 
+        handleAutoMode(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+      });
+      #elif DEVICE_TYPE == 3
+      server.on("/switch/toggle", [](){ 
+        handleToggle(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+      });
+      #endif
+    #endif
+  #endif
+  
+  if (!otaInitialized) {
+    ElegantOTA.begin(&server);
+    otaInitialized = true;
+    Serial.println("[WEB] ElegantOTA initialized");
+  }
   
   server.begin();
   Serial.println("[WEB] Web server started on port 80 (client mode)");
@@ -448,31 +627,20 @@ void web_initAP() {
   Serial.printf("[WEB] AP started: %s, IP: %s\n", apSSID.c_str(), AP_IP_ADDRESS);
   
   #ifdef ESP8266
-    server.on("/", [](){ server.send(200, "text/html", web_getConfigPage()); });
+    ElegantOTA.begin(&server);
+    Serial.println("[WEB] ElegantOTA initialized");
+    
+    server.on("/", [](){ server.send(200, "text/html", web_getConfigPage("")); });
     server.on("/save", web_saveConfig);
-    server.on("/resetall", [](){
-      config_clear();
-      server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=http://" + String(AP_IP_ADDRESS) + "/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
-      delay(1000);
-      ESP.restart();
-    });
-    server.onNotFound([]() {
-      server.sendHeader("Location", "http://" + String(AP_IP_ADDRESS) + "/", true);
-      server.send(302, "text/plain", "");
-    });
-
   #elif defined(ESP32)
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ request->send(200, "text/html", web_getConfigPage()); });
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ request->send(200, "text/html", web_getConfigPage("")); });
     server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ web_saveConfig(request); });
-    server.on("/resetall", HTTP_GET, [](AsyncWebServerRequest *request){
-      config_clear();
-      request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=http://" + String(AP_IP_ADDRESS) + "/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
-      delay(1000);
-      ESP.restart();
-    });
-    server.onNotFound([](AsyncWebServerRequest *request){
-      request->redirect("http://" + String(AP_IP_ADDRESS) + "/");
-    });
+    
+    if (!otaInitialized) {
+      ElegantOTA.begin(&server);
+      otaInitialized = true;
+      Serial.println("[WEB] ElegantOTA initialized");
+    }
   #endif
   
   server.begin();

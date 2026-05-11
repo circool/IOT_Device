@@ -1,0 +1,19 @@
+rule "Сброс состояния вытяжки ванной при потере связи"
+when
+    Item fan_0F7C_status changed to OFF
+then
+    if (fan_0F7C_fan_state.state == ON) {
+        fan_0F7C_fan_state.postUpdate(OFF)
+        logInfo("Fan", "Ванная: связь потеряна, вытяжка сброшена в OFF")
+    }
+end
+
+rule "Сброс состояния вытяжки туалета при потере связи"
+when
+    Item fan_1F32_status changed to OFF
+then
+    if (fan_1F32_fan_state.state == ON) {
+        fan_1F32_fan_state.postUpdate(OFF)
+        logInfo("Fan", "Туалет: связь потеряна, вытяжка сброшена в OFF")
+    }
+end

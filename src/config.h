@@ -108,15 +108,15 @@
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   #ifndef DEFAULT_DELAY_SECONDS
-    #define DEFAULT_DELAY_SECONDS 60 // Включение исполнительного механизма по прошествии этого периода (по таймеру)
+    #define DEFAULT_DELAY_SECONDS 60
   #endif
 
   #ifndef DEFAULT_SLOW_MODE
-    #define DEFAULT_SLOW_MODE false // Использовать ШИМ
+    #define DEFAULT_SLOW_MODE false
   #endif
 
   #ifndef DEFAULT_FORCE_OFF_ON_BOOT
-    #define DEFAULT_FORCE_OFF_ON_BOOT true // При инициализации выключать исполнительный механизм
+    #define DEFAULT_FORCE_OFF_ON_BOOT true
   #endif
 #endif
 
@@ -146,17 +146,31 @@
 // ======================== НАСТРОЙКИ WIFI ========================
 
 #ifndef WIFI_CHECK_INTERVAL_MS
-  #define WIFI_CHECK_INTERVAL_MS 10000
+  #define WIFI_CHECK_INTERVAL_MS 5000
 #endif
 
 #ifndef AP_FALLBACK_TIMEOUT_MS
   #define AP_FALLBACK_TIMEOUT_MS 120000
 #endif
 
+// ======================== ВЕБ-СТРАНИЦА СОСТОЯНИЯ ========================
+#ifndef WEB_STATUS_ENABLED
+  #define WEB_STATUS_ENABLED 1      // 1 - страница статуса включена, 0 - отключена (экономия Flash)
+#endif
+
 // ======================== ОТЛАДКА ========================
 
 #define DEBUG_ENABLE
 #define DEBUG_MQTT
+
+// ======================== СБРОС НАСТРОЕК ========================
+#ifndef MQTT_RESET_ENABLED
+  #define MQTT_RESET_ENABLED 1      // разрешить сброс через MQTT (0 – запретить)
+#endif
+
+#ifndef WEB_RESET_ENABLED
+  #define WEB_RESET_ENABLED 0       // разрешить сброс через веб-интерфейс (0 – запретить)
+#endif
 
 // ======================== ПОДКЛЮЧЕНИЕ CREDENTIALS ========================
 
@@ -237,6 +251,7 @@ struct Config {
 extern Config config;
 extern bool configValid;
 extern bool apMode;
+extern String configLastError;   
 
 void config_init();
 void config_read();
@@ -244,6 +259,7 @@ void config_write();
 void config_setDefaults();
 uint16_t crc16(const uint8_t* data, size_t len);
 void config_print();
-void config_clear();
+bool config_clear();
+bool config_validate();           
 
 #endif

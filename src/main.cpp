@@ -22,16 +22,45 @@ unsigned long wifiConnectStartTime = 0;
 void checkResetButton() {
   pinMode(RESET_PIN, INPUT_PULLUP);
   delay(50);
+  
   if (digitalRead(RESET_PIN) == LOW) {
-    Serial.println("\n[MAIN] Reset button pressed! Clearing configuration...");
-    config_clear();
-    Serial.println("[MAIN] Configuration cleared. Restarting...");
-    delay(1000);
-    ESP.restart();
+    #ifdef DEBUG_ENABLE
+      Serial.println("\n[MAIN] Reset button pressed...");
+      Serial.println("[MAIN] Hold for 3 seconds to confirm reset...");
+    #endif
+    unsigned long pressStart = millis();
+    
+    while (digitalRead(RESET_PIN) == LOW) {
+      if (millis() - pressStart >= 3000) {
+        #ifdef DEBUG_ENABLE
+          Serial.println("[MAIN] Reset confirmed! Waiting for button release...");
+        #endif
+
+        while (digitalRead(RESET_PIN) == LOW) {
+          delay(10);
+        }
+        
+        #ifdef DEBUG_ENABLE
+          Serial.println("[MAIN] Clearing configuration...");
+        #endif
+
+        if (config_clear()) {
+          Serial.println("[MAIN] Configuration cleared. Restarting...");
+          delay(1000);
+          ESP.restart();  
+        } else {
+          Serial.println("[MAIN] Clear failed — not restarting");
+        }
+        return;
+      }
+      delay(10);
+    }
+    #ifdef DEBUG_ENABLE
+      Serial.println("[MAIN] Button released too early — reset cancelled");
+    #endif
   }
 }
 
-// Асинхронное подключение к WiFi (неблокирующее)
 void wifi_beginAsync() {
   if (strlen(config.wifiSsid) == 0) {
     Serial.println("[WIFI] No SSID configured");
@@ -39,8 +68,9 @@ void wifi_beginAsync() {
   }
   
   if (wifiConnected || wifiConnecting) return;
-  
-  Serial.printf("[WIFI] Starting async connection to %s\n", config.wifiSsid);
+  #ifdef DEBUG_ENABLE
+    Serial.printf("[WIFI] Starting async connection to %s\n", config.wifiSsid);
+  #endif
   WiFi.mode(WIFI_STA);
   WiFi.begin(config.wifiSsid, config.wifiPassword);
   wifiConnecting = true;
@@ -57,17 +87,14 @@ void wifi_checkAsync() {
     wifiLostTime = 0;
     Serial.println("[WIFI] Connected! IP: " + WiFi.localIP().toString());
     
-    // Отключаем AP если он был активен
     if (apMode) {
       WiFi.softAPdisconnect(true);
       apMode = false;
     }
     
-    // Запускаем MQTT после успешного WiFi
     mqtt_init();
     
   } else if (millis() - wifiConnectStartTime > 30000) {
-    // Таймаут 30 секунд
     Serial.println("[WIFI] Connection timeout");
     wifiConnecting = false;
     wifiConnected = false;
@@ -78,17 +105,14 @@ void mqtt_checkAsync() {
   if (!wifiConnected) return;
   if (!configValid) return;
   
-  // Попытка подключения к MQTT не чаще чем раз в 5 секунд
   if (!mqtt_isConnected() && (millis() - lastMQTTAttempt > 5000)) {
     lastMQTTAttempt = millis();
     mqtt_reconnect();
   }
   
-  // Если подключены - обслуживаем MQTT
   if (mqtt_isConnected()) {
     mqttClient.loop();
     
-    // Публикация статуса Online каждые 10 секунд
     static unsigned long lastOnline = 0;
     if (millis() - lastOnline > 10000) {
       mqtt_publishOnline();
@@ -103,7 +127,7 @@ void publishDataIfNeeded() {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (sensor_isOk()) {
     static float lastTemp = 0, lastHum = 0;
-    const float EPSILON = 0.05;  // порог 0.05°C
+    const float EPSILON = 0.05;
     if (fabs(currentTemp - lastTemp) > EPSILON || fabs(currentHum - lastHum) > EPSILON) {
         mqtt_publishSensor();
         lastTemp = currentTemp;
@@ -122,7 +146,6 @@ void publishDataIfNeeded() {
 }
 
 void checkWiFiFallbackToAP() {
-  // Только если есть конфигурация WiFi и не в AP режиме
   if (strlen(config.wifiSsid) == 0) return;
   if (apMode) return;
   if (wifiConnected) {
@@ -130,7 +153,6 @@ void checkWiFiFallbackToAP() {
     return;
   }
   
-  // Если WiFi не подключён и нет попытки подключения
   if (!wifiConnected && !wifiConnecting) {
     if (wifiLostTime == 0) {
       wifiLostTime = millis();
@@ -152,29 +174,16 @@ void setup() {
   
   checkResetButton();
   
-  // 1. Инициализация EEPROM и загрузка конфигурации
   config_init();
   config_print();
   
-  // 2. Определяем тип запуска
   bool hasValidConfig = (configValid && strlen(config.wifiSsid) > 0);
   
   if (hasValidConfig) {
-    // ========== ОБЫЧНЫЙ РЕЖИМ ==========
     Serial.println("[MAIN] Normal mode - starting with saved config");
-    
-    // Генерация MQTT Client ID если пуст
-    if (strlen(config.mqttClientId) == 0) {
-    uint8_t mac[6];
-    WiFi.macAddress(mac);
-    snprintf(config.mqttClientId, sizeof(config.mqttClientId), 
-             DEVICE_PREFIX "_%02X%02X%02X", mac[3], mac[4], mac[5]);
-    config_write();
-}
     
     mqtt_setupTopics(config.mqttClientId);
     
-    // Инициализация железа (НЕ БЛОКИРУЕТСЯ)
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     fan_init();
     #endif
@@ -183,58 +192,40 @@ void setup() {
     sensor_init();
     #endif
     
-    // Запускаем асинхронное подключение к WiFi
     wifi_beginAsync();
-    
-    // Запускаем веб-сервер в КЛИЕНТСКОМ режиме
     web_init();
     
   } else {
-    // ========== РЕЖИМ НАСТРОЙКИ ==========
     Serial.println("[MAIN] Configuration mode - starting AP for setup");
-    
-    // Запускаем AP режим для настройки (defaults уже загружены в config_read)
     web_initAP();
   }
 }
 
 void loop() {
-  // Режим настройки (нет валидной конфигурации)
+  checkResetButton();
+
   if (!configValid || strlen(config.wifiSsid) == 0) {
     web_update();
     delay(100);
     return;
   }
   
-  // ========== ОСНОВНАЯ ФУНКЦИОНАЛЬНОСТЬ (ВЫПОЛНЯЕТСЯ ВСЕГДА) ==========
-  
-  // Управление вентилятором (не зависит от WiFi/MQTT)
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   fan_update();
   #endif
   
-  // Чтение датчика (не зависит от WiFi/MQTT)
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   sensor_read();
   #endif
   
-  // ========== ВТОРОСТЕПЕННАЯ ФУНКЦИОНАЛЬНОСТЬ (АСИНХРОННО) ==========
-  
-  // Асинхронное подключение к WiFi
   wifi_checkAsync();
-  
-  // Проверка необходимости перехода в AP режим при потере WiFi
   checkWiFiFallbackToAP();
   
-  // Асинхронное подключение к MQTT и публикация данных
   if (wifiConnected) {
     mqtt_checkAsync();
     publishDataIfNeeded();
   }
   
-  // Обслуживание веб-сервера
   web_update();
-  
-  // Небольшая задержка для стабильности
   delay(50);
 }

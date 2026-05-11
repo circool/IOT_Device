@@ -6,17 +6,21 @@
 #include "sensor.h"
 #include "mqtt.h"
 
-bool manualOverride = false;
 bool fanOn = false;
 unsigned long fanStartTime = 0;
 unsigned long delayTimer = 0;
 bool delayActive = false;
+
+// Переменные стартового импульса
+bool startingPulseActive = false;
+unsigned long startingPulseStart = 0;
 
 void fan_init() {
   pinMode(SWITCH_PIN, OUTPUT);
   
   #ifdef ESP32
     ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
+    ledcAttachPin(SWITCH_PIN, 0);
   #elif defined(ESP8266)
     analogWriteFreq(PWM_FREQUENCY);
     analogWriteRange(255);
@@ -26,26 +30,60 @@ void fan_init() {
   
   if (config.forceOffOnBoot) {
     fanOn = false;
+    #ifdef ESP32
+      ledcDetachPin(SWITCH_PIN);
+    #endif
     digitalWrite(SWITCH_PIN, LOW);
+    startingPulseActive = false;
     #ifdef DEBUG_ENABLE
       Serial.println("[FAN] Force OFF on boot - forcing OFF");
     #endif
   } else {
+    // Сохраняем состояние пина, но для гарантии запуска в slow mode делаем стартовый импульс,
+    // даже если пин был HIGH (чтобы раскрутить мотор после перезагрузки)
     fanOn = currentPinState;
+    if (fanOn) {
+      if (config.slowModeEnabled) {
+        // Запускаем стартовый импульс: полная мощность на PWM_STARTING мс
+        #ifdef ESP32
+          ledcDetachPin(SWITCH_PIN);
+        #endif
+        digitalWrite(SWITCH_PIN, HIGH);
+        startingPulseActive = true;
+        startingPulseStart = millis();
+        #ifdef DEBUG_ENABLE
+          Serial.printf("[FAN] Keep state ON with slow mode - starting pulse for %d ms\n", PWM_STARTING);
+        #endif
+      } else {
+        digitalWrite(SWITCH_PIN, HIGH);
+      }
+    } else {
+      startingPulseActive = false;
+    }
     #ifdef DEBUG_ENABLE
       Serial.printf("[FAN] Keep state on boot - synced with pin state: %s\n", 
                     fanOn ? "ON" : "OFF");
     #endif
   }
   
-  manualOverride = false;
   delayActive = false;
   delayTimer = 0;
-  fanStartTime = 0;
+  fanStartTime = fanOn ? millis() : 0;
+  
+  #if DEVICE_TYPE == 1
+  if (!config.automaticMode) {
+    #ifdef DEBUG_ENABLE
+      Serial.println("[FAN] Starting in MANUAL mode");
+    #endif
+  }
+  #endif
   
   // Запуск таймера отложенного включения при старте
-  // Игнорируется, если вентилятор уже включён (forceOffOnBoot = false и пин был HIGH)
-  if (config.delaySeconds > 0 && !fanOn && !manualOverride) {
+  if (config.delaySeconds > 0 && !fanOn 
+      #if DEVICE_TYPE == 1
+      && config.automaticMode
+      #endif
+     ) {
     fan_delayTimer(true);
     #ifdef DEBUG_ENABLE
       Serial.printf("[FAN] Initial delay timer started: %d seconds\n", config.delaySeconds);
@@ -56,48 +94,50 @@ void fan_init() {
 void fan_set(bool on) {
   if (fanOn == on) return;
   
+  // При изменении состояния сбрасываем стартовый импульс
+  startingPulseActive = false;
+  
   fanOn = on;
   
   if (fanOn) {
     fanStartTime = millis();
-  } else {
-    fanStartTime = 0;
-  }
-  
-  if (on) {
     if (config.slowModeEnabled) {
+      // Начинаем стартовый импульс полной мощности
       #ifdef ESP32
-        ledcAttachPin(SWITCH_PIN, 0);
-        ledcWrite(0, config.slowModeDuty);
-      #elif defined(ESP8266)
-        analogWrite(SWITCH_PIN, config.slowModeDuty);
+        ledcDetachPin(SWITCH_PIN);
+      #endif
+      digitalWrite(SWITCH_PIN, HIGH);
+      startingPulseActive = true;
+      startingPulseStart = millis();
+      #ifdef DEBUG_ENABLE
+        Serial.printf("[FAN] Starting pulse started, duration=%d ms\n", PWM_STARTING);
       #endif
     } else {
+      // Обычное включение
       #ifdef ESP32
         ledcDetachPin(SWITCH_PIN);
         digitalWrite(SWITCH_PIN, HIGH);
       #elif defined(ESP8266)
         digitalWrite(SWITCH_PIN, HIGH);
       #endif
+      #ifdef DEBUG_ENABLE
+        Serial.println("[FAN] Fan turned ON (full power)");
+      #endif
     }
   } else {
+    // Выключение
     #ifdef ESP32
       ledcDetachPin(SWITCH_PIN);
-      digitalWrite(SWITCH_PIN, LOW);
-    #elif defined(ESP8266)
-      digitalWrite(SWITCH_PIN, LOW);
+    #endif
+    #ifdef ESP8266
+      analogWrite(SWITCH_PIN, 0);
+    #endif
+    digitalWrite(SWITCH_PIN, LOW);
+    fanStartTime = 0;
+    #ifdef DEBUG_ENABLE
+      Serial.println("[FAN] Fan turned OFF");
     #endif
   }
-  
-  #ifdef DEBUG_ENABLE
-    delay(10);
-    bool pinState = (digitalRead(SWITCH_PIN) == HIGH);
-    if (!config.slowModeEnabled && pinState != on) {
-      Serial.printf("[FAN] WARNING: Pin state mismatch! Expected: %s, Real: %s\n", 
-                    on ? "ON" : "OFF", pinState ? "ON" : "OFF");
-    }
-    Serial.println(on ? "[FAN] Fan turned ON" : "[FAN] Fan turned OFF");
-  #endif
 }
 
 bool fan_getState() {
@@ -105,22 +145,21 @@ bool fan_getState() {
 }
 
 bool fan_getRealState() {
+  // Реальная логическая единица, даже если мы в стартовом импульсе
   return fanOn;
 }
 
-void fan_setOverrideMode(bool override) {
-  if (override) {
-    manualOverride = true;
+void fan_setOverrideMode(bool automatic) {
+  #if DEVICE_TYPE == 1
+  config.automaticMode = automatic;
+  if (!automatic) {
     delayActive = false;
-    #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] Manual override mode ON");
-    #endif
-  } else {
-    manualOverride = false;
-    #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] Manual override mode OFF (auto mode)");
-    #endif
   }
+  config_write();
+  #ifdef DEBUG_ENABLE
+    Serial.printf("[FAN] Mode switched to: %s\n", automatic ? "AUTO" : "MANUAL");
+  #endif
+  #endif
 }
 
 void fan_checkMaxOnTime() {
@@ -130,10 +169,14 @@ void fan_checkMaxOnTime() {
       Serial.println("[FAN] Max on time exceeded, forcing OFF");
     #endif
     fan_set(false);
-    // Таймер отложенного включения запускается после принудительного выключения
-    if (config.delaySeconds > 0 && !manualOverride) {
-      fan_delayTimer(true);
-    }
+    
+    #if DEVICE_TYPE == 1
+    config.automaticMode = false;
+    config_write();
+    #ifdef DEBUG_ENABLE
+      Serial.println("[FAN] Switched to MANUAL mode after safety shutdown");
+    #endif
+    #endif
   }
 }
 
@@ -152,9 +195,15 @@ bool fan_delayTimer(bool start) {
   } else {
     if (delayActive && millis() >= delayTimer) {
       delayActive = false;
-      manualOverride = true;
+      #if DEVICE_TYPE == 1
+      config.automaticMode = false;
+      #ifdef DEBUG_ENABLE
+        Serial.println("[FAN] Delay ON timer finished - switching to MANUAL mode (temporary)");
+      #endif
+      #else
       #ifdef DEBUG_ENABLE
         Serial.println("[FAN] Delay ON timer finished - turning ON");
+      #endif
       #endif
       return true;
     }
@@ -163,17 +212,39 @@ bool fan_delayTimer(bool start) {
 }
 
 void fan_update() {
-  // Ручной режим - наивысший приоритет
-  if (manualOverride) {
+  // Обработка завершения стартового импульса
+  if (startingPulseActive) {
+    if (millis() - startingPulseStart >= PWM_STARTING) {
+      // Переключаемся на ШИМ с заданной скважностью
+      #ifdef ESP32
+        ledcAttachPin(SWITCH_PIN, 0);
+        ledcWrite(0, config.slowModeDuty);
+      #elif defined(ESP8266)
+        analogWrite(SWITCH_PIN, config.slowModeDuty);
+      #endif
+      startingPulseActive = false;
+      #ifdef DEBUG_ENABLE
+        Serial.printf("[FAN] Starting pulse finished, switched to PWM duty=%d\n", config.slowModeDuty);
+      #endif
+    }
+    // Пока идёт стартовый импульс, остальная логика управления не прерывается,
+    // но изменение состояния (выключение) сбросило бы startingPulseActive.
+  }
+
+  #if DEVICE_TYPE == 1
+  // Ручной режим - только проверка maxOnTime
+  if (!config.automaticMode) {
+    fan_checkMaxOnTime();
     return;
   }
+  #endif
   
+  // Автоматический режим
   bool sensorShouldBeOn = false;
   bool timerExpired = false;
   
-  // 1. Проверка датчиков (автоматический режим) - только для TYPE 1
   #if DEVICE_TYPE == 1
-  if (config.automaticMode && sensor_isOk()) {
+  if (sensor_isOk()) {
     bool tempHigh = (currentTemp >= config.highTemp);
     bool humHigh = (currentHum >= config.highHum);
     bool tempLow = (currentTemp <= config.lowTemp);
@@ -184,20 +255,16 @@ void fan_update() {
     } else if (tempLow && humLow) {
       sensorShouldBeOn = false;
     } else {
-      // Гистерезис - сохраняем текущее состояние
       sensorShouldBeOn = fanOn;
     }
   }
   #endif
   
-  // 2. Проверка таймера отложенного включения
   timerExpired = fan_delayTimer(false);
   
-  // 3. Логика ИЛИ - если датчик хочет включить ИЛИ таймер истёк
   if (sensorShouldBeOn || timerExpired) {
     if (!fanOn) {
       fan_set(true);
-      // Если включились по таймеру или датчику - отменяем таймер
       if (delayActive) {
         delayActive = false;
         #ifdef DEBUG_ENABLE
@@ -206,22 +273,18 @@ void fan_update() {
       }
     }
   } else {
-    // Ни датчик, ни таймер не требуют включения
     if (fanOn) {
       fan_set(false);
-      // Запускаем таймер после выключения (если не активен)
-      if (config.delaySeconds > 0 && !delayActive && !manualOverride) {
+      if (config.delaySeconds > 0 && !delayActive) {
         fan_delayTimer(true);
       }
     } else {
-      // Устройство выключено - проверяем нужно ли запустить таймер
-      if (config.delaySeconds > 0 && !delayActive && !manualOverride && !sensorShouldBeOn) {
+      if (config.delaySeconds > 0 && !delayActive && !sensorShouldBeOn) {
         fan_delayTimer(true);
       }
     }
   }
   
-  // 4. Контроль максимального времени работы (работает всегда, даже в ручном режиме)
   fan_checkMaxOnTime();
 }
 

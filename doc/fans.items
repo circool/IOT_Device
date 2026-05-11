@@ -1,96 +1,102 @@
 // ==================== TYPE 1: Вентилятор с датчиком ====================
 // Client ID: fan_esp32
 
-Group   gFan32 "Вентилятор ESP-32"    <fan> (loc_Cabinet,g_Sensors) ["Fan"]
+Group   gFan0F7C "Вентилятор 0F7C"    <fan> (loc_Bathroom,g_Sensors) ["Fan"]
+Group   gFan1F32 "Вентилятор 1F32"    <fan> (loc_Toilet,g_Sensors) ["Fan"]
 
-Switch fan_esp32_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gFan32) ["Status"] {
-    channel="mqtt:topic:local:fan_esp32:status", on="Online", off="Offline"
+Switch fan_0F7C_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gFan0F7C) ["Status"] {
+    channel="mqtt:topic:local:fan_0F7C:status", on="Online", off="Offline"
 }
 
-Switch fan_esp32_fan_state "Вытяжка" <oh:switch> (gFan32,loc_Cabinet) ["Fan","Switch"] {
-    channel="mqtt:topic:local:fan_esp32:fan_state"
+Switch fan_0F7C_fan_state "Вытяжка" <oh:switch> (gFan0F7C,loc_Bathroom) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_0F7C:fan_state"
 }
 
-Number:Dimensionless fan_esp32_sensor_humidity "Влажность [%d %%]" <humidity> (gFan32,loc_Cabinet,gHumidities) ["Measurement","Humidity"] { 
-    channel="mqtt:topic:local:fan_esp32:sensor_humidity" 
+Number:Dimensionless fan_0F7C_sensor_humidity "Влажность [%.1f %%]" <humidity> (gFan0F7C,loc_Bathroom,gHumidities) ["Measurement","Humidity"] { 
+    channel="mqtt:topic:local:fan_0F7C:sensor_humidity" 
 }
 
-Number:Temperature fan_esp32_sensor_temperature "Температура [%.2f °C]" <temperature> (gFan32,loc_Cabinet,gTemperatures) ["Measurement","Temperature"] {
-    channel="mqtt:topic:local:fan_esp32:sensor_temperature"
+Number:Temperature fan_0F7C_sensor_temperature "Температура [%.2f °C]" <temperature> (gFan0F7C,loc_Bathroom,gTemperatures) ["Measurement","Temperature"] {
+    channel="mqtt:topic:local:fan_0F7C:sensor_temperature"
 }
 
-Number fan_esp32_sensor_lowHum "Low Humidity [%.2f %%]" <humidity> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
-    channel="mqtt:topic:local:fan_esp32:sensor_lowHum"
+Number fan_0F7C_sensor_lowHum "Low Humidity [%.2f %%]" <humidity> (gFan0F7C,loc_Bathroom) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_0F7C:sensor_lowHum"
 }
 
-Number fan_esp32_sensor_highHum "High Humidity [%.2f %%]" <humidity> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
-    channel="mqtt:topic:local:fan_esp32:sensor_highHum"
+Number fan_0F7C_sensor_highHum "High Humidity [%.2f %%]" <humidity> (gFan0F7C,loc_Bathroom) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_0F7C:sensor_highHum"
 }
 
-Number fan_esp32_sensor_lowTemp "Low Temperature [%.2f °C]" <temperature_cold> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
-    channel="mqtt:topic:local:fan_esp32:sensor_lowTemp"
+Number fan_0F7C_sensor_lowTemp "Low Temperature [%.2f °C]" <temperature_cold> (gFan0F7C,loc_Bathroom) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_0F7C:sensor_lowTemp"
 }
 
-Number fan_esp32_sensor_highTemp "High Temperature [%.2f °C]" <temperature_hot> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
-    channel="mqtt:topic:local:fan_esp32:sensor_highTemp"
+Number fan_0F7C_sensor_highTemp "High Temperature [%.2f °C]" <temperature_hot> (gFan0F7C,loc_Bathroom) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_0F7C:sensor_highTemp"
 }
 
-Number fan_esp32_fan_delaySec "Fan delay [%d sec]" <clock> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
-    channel="mqtt:topic:local:fan_esp32:fan_delaySec"
+Number fan_0F7C_fan_delaySec "Fan delay [%d sec]" <clock> (gFan0F7C,loc_Bathroom) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_0F7C:fan_delaySec"
 }
 
-Switch fan_esp32_fan_slowMode "Slow Mode" <oh:switch> (gFan32,loc_Cabinet) ["Fan","Switch"] {
-    channel="mqtt:topic:local:fan_esp32:fan_slowMode"
+Switch fan_0F7C_fan_slowMode "Slow Mode" <oh:switch> (gFan0F7C,loc_Bathroom) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_0F7C:fan_slowMode"
 }
 
-Number fan_esp32_fan_slowModeDuty "Slow Mode Duty [%d]" <slider> (gFan32,loc_Cabinet) ["Fan","Setpoint"] {
-    channel="mqtt:topic:local:fan_esp32:fan_slowModeDuty"
+Number fan_0F7C_fan_slowModeDuty "Slow Mode Duty [%d]" <slider> (gFan0F7C,loc_Bathroom) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_0F7C:fan_slowModeDuty"
 }
 
-Switch fan_esp32_fan_autoMode "Auto Mode" <oh:switch> (gFan32,loc_Cabinet) ["Fan","Switch"] {
-    channel="mqtt:topic:local:fan_esp32:fan_autoMode"
-}
-
-
-// ==================== TYPE 2: Только датчик ====================
-// Client ID: sensor_esp32
-
-Group   gSensor32 "Датчик ESP-32"    <temperature> (loc_Living,g_Sensors) ["Sensor"]
-
-Switch sensor_esp32_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gSensor32) ["Status"] {
-    channel="mqtt:topic:local:sensor_esp32:status", on="Online", off="Offline"
-}
-
-Number:Dimensionless sensor_esp32_sensor_humidity "Влажность [%d %%]" <humidity> (gSensor32,loc_Living,gHumidities) ["Measurement","Humidity"] { 
-    channel="mqtt:topic:local:sensor_esp32:sensor_humidity" 
-}
-
-Number:Temperature sensor_esp32_sensor_temperature "Температура [%.2f °C]" <temperature> (gSensor32,loc_Living,gTemperatures) ["Measurement","Temperature"] {
-    channel="mqtt:topic:local:sensor_esp32:sensor_temperature"
+Switch fan_0F7C_fan_autoMode "Auto Mode" <oh:switch> (gFan0F7C,loc_Bathroom) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_0F7C:fan_autoMode"
 }
 
 
-// ==================== TYPE 3: Управляемый выключатель ====================
-// Client ID: switch_esp32
-
-Group   gSwitch32 "Выключатель ESP-32"    <switch> (loc_Garage,g_Switches) ["Switch"]
-
-Switch switch_esp32_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gSwitch32) ["Status"] {
-    channel="mqtt:topic:local:switch_esp32:status", on="Online", off="Offline"
+Switch fan_1F32_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gFan1F32) ["Status"] {
+    channel="mqtt:topic:local:fan_1F32:status", on="Online", off="Offline"
 }
 
-Switch switch_esp32_switch_state "Выключатель" <oh:switch> (gSwitch32,loc_Garage) ["Switch"] {
-    channel="mqtt:topic:local:switch_esp32:switch_state"
+Switch fan_1F32_fan_state "Вытяжка" <oh:switch> (gFan1F32,loc_Toilet) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_1F32:fan_state"
 }
 
-Number switch_esp32_switch_delaySec "Delay [%d sec]" <clock> (gSwitch32,loc_Garage) ["Switch","Setpoint"] {
-    channel="mqtt:topic:local:switch_esp32:switch_delaySec"
+Number:Dimensionless fan_1F32_sensor_humidity "Влажность [%.1f %%]" <humidity> (gFan1F32,loc_Toilet,gHumidities) ["Measurement","Humidity"] { 
+    channel="mqtt:topic:local:fan_1F32:sensor_humidity" 
 }
 
-Switch switch_esp32_switch_slowMode "Slow Mode" <oh:switch> (gSwitch32,loc_Garage) ["Switch"] {
-    channel="mqtt:topic:local:switch_esp32:switch_slowMode"
+Number:Temperature fan_1F32_sensor_temperature "Температура [%.2f °C]" <temperature> (gFan1F32,loc_Toilet,gTemperatures) ["Measurement","Temperature"] {
+    channel="mqtt:topic:local:fan_1F32:sensor_temperature"
 }
 
-Number switch_esp32_switch_slowModeDuty "Slow Mode Duty [%d]" <slider> (gSwitch32,loc_Garage) ["Switch","Setpoint"] {
-    channel="mqtt:topic:local:switch_esp32:switch_slowModeDuty"
+Number fan_1F32_sensor_lowHum "Low Humidity [%.2f %%]" <humidity> (gFan1F32,loc_Toilet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_1F32:sensor_lowHum"
+}
+
+Number fan_1F32_sensor_highHum "High Humidity [%.2f %%]" <humidity> (gFan1F32,loc_Toilet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_1F32:sensor_highHum"
+}
+
+Number fan_1F32_sensor_lowTemp "Low Temperature [%.2f °C]" <temperature_cold> (gFan1F32,loc_Toilet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_1F32:sensor_lowTemp"
+}
+
+Number fan_1F32_sensor_highTemp "High Temperature [%.2f °C]" <temperature_hot> (gFan1F32,loc_Toilet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_1F32:sensor_highTemp"
+}
+
+Number fan_1F32_fan_delaySec "Fan delay [%d sec]" <clock> (gFan1F32,loc_Toilet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_1F32:fan_delaySec"
+}
+
+Switch fan_1F32_fan_slowMode "Slow Mode" <oh:switch> (gFan1F32,loc_Toilet) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_1F32:fan_slowMode"
+}
+
+Number fan_1F32_fan_slowModeDuty "Slow Mode Duty [%d]" <slider> (gFan1F32,loc_Toilet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_1F32:fan_slowModeDuty"
+}
+
+Switch fan_1F32_fan_autoMode "Auto Mode" <oh:switch> (gFan1F32,loc_Toilet) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_1F32:fan_autoMode"
 }
