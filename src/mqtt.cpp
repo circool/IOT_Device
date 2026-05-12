@@ -25,6 +25,8 @@ char delaySecStateTopic[56];
 char delaySecControlTopic[56];
 char autoModeStateTopic[56];
 char autoModeControlTopic[56];
+char maxOnTimeStateTopic[56];
+char maxOnTimeControlTopic[56];
 #endif
 
 // Общие для TYPE 1 и TYPE 2
@@ -68,6 +70,8 @@ void mqtt_setupTopics(const char* prefix) {
   snprintf(delaySecControlTopic, sizeof(delaySecControlTopic), "%s/c/fan/delaySec", devicePrefix);
   snprintf(autoModeStateTopic, sizeof(autoModeStateTopic), "%s/fan/autoMode", devicePrefix);
   snprintf(autoModeControlTopic, sizeof(autoModeControlTopic), "%s/c/fan/autoMode", devicePrefix);
+  snprintf(maxOnTimeStateTopic, sizeof(maxOnTimeStateTopic), "%s/fan/maxOnTime", devicePrefix);
+  snprintf(maxOnTimeControlTopic, sizeof(maxOnTimeControlTopic), "%s/c/fan/maxOnTime", devicePrefix);
   #elif DEVICE_TYPE == 3
   snprintf(stateTopic, sizeof(stateTopic), "%s/switch/state", devicePrefix);
   snprintf(controlTopic, sizeof(controlTopic), "%s/c/switch/state", devicePrefix);
@@ -79,6 +83,8 @@ void mqtt_setupTopics(const char* prefix) {
   snprintf(delaySecControlTopic, sizeof(delaySecControlTopic), "%s/c/switch/delaySec", devicePrefix);
   snprintf(autoModeStateTopic, sizeof(autoModeStateTopic), "%s/switch/autoMode", devicePrefix);
   snprintf(autoModeControlTopic, sizeof(autoModeControlTopic), "%s/c/switch/autoMode", devicePrefix);
+  snprintf(maxOnTimeStateTopic, sizeof(maxOnTimeStateTopic), "%s/switch/maxOnTime", devicePrefix);
+  snprintf(maxOnTimeControlTopic, sizeof(maxOnTimeControlTopic), "%s/c/switch/maxOnTime", devicePrefix);
   #endif
   #endif
   
@@ -88,7 +94,7 @@ void mqtt_setupTopics(const char* prefix) {
   snprintf(humStateTopic, sizeof(humStateTopic), "%s/sensor/humidity", devicePrefix);
   #endif
   
-  // TYPE 1: пороги датчика и автоматика
+  // TYPE 1: пороги датчика
   #if DEVICE_TYPE == 1
   snprintf(lowTempStateTopic, sizeof(lowTempStateTopic), "%s/sensor/lowTemp", devicePrefix);
   snprintf(highTempStateTopic, sizeof(highTempStateTopic), "%s/sensor/highTemp", devicePrefix);
@@ -133,6 +139,7 @@ void mqtt_publishConfig() {
   mqttClient.publish(slowModeStateTopic, config.slowModeEnabled ? "1" : "0");
   mqttClient.publish(slowModeDutyStateTopic, String(config.slowModeDuty).c_str());
   mqttClient.publish(delaySecStateTopic, String(config.delaySeconds).c_str());
+  mqttClient.publish(maxOnTimeStateTopic, String(config.maxOnTime).c_str());
   mqttClient.publish(autoModeStateTopic, config.automaticMode ? "1" : "0");
   #endif
   
@@ -145,9 +152,9 @@ void mqtt_publishConfig() {
   
   #ifdef DEBUG_MQTT
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    Serial.printf("[MQTT] Config published: slow=%d, duty=%d, delay=%d, auto=%s",
+    Serial.printf("[MQTT] Config published: slow=%d, duty=%d, delay=%d, maxOnTime=%d, auto=%s",
                   config.slowModeEnabled, config.slowModeDuty, config.delaySeconds,
-                  config.automaticMode ? "ON" : "OFF");
+                  config.maxOnTime, config.automaticMode ? "ON" : "OFF");
     #endif
     #if DEVICE_TYPE == 1
     Serial.printf(", T(%.1f-%.1f), H(%.1f-%.1f)\n",
@@ -215,19 +222,17 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   
   if (strcmp(topic, controlTopic) == 0) {
-    
     if (msg == "ON" || msg == "1") { 
       #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-      config.automaticMode = false;  // переходим в ручной режим
+      config.automaticMode = false;
       #endif
       fan_set(true);
     } else if (msg == "OFF" || msg == "0") { 
       #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-      config.automaticMode = false;  // переходим в ручной режим
+      config.automaticMode = false;
       #endif
       fan_set(false);
     }
-    
     mqtt_publishState();
   }
   else if (strcmp(topic, slowModeControlTopic) == 0) {
@@ -235,7 +240,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     if (config_validate()) {
       config_write();
       if (fanOn) {
-        fan_set(true);  // переприменить с новыми настройками
+        fan_set(true);
       }
       mqtt_publishConfig();
     }
@@ -245,7 +250,7 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
     if (config_validate()) {
       config_write();
       if (fanOn && config.slowModeEnabled) {
-        fan_set(true);  // переприменить с новой скважностью
+        fan_set(true);
       }
       mqtt_publishConfig();
     }
@@ -268,11 +273,18 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
       mqtt_publishConfig();
     }
   }
+  else if (strcmp(topic, maxOnTimeControlTopic) == 0) {
+    config.maxOnTime = msg.toInt();
+    if (config_validate()) {
+      config_write();
+      mqtt_publishConfig();
+    }
+  }
   else if (strcmp(topic, autoModeControlTopic) == 0) {
     if (msg == "AUTO" || msg == "1") { 
-      fan_setOverrideMode(true);   // включаем авто
+      fan_setOverrideMode(true);
     } else if (msg == "0") {
-      fan_setOverrideMode(false);  // включаем ручной
+      fan_setOverrideMode(false);
     }
     mqtt_publishState();
     mqtt_publishConfig();
@@ -280,7 +292,6 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   #endif
   
   #if DEVICE_TYPE == 1
-  
   if (strcmp(topic, lowTempControlTopic) == 0) {
     config.lowTemp = msg.toFloat();
     if (config_validate()) {
@@ -344,6 +355,7 @@ void mqtt_reconnect() {
     mqttClient.subscribe(slowModeControlTopic, 1);
     mqttClient.subscribe(slowModeDutyControlTopic, 1);
     mqttClient.subscribe(delaySecControlTopic, 1);
+    mqttClient.subscribe(maxOnTimeControlTopic, 1);
     mqttClient.subscribe(autoModeControlTopic, 1);
     #endif
     

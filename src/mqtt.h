@@ -32,6 +32,8 @@ extern char delaySecStateTopic[56];
 extern char delaySecControlTopic[56];
 extern char autoModeStateTopic[56];
 extern char autoModeControlTopic[56];
+extern char maxOnTimeStateTopic[56];
+extern char maxOnTimeControlTopic[56];
 #endif
 
 // Общие для TYPE 1 и TYPE 2 (датчик)
@@ -40,7 +42,7 @@ extern char tempStateTopic[56];
 extern char humStateTopic[56];
 #endif
 
-// Только TYPE 1 (пороги датчика + автоматика)
+// Только TYPE 1 (пороги датчика)
 #if DEVICE_TYPE == 1
 extern char lowTempStateTopic[56];
 extern char highTempStateTopic[56];

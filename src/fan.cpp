@@ -78,17 +78,17 @@ void fan_init() {
   }
   #endif
   
-  // Запуск таймера отложенного включения при старте
-  if (config.delaySeconds > 0 && !fanOn 
-      #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-      && config.automaticMode
-      #endif
-     ) {
-    fan_delayTimer(true);
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[FAN] Initial delay timer started: %d seconds\n", config.delaySeconds);
-    #endif
-  }
+  // Запуск таймера отложенного включения при старте не нужен - он есть в fan_update
+  // if (config.delaySeconds > 0 && !fanOn 
+  //     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+  //     && config.automaticMode
+  //     #endif
+  //    ) {
+  //   fan_delayTimer(true);
+  //   #ifdef DEBUG_ENABLE
+  //     Serial.printf("[FAN] Initial delay timer started: %d seconds\n", config.delaySeconds);
+  //   #endif
+  // }
 }
 
 void fan_set(bool on) {

@@ -155,8 +155,8 @@
 
 // ======================== ОТЛАДКА ========================
 
-#define DEBUG_ENABLE
-#define DEBUG_MQTT
+// #define DEBUG_ENABLE
+// #define DEBUG_MQTT
 
 // ======================== СБРОС НАСТРОЕК ========================
 #ifndef MQTT_RESET_ENABLED

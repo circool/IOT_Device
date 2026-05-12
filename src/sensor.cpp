@@ -8,6 +8,7 @@ float currentTemp = 0;
 float currentHum = 0;
 bool sensorOk = false;
 unsigned long lastSensorRead = 0;
+String sensorError = "";
 
 #if SENSOR_TYPE == 1
   Adafruit_AHTX0 aht;
@@ -19,21 +20,26 @@ void sensor_init() {
   #if SENSOR_TYPE == 1
     if (aht.begin()) {
       sensorOk = true;
+      sensorError = "";
       Serial.println("[SENSOR] AHT10 initialized");
     } else {
       sensorOk = false;
+      sensorError = "AHT10 not found";
       Serial.println("[SENSOR] AHT10 not found! Sensor will be disabled.");
     }
   #elif SENSOR_TYPE == 2    
     dht.begin();
-    delay(2000);  // задержка для стабилизации DHT
+    delay(2000);
     sensorOk = true;
+    sensorError = "";
     Serial.println("[SENSOR] DHT initialized");
   #endif
 }
 
 void sensor_read() {
-  if (!sensorOk) return;
+  if (!sensorOk && sensorError.length() > 0 && sensorError == "AHT10 not found") {
+    return;  // Датчик не найден при инициализации — не пытаемся читать
+  }
   
   if (millis() - lastSensorRead < config.sensorInterval * 1000UL) {
     return;
@@ -45,12 +51,30 @@ void sensor_read() {
     if (aht.getEvent(&humidity, &temperature)) {
       currentTemp = temperature.temperature;
       currentHum = humidity.relative_humidity;
-      sensorOk = true;
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[SENSOR] AHT10: T=%.2f°C, H=%.2f%%\n", currentTemp, currentHum);
-      #endif
+      
+      if (currentTemp < -40 || currentTemp > 85 || 
+          currentHum < 0 || currentHum > 100) {
+        sensorOk = false;
+        sensorError = "AHT10 out of range (T=" + String(currentTemp, 1) + " H=" + String(currentHum, 1) + ")";
+        #ifdef DEBUG_ENABLE
+          Serial.printf("[SENSOR] %s\n", sensorError.c_str());
+        #endif
+      } else if (currentTemp == 0.0 && currentHum == 0.0) {
+        sensorOk = false;
+        sensorError = "AHT10 returned zero values";
+        #ifdef DEBUG_ENABLE
+          Serial.printf("[SENSOR] %s\n", sensorError.c_str());
+        #endif
+      } else {
+        sensorOk = true;
+        sensorError = "";
+        #ifdef DEBUG_ENABLE
+          Serial.printf("[SENSOR] AHT10: T=%.2f°C, H=%.2f%%\n", currentTemp, currentHum);
+        #endif
+      }
     } else {
       sensorOk = false;
+      sensorError = "AHT10 I2C read failed";
       Serial.println("[SENSOR] AHT10 read error!");
     }
   #elif SENSOR_TYPE == 2
@@ -59,12 +83,24 @@ void sensor_read() {
     if (!isnan(t) && !isnan(h)) {
       currentTemp = t;
       currentHum = h;
-      sensorOk = true;
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[SENSOR] DHT: T=%.2f°C, H=%.2f%%\n", currentTemp, currentHum);
-      #endif
+      
+      if (currentTemp < -40 || currentTemp > 85 || 
+          currentHum < 0 || currentHum > 100) {
+        sensorOk = false;
+        sensorError = "DHT out of range (T=" + String(currentTemp, 1) + " H=" + String(currentHum, 1) + ")";
+        #ifdef DEBUG_ENABLE
+          Serial.printf("[SENSOR] %s\n", sensorError.c_str());
+        #endif
+      } else {
+        sensorOk = true;
+        sensorError = "";
+        #ifdef DEBUG_ENABLE
+          Serial.printf("[SENSOR] DHT: T=%.2f°C, H=%.2f%%\n", currentTemp, currentHum);
+        #endif
+      }
     } else {
       sensorOk = false;
+      sensorError = "DHT read failed (NaN)";
       Serial.println("[SENSOR] DHT read error!");
     }
   #endif

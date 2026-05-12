@@ -163,6 +163,7 @@ String web_getStatusPage(int refreshInterval) {
   html += ".flex-container{display:flex;flex-wrap:wrap;justify-content:center;}";
   html += ".button-group{display:flex;justify-content:center;gap:10px;margin-top:20px;flex-wrap:wrap;}";
   html += "a{text-decoration:none;}";
+  html += ".sensor-error{background:#ffebee;padding:15px;border-radius:8px;margin:15px 10px;color:#c62828;text-align:center;border:2px solid #ef9a9a;}";
   html += "</style></head><body><div class='container'>";
   
   html += "<h1>" + String(config.mqttClientId) + "</h1>";
@@ -195,6 +196,14 @@ String web_getStatusPage(int refreshInterval) {
   html += " %</div></div>";
   
   html += "</div>";
+  
+  // Отображение ошибки датчика
+  if (!sensorOk && sensorError.length() > 0) {
+    html += "<div class='sensor-error'>";
+    html += "<strong>⚠ Ошибка датчика</strong><br>";
+    html += sensorError;
+    html += "</div>";
+  }
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
