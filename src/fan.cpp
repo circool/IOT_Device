@@ -15,6 +15,68 @@ bool delayActive = false;
 bool startingPulseActive = false;
 unsigned long startingPulseStart = 0;
 
+// Переменные адаптивного режима
+bool adaptiveActive = false;
+float baseTemp = 0;
+float baseHum = 0;
+unsigned long lastAdaptiveCheck = 0;
+
+// Вспомогательная функция: перевод процентов (0-100) в значение ШИМ для платформы
+static int percentToPWMValue(int percent) {
+  if (percent <= 0) return 0;
+  if (percent >= 100) return 255;
+  return map(percent, 0, 100, 0, 255);
+}
+
+// Применение ШИМ с указанной скважностью в процентах
+void fan_applyPWM(int percent) {
+  if (percent <= 0) {
+    // Выключено
+    #ifdef ESP32
+      ledcDetachPin(SWITCH_PIN);
+    #endif
+    digitalWrite(SWITCH_PIN, LOW);
+    if (fanOn && !startingPulseActive) {
+      fanOn = false;
+      fanStartTime = 0;
+      #ifdef DEBUG_ENABLE
+        Serial.println("[FAN] Warning: PWM duty 0% with fanOn=true - forcing OFF");
+      #endif
+    }
+    #ifdef DEBUG_ENABLE
+      Serial.println("[FAN] PWM: OFF");
+    #endif
+  } else if (percent >= 100) {
+    // Полная мощность
+    #ifdef ESP32
+      ledcDetachPin(SWITCH_PIN);
+    #endif
+    digitalWrite(SWITCH_PIN, HIGH);
+    #ifdef DEBUG_ENABLE
+      Serial.println("[FAN] PWM: FULL POWER (100%)");
+    #endif
+  } else {
+    // ШИМ с заданной скважностью
+    int pwmValue = percentToPWMValue(percent);
+    #ifdef ESP32
+      ledcAttachPin(SWITCH_PIN, 0);
+      ledcWrite(0, pwmValue);
+    #elif defined(ESP8266)
+      analogWrite(SWITCH_PIN, pwmValue);
+    #endif
+    #ifdef DEBUG_ENABLE
+      Serial.printf("[FAN] PWM: %d%% (value %d/255)\n", percent, pwmValue);
+    #endif
+  }
+}
+
+int fan_getCurrentPWMDuty() {
+  if (!fanOn) return 0;
+  if (startingPulseActive) return 100;
+  if (config.pwmDutyPercent >= 100) return 100;
+  return config.pwmDutyPercent;
+}
+
 void fan_init() {
   pinMode(SWITCH_PIN, OUTPUT);
   
@@ -30,35 +92,45 @@ void fan_init() {
   
   if (config.forceOffOnBoot) {
     fanOn = false;
-    #ifdef ESP32
-      ledcDetachPin(SWITCH_PIN);
-    #endif
-    digitalWrite(SWITCH_PIN, LOW);
+    fan_applyPWM(0);
     startingPulseActive = false;
+    adaptiveActive = false;
     #ifdef DEBUG_ENABLE
       Serial.println("[FAN] Force OFF on boot - forcing OFF");
     #endif
   } else {
-    // Сохраняем состояние пина, но для гарантии запуска в slow mode делаем стартовый импульс,
-    // даже если пин был HIGH (чтобы раскрутить мотор после перезагрузки)
     fanOn = currentPinState;
     if (fanOn) {
-      if (config.slowModeEnabled) {
-        // Запускаем стартовый импульс: полная мощность на PWM_STARTING мс
-        #ifdef ESP32
-          ledcDetachPin(SWITCH_PIN);
-        #endif
-        digitalWrite(SWITCH_PIN, HIGH);
+      if (config.pwmDutyPercent < 100) {
+        fan_applyPWM(100);
         startingPulseActive = true;
         startingPulseStart = millis();
+        adaptiveActive = false;
         #ifdef DEBUG_ENABLE
           Serial.printf("[FAN] Keep state ON with slow mode - starting pulse for %d ms\n", PWM_STARTING);
         #endif
       } else {
-        digitalWrite(SWITCH_PIN, HIGH);
+        fan_applyPWM(100);
+        startingPulseActive = false;
+        #if DEVICE_TYPE == 1
+        if (config.adaptiveMode && sensor_isOk()) {
+          adaptiveActive = true;
+          baseTemp = currentTemp;
+          baseHum = currentHum;
+          lastAdaptiveCheck = millis();
+          #ifdef DEBUG_ENABLE
+            Serial.printf("[FAN] Adaptive mode activated: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
+          #endif
+        } else if (config.adaptiveMode && !sensor_isOk()) {
+          #ifdef DEBUG_ENABLE
+            Serial.println("[FAN] Adaptive mode waiting for valid sensor readings...");
+          #endif
+        }
+        #endif
       }
     } else {
       startingPulseActive = false;
+      adaptiveActive = false;
     }
     #ifdef DEBUG_ENABLE
       Serial.printf("[FAN] Keep state on boot - synced with pin state: %s\n", 
@@ -70,94 +142,102 @@ void fan_init() {
   delayTimer = 0;
   fanStartTime = fanOn ? millis() : 0;
   
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  if (!config.automaticMode) {
+  #if DEVICE_TYPE == 1
+  if (!config.sensorControlMode) {
     #ifdef DEBUG_ENABLE
       Serial.println("[FAN] Starting in MANUAL mode");
     #endif
   }
   #endif
-  
-  // Запуск таймера отложенного включения при старте не нужен - он есть в fan_update
-  // if (config.delaySeconds > 0 && !fanOn 
-  //     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  //     && config.automaticMode
-  //     #endif
-  //    ) {
-  //   fan_delayTimer(true);
-  //   #ifdef DEBUG_ENABLE
-  //     Serial.printf("[FAN] Initial delay timer started: %d seconds\n", config.delaySeconds);
-  //   #endif
-  // }
 }
 
 void fan_set(bool on) {
   if (fanOn == on) return;
   
-  // При изменении состояния сбрасываем стартовый импульс
   startingPulseActive = false;
+  adaptiveActive = false;
   
   fanOn = on;
   
   if (fanOn) {
     fanStartTime = millis();
-    if (config.slowModeEnabled) {
-      // Начинаем стартовый импульс полной мощности
-      #ifdef ESP32
-        ledcDetachPin(SWITCH_PIN);
-      #endif
-      digitalWrite(SWITCH_PIN, HIGH);
+    if (config.pwmDutyPercent < 100) {
+      fan_applyPWM(100);
       startingPulseActive = true;
       startingPulseStart = millis();
       #ifdef DEBUG_ENABLE
         Serial.printf("[FAN] Starting pulse started, duration=%d ms\n", PWM_STARTING);
       #endif
     } else {
-      // Обычное включение
-      #ifdef ESP32
-        ledcDetachPin(SWITCH_PIN);
-        digitalWrite(SWITCH_PIN, HIGH);
-      #elif defined(ESP8266)
-        digitalWrite(SWITCH_PIN, HIGH);
+      fan_applyPWM(100);
+      #if DEVICE_TYPE == 1
+      if (config.adaptiveMode && sensor_isOk()) {
+        adaptiveActive = true;
+        baseTemp = currentTemp;
+        baseHum = currentHum;
+        lastAdaptiveCheck = millis();
+        #ifdef DEBUG_ENABLE
+          Serial.printf("[FAN] Adaptive mode activated: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
+        #endif
+      }
       #endif
       #ifdef DEBUG_ENABLE
-        Serial.println("[FAN] Fan turned ON (full power)");
+        Serial.println("[FAN] Fan turned ON");
       #endif
     }
   } else {
-    // Выключение
-    #ifdef ESP32
-      ledcDetachPin(SWITCH_PIN);
-    #endif
-    #ifdef ESP8266
-      analogWrite(SWITCH_PIN, 0);
-    #endif
-    digitalWrite(SWITCH_PIN, LOW);
+    fan_applyPWM(0);
     fanStartTime = 0;
+    adaptiveActive = false;
+    
+    // Восстанавливаем сохранённую настройку пользователя
+    uint16_t oldDuty = config.pwmDutyPercent;
+    config.pwmDutyPercent = staticConfig.pwmDutyPercent;
+    
+    // Публикуем только если скважность изменилась и подключены к MQTT
+    if (oldDuty != config.pwmDutyPercent && mqtt_isConnected()) {
+      mqttClient.publish(pwmDutyStateTopic, String(config.pwmDutyPercent).c_str());
+      #ifdef DEBUG_MQTT
+        Serial.printf("[MQTT] PWM duty restored to %d%% (was %d%%)\n", config.pwmDutyPercent, oldDuty);
+      #endif
+    }
+    
     #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] Fan turned OFF");
+      Serial.printf("[FAN] Fan turned OFF, restored PWM duty to %d%%\n", config.pwmDutyPercent);
     #endif
   }
+  
+  // Публикуем состояние при любом изменении (если подключены к MQTT)
+  if (mqtt_isConnected()) {
+    mqtt_publishState();
+  }
 }
-
 bool fan_getState() {
   return fanOn;
 }
 
 bool fan_getRealState() {
-  // Реальная логическая единица, даже если мы в стартовом импульсе
   return fanOn;
 }
 
-void fan_setOverrideMode(bool automatic) {
+void fan_setOverrideMode(bool sensorControl) {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  config.automaticMode = automatic;
-  if (!automatic) {
+  config.sensorControlMode = sensorControl;
+  if (!sensorControl) {
     delayActive = false;
+    adaptiveActive = false;
+  } else {
+    // При переходе в режим управления сенсором, если вентилятор включён и есть валидные данные
+    if (fanOn && config.adaptiveMode && DEVICE_TYPE == 1 && sensor_isOk()) {
+      adaptiveActive = true;
+      baseTemp = currentTemp;
+      baseHum = currentHum;
+      lastAdaptiveCheck = millis();
+    }
   }
-  config_write();
+  // НЕ СОХРАНЯЕМ в EEPROM при MQTT команде
   #ifdef DEBUG_ENABLE
-    Serial.printf("[FAN] Mode switched to: %s\n", automatic ? "AUTO" : "MANUAL");
+    Serial.printf("[FAN] Mode switched to: %s\n", sensorControl ? "SENSOR CONTROL" : "MANUAL");
   #endif
   #endif
 }
@@ -168,15 +248,15 @@ void fan_checkMaxOnTime() {
     #ifdef DEBUG_ENABLE
       Serial.println("[FAN] Max on time exceeded, forcing OFF");
     #endif
-    fan_set(false);
     
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    config.automaticMode = false;
-    config_write();
+    #if DEVICE_TYPE == 1
+    config.sensorControlMode = false;
     #ifdef DEBUG_ENABLE
       Serial.println("[FAN] Switched to MANUAL mode after safety shutdown");
     #endif
     #endif
+    
+    fan_set(false);
   }
 }
 
@@ -195,12 +275,12 @@ bool fan_delayTimer(bool start) {
   } else {
     if (delayActive && millis() >= delayTimer) {
       delayActive = false;
-      #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-      config.automaticMode = false;
+      #if DEVICE_TYPE == 1
+      config.sensorControlMode = false;
       #ifdef DEBUG_ENABLE
         Serial.println("[FAN] Delay ON timer finished - switching to MANUAL mode (temporary)");
       #endif
-      #else
+      #elif DEVICE_TYPE == 3
       #ifdef DEBUG_ENABLE
         Serial.println("[FAN] Delay ON timer finished - turning ON");
       #endif
@@ -211,35 +291,187 @@ bool fan_delayTimer(bool start) {
   }
 }
 
+void fan_adaptiveUpdate() {
+  // Проверка наличия датчика и валидности данных
+  if (!sensor_isOk()) {
+    if (adaptiveActive) {
+      // Ошибка датчика во время работы - выключаем адаптацию и включаем на полную мощность
+      adaptiveActive = false;
+      #ifdef DEBUG_ENABLE
+        Serial.println("[FAN] Adaptive mode disabled - sensor error, switching to FULL power");
+      #endif
+      // Включаем вентилятор на полную мощность
+      if (fanOn && !startingPulseActive) {
+        config.pwmDutyPercent = 100;
+        fan_applyPWM(100);
+        if (mqtt_isConnected()) {
+          mqttClient.publish(pwmDutyStateTopic, "100");
+          #ifdef DEBUG_MQTT
+            Serial.println("[MQTT] PWM duty published: 100% (sensor error)");
+          #endif
+        }
+      }
+    }
+    return;
+  }
+  
+  // Адаптивный режим работает только если:
+  // - вентилятор включён
+  // - не в стартовом импульсе
+  // - адаптивный режим активен в конфиге
+  // - режим управления сенсором включён
+  if (!fanOn || startingPulseActive || !config.adaptiveMode || 
+      !config.sensorControlMode || DEVICE_TYPE != 1) {
+    if (adaptiveActive) adaptiveActive = false;
+    return;
+  }
+  
+  // Если адаптация ещё не активна, но условия выполнены - активируем
+  if (!adaptiveActive) {
+    adaptiveActive = true;
+    baseTemp = currentTemp;
+    baseHum = currentHum;
+    lastAdaptiveCheck = millis();
+    #ifdef DEBUG_ENABLE
+      Serial.printf("[FAN] Adaptive mode activated: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
+    #endif
+    return;
+  }
+  
+  // Проверяем не чаще, чем раз в интервал опроса датчика
+  if (millis() - lastAdaptiveCheck < config.sensorInterval * 1000UL) {
+    return;
+  }
+  lastAdaptiveCheck = millis();
+  
+  float deltaTemp = currentTemp - baseTemp;
+  float deltaHum = currentHum - baseHum;
+  
+  int newDuty = config.pwmDutyPercent;
+  bool needChange = false;
+  
+  // Агрессивная логика: если хоть что-то выросло - увеличиваем мощность
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
+    int step = ADAPTIVE_STEP_SIZE;
+    
+    if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 2 || deltaHum > ADAPTIVE_EPSILON_HUM * 2) {
+      step = step * 2;
+    }
+    if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 3 || deltaHum > ADAPTIVE_EPSILON_HUM * 3) {
+      step = step * 3;
+    }
+    if (step > 50) step = 50;
+    
+    newDuty += step;
+    if (newDuty > 100) newDuty = 100;
+    if (newDuty != config.pwmDutyPercent) {
+      needChange = true;
+      #ifdef DEBUG_ENABLE
+        Serial.printf("[FAN] Adaptive: INCREASE power (ΔT=%.2f, ΔH=%.2f) +%d%% → %d%%\n", 
+                      deltaTemp, deltaHum, step, newDuty);
+      #endif
+    }
+  }
+  // Если оба показателя снизились - уменьшаем мощность
+  else if (deltaTemp < -ADAPTIVE_EPSILON_TEMP && deltaHum < -ADAPTIVE_EPSILON_HUM) {
+    int step = ADAPTIVE_STEP_SIZE;
+    
+    if (deltaTemp < -ADAPTIVE_EPSILON_TEMP * 2 && deltaHum < -ADAPTIVE_EPSILON_HUM * 2) {
+      step = step * 2;
+    }
+    
+    newDuty -= step;
+    if (newDuty < MIN_PWM_DUTY_PERCENT) newDuty = MIN_PWM_DUTY_PERCENT;
+    if (newDuty != config.pwmDutyPercent) {
+      needChange = true;
+      #ifdef DEBUG_ENABLE
+        Serial.printf("[FAN] Adaptive: DECREASE power (ΔT=%.2f, ΔH=%.2f) -%d%% → %d%%\n", 
+                      deltaTemp, deltaHum, step, newDuty);
+      #endif
+    }
+  }
+  
+  if (needChange) {
+    // Меняем ТОЛЬКО в RAM, НЕ сохраняем в EEPROM
+    config.pwmDutyPercent = newDuty;
+    fan_applyPWM(config.pwmDutyPercent);
+    
+    // Публикуем только изменившийся параметр, если подключены к MQTT
+    if (mqtt_isConnected()) {
+      mqttClient.publish(pwmDutyStateTopic, String(config.pwmDutyPercent).c_str());
+      #ifdef DEBUG_MQTT
+        Serial.printf("[MQTT] PWM duty published: %d%% (adaptive)\n", config.pwmDutyPercent);
+      #endif
+    }
+    
+    baseTemp = currentTemp;
+    baseHum = currentHum;
+    
+    #ifdef DEBUG_ENABLE
+      Serial.printf("[FAN] Adaptive: new base values T=%.2f, H=%.2f\n", baseTemp, baseHum);
+    #endif
+  }
+}
+
 void fan_update() {
   // Обработка завершения стартового импульса
   if (startingPulseActive) {
     if (millis() - startingPulseStart >= PWM_STARTING) {
-      // Переключаемся на ШИМ с заданной скважностью
-      #ifdef ESP32
-        ledcAttachPin(SWITCH_PIN, 0);
-        ledcWrite(0, config.slowModeDuty);
-      #elif defined(ESP8266)
-        analogWrite(SWITCH_PIN, config.slowModeDuty);
-      #endif
-      startingPulseActive = false;
+      if (config.pwmDutyPercent <= 0) {
+        fanOn = false;
+        fan_applyPWM(0);
+        startingPulseActive = false;
+        adaptiveActive = false;
+        #ifdef DEBUG_ENABLE
+          Serial.println("[FAN] Starting pulse finished, but PWM duty is 0% - turning OFF");
+        #endif
+      } else {
+        fan_applyPWM(config.pwmDutyPercent);
+        startingPulseActive = false;
+        
+        // Если адаптивный режим включён, активируем его после стартового импульса (только TYPE 1)
+        #if DEVICE_TYPE == 1
+        if (config.adaptiveMode && sensor_isOk() && config.sensorControlMode) {
+          adaptiveActive = true;
+          baseTemp = currentTemp;
+          baseHum = currentHum;
+          lastAdaptiveCheck = millis();
+          #ifdef DEBUG_ENABLE
+            Serial.printf("[FAN] Adaptive mode activated after starting pulse: base T=%.2f, H=%.2f, duty=%d%%\n", 
+                          baseTemp, baseHum, config.pwmDutyPercent);
+          #endif
+        }
+        #endif
+      }
+      
       #ifdef DEBUG_ENABLE
-        Serial.printf("[FAN] Starting pulse finished, switched to PWM duty=%d\n", config.slowModeDuty);
+        Serial.printf("[FAN] Starting pulse finished, switched to duty=%d%%\n", config.pwmDutyPercent);
       #endif
     }
-    // Пока идёт стартовый импульс, остальная логика управления не прерывается,
-    // но изменение состояния (выключение) сбросило бы startingPulseActive.
   }
 
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  // Ручной режим - только проверка maxOnTime
-  if (!config.automaticMode) {
+  #if DEVICE_TYPE == 1
+  // Только для TYPE 1: ручной режим
+  if (!config.sensorControlMode) {
     fan_checkMaxOnTime();
+    if (adaptiveActive) adaptiveActive = false;
     return;
   }
   #endif
   
-  // Автоматический режим
+  #if DEVICE_TYPE == 3
+  // Для TYPE 3: всегда проверяем maxOnTime
+  fan_checkMaxOnTime();
+  #endif
+  
+  // Адаптивное обновление (только для TYPE 1, в режиме управления сенсором)
+  #if DEVICE_TYPE == 1
+  if (config.sensorControlMode && fanOn) {
+    fan_adaptiveUpdate();
+  }
+  #endif
+  
+  // Автоматическое управление по датчикам (только для TYPE 1)
   bool sensorShouldBeOn = false;
   bool timerExpired = false;
   
@@ -257,10 +489,18 @@ void fan_update() {
     } else {
       sensorShouldBeOn = fanOn;
     }
+  } else {
+    // Если датчик не валиден, не меняем состояние вентилятора
+    sensorShouldBeOn = fanOn;
   }
   #endif
   
+  // Таймер задержки для TYPE 3 работает всегда
+  #if DEVICE_TYPE == 3
   timerExpired = fan_delayTimer(false);
+  #else
+  timerExpired = fan_delayTimer(false);
+  #endif
   
   if (sensorShouldBeOn || timerExpired) {
     if (!fanOn) {
@@ -275,17 +515,28 @@ void fan_update() {
   } else {
     if (fanOn) {
       fan_set(false);
+      #if DEVICE_TYPE == 1
+      if (config.delaySeconds > 0 && !delayActive && config.sensorControlMode) {
+        fan_delayTimer(true);
+      }
+      #elif DEVICE_TYPE == 3
       if (config.delaySeconds > 0 && !delayActive) {
         fan_delayTimer(true);
       }
+      #endif
     } else {
+      #if DEVICE_TYPE == 1
+      if (config.delaySeconds > 0 && !delayActive && !sensorShouldBeOn && config.sensorControlMode) {
+        fan_delayTimer(true);
+      }
+      #elif DEVICE_TYPE == 3
       if (config.delaySeconds > 0 && !delayActive && !sensorShouldBeOn) {
         fan_delayTimer(true);
       }
+      #endif
     }
   }
   
   fan_checkMaxOnTime();
 }
-
 #endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 3

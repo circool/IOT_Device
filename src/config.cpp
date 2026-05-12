@@ -83,13 +83,13 @@ void config_setDefaults() {
     config.highHum = DEFAULT_HIGH_HUM;
     config.lowTemp = DEFAULT_LOW_TEMP;
     config.highTemp = DEFAULT_HIGH_TEMP;
-    config.automaticMode = DEFAULT_AUTOMATIC_MODE;
+    config.sensorControlMode = DEFAULT_SENSOR_CONTROL_MODE;
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     config.delaySeconds = DEFAULT_DELAY_SECONDS;
-    config.slowModeEnabled = DEFAULT_SLOW_MODE;
-    config.slowModeDuty = SLOW_MODE_DUTY_CYCLE;
+    config.pwmDutyPercent = DEFAULT_PWM_DUTY_PERCENT;
+    config.adaptiveMode = DEFAULT_ADAPTIVE_MODE;
     config.maxOnTime = MAX_ON_TIME_SEC;
     config.forceOffOnBoot = DEFAULT_FORCE_OFF_ON_BOOT;
   #endif
@@ -148,116 +148,118 @@ bool config_validate() {
   configLastError = "";
   bool valid = true;
   
+  // === СЕТЕВЫЕ НАСТРОЙКИ ===
   if (config.mqttPort < 1 || config.mqttPort > 65535) {
     configLastError = "MQTT Port must be 1-65535";
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[CONFIG] Invalid MQTT port: %d\n", config.mqttPort);
-    #endif
     valid = false;
   }
   
   if (strlen(config.wifiSsid) == 0) {
     if (configLastError.length() == 0) configLastError = "WiFi SSID cannot be empty";
-    #ifdef DEBUG_ENABLE
-      Serial.println("[CONFIG] WiFi SSID is empty");
-    #endif
     valid = false;
   }
   
   if (strlen(config.mqttBroker) == 0) {
     if (configLastError.length() == 0) configLastError = "MQTT Broker cannot be empty";
-    #ifdef DEBUG_ENABLE
-      Serial.println("[CONFIG] MQTT Broker is empty");
-    #endif
     valid = false;
   }
   
   if (strlen(config.mqttClientId) == 0) {
     if (configLastError.length() == 0) configLastError = "MQTT Client ID cannot be empty";
-    #ifdef DEBUG_ENABLE
-      Serial.println("[CONFIG] MQTT Client ID is empty");
-    #endif
     valid = false;
   }
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    if (config.delaySeconds < 0 || config.maxOnTime < 0) {
-      if (configLastError.length() == 0) configLastError = "Delay must be >= 0";
-      #ifdef DEBUG_ENABLE
-        if (config.delaySeconds < 0) Serial.printf("[CONFIG] Invalid delaySeconds: %d\n", config.delaySeconds);  
-        if (config.maxOnTime < 0) Serial.printf("[CONFIG] Invalid maxOnTime: %d\n", config.maxOnTime);       
-      #endif
-      valid = false;
-    }
-    
-    if (config.slowModeDuty > 255) {
-      if (configLastError.length() == 0) configLastError = "Slow mode duty must be 0-255";
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] Invalid slowModeDuty: %d\n", config.slowModeDuty);
-      #endif
-      valid = false;
-    }
+  // === НАСТРОЙКИ УПРАВЛЕНИЯ ===
+  if (config.delaySeconds < 0 || config.delaySeconds > 86400) {
+    if (configLastError.length() == 0) configLastError = "Delay must be 0-86400 seconds";
+    valid = false;
+  }
+  
+  if (config.maxOnTime < 0 || config.maxOnTime > 86400) {
+    if (configLastError.length() == 0) configLastError = "MaxOnTime must be 0-86400 seconds";
+    valid = false;
+  }
+  
+  if (config.pwmDutyPercent > 100) {
+    if (configLastError.length() == 0) configLastError = "PWM duty must be 0-100";
+    valid = false;
+  }
+  
+  #if DEVICE_TYPE == 1
+  // === ЛОГИЧЕСКИЕ ПРОВЕРКИ ДЛЯ TYPE 1 ===
+  if (config.adaptiveMode && !config.sensorControlMode) {
+    if (configLastError.length() == 0) configLastError = "Adaptive mode requires Sensor Control Mode ON";
+    valid = false;
+  }
+  
+  if (config.adaptiveMode && config.pwmDutyPercent == 0) {
+    if (configLastError.length() == 0) configLastError = "Adaptive mode requires PWM duty > 0%";
+    valid = false;
+  }
+  #endif
+  
+  #if DEVICE_TYPE == 3
+  // === ЛОГИЧЕСКИЕ ПРОВЕРКИ ДЛЯ TYPE 3 ===
+  if (config.sensorControlMode) {
+    if (configLastError.length() == 0) configLastError = "Sensor Control Mode not available for Switch";
+    valid = false;
+  }
+  #endif
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    if (config.sensorInterval == 0) {
-      if (configLastError.length() == 0) configLastError = "Sensor interval must be > 0";
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] Invalid sensorInterval: %d\n", config.sensorInterval);
-      #endif
-      valid = false;
-    }
+  // === НАСТРОЙКИ ДАТЧИКА ===
+  if (config.sensorInterval < 1 || config.sensorInterval > 3600) {
+    if (configLastError.length() == 0) configLastError = "Sensor interval must be 1-3600 seconds";
+    valid = false;
+  }
   #endif
   
   #if DEVICE_TYPE == 1
-    if (config.lowTemp < -40 || config.lowTemp > 85) {
-      if (configLastError.length() == 0) configLastError = "Low Temp must be -40..85";
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] Invalid lowTemp: %.1f\n", config.lowTemp);
-      #endif
-      valid = false;
-    }
-    if (config.highTemp < -40 || config.highTemp > 85) {
-      if (configLastError.length() == 0) configLastError = "High Temp must be -40..85";
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] Invalid highTemp: %.1f\n", config.highTemp);
-      #endif
-      valid = false;
-    }
-    if (config.lowTemp >= config.highTemp) {
-      if (configLastError.length() == 0) configLastError = "Low Temp must be < High Temp";
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] lowTemp (%.1f) >= highTemp (%.1f)\n", config.lowTemp, config.highTemp);
-      #endif
-      valid = false;
-    }
-    
-    if (config.lowHum < 0 || config.lowHum > 100) {
-      if (configLastError.length() == 0) configLastError = "Low Hum must be 0..100";
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] Invalid lowHum: %.1f\n", config.lowHum);
-      #endif
-      valid = false;
-    }
-    if (config.highHum < 0 || config.highHum > 100) {
-      if (configLastError.length() == 0) configLastError = "High Hum must be 0..100";
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] Invalid highHum: %.1f\n", config.highHum);
-      #endif
-      valid = false;
-    }
-    if (config.lowHum >= config.highHum) {
-      if (configLastError.length() == 0) configLastError = "Low Hum must be < High Hum";
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[CONFIG] lowHum (%.1f) >= highHum (%.1f)\n", config.lowHum, config.highHum);
-      #endif
-      valid = false;
+  // === ПОРОГИ ТЕМПЕРАТУРЫ ===
+  if (config.lowTemp < -40 || config.lowTemp > 85) {
+    if (configLastError.length() == 0) configLastError = "Low Temp must be -40..85°C";
+    valid = false;
+  }
+  if (config.highTemp < -40 || config.highTemp > 85) {
+    if (configLastError.length() == 0) configLastError = "High Temp must be -40..85°C";
+    valid = false;
+  }
+  if (config.lowTemp >= config.highTemp) {
+    if (configLastError.length() == 0) configLastError = "Low Temp must be < High Temp";
+    valid = false;
+  }
+  
+  // === ПОРОГИ ВЛАЖНОСТИ ===
+  if (config.lowHum < 0 || config.lowHum > 100) {
+    if (configLastError.length() == 0) configLastError = "Low Hum must be 0..100%";
+    valid = false;
+  }
+  if (config.highHum < 0 || config.highHum > 100) {
+    if (configLastError.length() == 0) configLastError = "High Hum must be 0..100%";
+    valid = false;
+  }
+  if (config.lowHum >= config.highHum) {
+    if (configLastError.length() == 0) configLastError = "Low Hum must be < High Hum";
+    valid = false;
+  }
+  
+  // === ДОПОЛНИТЕЛЬНЫЕ ПРОВЕРКИ ДЛЯ TYPE 1 ===
+  if (config.sensorControlMode && config.pwmDutyPercent == 0) {
+    if (configLastError.length() == 0) configLastError = "Sensor Control Mode requires PWM duty > 0%";
+    valid = false;
+  }
+  #endif
+  
+  #ifdef DEBUG_ENABLE
+    if (!valid) {
+      Serial.printf("[CONFIG] Validation failed: %s\n", configLastError.c_str());
     }
   #endif
   
   return valid;
 }
-
 void config_read() {
   #ifdef DEBUG_ENABLE
     Serial.println("[CONFIG] Reading from EEPROM...");
@@ -413,14 +415,15 @@ void config_print() {
   #if DEVICE_TYPE == 1
     Serial.printf("Temp range: %.1f - %.1f\n", config.lowTemp, config.highTemp);
     Serial.printf("Hum range: %.1f - %.1f\n", config.lowHum, config.highHum);
-    Serial.printf("Auto mode: %s\n", config.automaticMode ? "ON" : "OFF");
+    Serial.printf("Sensor control mode: %s\n", config.sensorControlMode ? "ON" : "OFF");
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     Serial.printf("Delay: %d sec\n", config.delaySeconds);
-    Serial.printf("Slow mode: %s, Duty: %d\n", 
-                  config.slowModeEnabled ? "ON" : "OFF", 
-                  config.slowModeDuty);
+    Serial.printf("PWM duty: %d%% (%s)\n", 
+                  config.pwmDutyPercent,
+                  config.pwmDutyPercent == 100 ? "full power" : "slow mode");
+    Serial.printf("Adaptive mode: %s\n", config.adaptiveMode ? "ON" : "OFF");
     Serial.printf("MaxOnTime: %d sec\n", config.maxOnTime);
     Serial.printf("Force OFF on boot: %s\n", config.forceOffOnBoot ? "ON" : "OFF");
   #endif

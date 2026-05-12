@@ -24,14 +24,14 @@ extern char onlineTopic[56];
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 extern char stateTopic[56];
 extern char controlTopic[56];
-extern char slowModeStateTopic[56];
-extern char slowModeControlTopic[56];
-extern char slowModeDutyStateTopic[56];
-extern char slowModeDutyControlTopic[56];
+extern char pwmDutyStateTopic[56];
+extern char pwmDutyControlTopic[56];
+extern char adaptiveModeStateTopic[56];
+extern char adaptiveModeControlTopic[56];
 extern char delaySecStateTopic[56];
 extern char delaySecControlTopic[56];
-extern char autoModeStateTopic[56];
-extern char autoModeControlTopic[56];
+extern char sensorControlModeStateTopic[56];
+extern char sensorControlModeControlTopic[56];
 extern char maxOnTimeStateTopic[56];
 extern char maxOnTimeControlTopic[56];
 #endif

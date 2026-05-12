@@ -44,7 +44,7 @@
   #define RESET_PIN 0
 #endif
 
-// ======================== НАСТРОЙКИ ШИМ ДЛЯ SLOW MODE ========================
+// ======================== НАСТРОЙКИ ШИМ ДЛЯ ТИХОГО РЕЖИМА ========================
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   #ifndef PWM_FREQUENCY
     #define PWM_FREQUENCY 5
@@ -54,12 +54,28 @@
     #define PWM_RESOLUTION 8
   #endif
 
-  #ifndef SLOW_MODE_DUTY_CYCLE
-    #define SLOW_MODE_DUTY_CYCLE 128
+  #ifndef PWM_STARTING
+    #define PWM_STARTING 2000      // Стартовый импульс 2000 мс на полной мощности
   #endif
 
-  #ifndef PWM_STARTING
-    #define PWM_STARTING 2000
+  #ifndef MIN_PWM_DUTY_PERCENT
+    #define MIN_PWM_DUTY_PERCENT 30  // Минимальная скважность 30% (Минимум 5-6 периодов сети, подбирается эмпирически)
+  #endif
+
+  #ifndef DEFAULT_PWM_DUTY_PERCENT
+    #define DEFAULT_PWM_DUTY_PERCENT 50  // По умолчанию тихий режим выключен (50%)
+  #endif
+
+  #ifndef ADAPTIVE_EPSILON_TEMP
+    #define ADAPTIVE_EPSILON_TEMP 0.5   // Порог изменения температуры для адаптации (°C)
+  #endif
+
+  #ifndef ADAPTIVE_EPSILON_HUM
+    #define ADAPTIVE_EPSILON_HUM 2.0    // Порог изменения влажности для адаптации (%)
+  #endif
+
+  #ifndef ADAPTIVE_STEP_SIZE
+    #define ADAPTIVE_STEP_SIZE 10       // Шаг изменения скважности при адаптации (%)
   #endif
 #endif
 
@@ -101,8 +117,8 @@
     #define DEFAULT_HIGH_HUM 70.0
   #endif
 
-  #ifndef DEFAULT_AUTOMATIC_MODE
-    #define DEFAULT_AUTOMATIC_MODE true
+  #ifndef DEFAULT_SENSOR_CONTROL_MODE
+    #define DEFAULT_SENSOR_CONTROL_MODE true
   #endif
 #endif
 
@@ -111,8 +127,8 @@
     #define DEFAULT_DELAY_SECONDS 60
   #endif
 
-  #ifndef DEFAULT_SLOW_MODE
-    #define DEFAULT_SLOW_MODE false
+  #ifndef DEFAULT_ADAPTIVE_MODE
+    #define DEFAULT_ADAPTIVE_MODE false   // По умолчанию адаптивный режим выключен
   #endif
 
   #ifndef DEFAULT_FORCE_OFF_ON_BOOT
@@ -155,8 +171,8 @@
 
 // ======================== ОТЛАДКА ========================
 
-// #define DEBUG_ENABLE
-// #define DEBUG_MQTT
+#define DEBUG_ENABLE
+#define DEBUG_MQTT
 
 // ======================== СБРОС НАСТРОЕК ========================
 #ifndef MQTT_RESET_ENABLED
@@ -231,13 +247,13 @@ struct Config {
     double highHum;
     double lowTemp;
     double highTemp;
-    bool automaticMode;
+    bool sensorControlMode;
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     int delaySeconds;
-    bool slowModeEnabled;
-    uint16_t slowModeDuty;
+    uint16_t pwmDutyPercent;
+    bool adaptiveMode;
     uint32_t maxOnTime;
     bool forceOffOnBoot;
   #endif
@@ -245,11 +261,11 @@ struct Config {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     uint16_t sensorInterval;
   #endif
-  uint8_t reserved[31];
+  uint8_t reserved[30];
 };
 
 extern Config config;
-extern Config staticConfig;         // Копия конфигурации для веб-интерфейса (read-only)
+extern Config staticConfig;
 extern bool configValid;
 extern bool apMode;
 extern String configLastError;   

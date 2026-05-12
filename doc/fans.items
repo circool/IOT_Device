@@ -1,19 +1,16 @@
-// ==================== TYPE 1: Вентилятор с датчиком ====================
-// Client ID: fan_esp32
-
 Group   gFan0F7C "Вентилятор 0F7C"    <fan> (loc_Bathroom,g_Sensors) ["Fan"]
 Group   gFan1F32 "Вентилятор 1F32"    <fan> (loc_Toilet,g_Sensors) ["Fan"]
+Group   gFanD84C "Вентилятор D84C"    <fan> (loc_Cabinet,g_Sensors) ["Fan"]
 
 Switch fan_0F7C_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gFan0F7C) ["Status"] {
     channel="mqtt:topic:local:fan_0F7C:status", on="Online", off="Offline"
 }
 
-
 Switch fan_0F7C_fan_state "Вытяжка" <oh:switch> (gFan0F7C,loc_Bathroom) ["Fan","Switch"] {
     channel="mqtt:topic:local:fan_0F7C:fan_state"
 }
 
-Number:Dimensionless fan_0F7C_sensor_humidity "Влажность [%.1f %%]" <humidity> (gFan0F7C,loc_Bathroom,gHumidities) ["Measurement","Humidity"] { 
+Number fan_0F7C_sensor_humidity "Влажность [%.1f %%]" <humidity> (gFan0F7C,loc_Bathroom,gHumidities) ["Measurement","Humidity"] { 
     channel="mqtt:topic:local:fan_0F7C:sensor_humidity" 
 }
 
@@ -41,6 +38,10 @@ Number fan_0F7C_fan_delaySec "Fan delay [%d sec]" <clock> (gFan0F7C,loc_Bathroom
     channel="mqtt:topic:local:fan_0F7C:fan_delaySec"
 }
 
+Number fan_0F7C_fan_emergTimer "Emergency timer [%d sec]" <clock> (gFan0F7C,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_0F7C:fan_emergTimer"
+}
+
 Switch fan_0F7C_fan_slowMode "Slow Mode" <oh:switch> (gFan0F7C,loc_Bathroom) ["Fan","Switch"] {
     channel="mqtt:topic:local:fan_0F7C:fan_slowMode"
 }
@@ -62,7 +63,7 @@ Switch fan_1F32_fan_state "Вытяжка" <oh:switch> (gFan1F32,loc_Toilet) ["F
     channel="mqtt:topic:local:fan_1F32:fan_state"
 }
 
-Number:Dimensionless fan_1F32_sensor_humidity "Влажность [%.1f %%]" <humidity> (gFan1F32,loc_Toilet,gHumidities) ["Measurement","Humidity"] { 
+Number fan_1F32_sensor_humidity "Влажность [%.1f %%]" <humidity> (gFan1F32,loc_Toilet,gHumidities) ["Measurement","Humidity"] { 
     channel="mqtt:topic:local:fan_1F32:sensor_humidity" 
 }
 
@@ -90,6 +91,10 @@ Number fan_1F32_fan_delaySec "Fan delay [%d sec]" <clock> (gFan1F32,loc_Toilet) 
     channel="mqtt:topic:local:fan_1F32:fan_delaySec"
 }
 
+Number fan_1F32_fan_emergTimer "Emergency timer [%d sec]" <clock> (gFan1F32,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_1F32:fan_emergTimer"
+}
+
 Switch fan_1F32_fan_slowMode "Slow Mode" <oh:switch> (gFan1F32,loc_Toilet) ["Fan","Switch"] {
     channel="mqtt:topic:local:fan_1F32:fan_slowMode"
 }
@@ -100,4 +105,56 @@ Number fan_1F32_fan_slowModeDuty "Slow Mode Duty [%d]" <slider> (gFan1F32,loc_To
 
 Switch fan_1F32_fan_autoMode "Auto Mode" <oh:switch> (gFan1F32,loc_Toilet) ["Fan","Switch"] {
     channel="mqtt:topic:local:fan_1F32:fan_autoMode"
+}
+
+Switch fan_D84C_status "Статус подключения" <f7:antenna_radiowaves_left_right> (gFanD84C) ["Status"] {
+    channel="mqtt:topic:local:fan_D84C:status", on="Online", off="Offline"
+}
+
+Switch fan_D84C_fan_state "Вытяжка" <oh:switch> (gFanD84C,loc_Cabinet) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_D84C:fan_state"
+}
+
+Number fan_D84C_sensor_humidity "Влажность [%.1f %%]" <humidity> (gFanD84C,loc_Cabinet,gHumidities) ["Measurement","Humidity"] { 
+    channel="mqtt:topic:local:fan_D84C:sensor_humidity" 
+}
+
+Number:Temperature fan_D84C_sensor_temperature "Температура [%.2f °C]" <temperature> (gFanD84C,loc_Cabinet,gTemperatures) ["Measurement","Temperature"] {
+    channel="mqtt:topic:local:fan_D84C:sensor_temperature"
+}
+
+Number fan_D84C_sensor_lowHum "Low Humidity [%.2f %%]" <humidity> (gFanD84C,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_D84C:sensor_lowHum"
+}
+
+Number fan_D84C_sensor_highHum "High Humidity [%.2f %%]" <humidity> (gFanD84C,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_D84C:sensor_highHum"
+}
+
+Number fan_D84C_sensor_lowTemp "Low Temperature [%.2f °C]" <temperature_cold> (gFanD84C,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_D84C:sensor_lowTemp"
+}
+
+Number fan_D84C_sensor_highTemp "High Temperature [%.2f °C]" <temperature_hot> (gFanD84C,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_D84C:sensor_highTemp"
+}
+
+Number fan_D84C_fan_delaySec "Fan delay [%d sec]" <clock> (gFanD84C,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_D84C:fan_delaySec"
+}
+
+Number fan_D84C_fan_maxOnTime "Emergency timer [%d sec]" <clock> (gFanD84C,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_D84C:fan_maxOnTime"
+}
+
+Number fan_D84C_fan_pwmDuty "PWM Duty [%d %%]" <slider> (gFanD84C,loc_Cabinet) ["Fan","Setpoint"] {
+    channel="mqtt:topic:local:fan_D84C:fan_pwmDuty"
+}
+
+Switch fan_D84C_fan_sensorControlMode "Sensor Control Mode" <oh:switch> (gFanD84C,loc_Cabinet) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_D84C:fan_sensorControlMode"
+}
+
+Switch fan_D84C_fan_adaptiveMode "Adaptive Mode" <oh:switch> (gFanD84C,loc_Cabinet) ["Fan","Switch"] {
+    channel="mqtt:topic:local:fan_D84C:fan_adaptiveMode"
 }

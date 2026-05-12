@@ -30,14 +30,14 @@ static bool otaInitialized = false;
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 void handleToggle() {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  config.automaticMode = false;  // переходим в ручной режим
+  config.sensorControlMode = false;  // переходим в ручной режим
   #endif
   fan_set(!fan_getState());
 }
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-void handleAutoMode() {
-  fan_setOverrideMode(true);  // включаем автоматический режим
+void handleSensorControlMode() {
+  fan_setOverrideMode(true);  // включаем режим управления сенсором
 }
 #endif
 #endif
@@ -70,6 +70,7 @@ String web_getConfigPage(String errorMsg) {
   html += ".password-hint{color:#7f8c8d;margin-top:-2px;margin-bottom:8px;}";
   html += ".ota-btn{background:#555;color:white;padding:10px 20px;margin-top:10px;border:none;border-radius:4px;cursor:pointer;font-size:1em;text-align:center;text-decoration:none;display:block;box-sizing:border-box;}";
   html += ".ota-btn:hover{background:#333;}";
+  html += ".note{background:#f9f9f9;padding:8px;margin-top:10px;border-left:3px solid #2c3e50;font-size:0.9em;color:#555;}";
   html += "</style></head><body><div class='container'>";
   html += "<h1>Настройка устройства</h1>";
   html += "<div class='info'><strong>Текущее состояние</strong><br>";
@@ -111,13 +112,19 @@ String web_getConfigPage(String errorMsg) {
   html += "<div><label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(staticConfig.maxOnTime) + "'></div></div>";
   html += "<h3>Управление</h3>";
   html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(staticConfig.delaySeconds) + "'>";
-  html += "<h3>Тихий режим</h3>";
-  html += "<label><input type='checkbox' name='slowModeEnabled' value='1' " + String(staticConfig.slowModeEnabled ? "checked" : "") + "> Включить</label>";
-  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' required value='" + String(staticConfig.slowModeDuty) + "'>";
+  html += "<h3>Тихий режим (ШИМ)</h3>";
+  html += "<label>Скважность (0-100%):</label>";
+  html += "<input type='number' name='pwmDutyPercent' min='0' max='100' required value='" + String(staticConfig.pwmDutyPercent) + "'>";
+  html += "<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>";
+  html += "При значении ниже 100% вентилятор работает тише.</div>";
+  html += "<h3>Адаптивный тихий режим</h3>";
+  html += "<label><input type='checkbox' name='adaptiveMode' value='1' " + String(staticConfig.adaptiveMode ? "checked" : "") + "> Включить адаптацию</label>";
+  html += "<div class='note'>Адаптивный режим автоматически регулирует скважность для поддержания температуры и влажности на уровне, зафиксированном при включении вентилятора.</div>";
   html += "<h3>Поведение при старте</h3>";
   html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(staticConfig.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
   html += "<h3>Режимы работы</h3>";
-  html += "<label><input type='checkbox' name='automaticMode' value='1' " + String(staticConfig.automaticMode ? "checked" : "") + "> Автоматический режим</label>";
+  html += "<label><input type='checkbox' name='sensorControlMode' value='1' " + String(staticConfig.sensorControlMode ? "checked" : "") + "> Режим управления сенсором</label>";
+  html += "<div class='note'>При включённом режиме вентилятор управляется по показаниям датчиков температуры и влажности. При выключении — только вручную.</div>";
   #endif
   
   #if DEVICE_TYPE == 2
@@ -129,13 +136,16 @@ String web_getConfigPage(String errorMsg) {
   html += "<h3>Настройки управления</h3>";
   html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(staticConfig.delaySeconds) + "'>";
   html += "<label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(staticConfig.maxOnTime) + "'>";
-  html += "<h3>Тихий режим</h3>";
-  html += "<label><input type='checkbox' name='slowModeEnabled' value='1' " + String(staticConfig.slowModeEnabled ? "checked" : "") + "> Включить</label>";
-  html += "<label>Скважность (0-255):</label><input type='number' name='slowModeDuty' required value='" + String(staticConfig.slowModeDuty) + "'>";
+  html += "<h3>Тихий режим (ШИМ)</h3>";
+  html += "<label>Скважность (0-100%):</label>";
+  html += "<input type='number' name='pwmDutyPercent' min='0' max='100' required value='" + String(staticConfig.pwmDutyPercent) + "'>";
+  html += "<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>";
+  html += "При значении ниже 100% выключатель работает в режиме ШИМ.</div>";
   html += "<h3>Поведение при старте</h3>";
   html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(staticConfig.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
   html += "<h3>Режимы работы</h3>";
-  html += "<label><input type='checkbox' name='automaticMode' value='1' " + String(staticConfig.automaticMode ? "checked" : "") + "> Автоматический режим</label>";
+  html += "<label><input type='checkbox' name='sensorControlMode' value='1' " + String(staticConfig.sensorControlMode ? "checked" : "") + "> Режим управления сенсором</label>";
+  html += "<div class='note'>Для TYPE 3 (управляемый выключатель) этот режим не использует датчики, только ручное управление.</div>";
   #endif
   
   html += "<input type='submit' value='Сохранить и перезагрузить'>";
@@ -164,6 +174,8 @@ String web_getStatusPage(int refreshInterval) {
   html += ".button-group{display:flex;justify-content:center;gap:10px;margin-top:20px;flex-wrap:wrap;}";
   html += "a{text-decoration:none;}";
   html += ".sensor-error{background:#ffebee;padding:15px;border-radius:8px;margin:15px 10px;color:#c62828;text-align:center;border:2px solid #ef9a9a;}";
+  html += ".duty-bar{background:#e0e0e0;border-radius:10px;margin:10px 0;height:20px;overflow:hidden;}";
+  html += ".duty-fill{background:#2c3e50;height:100%;border-radius:10px;transition:width 0.3s;}";
   html += "</style></head><body><div class='container'>";
   
   html += "<h1>" + String(config.mqttClientId) + "</h1>";
@@ -185,7 +197,7 @@ String web_getStatusPage(int refreshInterval) {
   #if DEVICE_TYPE == 1
   html += " (выкл: " + String(config.lowTemp) + " вкл: " + String(config.highTemp) + ")";
   #endif
-  html += " °C</div></div>";
+  html += "</div></div>";
   
   html += "<div class='sensor-card' style='background:" + humColor + "20; border:2px solid " + humColor + ";'>";
   html += "<div class='sensor-value' style='color:" + humColor + ";'>" + String(currentHum) + " %</div>";
@@ -193,7 +205,7 @@ String web_getStatusPage(int refreshInterval) {
   #if DEVICE_TYPE == 1
   html += " (выкл: " + String(config.lowHum) + " вкл: " + String(config.highHum) + ")";
   #endif
-  html += " %</div></div>";
+  html += "</div></div>";
   
   html += "</div>";
   
@@ -225,11 +237,58 @@ String web_getStatusPage(int refreshInterval) {
   html += "<div style='font-size:2em;font-weight:bold;color:" + stateColor + ";'>" + label + ": " + stateText + "</div></div>";
   html += "</a>";
   
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  String modeText = config.automaticMode ? "АВТО" : "РУЧНОЙ";
-  String modeColor = config.automaticMode ? "#4CAF50" : "#f44336";
+  // Отображение текущей скважности ШИМ
+  if (state) {
+    int currentDuty = fan_getCurrentPWMDuty();
+    html += "<div class='status-card' style='background:#2196F320; border:2px solid #2196F3;'>";
+    html += "<div style='font-size:1.2em;font-weight:bold;'>Мощность: " + String(currentDuty) + "%</div>";
+    html += "<div class='duty-bar'><div class='duty-fill' style='width:" + String(currentDuty) + "%;'></div></div>";
+    if (config.pwmDutyPercent < 100) {
+      html += "<div style='font-size:0.9em;color:#555;'>Тихий режим активен";
+      if (config.adaptiveMode && DEVICE_TYPE == 1) {
+        html += " + адаптация";
+      }
+      html += "</div>";
+    } else if (config.pwmDutyPercent == 100) {
+      html += "<div style='font-size:0.9em;color:#555;'>Полная мощность</div>";
+    }
+    html += "</div>";
+  }
+  
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+  String modeText = config.sensorControlMode ? "УПРАВЛЕНИЕ СЕНСОРОМ" : "РУЧНОЙ";
+  String modeColor = config.sensorControlMode ? "#4CAF50" : "#f44336";
   html += "<div class='status-card' style='background:" + modeColor + "20; border:2px solid " + modeColor + ";'>";
-  html += "<div style='font-size:1.5em;font-weight:bold;color:" + modeColor + ";'>Режим: " + modeText + "</div></div>";
+  html += "<div style='font-size:1.5em;font-weight:bold;color:" + modeColor + ";'>Режим: " + modeText + "</div>";
+  
+  // Показываем статус адаптивного режима
+  if (config.sensorControlMode && DEVICE_TYPE == 1) {
+    if (config.adaptiveMode && adaptiveActive) {
+      html += "<div style='font-size:0.9em;color:#4CAF50;'>✓ Адаптивный режим активен</div>";
+    } else if (config.adaptiveMode && !adaptiveActive) {
+      html += "<div style='font-size:0.9em;color:#FF9800;'>⚠ Адаптивный режим ожидает включения вентилятора</div>";
+    } else if (!config.adaptiveMode && config.pwmDutyPercent != 100) {
+      html += "<div style='font-size:0.9em;color:#f44336;'>✗ Адаптивный режим отключён (ручное управление ШИМ)</div>";
+    } else if (!config.adaptiveMode && config.pwmDutyPercent == 100) {
+      html += "<div style='font-size:0.9em;color:#f44336;'>✗ Адаптивный режим отключён</div>";
+    }
+  }
+  
+  // Показываем текущий режим управления мощностью
+  if (state) {
+    int currentDuty = fan_getCurrentPWMDuty();
+    if (config.pwmDutyPercent == 100) {
+      html += "<div style='font-size:0.9em;color:#555;'>Режим: полная мощность</div>";
+    } else if (config.adaptiveMode && adaptiveActive) {
+      html += "<div style='font-size:0.9em;color:#4CAF50;'>Режим: адаптивный тихий (цель: " + String(currentDuty) + "%)</div>";
+    } else if (!config.adaptiveMode && config.pwmDutyPercent < 100) {
+      html += "<div style='font-size:0.9em;color:#FF9800;'>Режим: ручной тихий (" + String(currentDuty) + "%)</div>";
+    } else {
+      html += "<div style='font-size:0.9em;color:#555;'>Режим: полная мощность</div>";
+    }
+  }
+  
+  html += "</div>";
   #endif
   #endif
   
@@ -255,21 +314,22 @@ String web_getStatusPage(int refreshInterval) {
     unsigned long elapsed = (millis() - fanStartTime) / 1000;
     if (elapsed < config.maxOnTime) {
       unsigned long remaining = config.maxOnTime - elapsed;
-      html += "Аварийное отключение через <strong>" + String(remaining) + "</strong> сек</div>";
+      html += "Аварийное отключение через <strong>" + String(remaining) + "</strong> сек<br>";
     } else {
-      html += "Аварийное отключение: <strong>сейчас</strong></div>";
+      html += "Аварийное отключение: <strong>сейчас</strong><br>";
     }
   } else if (config.maxOnTime > 0) {
-    html += "Аварийное отключение: неактивно (лимит " + String(config.maxOnTime) + " сек)</div>";
+    html += "Аварийное отключение: неактивно (лимит " + String(config.maxOnTime) + " сек)<br>";
   } else {
-    html += "Аварийное отключение: <strong>отключено</strong></div>";
+    html += "Аварийное отключение: <strong>отключено</strong><br>";
   }
   #endif
+  html += "</div>";
   
   html += "<div class='button-group'>";
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  if (!config.automaticMode) {
-    html += "<a href='" + autoUrl + "'><button>Автоматический режим</button></a>";
+  if (!config.sensorControlMode) {
+    html += "<a href='" + autoUrl + "'><button>Режим управления сенсором</button></a>";
   }
   #endif
 
@@ -356,13 +416,13 @@ void web_saveConfig(AsyncWebServerRequest *request) {
     AsyncWebParameter* p = request->getParam("delaySeconds", true);
     if (p) config.delaySeconds = p->value().toInt();
   }
-  config.slowModeEnabled = request->hasParam("slowModeEnabled", true);
-  if (request->hasParam("slowModeDuty", true)) {
-    AsyncWebParameter* p = request->getParam("slowModeDuty", true);
-    if (p) config.slowModeDuty = p->value().toInt();
+  if (request->hasParam("pwmDutyPercent", true)) {
+    AsyncWebParameter* p = request->getParam("pwmDutyPercent", true);
+    if (p) config.pwmDutyPercent = p->value().toInt();
   }
+  config.adaptiveMode = request->hasParam("adaptiveMode", true);
   config.forceOffOnBoot = request->hasParam("forceOffOnBoot", true);
-  config.automaticMode = request->hasParam("automaticMode", true);
+  config.sensorControlMode = request->hasParam("sensorControlMode", true);
   #endif
   
   #if DEVICE_TYPE == 3
@@ -374,13 +434,12 @@ void web_saveConfig(AsyncWebServerRequest *request) {
     AsyncWebParameter* p = request->getParam("delaySeconds", true);
     if (p) config.delaySeconds = p->value().toInt();
   }
-  config.slowModeEnabled = request->hasParam("slowModeEnabled", true);
-  if (request->hasParam("slowModeDuty", true)) {
-    AsyncWebParameter* p = request->getParam("slowModeDuty", true);
-    if (p) config.slowModeDuty = p->value().toInt();
+  if (request->hasParam("pwmDutyPercent", true)) {
+    AsyncWebParameter* p = request->getParam("pwmDutyPercent", true);
+    if (p) config.pwmDutyPercent = p->value().toInt();
   }
   config.forceOffOnBoot = request->hasParam("forceOffOnBoot", true);
-  config.automaticMode = request->hasParam("automaticMode", true);
+  config.sensorControlMode = request->hasParam("sensorControlMode", true);
   #endif
   
   if (!config_validate()) {
@@ -432,19 +491,18 @@ void web_saveConfig() {
   if (server.hasArg("highHum")) config.highHum = server.arg("highHum").toFloat();
   if (server.hasArg("maxOnTime")) config.maxOnTime = server.arg("maxOnTime").toInt();
   if (server.hasArg("delaySeconds")) config.delaySeconds = server.arg("delaySeconds").toInt();
-  config.slowModeEnabled = server.hasArg("slowModeEnabled");
-  if (server.hasArg("slowModeDuty")) config.slowModeDuty = server.arg("slowModeDuty").toInt();
+  if (server.hasArg("pwmDutyPercent")) config.pwmDutyPercent = server.arg("pwmDutyPercent").toInt();
+  config.adaptiveMode = server.hasArg("adaptiveMode");
   config.forceOffOnBoot = server.hasArg("forceOffOnBoot");
-  config.automaticMode = server.hasArg("automaticMode");
+  config.sensorControlMode = server.hasArg("sensorControlMode");
   #endif
   
   #if DEVICE_TYPE == 3
   if (server.hasArg("maxOnTime")) config.maxOnTime = server.arg("maxOnTime").toInt();
   if (server.hasArg("delaySeconds")) config.delaySeconds = server.arg("delaySeconds").toInt();
-  config.slowModeEnabled = server.hasArg("slowModeEnabled");
-  if (server.hasArg("slowModeDuty")) config.slowModeDuty = server.arg("slowModeDuty").toInt();
+  if (server.hasArg("pwmDutyPercent")) config.pwmDutyPercent = server.arg("pwmDutyPercent").toInt();
   config.forceOffOnBoot = server.hasArg("forceOffOnBoot");
-  config.automaticMode = server.hasArg("automaticMode");
+  config.sensorControlMode = server.hasArg("sensorControlMode");
   #endif
   
   if (!config_validate()) {
@@ -538,7 +596,7 @@ void web_init() {
         request->redirect("/"); 
       });
       server.on("/fan/auto", HTTP_GET, [](AsyncWebServerRequest *request){ 
-        handleAutoMode(); 
+        handleSensorControlMode(); 
         request->redirect("/"); 
       });
       #elif DEVICE_TYPE == 3
@@ -547,7 +605,7 @@ void web_init() {
         request->redirect("/"); 
       });
       server.on("/switch/auto", HTTP_GET, [](AsyncWebServerRequest *request){ 
-        handleAutoMode(); 
+        handleSensorControlMode(); 
         request->redirect("/"); 
       });
       #endif
@@ -559,7 +617,7 @@ void web_init() {
         server.send(302, "text/plain", ""); 
       });
       server.on("/fan/auto", [](){ 
-        handleAutoMode(); 
+        handleSensorControlMode(); 
         server.sendHeader("Location", "/", true); 
         server.send(302, "text/plain", ""); 
       });
@@ -570,7 +628,7 @@ void web_init() {
         server.send(302, "text/plain", ""); 
       });
       server.on("/switch/auto", [](){ 
-        handleAutoMode(); 
+        handleSensorControlMode(); 
         server.sendHeader("Location", "/", true); 
         server.send(302, "text/plain", ""); 
       });

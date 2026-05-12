@@ -93,6 +93,8 @@ void wifi_checkAsync() {
     }
     
     mqtt_init();
+    mqtt_setupTopics(config.mqttClientId);
+    mqtt_reconnect();
     
   } else if (millis() - wifiConnectStartTime > 30000) {
     Serial.println("[WIFI] Connection timeout");
@@ -121,7 +123,7 @@ void mqtt_checkAsync() {
   }
 }
 
-void publishDataIfNeeded() {
+void publishSensorData() {
   if (!mqtt_isConnected()) return;
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
@@ -133,14 +135,6 @@ void publishDataIfNeeded() {
         lastTemp = currentTemp;
         lastHum = currentHum;
     }
-  }
-  #endif
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  static bool lastState = false;
-  if (fan_getState() != lastState) {
-    mqtt_publishState();
-    lastState = fan_getState();
   }
   #endif
 }
@@ -184,12 +178,12 @@ void setup() {
     
     mqtt_setupTopics(config.mqttClientId);
     
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    fan_init();
-    #endif
-    
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     sensor_init();
+    #endif
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    fan_init();
     #endif
     
     wifi_beginAsync();
@@ -210,12 +204,12 @@ void loop() {
     return;
   }
   
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  fan_update();
-  #endif
-  
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   sensor_read();
+  #endif
+  
+  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+  fan_update();
   #endif
   
   wifi_checkAsync();
@@ -223,9 +217,10 @@ void loop() {
   
   if (wifiConnected) {
     mqtt_checkAsync();
-    publishDataIfNeeded();
+    publishSensorData();
   }
   
   web_update();
+  
   delay(50);
 }

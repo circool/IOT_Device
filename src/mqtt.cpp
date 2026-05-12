@@ -17,14 +17,14 @@ char onlineTopic[56];
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 char stateTopic[56];
 char controlTopic[56];
-char slowModeStateTopic[56];
-char slowModeControlTopic[56];
-char slowModeDutyStateTopic[56];
-char slowModeDutyControlTopic[56];
+char pwmDutyStateTopic[56];
+char pwmDutyControlTopic[56];
+char adaptiveModeStateTopic[56];
+char adaptiveModeControlTopic[56];
 char delaySecStateTopic[56];
 char delaySecControlTopic[56];
-char autoModeStateTopic[56];
-char autoModeControlTopic[56];
+char sensorControlModeStateTopic[56];
+char sensorControlModeControlTopic[56];
 char maxOnTimeStateTopic[56];
 char maxOnTimeControlTopic[56];
 #endif
@@ -62,27 +62,25 @@ void mqtt_setupTopics(const char* prefix) {
   #if DEVICE_TYPE == 1
   snprintf(stateTopic, sizeof(stateTopic), "%s/fan/state", devicePrefix);
   snprintf(controlTopic, sizeof(controlTopic), "%s/c/fan/state", devicePrefix);
-  snprintf(slowModeStateTopic, sizeof(slowModeStateTopic), "%s/fan/slowMode", devicePrefix);
-  snprintf(slowModeControlTopic, sizeof(slowModeControlTopic), "%s/c/fan/slowMode", devicePrefix);
-  snprintf(slowModeDutyStateTopic, sizeof(slowModeDutyStateTopic), "%s/fan/slowModeDuty", devicePrefix);
-  snprintf(slowModeDutyControlTopic, sizeof(slowModeDutyControlTopic), "%s/c/fan/slowModeDuty", devicePrefix);
+  snprintf(pwmDutyStateTopic, sizeof(pwmDutyStateTopic), "%s/fan/pwmDuty", devicePrefix);
+  snprintf(pwmDutyControlTopic, sizeof(pwmDutyControlTopic), "%s/c/fan/pwmDuty", devicePrefix);
+  snprintf(adaptiveModeStateTopic, sizeof(adaptiveModeStateTopic), "%s/fan/adaptiveMode", devicePrefix);
+  snprintf(adaptiveModeControlTopic, sizeof(adaptiveModeControlTopic), "%s/c/fan/adaptiveMode", devicePrefix);
   snprintf(delaySecStateTopic, sizeof(delaySecStateTopic), "%s/fan/delaySec", devicePrefix);
   snprintf(delaySecControlTopic, sizeof(delaySecControlTopic), "%s/c/fan/delaySec", devicePrefix);
-  snprintf(autoModeStateTopic, sizeof(autoModeStateTopic), "%s/fan/autoMode", devicePrefix);
-  snprintf(autoModeControlTopic, sizeof(autoModeControlTopic), "%s/c/fan/autoMode", devicePrefix);
+  snprintf(sensorControlModeStateTopic, sizeof(sensorControlModeStateTopic), "%s/fan/sensorControlMode", devicePrefix);
+  snprintf(sensorControlModeControlTopic, sizeof(sensorControlModeControlTopic), "%s/c/fan/sensorControlMode", devicePrefix);
   snprintf(maxOnTimeStateTopic, sizeof(maxOnTimeStateTopic), "%s/fan/maxOnTime", devicePrefix);
   snprintf(maxOnTimeControlTopic, sizeof(maxOnTimeControlTopic), "%s/c/fan/maxOnTime", devicePrefix);
   #elif DEVICE_TYPE == 3
   snprintf(stateTopic, sizeof(stateTopic), "%s/switch/state", devicePrefix);
   snprintf(controlTopic, sizeof(controlTopic), "%s/c/switch/state", devicePrefix);
-  snprintf(slowModeStateTopic, sizeof(slowModeStateTopic), "%s/switch/slowMode", devicePrefix);
-  snprintf(slowModeControlTopic, sizeof(slowModeControlTopic), "%s/c/switch/slowMode", devicePrefix);
-  snprintf(slowModeDutyStateTopic, sizeof(slowModeDutyStateTopic), "%s/switch/slowModeDuty", devicePrefix);
-  snprintf(slowModeDutyControlTopic, sizeof(slowModeDutyControlTopic), "%s/c/switch/slowModeDuty", devicePrefix);
+  snprintf(pwmDutyStateTopic, sizeof(pwmDutyStateTopic), "%s/switch/pwmDuty", devicePrefix);
+  snprintf(pwmDutyControlTopic, sizeof(pwmDutyControlTopic), "%s/c/switch/pwmDuty", devicePrefix);
   snprintf(delaySecStateTopic, sizeof(delaySecStateTopic), "%s/switch/delaySec", devicePrefix);
   snprintf(delaySecControlTopic, sizeof(delaySecControlTopic), "%s/c/switch/delaySec", devicePrefix);
-  snprintf(autoModeStateTopic, sizeof(autoModeStateTopic), "%s/switch/autoMode", devicePrefix);
-  snprintf(autoModeControlTopic, sizeof(autoModeControlTopic), "%s/c/switch/autoMode", devicePrefix);
+  snprintf(sensorControlModeStateTopic, sizeof(sensorControlModeStateTopic), "%s/switch/sensorControlMode", devicePrefix);
+  snprintf(sensorControlModeControlTopic, sizeof(sensorControlModeControlTopic), "%s/c/switch/sensorControlMode", devicePrefix);
   snprintf(maxOnTimeStateTopic, sizeof(maxOnTimeStateTopic), "%s/switch/maxOnTime", devicePrefix);
   snprintf(maxOnTimeControlTopic, sizeof(maxOnTimeControlTopic), "%s/c/switch/maxOnTime", devicePrefix);
   #endif
@@ -120,14 +118,14 @@ void mqtt_publishState() {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   bool realState = fan_getRealState();
   mqttClient.publish(stateTopic, realState ? "ON" : "OFF");
-  mqttClient.publish(autoModeStateTopic, config.automaticMode ? "1" : "0");
+  mqttClient.publish(sensorControlModeStateTopic, config.sensorControlMode ? "1" : "0");
   #endif
   
   #ifdef DEBUG_MQTT
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    Serial.printf("[MQTT] State published: state=%s, auto=%s\n", 
+    Serial.printf("[MQTT] State published: state=%s, sensorControlMode=%s\n", 
                   fan_getRealState() ? "ON" : "OFF", 
-                  config.automaticMode ? "1" : "0");
+                  config.sensorControlMode ? "1" : "0");
     #endif
   #endif
 }
@@ -136,11 +134,13 @@ void mqtt_publishConfig() {
   if (!mqttClient.connected()) return;
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  mqttClient.publish(slowModeStateTopic, config.slowModeEnabled ? "1" : "0");
-  mqttClient.publish(slowModeDutyStateTopic, String(config.slowModeDuty).c_str());
+  mqttClient.publish(pwmDutyStateTopic, String(config.pwmDutyPercent).c_str());
+  #if DEVICE_TYPE == 1
+  mqttClient.publish(adaptiveModeStateTopic, config.adaptiveMode ? "1" : "0");
+  #endif
   mqttClient.publish(delaySecStateTopic, String(config.delaySeconds).c_str());
   mqttClient.publish(maxOnTimeStateTopic, String(config.maxOnTime).c_str());
-  mqttClient.publish(autoModeStateTopic, config.automaticMode ? "1" : "0");
+  mqttClient.publish(sensorControlModeStateTopic, config.sensorControlMode ? "1" : "0");
   #endif
   
   #if DEVICE_TYPE == 1
@@ -152,9 +152,16 @@ void mqtt_publishConfig() {
   
   #ifdef DEBUG_MQTT
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    Serial.printf("[MQTT] Config published: slow=%d, duty=%d, delay=%d, maxOnTime=%d, auto=%s",
-                  config.slowModeEnabled, config.slowModeDuty, config.delaySeconds,
-                  config.maxOnTime, config.automaticMode ? "ON" : "OFF");
+    Serial.printf("[MQTT] Config published: pwmDuty=%d%%, adaptive=%d, delay=%d, maxOnTime=%d, sensorControlMode=%s",
+                  config.pwmDutyPercent,
+                  #if DEVICE_TYPE == 1
+                  config.adaptiveMode ? 1 : 0,
+                  #else
+                  0,
+                  #endif
+                  config.delaySeconds,
+                  config.maxOnTime,
+                  config.sensorControlMode ? "ON" : "OFF");
     #endif
     #if DEVICE_TYPE == 1
     Serial.printf(", T(%.1f-%.1f), H(%.1f-%.1f)\n",
@@ -221,104 +228,199 @@ void mqtt_callback(char* topic, byte* payload, unsigned int length) {
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   
+  // === ПРЯМОЕ УПРАВЛЕНИЕ (ON/OFF) ===
   if (strcmp(topic, controlTopic) == 0) {
+    #if DEVICE_TYPE == 1
+    config.sensorControlMode = false;
+    #endif
     if (msg == "ON" || msg == "1") { 
-      #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-      config.automaticMode = false;
-      #endif
       fan_set(true);
     } else if (msg == "OFF" || msg == "0") { 
-      #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-      config.automaticMode = false;
-      #endif
       fan_set(false);
     }
-    mqtt_publishState();
+    // fan_set() сам публикует состояние через mqtt_publishState()
   }
-  else if (strcmp(topic, slowModeControlTopic) == 0) {
-    config.slowModeEnabled = (msg == "1" || msg == "ON");
-    if (config_validate()) {
-      config_write();
-      if (fanOn) {
-        fan_set(true);
+  
+  // === УПРАВЛЕНИЕ ШИМ ===
+  #if DEVICE_TYPE == 1
+  else if (strcmp(topic, pwmDutyControlTopic) == 0) {
+    int newDuty = msg.toInt();
+    if (newDuty >= 0 && newDuty <= 100) {
+      bool adaptiveChanged = false;
+      
+      // Ручное изменение ШИМ: отключаем адаптивный режим
+      if (config.adaptiveMode) {
+        config.adaptiveMode = false;
+        adaptiveActive = false;
+        adaptiveChanged = true;
+        #ifdef DEBUG_MQTT
+          Serial.println("[MQTT] Manual PWM change - adaptive mode disabled");
+        #endif
       }
-      mqtt_publishConfig();
+      
+      if (newDuty == 0 || newDuty < MIN_PWM_DUTY_PERCENT) {
+        // pwmDuty = 0 или ниже минимальной — выключение вентилятора
+        config.pwmDutyPercent = newDuty;
+        fan_set(false);  // полноценное выключение: state=OFF, сброс скважности, публикация
+        #ifdef DEBUG_MQTT
+          if (newDuty > 0) {
+            Serial.printf("[MQTT] PWM duty %d%% below minimum - turning OFF\n", newDuty);
+          }
+        #endif
+      } else {
+        // Меняем значение ТОЛЬКО в RAM, НЕ сохраняем
+        config.pwmDutyPercent = newDuty;
+        if (fanOn && !startingPulseActive) {
+          fan_applyPWM(config.pwmDutyPercent);
+        }
+      }
+      
+      // Публикуем изменённые параметры (fan_set уже опубликовал state)
+      mqttClient.publish(pwmDutyStateTopic, String(config.pwmDutyPercent).c_str());
+      #ifdef DEBUG_MQTT
+        Serial.printf("[MQTT] PWM duty published: %d%%\n", config.pwmDutyPercent);
+      #endif
+      
+      if (adaptiveChanged) {
+        mqttClient.publish(adaptiveModeStateTopic, "0");
+        #ifdef DEBUG_MQTT
+          Serial.println("[MQTT] Adaptive mode published: 0");
+        #endif
+      }
     }
   }
-  else if (strcmp(topic, slowModeDutyControlTopic) == 0) {
-    config.slowModeDuty = msg.toInt();
-    if (config_validate()) {
-      config_write();
-      if (fanOn && config.slowModeEnabled) {
-        fan_set(true);
+  #elif DEVICE_TYPE == 3
+  else if (strcmp(topic, pwmDutyControlTopic) == 0) {
+    int newDuty = msg.toInt();
+    if (newDuty >= 0 && newDuty <= 100) {
+      if (newDuty == 0 || newDuty < MIN_PWM_DUTY_PERCENT) {
+        // pwmDuty = 0 или ниже минимальной — выключение
+        config.pwmDutyPercent = newDuty;
+        fan_set(false);  // полноценное выключение
+        #ifdef DEBUG_MQTT
+          if (newDuty > 0) {
+            Serial.printf("[MQTT] PWM duty %d%% below minimum - turning OFF\n", newDuty);
+          }
+        #endif
+      } else {
+        config.pwmDutyPercent = newDuty;
+        if (fanOn && !startingPulseActive) {
+          fan_applyPWM(config.pwmDutyPercent);
+        }
       }
-      mqtt_publishConfig();
+      mqttClient.publish(pwmDutyStateTopic, String(config.pwmDutyPercent).c_str());
+      #ifdef DEBUG_MQTT
+        Serial.printf("[MQTT] PWM duty published: %d%%\n", config.pwmDutyPercent);
+      #endif
     }
   }
+  #endif
+  
+  // === АДАПТИВНЫЙ РЕЖИМ (только TYPE 1) ===
+  #if DEVICE_TYPE == 1
+  else if (strcmp(topic, adaptiveModeControlTopic) == 0) {
+    bool newAdaptiveMode = (msg == "1" || msg == "ON");
+    
+    if (newAdaptiveMode && !config.sensorControlMode) {
+        #ifdef DEBUG_MQTT
+            Serial.println("[MQTT] Cannot enable adaptive mode - sensor control mode is OFF. Command rejected.");
+        #endif
+        mqttClient.publish(adaptiveModeStateTopic, "0");
+        return;
+    }
+    
+    config.adaptiveMode = newAdaptiveMode;
+    
+    if (fanOn && config.sensorControlMode && config.adaptiveMode && sensor_isOk()) {
+        adaptiveActive = true;
+        baseTemp = currentTemp;
+        baseHum = currentHum;
+        lastAdaptiveCheck = millis();
+        #ifdef DEBUG_MQTT
+            Serial.printf("[MQTT] Adaptive mode activated: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
+        #endif
+    } else if (!config.adaptiveMode) {
+        adaptiveActive = false;
+    }
+    mqttClient.publish(adaptiveModeStateTopic, config.adaptiveMode ? "1" : "0");
+    #ifdef DEBUG_MQTT
+      Serial.printf("[MQTT] Adaptive mode published: %s\n", config.adaptiveMode ? "1" : "0");
+    #endif
+  }
+  #endif
+  
+  // === ЗАДЕРЖКА ОТЛОЖЕННОГО ВКЛЮЧЕНИЯ ===
   else if (strcmp(topic, delaySecControlTopic) == 0) {
     int newDelay = msg.toInt();
     int oldDelay = config.delaySeconds;
     config.delaySeconds = newDelay;
-    if (config_validate()) {
-      if (delayActive) {
-        long remaining = (delayTimer - millis()) + (newDelay - oldDelay) * 1000L;
-        if (remaining > 0) {
-          delayTimer = millis() + remaining;
-        } else {
-          delayActive = false;
-          fan_set(true);
-        }
+    if (delayActive) {
+      long remaining = (delayTimer - millis()) + (newDelay - oldDelay) * 1000L;
+      if (remaining > 0) {
+        delayTimer = millis() + remaining;
+      } else {
+        delayActive = false;
+        fan_set(true);
       }
-      config_write();
-      mqtt_publishConfig();
     }
+    mqttClient.publish(delaySecStateTopic, String(config.delaySeconds).c_str());
+    #ifdef DEBUG_MQTT
+      Serial.printf("[MQTT] Delay seconds published: %d\n", config.delaySeconds);
+    #endif
   }
+  
+  // === АВАРИЙНОЕ ОТКЛЮЧЕНИЕ ===
   else if (strcmp(topic, maxOnTimeControlTopic) == 0) {
     config.maxOnTime = msg.toInt();
-    if (config_validate()) {
-      config_write();
-      mqtt_publishConfig();
-    }
+    mqttClient.publish(maxOnTimeStateTopic, String(config.maxOnTime).c_str());
+    #ifdef DEBUG_MQTT
+      Serial.printf("[MQTT] Max on time published: %d\n", config.maxOnTime);
+    #endif
   }
-  else if (strcmp(topic, autoModeControlTopic) == 0) {
-    if (msg == "AUTO" || msg == "1") { 
+  
+  // === РЕЖИМ УПРАВЛЕНИЯ СЕНСОРОМ (только TYPE 1) ===
+  #if DEVICE_TYPE == 1
+  else if (strcmp(topic, sensorControlModeControlTopic) == 0) {
+    if (msg == "AUTO" || msg == "1" || msg == "ON") { 
       fan_setOverrideMode(true);
-    } else if (msg == "0") {
+    } else if (msg == "0" || msg == "OFF") {
       fan_setOverrideMode(false);
     }
     mqtt_publishState();
-    mqtt_publishConfig();
   }
   #endif
   
+  #endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+  
+  // === ПОРОГИ ДАТЧИКА (только TYPE 1) ===
   #if DEVICE_TYPE == 1
   if (strcmp(topic, lowTempControlTopic) == 0) {
     config.lowTemp = msg.toFloat();
-    if (config_validate()) {
-      config_write();
-      mqtt_publishConfig();
-    }
+    mqttClient.publish(lowTempStateTopic, String(config.lowTemp).c_str());
+    #ifdef DEBUG_MQTT
+      Serial.printf("[MQTT] Low temp published: %.1f\n", config.lowTemp);
+    #endif
   }
   else if (strcmp(topic, highTempControlTopic) == 0) {
     config.highTemp = msg.toFloat();
-    if (config_validate()) {
-      config_write();
-      mqtt_publishConfig();
-    }
+    mqttClient.publish(highTempStateTopic, String(config.highTemp).c_str());
+    #ifdef DEBUG_MQTT
+      Serial.printf("[MQTT] High temp published: %.1f\n", config.highTemp);
+    #endif
   }
   else if (strcmp(topic, lowHumControlTopic) == 0) {
     config.lowHum = msg.toFloat();
-    if (config_validate()) {
-      config_write();
-      mqtt_publishConfig();
-    }
+    mqttClient.publish(lowHumStateTopic, String(config.lowHum).c_str());
+    #ifdef DEBUG_MQTT
+      Serial.printf("[MQTT] Low hum published: %.1f\n", config.lowHum);
+    #endif
   }
   else if (strcmp(topic, highHumControlTopic) == 0) {
     config.highHum = msg.toFloat();
-    if (config_validate()) {
-      config_write();
-      mqtt_publishConfig();
-    }
+    mqttClient.publish(highHumStateTopic, String(config.highHum).c_str());
+    #ifdef DEBUG_MQTT
+      Serial.printf("[MQTT] High hum published: %.1f\n", config.highHum);
+    #endif
   }
   #endif
 }
@@ -339,24 +441,32 @@ void mqtt_reconnect() {
   #endif
   
   if (mqttClient.connect(config.mqttClientId, config.mqttUser, config.mqttPassword, 
-                         lastWillTopic, 1, true, "Offline", MQTT_KEEPALIVE_SEC)) {
+                         lastWillTopic, 1, true, "Offline")) {
     #ifdef DEBUG_MQTT
       Serial.println("[MQTT] Connected to broker");
     #endif
     
     mqtt_publishOnline();
     
+    // Публикуем всё текущее состояние один раз при подключении
+    mqtt_publishState();
+    mqtt_publishConfig();
+    mqtt_publishSensor();
+    
+    // Подписки
     #if MQTT_RESET_ENABLED
     mqttClient.subscribe(resetControlTopic, 1);
     #endif
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     mqttClient.subscribe(controlTopic, 1);
-    mqttClient.subscribe(slowModeControlTopic, 1);
-    mqttClient.subscribe(slowModeDutyControlTopic, 1);
+    mqttClient.subscribe(pwmDutyControlTopic, 1);
+    #if DEVICE_TYPE == 1
+    mqttClient.subscribe(adaptiveModeControlTopic, 1);
+    #endif
     mqttClient.subscribe(delaySecControlTopic, 1);
     mqttClient.subscribe(maxOnTimeControlTopic, 1);
-    mqttClient.subscribe(autoModeControlTopic, 1);
+    mqttClient.subscribe(sensorControlModeControlTopic, 1);
     #endif
     
     #if DEVICE_TYPE == 1
@@ -370,9 +480,6 @@ void mqtt_reconnect() {
       Serial.println("[MQTT] Subscribed to control topics");
     #endif
     
-    mqtt_publishState();
-    mqtt_publishSensor();
-    mqtt_publishConfig();
   } else {
     Serial.printf("[MQTT] Failed to connect, state=%d\n", mqttClient.state());
   }

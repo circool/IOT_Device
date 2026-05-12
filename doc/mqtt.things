@@ -1,11 +1,12 @@
 Bridge mqtt:broker:local [ 
-  host=localhost, 
+  host="127.0.0.1", 
   secure=false, 
-  username=openhabian, 
-  password=MQTT_PASSWORD
-] {
+  username=MQTT_USER, 
+  password=MQTT_PASSWORD] 
 
-  Thing topic fan_0F7C "Вентилятор ванная" [ availabilityTopic="fan_0F7C/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {  
+{
+  
+	Thing topic fan_0F7C "Вентилятор ванная" [ availabilityTopic="fan_0F7C/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {  
     Channels:
       Type switch : status "Состояние" [ 
         stateTopic="fan_0F7C/status", on="Online", off="Offline"
@@ -52,6 +53,12 @@ Bridge mqtt:broker:local [
       Type number : fan_delaySec "Fan delay" [ 
         stateTopic="fan_0F7C/fan/delaySec",
         commandTopic="fan_0F7C/c/fan/delaySec",
+        min=0, unit="sec"
+      ]
+
+      Type number : fan_emergTimer "Emergency timer" [ 
+        stateTopic="fan_0F7C/fan/maxOnTime",
+        commandTopic="fan_0F7C/c/fan/maxOnTime",
         min=0, unit="sec"
       ]
 
@@ -121,6 +128,12 @@ Bridge mqtt:broker:local [
         commandTopic="fan_1F32/c/fan/delaySec",
         min=0, unit="sec"
       ]
+      
+      Type number : fan_emergTimer "Emergency timer" [ 
+        stateTopic="fan_1F32/fan/maxOnTime",
+        commandTopic="fan_1F32/c/fan/maxOnTime",
+        min=0, unit="sec"
+      ]
 
       Type switch : fan_slowMode "Slow Mode" [ 
         stateTopic="fan_1F32/fan/slowMode", on="1", off="0",
@@ -136,6 +149,80 @@ Bridge mqtt:broker:local [
       Type switch : fan_autoMode "Auto Mode" [ 
         stateTopic="fan_1F32/fan/autoMode", on="1", off="0",
         commandTopic="fan_1F32/c/fan/autoMode", on="1", off="0"
+      ]
+  }
+
+  Thing topic fan_D84C "Вентилятор стенд" [ availabilityTopic="fan_D84C/status", payloadAvailable="Online", payloadNotAvailable="Offline" ] {  
+    Channels:
+      Type switch : status "Состояние" [ 
+        stateTopic="fan_D84C/status", on="Online", off="Offline"
+      ]
+
+      Type switch : fan_state "Вытяжка" [ 
+        stateTopic="fan_D84C/fan/state", on="ON", off="OFF",
+        commandTopic="fan_D84C/c/fan/state", on="1", off="0"
+      ]
+
+      Type number : sensor_humidity "Влажность" [ 
+        stateTopic="fan_D84C/sensor/humidity",
+        unit="%"
+      ]
+      
+      Type number : sensor_lowHum "Low Humidity Range" [ 
+        stateTopic="fan_D84C/sensor/lowHum",
+        commandTopic="fan_D84C/c/sensor/lowHum",
+        min=0, max=100, unit="%"
+      ]
+
+      Type number : sensor_highHum "High Humidity Range" [ 
+        stateTopic="fan_D84C/sensor/highHum",
+        commandTopic="fan_D84C/c/sensor/highHum",
+        min=0, max=100, unit="%"
+      ]
+
+      Type number : sensor_temperature "Температура" [ 
+        stateTopic="fan_D84C/sensor/temperature",
+        unit="°C"
+      ]
+
+      Type number : sensor_lowTemp "Low Temperature Range" [ 
+        stateTopic="fan_D84C/sensor/lowTemp",
+        commandTopic="fan_D84C/c/sensor/lowTemp",
+        min=-50, max=50, unit="°C"
+      ]
+
+      Type number : sensor_highTemp "High Temperature Range" [ 
+        stateTopic="fan_D84C/sensor/highTemp",
+        commandTopic="fan_D84C/c/sensor/highTemp",
+        min=-50, max=50, unit="°C"
+      ]
+
+      Type number : fan_delaySec "Fan delay" [ 
+        stateTopic="fan_D84C/fan/delaySec",
+        commandTopic="fan_D84C/c/fan/delaySec",
+        min=0, unit="sec"
+      ]
+
+      Type number : fan_maxOnTime "Emergency timer" [ 
+        stateTopic="fan_D84C/fan/maxOnTime",
+        commandTopic="fan_D84C/c/fan/maxOnTime",
+        min=0, unit="sec"
+      ]
+      
+      Type number : fan_pwmDuty "PWM Duty Cycle" [ 
+        stateTopic="fan_D84C/fan/pwmDuty",
+        commandTopic="fan_D84C/c/fan/pwmDuty",
+        min=0, max=100, unit="%"
+      ]
+
+      Type switch : fan_sensorControlMode "Sensor Control Mode" [ 
+        stateTopic="fan_D84C/fan/sensorControlMode", on="1", off="0",
+        commandTopic="fan_D84C/c/fan/sensorControlMode", on="1", off="0"
+      ]
+
+      Type switch : fan_adaptiveMode "Adaptive Slow Mode" [ 
+        stateTopic="fan_D84C/fan/adaptiveMode", on="1", off="0",
+        commandTopic="fan_D84C/c/fan/adaptiveMode", on="1", off="0"
       ]
   }
 }

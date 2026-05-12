@@ -15,14 +15,23 @@ extern bool delayActive;
 extern bool startingPulseActive;
 extern unsigned long startingPulseStart;
 
+// Переменные адаптивного режима
+extern bool adaptiveActive;           // Активна ли адаптация в текущей сессии
+extern float baseTemp;                // Базовая температура при включении
+extern float baseHum;                 // Базовая влажность при включении
+extern unsigned long lastAdaptiveCheck;
+
 void fan_init();
 void fan_update();
 void fan_set(bool on);
 bool fan_getState();
 bool fan_getRealState();
-void fan_setOverrideMode(bool automatic);
+void fan_setOverrideMode(bool sensorControl);  // renamed
 void fan_checkMaxOnTime();
 bool fan_delayTimer(bool start);
+void fan_applyPWM(int percent);       // Новая функция: применение ШИМ в процентах (0-100)
+int fan_getCurrentPWMDuty();          // Получить текущую скважность в % (учёт стартового импульса)
+void fan_adaptiveUpdate();            // Обновление адаптивного режима
 
 #endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 
