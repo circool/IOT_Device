@@ -292,127 +292,106 @@ bool fan_delayTimer(bool start) {
 }
 
 void fan_adaptiveUpdate() {
-  // Проверка наличия датчика и валидности данных
-  if (!sensor_isOk()) {
-    if (adaptiveActive) {
-      // Ошибка датчика во время работы - выключаем адаптацию и включаем на полную мощность
-      adaptiveActive = false;
-      #ifdef DEBUG_ENABLE
-        Serial.println("[FAN] Adaptive mode disabled - sensor error, switching to FULL power");
-      #endif
-      // Включаем вентилятор на полную мощность
-      if (fanOn && !startingPulseActive) {
-        config.pwmDutyPercent = 100;
-        fan_applyPWM(100);
-        if (mqtt_isConnected()) {
-          mqttClient.publish(pwmDutyStateTopic, "100");
-          #ifdef DEBUG_MQTT
-            Serial.println("[MQTT] PWM duty published: 100% (sensor error)");
-          #endif
+    if (!sensor_isOk()) {
+        if (adaptiveActive) {
+            adaptiveActive = false;
+            #ifdef DEBUG_ENABLE
+                Serial.println("[FAN] Adaptive mode disabled - sensor error");
+            #endif
+            if (fanOn && !startingPulseActive) {
+                config.pwmDutyPercent = 100;
+                fan_applyPWM(100);
+            }
         }
-      }
+        return;
     }
-    return;
-  }
-  
-  // Адаптивный режим работает только если:
-  // - вентилятор включён
-  // - не в стартовом импульсе
-  // - адаптивный режим активен в конфиге
-  // - режим управления сенсором включён
-  if (!fanOn || startingPulseActive || !config.adaptiveMode || 
-      !config.sensorControlMode || DEVICE_TYPE != 1) {
-    if (adaptiveActive) adaptiveActive = false;
-    return;
-  }
-  
-  // Если адаптация ещё не активна, но условия выполнены - активируем
-  if (!adaptiveActive) {
-    adaptiveActive = true;
-    baseTemp = currentTemp;
-    baseHum = currentHum;
+    
+    if (!fanOn || startingPulseActive || !config.adaptiveMode || !config.sensorControlMode) {
+        if (adaptiveActive) adaptiveActive = false;
+        return;
+    }
+    
+    if (!adaptiveActive) {
+        adaptiveActive = true;
+        baseTemp = currentTemp;
+        baseHum = currentHum;
+        lastAdaptiveCheck = millis();
+        #ifdef DEBUG_ENABLE
+            Serial.printf("[FAN] Adaptive active: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
+        #endif
+        return;
+    }
+    
+    if (millis() - lastAdaptiveCheck < config.sensorInterval * 1000UL) {
+        return;
+    }
     lastAdaptiveCheck = millis();
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[FAN] Adaptive mode activated: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
-    #endif
-    return;
-  }
-  
-  // Проверяем не чаще, чем раз в интервал опроса датчика
-  if (millis() - lastAdaptiveCheck < config.sensorInterval * 1000UL) {
-    return;
-  }
-  lastAdaptiveCheck = millis();
-  
-  float deltaTemp = currentTemp - baseTemp;
-  float deltaHum = currentHum - baseHum;
-  
-  int newDuty = config.pwmDutyPercent;
-  bool needChange = false;
-  
-  // Агрессивная логика: если хоть что-то выросло - увеличиваем мощность
-  if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
+    
+    float deltaTemp = currentTemp - baseTemp;
+    float deltaHum = currentHum - baseHum;
+    
+    int newDuty = config.pwmDutyPercent;
+    bool needChange = false;
+    
+    // Расчёт шага с учётом скорости
     int step = ADAPTIVE_STEP_SIZE;
     
     if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 2 || deltaHum > ADAPTIVE_EPSILON_HUM * 2) {
-      step = step * 2;
+        step = step * 2;
     }
     if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 3 || deltaHum > ADAPTIVE_EPSILON_HUM * 3) {
-      step = step * 3;
-    }
-    if (step > 50) step = 50;
-    
-    newDuty += step;
-    if (newDuty > 100) newDuty = 100;
-    if (newDuty != config.pwmDutyPercent) {
-      needChange = true;
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[FAN] Adaptive: INCREASE power (ΔT=%.2f, ΔH=%.2f) +%d%% → %d%%\n", 
-                      deltaTemp, deltaHum, step, newDuty);
-      #endif
-    }
-  }
-  // Если оба показателя снизились - уменьшаем мощность
-  else if (deltaTemp < -ADAPTIVE_EPSILON_TEMP && deltaHum < -ADAPTIVE_EPSILON_HUM) {
-    int step = ADAPTIVE_STEP_SIZE;
-    
-    if (deltaTemp < -ADAPTIVE_EPSILON_TEMP * 2 && deltaHum < -ADAPTIVE_EPSILON_HUM * 2) {
-      step = step * 2;
+        step = step * 3;
     }
     
-    newDuty -= step;
-    if (newDuty < MIN_PWM_DUTY_PERCENT) newDuty = MIN_PWM_DUTY_PERCENT;
-    if (newDuty != config.pwmDutyPercent) {
-      needChange = true;
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[FAN] Adaptive: DECREASE power (ΔT=%.2f, ΔH=%.2f) -%d%% → %d%%\n", 
-                      deltaTemp, deltaHum, step, newDuty);
-      #endif
-    }
-  }
-  
-  if (needChange) {
-    // Меняем ТОЛЬКО в RAM, НЕ сохраняем в EEPROM
-    config.pwmDutyPercent = newDuty;
-    fan_applyPWM(config.pwmDutyPercent);
-    
-    // Публикуем только изменившийся параметр, если подключены к MQTT
-    if (mqtt_isConnected()) {
-      mqttClient.publish(pwmDutyStateTopic, String(config.pwmDutyPercent).c_str());
-      #ifdef DEBUG_MQTT
-        Serial.printf("[MQTT] PWM duty published: %d%% (adaptive)\n", config.pwmDutyPercent);
-      #endif
+    // Скоростной множитель
+    float speedMultiplier = 1.0;
+    if (humRate > 1.5) {
+        speedMultiplier = 2.5;
+    } else if (humRate > 0.5) {
+        speedMultiplier = 1.5;
+    } else if (humRate < -0.5) {
+        speedMultiplier = 1.5;
     }
     
-    baseTemp = currentTemp;
-    baseHum = currentHum;
+    step = step * speedMultiplier;
+    if (step > 60) step = 60;
+    if (step < 5) step = 5;
     
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[FAN] Adaptive: new base values T=%.2f, H=%.2f\n", baseTemp, baseHum);
-    #endif
-  }
+    if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
+        newDuty += step;
+        if (newDuty > 100) newDuty = 100;
+        if (newDuty != config.pwmDutyPercent) {
+            needChange = true;
+            #ifdef DEBUG_ENABLE
+                Serial.printf("[FAN] +%d%% (%.2f/%.2f rate=%.1f) → %d%%\n", 
+                              step, deltaTemp, deltaHum, humRate, newDuty);
+            #endif
+        }
+    }
+    else if (deltaTemp < -ADAPTIVE_EPSILON_TEMP && deltaHum < -ADAPTIVE_EPSILON_HUM) {
+        newDuty -= step;
+        if (newDuty < MIN_PWM_DUTY_PERCENT) newDuty = MIN_PWM_DUTY_PERCENT;
+        if (newDuty != config.pwmDutyPercent) {
+            needChange = true;
+            #ifdef DEBUG_ENABLE
+                Serial.printf("[FAN] -%d%% (%.2f/%.2f rate=%.1f) → %d%%\n", 
+                              step, deltaTemp, deltaHum, humRate, newDuty);
+            #endif
+        }
+    }
+    
+    if (needChange) {
+        config.pwmDutyPercent = newDuty;
+        fan_applyPWM(config.pwmDutyPercent);
+        
+        if (mqtt_isConnected()) {
+            mqttClient.publish(pwmDutyStateTopic, String(config.pwmDutyPercent).c_str());
+        }
+        
+        baseTemp = currentTemp;
+        baseHum = currentHum;
+    }
 }
-
 void fan_update() {
   // Обработка завершения стартового импульса
   if (startingPulseActive) {

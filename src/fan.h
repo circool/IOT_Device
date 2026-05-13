@@ -26,12 +26,12 @@ void fan_update();
 void fan_set(bool on);
 bool fan_getState();
 bool fan_getRealState();
-void fan_setOverrideMode(bool sensorControl);  // renamed
+void fan_setOverrideMode(bool sensorControl);  // Режим управления датчиком
 void fan_checkMaxOnTime();
 bool fan_delayTimer(bool start);
-void fan_applyPWM(int percent);       // Новая функция: применение ШИМ в процентах (0-100)
+void fan_applyPWM(int percent);       // Применение ШИМ в процентах (0-100)
 int fan_getCurrentPWMDuty();          // Получить текущую скважность в % (учёт стартового импульса)
-void fan_adaptiveUpdate();            // Обновление адаптивного режима
+void fan_adaptiveUpdate();            // Адаптивный режим
 
 #endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 
