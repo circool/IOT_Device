@@ -91,7 +91,7 @@ void config_setDefaults() {
     config.pwmDutyPercent = DEFAULT_PWM_DUTY_PERCENT;
     config.adaptiveMode = DEFAULT_ADAPTIVE_MODE;
     config.maxOnTime = MAX_ON_TIME_SEC;
-    config.forceOffOnBoot = DEFAULT_FORCE_OFF_ON_BOOT;
+    config.bootState = BOOT_SWITCH_STATE;
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
@@ -425,7 +425,7 @@ void config_print() {
                   config.pwmDutyPercent == 100 ? "full power" : "slow mode");
     Serial.printf("Adaptive mode: %s\n", config.adaptiveMode ? "ON" : "OFF");
     Serial.printf("MaxOnTime: %d sec\n", config.maxOnTime);
-    Serial.printf("Force OFF on boot: %s\n", config.forceOffOnBoot ? "ON" : "OFF");
+    Serial.printf("Boot state: %s\n", config.bootState ? "ON" : "OFF");
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2

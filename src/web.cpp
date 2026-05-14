@@ -121,7 +121,8 @@ String web_getConfigPage(String errorMsg) {
   html += "<label><input type='checkbox' name='adaptiveMode' value='1' " + String(staticConfig.adaptiveMode ? "checked" : "") + "> Включить адаптацию</label>";
   html += "<div class='note'>Адаптивный режим автоматически регулирует скважность для поддержания температуры и влажности на уровне, зафиксированном при включении вентилятора.</div>";
   html += "<h3>Поведение при старте</h3>";
-  html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(staticConfig.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
+  html += "<label><input type='checkbox' name='bootState' value='1' " + String(staticConfig.bootState ? "checked" : "") + "> Состояние при старте</label>";
+  html += "<div class='note'>При включенной опции вентилятор будет включен сразу после подачи питания.</div>";
   html += "<h3>Режимы работы</h3>";
   html += "<label><input type='checkbox' name='sensorControlMode' value='1' " + String(staticConfig.sensorControlMode ? "checked" : "") + "> Режим управления сенсором</label>";
   html += "<div class='note'>При включённом режиме вентилятор управляется по показаниям датчиков температуры и влажности. При выключении — только вручную.</div>";
@@ -142,7 +143,8 @@ String web_getConfigPage(String errorMsg) {
   html += "<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>";
   html += "При значении ниже 100% выключатель работает в режиме ШИМ.</div>";
   html += "<h3>Поведение при старте</h3>";
-  html += "<label><input type='checkbox' name='forceOffOnBoot' value='1' " + String(staticConfig.forceOffOnBoot ? "checked" : "") + "> Принудительно выключать при старте</label>";
+  html += "<label><input type='checkbox' name='bootState' value='1' " + String(staticConfig.bootState ? "checked" : "") + "> Состояние при старте</label>";
+  html += "<div class='note'>При включенной опции вентилятор будет включен сразу после подачи питания.</div>";
   html += "<h3>Режимы работы</h3>";
   html += "<label><input type='checkbox' name='sensorControlMode' value='1' " + String(staticConfig.sensorControlMode ? "checked" : "") + "> Режим управления сенсором</label>";
   html += "<div class='note'>Для TYPE 3 (управляемый выключатель) этот режим не использует датчики, только ручное управление.</div>";
@@ -306,9 +308,9 @@ String web_getStatusPage(int refreshInterval) {
       html += "Принудительное включение: <strong>выполняется...</strong><br>";
     }
   } else if (config.delaySeconds > 0) {
-    html += "Принудительное включение: настроено на " + String(config.delaySeconds) + " сек<br>";
+    html += "Автоматический старт: настроено на " + String(config.delaySeconds) + " сек<br>";
   } else {
-    html += "Принудительное включение: <strong>отключено</strong><br>";
+    html += "Автоматический старт: <strong>отключено</strong><br>";
   }
   if (fanOn && config.maxOnTime > 0 && fanStartTime > 0) {
     unsigned long elapsed = (millis() - fanStartTime) / 1000;
@@ -421,7 +423,7 @@ void web_saveConfig(AsyncWebServerRequest *request) {
     if (p) config.pwmDutyPercent = p->value().toInt();
   }
   config.adaptiveMode = request->hasParam("adaptiveMode", true);
-  config.forceOffOnBoot = request->hasParam("forceOffOnBoot", true);
+  config.bootState = request->hasParam("bootState", true);
   config.sensorControlMode = request->hasParam("sensorControlMode", true);
   #endif
   
@@ -438,7 +440,7 @@ void web_saveConfig(AsyncWebServerRequest *request) {
     AsyncWebParameter* p = request->getParam("pwmDutyPercent", true);
     if (p) config.pwmDutyPercent = p->value().toInt();
   }
-  config.forceOffOnBoot = request->hasParam("forceOffOnBoot", true);
+  config.bootState = request->hasParam("bootState", true);
   config.sensorControlMode = request->hasParam("sensorControlMode", true);
   #endif
   
@@ -493,7 +495,7 @@ void web_saveConfig() {
   if (server.hasArg("delaySeconds")) config.delaySeconds = server.arg("delaySeconds").toInt();
   if (server.hasArg("pwmDutyPercent")) config.pwmDutyPercent = server.arg("pwmDutyPercent").toInt();
   config.adaptiveMode = server.hasArg("adaptiveMode");
-  config.forceOffOnBoot = server.hasArg("forceOffOnBoot");
+  config.bootState = server.hasArg("bootState");
   config.sensorControlMode = server.hasArg("sensorControlMode");
   #endif
   
@@ -501,7 +503,7 @@ void web_saveConfig() {
   if (server.hasArg("maxOnTime")) config.maxOnTime = server.arg("maxOnTime").toInt();
   if (server.hasArg("delaySeconds")) config.delaySeconds = server.arg("delaySeconds").toInt();
   if (server.hasArg("pwmDutyPercent")) config.pwmDutyPercent = server.arg("pwmDutyPercent").toInt();
-  config.forceOffOnBoot = server.hasArg("forceOffOnBoot");
+  config.bootState = server.hasArg("bootState");
   config.sensorControlMode = server.hasArg("sensorControlMode");
   #endif
   

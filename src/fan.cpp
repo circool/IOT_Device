@@ -21,6 +21,9 @@ float baseTemp = 0;
 float baseHum = 0;
 unsigned long lastAdaptiveCheck = 0;
 
+// Флаг, используется ли ШИМ для текущего состояния
+static bool pwmActive = false;
+
 // Вспомогательная функция: перевод процентов (0-100) в значение ШИМ для платформы
 static int percentToPWMValue(int percent) {
   if (percent <= 0) return 0;
@@ -28,14 +31,41 @@ static int percentToPWMValue(int percent) {
   return map(percent, 0, 100, 0, 255);
 }
 
+// Отключить ШИМ и перейти в режим обычного GPIO
+static void disablePWM() {
+  if (!pwmActive) return;
+  
+  #ifdef ESP32
+    ledcDetachPin(SWITCH_PIN);
+  #endif
+  pinMode(SWITCH_PIN, OUTPUT);
+  pwmActive = false;
+  
+  #ifdef DEBUG_ENABLE
+    Serial.println("[FAN] PWM disabled, switched to GPIO mode");
+  #endif
+}
+
+// Включить ШИМ режим
+static void enablePWM() {
+  if (pwmActive) return;
+  
+  #ifdef ESP32
+    ledcAttachPin(SWITCH_PIN, 0);
+  #endif
+  pwmActive = true;
+  
+  #ifdef DEBUG_ENABLE
+    Serial.println("[FAN] PWM enabled");
+  #endif
+}
+
 // Применение ШИМ с указанной скважностью в процентах
 void fan_applyPWM(int percent) {
   if (percent <= 0) {
-    // Выключено
-    #ifdef ESP32
-      ledcDetachPin(SWITCH_PIN);
-    #endif
-    digitalWrite(SWITCH_PIN, LOW);
+    // Выключено - отключаем ШИМ и устанавливаем OFF уровень
+    disablePWM();
+    digitalWrite(SWITCH_PIN, RELAY_OFF_LEVEL);
     if (fanOn && !startingPulseActive) {
       fanOn = false;
       fanStartTime = 0;
@@ -47,23 +77,29 @@ void fan_applyPWM(int percent) {
       Serial.println("[FAN] PWM: OFF");
     #endif
   } else if (percent >= 100) {
-    // Полная мощность
-    #ifdef ESP32
-      ledcDetachPin(SWITCH_PIN);
-    #endif
-    digitalWrite(SWITCH_PIN, HIGH);
+    // Полная мощность - отключаем ШИМ и устанавливаем ON уровень
+    disablePWM();
+    digitalWrite(SWITCH_PIN, RELAY_ON_LEVEL);
     #ifdef DEBUG_ENABLE
       Serial.println("[FAN] PWM: FULL POWER (100%)");
     #endif
   } else {
     // ШИМ с заданной скважностью
     int pwmValue = percentToPWMValue(percent);
+    
+    // Инвертируем ШИМ если необходимо (для Low Level Trigger)
+    #if RELAY_ON_LEVEL == LOW
+      pwmValue = 255 - pwmValue;
+    #endif
+    
+    enablePWM();
+    
     #ifdef ESP32
-      ledcAttachPin(SWITCH_PIN, 0);
       ledcWrite(0, pwmValue);
     #elif defined(ESP8266)
       analogWrite(SWITCH_PIN, pwmValue);
     #endif
+    
     #ifdef DEBUG_ENABLE
       Serial.printf("[FAN] PWM: %d%% (value %d/255)\n", percent, pwmValue);
     #endif
@@ -79,79 +115,55 @@ int fan_getCurrentPWMDuty() {
 
 void fan_init() {
   pinMode(SWITCH_PIN, OUTPUT);
+  pwmActive = false;
   
   #ifdef ESP32
     ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
-    ledcAttachPin(SWITCH_PIN, 0);
+    // Не прикрепляем пин здесь, сделаем это при необходимости
   #elif defined(ESP8266)
     analogWriteFreq(PWM_FREQUENCY);
     analogWriteRange(255);
   #endif
   
-  bool currentPinState = (digitalRead(SWITCH_PIN) == HIGH);
-  
-  if (config.forceOffOnBoot) {
-    fanOn = false;
-    fan_applyPWM(0);
-    startingPulseActive = false;
-    adaptiveActive = false;
-    #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] Force OFF on boot - forcing OFF");
-    #endif
-  } else {
-    fanOn = currentPinState;
-    if (fanOn) {
-      if (config.pwmDutyPercent < 100) {
-        fan_applyPWM(100);
-        startingPulseActive = true;
-        startingPulseStart = millis();
-        adaptiveActive = false;
-        #ifdef DEBUG_ENABLE
-          Serial.printf("[FAN] Keep state ON with slow mode - starting pulse for %d ms\n", PWM_STARTING);
-        #endif
-      } else {
-        fan_applyPWM(100);
-        startingPulseActive = false;
-        #if DEVICE_TYPE == 1
-        if (config.adaptiveMode && sensor_isOk()) {
-          adaptiveActive = true;
-          baseTemp = currentTemp;
-          baseHum = currentHum;
-          lastAdaptiveCheck = millis();
-          #ifdef DEBUG_ENABLE
-            Serial.printf("[FAN] Adaptive mode activated: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
-          #endif
-        } else if (config.adaptiveMode && !sensor_isOk()) {
-          #ifdef DEBUG_ENABLE
-            Serial.println("[FAN] Adaptive mode waiting for valid sensor readings...");
-          #endif
-        }
-        #endif
-      }
-    } else {
-      startingPulseActive = false;
-      adaptiveActive = false;
-    }
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[FAN] Keep state on boot - synced with pin state: %s\n", 
-                    fanOn ? "ON" : "OFF");
-    #endif
-  }
-  
+  // Сбрасываем флаги
   delayActive = false;
   delayTimer = 0;
-  fanStartTime = fanOn ? millis() : 0;
+  startingPulseActive = false;
+  adaptiveActive = false;
+  fanStartTime = 0;
   
-  #if DEVICE_TYPE == 1
-  if (!config.sensorControlMode) {
+  // Устанавливаем реле в нужное состояние согласно bootState
+  if (config.bootState) {
+    // Включено - используем правильный уровень
+    disablePWM();
+    digitalWrite(SWITCH_PIN, RELAY_ON_LEVEL);
+    fanOn = true;
     #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] Starting in MANUAL mode");
+      Serial.printf("[FAN] Boot: set to ON (pin %d = %s)\n", SWITCH_PIN, RELAY_ON_LEVEL == HIGH ? "HIGH" : "LOW");
+    #endif
+  } else {
+    // Выключено - используем правильный уровень
+    disablePWM();
+    digitalWrite(SWITCH_PIN, RELAY_OFF_LEVEL);
+    fanOn = false;
+    #ifdef DEBUG_ENABLE
+      Serial.printf("[FAN] Boot: set to OFF (pin %d = %s)\n", SWITCH_PIN, RELAY_OFF_LEVEL == HIGH ? "HIGH" : "LOW");
     #endif
   }
+  
+  #ifdef DEBUG_ENABLE
+    Serial.printf("[FAN] Init complete: fanOn=%s, bootState=%s, RELAY_ON_LEVEL=%s\n", 
+                  fanOn ? "ON" : "OFF", 
+                  config.bootState ? "ON" : "OFF",
+                  RELAY_ON_LEVEL == LOW ? "LOW" : "HIGH");
   #endif
 }
 
 void fan_set(bool on) {
+  #ifdef DEBUG_ENABLE
+    Serial.printf("[FAN] fan_set(%s) called, current fanOn=%s\n", on ? "ON" : "OFF", fanOn ? "ON" : "OFF");
+  #endif
+  
   if (fanOn == on) return;
   
   startingPulseActive = false;
@@ -161,14 +173,14 @@ void fan_set(bool on) {
   
   if (fanOn) {
     fanStartTime = millis();
-    if (config.pwmDutyPercent < 100) {
+    if (config.pwmDutyPercent < 100 && config.pwmDutyPercent > 0) {
       fan_applyPWM(100);
       startingPulseActive = true;
       startingPulseStart = millis();
       #ifdef DEBUG_ENABLE
         Serial.printf("[FAN] Starting pulse started, duration=%d ms\n", PWM_STARTING);
       #endif
-    } else {
+    } else if (config.pwmDutyPercent >= 100) {
       fan_applyPWM(100);
       #if DEVICE_TYPE == 1
       if (config.adaptiveMode && sensor_isOk()) {
@@ -184,6 +196,14 @@ void fan_set(bool on) {
       #ifdef DEBUG_ENABLE
         Serial.println("[FAN] Fan turned ON");
       #endif
+    } else {
+      // PWM duty = 0% - не включаем
+      fanOn = false;
+      fan_applyPWM(0);
+      #ifdef DEBUG_ENABLE
+        Serial.println("[FAN] PWM duty is 0% - cannot turn ON");
+      #endif
+      return;
     }
   } else {
     fan_applyPWM(0);
@@ -212,6 +232,7 @@ void fan_set(bool on) {
     mqtt_publishState();
   }
 }
+
 bool fan_getState() {
   return fanOn;
 }
@@ -344,18 +365,11 @@ void fan_adaptiveUpdate() {
     }
     
     // Скоростной множитель
-    float speedMultiplier = 1.0;
-    if (humRate > 1.5) {
-        speedMultiplier = 2.5;
-    } else if (humRate > 0.5) {
-        speedMultiplier = 1.5;
-    } else if (humRate < -0.5) {
-        speedMultiplier = 1.5;
-    }
+    float speedMultiplier = 1.0 + (humRate / ADAPTIVE_SPEED_SENSITIVITY);
+    speedMultiplier = constrain(speedMultiplier, 0.5, 3.0);
     
     step = step * speedMultiplier;
-    if (step > 60) step = 60;
-    if (step < 5) step = 5;
+    step = constrain(step, 5, 60);
     
     if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
         newDuty += step;
@@ -392,6 +406,7 @@ void fan_adaptiveUpdate() {
         baseHum = currentHum;
     }
 }
+
 void fan_update() {
   // Обработка завершения стартового импульса
   if (startingPulseActive) {
@@ -518,4 +533,5 @@ void fan_update() {
   
   fan_checkMaxOnTime();
 }
+
 #endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 3

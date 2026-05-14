@@ -9,7 +9,7 @@ float currentHum = 0;
 bool sensorOk = false;
 unsigned long lastSensorRead = 0;
 String sensorError = "";
-float humRate = 0;  // НОВОЕ
+float humRate = 0;  
 
 #if SENSOR_TYPE == 1
   Adafruit_AHTX0 aht;
@@ -36,7 +36,7 @@ void sensor_init() {
     Serial.println("[SENSOR] DHT initialized, waiting for first valid reading...");
   #endif
   
-  humRate = 0;  // НОВОЕ
+  humRate = 0;  
 }
 
 bool isSensorValueValid(float temp, float hum) {
@@ -86,7 +86,7 @@ void sensor_read() {
   
   if (readSuccess) {
     if (isSensorValueValid(temp, hum)) {
-      // НОВОЕ: расчёт скорости изменения влажности
+      // расчёт скорости изменения влажности
       static unsigned long lastHumTime = 0;
       static float lastHumValue = 0;
       

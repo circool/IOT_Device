@@ -125,7 +125,7 @@ void mqtt_publishState() {
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     Serial.printf("[MQTT] State published: state=%s, sensorControlMode=%s\n", 
                   fan_getRealState() ? "ON" : "OFF", 
-                  config.sensorControlMode ? "1" : "0");
+                  config.sensorControlMode ? "ON" : "OFF");
     #endif
   #endif
 }

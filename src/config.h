@@ -44,6 +44,18 @@
   #define RESET_PIN 0
 #endif
 
+#ifndef RELAY_ON_LEVEL
+  #define RELAY_ON_LEVEL LOW     // LOW - для Low Level Trigger (G3MB-202P), HIGH - для High Level Trigger
+#endif
+
+#if RELAY_ON_LEVEL == LOW
+  #define RELAY_OFF_LEVEL HIGH
+#else
+  #define RELAY_OFF_LEVEL LOW
+#endif
+
+
+
 // ======================== НАСТРОЙКИ ШИМ ДЛЯ ТИХОГО РЕЖИМА ========================
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   #ifndef PWM_FREQUENCY
@@ -55,15 +67,15 @@
   #endif
 
   #ifndef PWM_STARTING
-    #define PWM_STARTING 2000      // Стартовый импульс 2000 мс на полной мощности
+    #define PWM_STARTING 100      // Стартовый импульс 200 мс на полной мощности
   #endif
 
   #ifndef MIN_PWM_DUTY_PERCENT
-    #define MIN_PWM_DUTY_PERCENT 30  // Минимальная скважность 30% (Минимум 5-6 периодов сети, подбирается эмпирически)
+    #define MIN_PWM_DUTY_PERCENT 0  // Минимальная скважность 30% (Минимум 5-6 периодов сети, подбирается эмпирически)
   #endif
 
   #ifndef DEFAULT_PWM_DUTY_PERCENT
-    #define DEFAULT_PWM_DUTY_PERCENT 50  // По умолчанию тихий режим выключен (50%)
+    #define DEFAULT_PWM_DUTY_PERCENT 10  // По умолчанию тихий режим выключен (10%)
   #endif
 
   #ifndef ADAPTIVE_EPSILON_TEMP
@@ -77,6 +89,19 @@
   #ifndef ADAPTIVE_STEP_SIZE
     #define ADAPTIVE_STEP_SIZE 10       // Шаг изменения скважности при адаптации (%)
   #endif
+
+
+  
+  // ======================== НАСТРОЙКИ СКОРОСТНОЙ АДАПТАЦИИ ========================
+  #if DEVICE_TYPE == 1
+    #ifndef ADAPTIVE_SPEED_SENSITIVITY
+      #define ADAPTIVE_SPEED_SENSITIVITY 0.7   
+      // Чувствительность к скорости роста влажности
+      // Формула: множитель = 1 + (humRate / SENSITIVITY), ограничение 0.5..3.0
+      // Меньше значение = агрессивнее (0.3), больше = мягче (2.0)
+    #endif
+  #endif 
+
 #endif
 
 // ======================== НАСТРОЙКИ ПОВЕДЕНИЯ ========================
@@ -110,11 +135,11 @@
   #endif
 
   #ifndef DEFAULT_LOW_HUM
-    #define DEFAULT_LOW_HUM 60.0
+    #define DEFAULT_LOW_HUM 55.0
   #endif
 
   #ifndef DEFAULT_HIGH_HUM
-    #define DEFAULT_HIGH_HUM 70.0
+    #define DEFAULT_HIGH_HUM 60.0
   #endif
 
   #ifndef DEFAULT_SENSOR_CONTROL_MODE
@@ -131,8 +156,8 @@
     #define DEFAULT_ADAPTIVE_MODE false   // По умолчанию адаптивный режим выключен
   #endif
 
-  #ifndef DEFAULT_FORCE_OFF_ON_BOOT
-    #define DEFAULT_FORCE_OFF_ON_BOOT true
+  #ifndef BOOT_SWITCH_STATE
+    #define BOOT_SWITCH_STATE true
   #endif
 #endif
 
@@ -255,7 +280,7 @@ struct Config {
     uint16_t pwmDutyPercent;
     bool adaptiveMode;
     uint32_t maxOnTime;
-    bool forceOffOnBoot;
+    bool bootState;
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
