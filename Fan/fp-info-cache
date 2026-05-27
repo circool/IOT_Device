@@ -1,4 +1,4 @@
-20981779497700374
+20983513917546655
 Battery
 BatteryHolder_Bulgin_BX0036_1xC
 Bulgin Battery Holder, BX0036, Battery Type C (https://www.bulgin.com/products/pub/media/bulgin/data/Battery_holders.pdf)
@@ -307,6 +307,13 @@ battery CR-3032 coin cell vertical
 0
 2
 2
+Battery
+Battery_Radial_D17.0mm_L23.4mm_P23.4
+
+
+0
+2
+1
 Button_Switch_Keyboard
 SW_Cherry_MX_1.00u_PCB
 Cherry MX keyswitch, 1.00u, PCB mount, http://cherryamericas.com/wp-content/uploads/2014/12/mx_cat.pdf
@@ -57351,7 +57358,7 @@ THT
 4
 2
 Ionistor
-C_Radial_D20.4mm_H7.0mm_P6.8mm
+C_Radial_D20.4mm_H7.6mm_P5.7mm
 Supercapasitor C-Type
 
 0
