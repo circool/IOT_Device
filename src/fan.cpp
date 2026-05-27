@@ -1,10 +1,13 @@
 #include "fan.h"
 
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+#if DEVICE_TYPE == 1
 
 #include "config.h"
 #include "sensor.h"
+
+#if MQTT_ENABLED == 1
 #include "mqtt.h"
+#endif
 
 bool fanOn = false;
 unsigned long fanStartTime = 0;
@@ -37,11 +40,14 @@ static void disablePWM() {
   
   #ifdef ESP32
     ledcDetachPin(SWITCH_PIN);
+  #elif defined(ESP8266)
+    analogWrite(SWITCH_PIN, 1024);
+    delayMicroseconds(10);
+    pinMode(SWITCH_PIN, OUTPUT);
   #endif
-  pinMode(SWITCH_PIN, OUTPUT);
   pwmActive = false;
   
-  #ifdef DEBUG_ENABLE
+  #if LOG_FAN == 1
     Serial.println("[FAN] PWM disabled, switched to GPIO mode");
   #endif
 }
@@ -55,39 +61,40 @@ static void enablePWM() {
   #endif
   pwmActive = true;
   
-  #ifdef DEBUG_ENABLE
+  #if LOG_FAN == 1
     Serial.println("[FAN] PWM enabled");
   #endif
 }
 
 // Применение ШИМ с указанной скважностью в процентах
-void fan_applyPWM(int percent) {
+void fan_applySpeed(int percent) {
   if (percent <= 0) {
-    // Выключено - отключаем ШИМ и устанавливаем OFF уровень
     disablePWM();
-    digitalWrite(SWITCH_PIN, RELAY_OFF_LEVEL);
+    digitalWrite(SWITCH_PIN, !RELAY_ON_LEVEL);
     if (fanOn && !startingPulseActive) {
       fanOn = false;
       fanStartTime = 0;
-      #ifdef DEBUG_ENABLE
-        Serial.println("[FAN] Warning: PWM duty 0% with fanOn=true - forcing OFF");
+      
+      #if LOG_FAN == 1
+        Serial.println("[FAN] Warning: Speed 0% with fanOn=true - forcing OFF");
       #endif
     }
-    #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] PWM: OFF");
+    
+    #if LOG_FAN == 1
+      Serial.println("[FAN] Speed: OFF");
     #endif
+  
   } else if (percent >= 100) {
-    // Полная мощность - отключаем ШИМ и устанавливаем ON уровень
     disablePWM();
     digitalWrite(SWITCH_PIN, RELAY_ON_LEVEL);
-    #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] PWM: FULL POWER (100%)");
+    
+    #if LOG_FAN == 1
+      Serial.println("[FAN] Speed: FULL POWER (100%)");
     #endif
+  
   } else {
-    // ШИМ с заданной скважностью
     int pwmValue = percentToPWMValue(percent);
     
-    // Инвертируем ШИМ если необходимо (для Low Level Trigger)
     #if RELAY_ON_LEVEL == LOW
       pwmValue = 255 - pwmValue;
     #endif
@@ -100,58 +107,49 @@ void fan_applyPWM(int percent) {
       analogWrite(SWITCH_PIN, pwmValue);
     #endif
     
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[FAN] PWM: %d%% (value %d/255)\n", percent, pwmValue);
+    #if LOG_FAN == 1
+      Serial.printf("[FAN] Speed: %d%% (value %d/255)\n", percent, pwmValue);
     #endif
   }
-}
-
-int fan_getCurrentPWMDuty() {
-  if (!fanOn) return 0;
-  if (startingPulseActive) return 100;
-  if (config.pwmDutyPercent >= 100) return 100;
-  return config.pwmDutyPercent;
 }
 
 void fan_init() {
   pinMode(SWITCH_PIN, OUTPUT);
   pwmActive = false;
-  
-  #ifdef ESP32
-    ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
-    // Не прикрепляем пин здесь, сделаем это при необходимости
-  #elif defined(ESP8266)
-    analogWriteFreq(PWM_FREQUENCY);
-    analogWriteRange(255);
+  #if DEVICE_TYPE == 1
+    #ifdef ESP32
+      ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
+    #elif defined(ESP8266)
+      analogWriteFreq(PWM_FREQUENCY);
+      analogWriteRange(255);
+    #endif
   #endif
-  
-  // Сбрасываем флаги
+
   delayActive = false;
   delayTimer = 0;
   startingPulseActive = false;
   adaptiveActive = false;
   fanStartTime = 0;
   
-  // Устанавливаем реле в нужное состояние согласно bootState
   if (config.bootState) {
-    // Включено - используем правильный уровень
     disablePWM();
     digitalWrite(SWITCH_PIN, RELAY_ON_LEVEL);
     fanOn = true;
-    #ifdef DEBUG_ENABLE
+    
+    #if LOG_FAN == 1
       Serial.printf("[FAN] Boot: set to ON (pin %d = %s)\n", SWITCH_PIN, RELAY_ON_LEVEL == HIGH ? "HIGH" : "LOW");
     #endif
+
   } else {
-    // Выключено - используем правильный уровень
     disablePWM();
-    digitalWrite(SWITCH_PIN, RELAY_OFF_LEVEL);
+    digitalWrite(SWITCH_PIN, !RELAY_ON_LEVEL);
     fanOn = false;
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[FAN] Boot: set to OFF (pin %d = %s)\n", SWITCH_PIN, RELAY_OFF_LEVEL == HIGH ? "HIGH" : "LOW");
+    #if LOG_FAN == 1
+      Serial.printf("[FAN] Boot: set to OFF (pin %d = %s)\n", SWITCH_PIN, RELAY_ON_LEVEL == HIGH ? "HIGH" : "LOW");
     #endif
   }
   
-  #ifdef DEBUG_ENABLE
+  #if LOG_FAN == 1
     Serial.printf("[FAN] Init complete: fanOn=%s, bootState=%s, RELAY_ON_LEVEL=%s\n", 
                   fanOn ? "ON" : "OFF", 
                   config.bootState ? "ON" : "OFF",
@@ -159,12 +157,53 @@ void fan_init() {
   #endif
 }
 
-void fan_set(bool on) {
-  #ifdef DEBUG_ENABLE
-    Serial.printf("[FAN] fan_set(%s) called, current fanOn=%s\n", on ? "ON" : "OFF", fanOn ? "ON" : "OFF");
+void fan_set(bool on, bool manual) {
+  #if LOG_FAN == 1
+    Serial.printf("[FAN] fan_set(%s, manual=%s) called, current fanOn=%s\n", 
+                  on ? "ON" : "OFF", 
+                  manual ? "true" : "false", 
+                  fanOn ? "ON" : "OFF");
   #endif
   
   if (fanOn == on) return;
+  
+ 
+  if (manual) {
+    
+    if (config.sensorControlMode) {
+      config.sensorControlMode = false;
+      
+      #if MQTT_ENABLED == 1
+        mqttManager.publishSensorControlMode(false);
+      #endif
+
+      #if LOG_FAN == 1
+        Serial.println("[FAN] Manual control - sensor control mode disabled");
+      #endif
+    }
+    
+    if (config.adaptiveMode) {
+      config.adaptiveMode = false;
+      adaptiveActive = false;
+      
+      #if MQTT_ENABLED == 1
+        mqttManager.publishAdaptiveMode(false);
+      #endif
+
+      #if LOG_FAN == 1
+        Serial.println("[FAN] Manual control - adaptive mode disabled");
+      #endif
+    }
+
+    
+    if (delayActive) {
+      delayActive = false;
+      
+      #if LOG_FAN == 1
+        Serial.println("[FAN] Manual control - delay timer cancelled");
+      #endif
+    }
+  }
   
   startingPulseActive = false;
   adaptiveActive = false;
@@ -173,111 +212,121 @@ void fan_set(bool on) {
   
   if (fanOn) {
     fanStartTime = millis();
-    if (config.pwmDutyPercent < 100 && config.pwmDutyPercent > 0) {
-      fan_applyPWM(100);
+    
+    if (config.speedPercent < 100 && config.speedPercent > 0) {
+      fan_applySpeed(100);
       startingPulseActive = true;
       startingPulseStart = millis();
-      #ifdef DEBUG_ENABLE
+      
+      #if LOG_FAN == 1
         Serial.printf("[FAN] Starting pulse started, duration=%d ms\n", PWM_STARTING);
       #endif
-    } else if (config.pwmDutyPercent >= 100) {
-      fan_applyPWM(100);
-      #if DEVICE_TYPE == 1
+    
+    } else if (config.speedPercent >= 100) {
+      disablePWM();
+      digitalWrite(SWITCH_PIN, RELAY_ON_LEVEL);
+      
+      #if LOG_FAN == 1
+        Serial.printf("[FAN] FULL ON: pin=%d, level=RELAY_ON_LEVEL (forced)\n", SWITCH_PIN);
+      #endif
+      
+      
       if (config.adaptiveMode && sensor_isOk()) {
         adaptiveActive = true;
         baseTemp = currentTemp;
         baseHum = currentHum;
         lastAdaptiveCheck = millis();
-        #ifdef DEBUG_ENABLE
+        
+        #if LOG_FAN == 1
           Serial.printf("[FAN] Adaptive mode activated: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
         #endif
       }
-      #endif
-      #ifdef DEBUG_ENABLE
+
+      
+      #if LOG_FAN == 1
         Serial.println("[FAN] Fan turned ON");
       #endif
+
     } else {
-      // PWM duty = 0% - не включаем
       fanOn = false;
-      fan_applyPWM(0);
-      #ifdef DEBUG_ENABLE
-        Serial.println("[FAN] PWM duty is 0% - cannot turn ON");
+      fan_applySpeed(0);
+      
+      #if LOG_FAN == 1
+        Serial.println("[FAN] Speed percent is 0% - cannot turn ON");
       #endif
+      
       return;
     }
   } else {
-    fan_applyPWM(0);
+    fan_applySpeed(0);
     fanStartTime = 0;
     adaptiveActive = false;
     
-    // Восстанавливаем сохранённую настройку пользователя
-    uint16_t oldDuty = config.pwmDutyPercent;
-    config.pwmDutyPercent = staticConfig.pwmDutyPercent;
+
+    uint16_t oldSpeed = config.speedPercent;
+    config.speedPercent = staticConfig.speedPercent;
     
-    // Публикуем только если скважность изменилась и подключены к MQTT
-    if (oldDuty != config.pwmDutyPercent && mqtt_isConnected()) {
-      mqttClient.publish(pwmDutyStateTopic, String(config.pwmDutyPercent).c_str());
-      #ifdef DEBUG_MQTT
-        Serial.printf("[MQTT] PWM duty restored to %d%% (was %d%%)\n", config.pwmDutyPercent, oldDuty);
+    #if MQTT_ENABLED == 1
+    if (oldSpeed != config.speedPercent) {
+      mqttManager.publishSpeed(config.speedPercent);
+      #if LOG_MQTT == 1
+        Serial.printf("[MQTT] Speed restored to %d%% (was %d%%)\n", config.speedPercent, oldSpeed);
       #endif
     }
-    
-    #ifdef DEBUG_ENABLE
-      Serial.printf("[FAN] Fan turned OFF, restored PWM duty to %d%%\n", config.pwmDutyPercent);
+    #endif
+
+    #if LOG_FAN == 1
+      Serial.printf("[FAN] Fan turned OFF, restored speed to %d%%\n", config.speedPercent);
     #endif
   }
-  
-  // Публикуем состояние при любом изменении (если подключены к MQTT)
-  if (mqtt_isConnected()) {
-    mqtt_publishState();
-  }
+  #if MQTT_ENABLED == 1
+    mqttManager.publishState(fanOn);
+  #endif
 }
 
 bool fan_getState() {
   return fanOn;
 }
 
-bool fan_getRealState() {
-  return fanOn;
-}
-
 void fan_setOverrideMode(bool sensorControl) {
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   config.sensorControlMode = sensorControl;
   if (!sensorControl) {
     delayActive = false;
     adaptiveActive = false;
   } else {
-    // При переходе в режим управления сенсором, если вентилятор включён и есть валидные данные
-    if (fanOn && config.adaptiveMode && DEVICE_TYPE == 1 && sensor_isOk()) {
+    #if DEVICE_TYPE == 1
+    if (fanOn && config.adaptiveMode && sensor_isOk()) {
       adaptiveActive = true;
       baseTemp = currentTemp;
       baseHum = currentHum;
       lastAdaptiveCheck = millis();
     }
+    #endif
   }
-  // НЕ СОХРАНЯЕМ в EEPROM при MQTT команде
-  #ifdef DEBUG_ENABLE
+
+  #if LOG_FAN == 1
     Serial.printf("[FAN] Mode switched to: %s\n", sensorControl ? "SENSOR CONTROL" : "MANUAL");
-  #endif
   #endif
 }
 
 void fan_checkMaxOnTime() {
   if (fanOn && fanStartTime != 0 && config.maxOnTime > 0 &&
       (millis() - fanStartTime) > config.maxOnTime * 1000UL) {
-    #ifdef DEBUG_ENABLE
+    
+    #if LOG_FAN == 1
       Serial.println("[FAN] Max on time exceeded, forcing OFF");
     #endif
     
     #if DEVICE_TYPE == 1
-    config.sensorControlMode = false;
-    #ifdef DEBUG_ENABLE
-      Serial.println("[FAN] Switched to MANUAL mode after safety shutdown");
-    #endif
+      config.sensorControlMode = false;
+
+      #if LOG_FAN == 1
+        Serial.println("[FAN] Switched to MANUAL mode after safety shutdown");
+      #endif
+    
     #endif
     
-    fan_set(false);
+    fan_set(false);  // ручное (manual = true по умолчанию)
   }
 }
 
@@ -286,9 +335,11 @@ bool fan_delayTimer(bool start) {
     if (config.delaySeconds > 0) {
       delayActive = true;
       delayTimer = millis() + config.delaySeconds * 1000UL;
-      #ifdef DEBUG_ENABLE
+      
+      #if LOG_FAN == 1
         Serial.printf("[FAN] Delay ON timer started: %d seconds\n", config.delaySeconds);
       #endif
+
       return false;
     }
     delayActive = false;
@@ -297,14 +348,18 @@ bool fan_delayTimer(bool start) {
     if (delayActive && millis() >= delayTimer) {
       delayActive = false;
       #if DEVICE_TYPE == 1
-      config.sensorControlMode = false;
-      #ifdef DEBUG_ENABLE
-        Serial.println("[FAN] Delay ON timer finished - switching to MANUAL mode (temporary)");
-      #endif
+        config.sensorControlMode = false;
+
+        #if LOG_FAN == 1
+          Serial.println("[FAN] Delay ON timer finished - switching to MANUAL mode (temporary)");
+        #endif
+
       #elif DEVICE_TYPE == 3
-      #ifdef DEBUG_ENABLE
-        Serial.println("[FAN] Delay ON timer finished - turning ON");
-      #endif
+
+        #if LOG_FAN == 1
+          Serial.println("[FAN] Delay ON timer finished - turning ON");
+        #endif
+
       #endif
       return true;
     }
@@ -312,140 +367,153 @@ bool fan_delayTimer(bool start) {
   }
 }
 
-void fan_adaptiveUpdate() {
-    if (!sensor_isOk()) {
-        if (adaptiveActive) {
-            adaptiveActive = false;
-            #ifdef DEBUG_ENABLE
-                Serial.println("[FAN] Adaptive mode disabled - sensor error");
-            #endif
-            if (fanOn && !startingPulseActive) {
-                config.pwmDutyPercent = 100;
-                fan_applyPWM(100);
-            }
-        }
-        return;
-    }
-    
-    if (!fanOn || startingPulseActive || !config.adaptiveMode || !config.sensorControlMode) {
-        if (adaptiveActive) adaptiveActive = false;
-        return;
-    }
-    
-    if (!adaptiveActive) {
-        adaptiveActive = true;
-        baseTemp = currentTemp;
-        baseHum = currentHum;
-        lastAdaptiveCheck = millis();
-        #ifdef DEBUG_ENABLE
-            Serial.printf("[FAN] Adaptive active: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
-        #endif
-        return;
-    }
-    
-    if (millis() - lastAdaptiveCheck < config.sensorInterval * 1000UL) {
-        return;
-    }
-    lastAdaptiveCheck = millis();
-    
-    float deltaTemp = currentTemp - baseTemp;
-    float deltaHum = currentHum - baseHum;
-    
-    int newDuty = config.pwmDutyPercent;
-    bool needChange = false;
-    
-    // Расчёт шага с учётом скорости
-    int step = ADAPTIVE_STEP_SIZE;
-    
-    if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 2 || deltaHum > ADAPTIVE_EPSILON_HUM * 2) {
-        step = step * 2;
-    }
-    if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 3 || deltaHum > ADAPTIVE_EPSILON_HUM * 3) {
-        step = step * 3;
-    }
-    
-    // Скоростной множитель
+// Расчёт шага адаптации
+static int calculateAdaptiveStep(float deltaTemp, float deltaHum, float humRate) {
+  int step = ADAPTIVE_STEP_SIZE;
+  
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 2 || deltaHum > ADAPTIVE_EPSILON_HUM * 2) {
+    step *= 2;
+  }
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 3 || deltaHum > ADAPTIVE_EPSILON_HUM * 3) {
+    step *= 3;
+  }
+  
+  #if DEVICE_TYPE == 1
     float speedMultiplier = 1.0 + (humRate / ADAPTIVE_SPEED_SENSITIVITY);
     speedMultiplier = constrain(speedMultiplier, 0.5, 3.0);
-    
     step = step * speedMultiplier;
-    step = constrain(step, 5, 60);
+  #endif
+  
+  return constrain(step, 5, 60);
+}
+
+void fan_adaptiveUpdate() {
+  #if DEVICE_TYPE == 1
+  if (!sensor_isOk()) {
+    if (adaptiveActive) {
+      adaptiveActive = false;
+      
+      #if LOG_FAN == 1
+        Serial.println("[FAN] Adaptive mode disabled - sensor error");
+      #endif
+
+      if (fanOn && !startingPulseActive) {
+        config.speedPercent = 100;
+        fan_applySpeed(100);
+      }
+    }
+    return;
+  }
+  
+  if (!fanOn || startingPulseActive || !config.adaptiveMode || !config.sensorControlMode) {
+    if (adaptiveActive) adaptiveActive = false;
+    return;
+  }
+  
+  if (!adaptiveActive) {
+    adaptiveActive = true;
+    baseTemp = currentTemp;
+    baseHum = currentHum;
+    lastAdaptiveCheck = millis();
+
+    #if LOG_FAN == 1
+      Serial.printf("[FAN] Adaptive active: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
+    #endif
     
-    if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
-        newDuty += step;
-        if (newDuty > 100) newDuty = 100;
-        if (newDuty != config.pwmDutyPercent) {
-            needChange = true;
-            #ifdef DEBUG_ENABLE
-                Serial.printf("[FAN] +%d%% (%.2f/%.2f rate=%.1f) → %d%%\n", 
-                              step, deltaTemp, deltaHum, humRate, newDuty);
-            #endif
-        }
+    return;
+  }
+  
+  if (millis() - lastAdaptiveCheck < config.sensorInterval * 1000UL) {
+    return;
+  }
+  lastAdaptiveCheck = millis();
+  
+  float deltaTemp = currentTemp - baseTemp;
+  float deltaHum = currentHum - baseHum;
+  
+  int newSpeed = config.speedPercent;
+  bool needChange = false;
+  
+  int step = calculateAdaptiveStep(deltaTemp, deltaHum, humRate);
+  
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
+    newSpeed += step;
+    if (newSpeed > 100) newSpeed = 100;
+    if (newSpeed != config.speedPercent) {
+      needChange = true;
+      
+      #if LOG_FAN == 1
+        Serial.printf("[FAN] Adaptive step +%d%% (ΔT=%.2f ΔH=%.2f rate=%.1f) → %d%%\n", 
+                      step, deltaTemp, deltaHum, humRate, newSpeed);
+      #endif
     }
-    else if (deltaTemp < -ADAPTIVE_EPSILON_TEMP && deltaHum < -ADAPTIVE_EPSILON_HUM) {
-        newDuty -= step;
-        if (newDuty < MIN_PWM_DUTY_PERCENT) newDuty = MIN_PWM_DUTY_PERCENT;
-        if (newDuty != config.pwmDutyPercent) {
-            needChange = true;
-            #ifdef DEBUG_ENABLE
-                Serial.printf("[FAN] -%d%% (%.2f/%.2f rate=%.1f) → %d%%\n", 
-                              step, deltaTemp, deltaHum, humRate, newDuty);
-            #endif
-        }
+  }
+  else if (deltaTemp < -ADAPTIVE_EPSILON_TEMP && deltaHum < -ADAPTIVE_EPSILON_HUM) {
+    newSpeed -= step;
+    if (newSpeed < MIN_SPEED_PERCENT) newSpeed = MIN_SPEED_PERCENT;
+    if (newSpeed != config.speedPercent) {
+      needChange = true;
+
+      #if LOG_FAN == 1
+        Serial.printf("[FAN] Adaptive step -%d%% (ΔT=%.2f ΔH=%.2f rate=%.1f) → %d%%\n", 
+                      step, deltaTemp, deltaHum, humRate, newSpeed);
+      #endif
     }
+  }
+  
+  if (needChange) {
+    config.speedPercent = newSpeed;
+    fan_applySpeed(config.speedPercent);
+    #if MQTT_ENABLED == 1
+      mqttManager.publishSpeed(config.speedPercent);
+    #endif
     
-    if (needChange) {
-        config.pwmDutyPercent = newDuty;
-        fan_applyPWM(config.pwmDutyPercent);
-        
-        if (mqtt_isConnected()) {
-            mqttClient.publish(pwmDutyStateTopic, String(config.pwmDutyPercent).c_str());
-        }
-        
-        baseTemp = currentTemp;
-        baseHum = currentHum;
-    }
+    baseTemp = currentTemp;
+    baseHum = currentHum;
+  }
+  #endif // DEVICE_TYPE == 1
 }
 
 void fan_update() {
   // Обработка завершения стартового импульса
   if (startingPulseActive) {
     if (millis() - startingPulseStart >= PWM_STARTING) {
-      if (config.pwmDutyPercent <= 0) {
+      if (config.speedPercent <= 0) {
         fanOn = false;
-        fan_applyPWM(0);
+        fan_applySpeed(0);
         startingPulseActive = false;
         adaptiveActive = false;
-        #ifdef DEBUG_ENABLE
-          Serial.println("[FAN] Starting pulse finished, but PWM duty is 0% - turning OFF");
+
+        #if LOG_FAN == 1
+          Serial.println("[FAN] Starting pulse finished, but speed is 0% - turning OFF");
         #endif
+
       } else {
-        fan_applyPWM(config.pwmDutyPercent);
+        fan_applySpeed(config.speedPercent);
         startingPulseActive = false;
         
-        // Если адаптивный режим включён, активируем его после стартового импульса (только TYPE 1)
         #if DEVICE_TYPE == 1
         if (config.adaptiveMode && sensor_isOk() && config.sensorControlMode) {
           adaptiveActive = true;
           baseTemp = currentTemp;
           baseHum = currentHum;
           lastAdaptiveCheck = millis();
-          #ifdef DEBUG_ENABLE
-            Serial.printf("[FAN] Adaptive mode activated after starting pulse: base T=%.2f, H=%.2f, duty=%d%%\n", 
-                          baseTemp, baseHum, config.pwmDutyPercent);
+          
+          #if LOG_FAN == 1
+            Serial.printf("[FAN] Adaptive mode activated after starting pulse: base T=%.2f, H=%.2f, speed=%d%%\n", 
+                          baseTemp, baseHum, config.speedPercent);
           #endif
         }
         #endif
       }
       
-      #ifdef DEBUG_ENABLE
-        Serial.printf("[FAN] Starting pulse finished, switched to duty=%d%%\n", config.pwmDutyPercent);
+      #if LOG_FAN == 1
+        Serial.printf("[FAN] Starting pulse finished, switched to speed=%d%%\n", config.speedPercent);
       #endif
     }
   }
 
   #if DEVICE_TYPE == 1
-  // Только для TYPE 1: ручной режим
   if (!config.sensorControlMode) {
     fan_checkMaxOnTime();
     if (adaptiveActive) adaptiveActive = false;
@@ -454,18 +522,15 @@ void fan_update() {
   #endif
   
   #if DEVICE_TYPE == 3
-  // Для TYPE 3: всегда проверяем maxOnTime
   fan_checkMaxOnTime();
   #endif
   
-  // Адаптивное обновление (только для TYPE 1, в режиме управления сенсором)
   #if DEVICE_TYPE == 1
   if (config.sensorControlMode && fanOn) {
     fan_adaptiveUpdate();
   }
   #endif
   
-  // Автоматическое управление по датчикам (только для TYPE 1)
   bool sensorShouldBeOn = false;
   bool timerExpired = false;
   
@@ -484,31 +549,27 @@ void fan_update() {
       sensorShouldBeOn = fanOn;
     }
   } else {
-    // Если датчик не валиден, не меняем состояние вентилятора
     sensorShouldBeOn = fanOn;
   }
   #endif
   
-  // Таймер задержки для TYPE 3 работает всегда
-  #if DEVICE_TYPE == 3
   timerExpired = fan_delayTimer(false);
-  #else
-  timerExpired = fan_delayTimer(false);
-  #endif
   
+
   if (sensorShouldBeOn || timerExpired) {
     if (!fanOn) {
-      fan_set(true);
+      fan_set(true, false);  
       if (delayActive) {
         delayActive = false;
-        #ifdef DEBUG_ENABLE
+
+        #if LOG_FAN == 1
           Serial.println("[FAN] Timer cancelled - fan turned ON by sensor");
         #endif
       }
     }
   } else {
     if (fanOn) {
-      fan_set(false);
+      fan_set(false, false);  // автоматическое выключение
       #if DEVICE_TYPE == 1
       if (config.delaySeconds > 0 && !delayActive && config.sensorControlMode) {
         fan_delayTimer(true);
@@ -534,4 +595,4 @@ void fan_update() {
   fan_checkMaxOnTime();
 }
 
-#endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+#endif // DEVICE_TYPE == 1

@@ -3,6 +3,7 @@
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
 #include "config.h"
+#include "mqtt.h"
 
 float currentTemp = 0;
 float currentHum = 0;
@@ -19,10 +20,14 @@ float humRate = 0;
 
 void sensor_init() {
   #if SENSOR_TYPE == 1
+    
     if (aht.begin()) {
       sensorOk = false;
       sensorError = "Waiting for first valid reading";
-      Serial.println("[SENSOR] AHT10 found, waiting for first valid reading...");
+      
+      #if LOG_SENSOR == 1
+        Serial.println("[SENSOR] AHT10 found, waiting for first valid reading...");
+      #endif
     } else {
       sensorOk = false;
       sensorError = "AHT10 not found";
@@ -33,7 +38,9 @@ void sensor_init() {
     delay(2000);
     sensorOk = false;
     sensorError = "Waiting for first valid reading";
-    Serial.println("[SENSOR] DHT initialized, waiting for first valid reading...");
+    #if LOG_SENSOR == 1
+      Serial.println("[SENSOR] DHT initialized, waiting for first valid reading...");
+    #endif
   #endif
   
   humRate = 0;  
@@ -92,8 +99,9 @@ void sensor_read() {
       
       if (lastHumTime > 0) {
         float dt = (millis() - lastHumTime) / 1000.0;
-        if (dt > 0.1 && dt < 10.0) {
+        if (dt > 0.1) {  // Защита от деления на ноль
           humRate = (hum - lastHumValue) / dt;
+          // Ограничиваем экстремальные значения
           if (humRate > 5.0) humRate = 5.0;
           if (humRate < -5.0) humRate = -5.0;
         }
@@ -108,17 +116,23 @@ void sensor_read() {
       currentHum = hum;
       sensorOk = true;
       sensorError = "";
-      #ifdef DEBUG_ENABLE
+      
+      #if LOG_SENSOR == 1
         Serial.printf("[SENSOR] T=%.2f°C, H=%.2f%% (rate=%.2f%%/s)\n", 
                       currentTemp, currentHum, humRate);
       #endif
+
     } else {
       sensorOk = false;
       sensorError = "Out of range (T=" + String(temp, 1) + " H=" + String(hum, 1) + ")";
-      #ifdef DEBUG_ENABLE
+      humRate = 0;
+      
+      #if LOG_SENSOR == 1
         Serial.printf("[SENSOR] %s\n", sensorError.c_str());
       #endif
     }
+  } else {
+    humRate = 0;
   }
 }
 
