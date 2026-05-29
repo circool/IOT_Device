@@ -94,8 +94,7 @@ void MQTTManager::setupTopics() {
     snprintf(_topics.delaySecControl, sizeof(_topics.delaySecControl), "%s/c/switch/delaySec", prefix);
     snprintf(_topics.maxOnTime, sizeof(_topics.maxOnTime), "%s/switch/maxOnTime", prefix);
     snprintf(_topics.maxOnTimeControl, sizeof(_topics.maxOnTimeControl), "%s/c/switch/maxOnTime", prefix);
-    snprintf(_topics.sensorControlMode, sizeof(_topics.sensorControlMode), "%s/switch/sensorControlMode", prefix);
-    snprintf(_topics.sensorControlModeControl, sizeof(_topics.sensorControlModeControl), "%s/c/switch/sensorControlMode", prefix);
+
     #endif
     
     #if MQTT_PUBLISH_RSSI == 1

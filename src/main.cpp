@@ -305,40 +305,88 @@ void setup() {
   delay(1000);
 
   #if DEBUG_ENABLED == 1
-    Serial.println("\n\n\n=== SYSTEM INFO ===");
-    #ifdef ESP32
-      Serial.println("Platform: ESP32");
-    #elif defined(ESP8266)
-      Serial.println("Platform: ESP8266");
+  Serial.println("\n\n\n=== SYSTEM INFO ===");
+  
+  #ifdef ESP32
+    Serial.println("Platform: ESP32");
+    esp_chip_info_t chip_info;
+    esp_chip_info(&chip_info);
+    Serial.printf("Chip model: ESP32-%d\n", chip_info.model);
+    Serial.printf("Chip revision: %d\n", chip_info.revision);
+    Serial.printf("Cores: %d\n", chip_info.cores);
+    Serial.printf("CPU frequency: %d MHz\n", getCpuFrequencyMhz());
+    Serial.printf("Chip ID: %08X\n", (uint32_t)ESP.getEfuseMac());
+    uint32_t flashSize = ESP.getFlashChipSize();
+    Serial.printf("Flash chip size: %u bytes (%u MB)\n", flashSize, flashSize / (1024 * 1024));
+    Serial.printf("Flash chip speed: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
+    Serial.printf("Flash chip mode: %d\n", ESP.getFlashChipMode());
+    // PSRAM информация
+    #ifdef CONFIG_SPIRAM_SUPPORT
+      Serial.printf("PSRAM size: %u bytes\n", ESP.getPsramSize());
+      Serial.printf("Free PSRAM: %u bytes\n", ESP.getFreePsram());
     #else
-      Serial.println("Platform: Unknown");
+      Serial.println("PSRAM: not supported/enabled");
     #endif
 
-    Serial.printf("Sketch size: %u bytes\n", ESP.getSketchSize());
-    Serial.printf("Free sketch space: %u bytes\n", ESP.getFreeSketchSpace());
+    // Heap информация
     Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
+    Serial.printf("Minimum free heap: %u bytes\n", ESP.getMinFreeHeap());
+    Serial.printf("Maximum allocatable heap: %u bytes\n", ESP.getMaxAllocHeap());
 
-    Serial.printf("Actual DEVICE_TYPE value: %d\n", DEVICE_TYPE);
-    Serial.printf("DEVICE_PREFIX: %s\n", DEVICE_PREFIX);
+    Serial.printf("ESP-IDF version: %s\n", esp_get_idf_version());
 
-    #if MQTT_PUBLISH_RESET_REASON == 1
-      getResetReason();
-      Serial.printf("Reset reason: %s\n", lastResetReason);
-    #endif
-    Serial.println("===================\n");
+  #elif defined(ESP8266)
+    Serial.println("Platform: ESP8266");
+    Serial.printf("Chip ID: %08X\n", ESP.getChipId());
+    Serial.printf("Core version: %s\n", ESP.getCoreVersion().c_str());
+    Serial.printf("CPU frequency: %d MHz\n", ESP.getCpuFreqMHz());
+    Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
+    
+    // Информация о flash
+    uint32_t flashSize = ESP.getFlashChipSize();
+    Serial.printf("Flash chip size: %u bytes (%u MB)\n", flashSize, flashSize / (1024 * 1024));
+    Serial.printf("Flash chip speed: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
+    Serial.printf("Flash chip mode: %d (0=QIO, 1=QOUT, 2=DIO, 3=DOUT)\n", ESP.getFlashChipMode());
+    
+    // Реальная flash память (если доступно)
+    uint32_t realFlashSize = ESP.getFlashChipRealSize();
+    if (realFlashSize > 0 && realFlashSize != flashSize) {
+      Serial.printf("Real flash chip size: %u bytes (%u MB)\n", realFlashSize, realFlashSize / (1024 * 1024));
+    }
+    
+    // Версия SDK
+    Serial.printf("SDK version: %s\n", system_get_sdk_version());
   #endif
+  
+  Serial.println("===================\n");
+  Serial.printf("Sketch size: %u bytes\n", ESP.getSketchSize());
+  Serial.printf("Free sketch space: %u bytes\n", ESP.getFreeSketchSpace());
+  Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
+  
+  #if MQTT_PUBLISH_RESET_REASON == 1
+    getResetReason();
+    Serial.printf("Reset reason: %s\n", lastResetReason);
+  #endif
+  
+  Serial.println("===================\n");
+#endif
   
 
   Serial.println("\n==========================================");
   Serial.printf("Device starting with %s mode\n", DEVICE_PREFIX);
   Serial.println("==========================================");
-  
+
   #if WDT_ENABLED == 1
     wdt_init();
   #endif
-  
+
+
   checkResetButton();
+
+
   config_init();
+
+
   config_print();  
   bool hasValidConfig = (configValid && strlen(config.wifiSsid) > 0);
   
@@ -479,7 +527,7 @@ void setup() {
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     sensor_init();
     #endif
-    
+
     #if DEVICE_TYPE == 1 
       fan_init();
     #endif
@@ -506,6 +554,7 @@ void setup() {
       web_initAP();
     #endif
   }
+
 }
 
 void loop() {

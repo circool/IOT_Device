@@ -773,11 +773,7 @@ void web_init() {
         server.sendHeader("Location", "/", true); 
         server.send(302, "text/plain", ""); 
       });
-      server.on("/switch/auto", [](){ 
-        handleSensorControlMode(); 
-        server.sendHeader("Location", "/", true); 
-        server.send(302, "text/plain", ""); 
-      });
+      
       #endif
     #endif
   #endif

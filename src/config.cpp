@@ -290,7 +290,7 @@ void config_read() {
   }
   
   #if DEBUG_ENABLED == 1
-    Serial.printf("[CONFIG] Read magic: 0x%04X (expected MAGIC_VALUE)\n", config.magic);
+    Serial.printf("[CONFIG] Read magic: 0x%04X (expected 0x%04X)\n", config.magic, MAGIC_VALUE);
     Serial.printf("[CONFIG] Read WiFi SSID: '%s'\n", config.wifiSsid);
     #if MQTT_ENABLED == 1
       Serial.printf("[CONFIG] Read MQTT Broker: '%s'\n", config.mqttBroker);
