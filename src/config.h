@@ -86,8 +86,14 @@ extern char deviceId[12];
 #ifndef WIFI_ENABLED
   #define WIFI_ENABLED 1
 #endif
+void initDeviceId();
 
 #if WIFI_ENABLED == 1
+
+  #ifndef WIFI_OUTPUT_POWER
+    #define WIFI_OUTPUT_POWER 15.0   // от 0 до 20.5, по умолчанию 15.0
+  #endif
+
 
   // Поддержка Access point
   #ifndef AP_ENABLED
@@ -139,6 +145,22 @@ extern char deviceId[12];
   #define WDT_ENABLED 1
 #endif
 
+// Индикация состояния
+#ifndef STATUS_LED_PIN
+  #define STATUS_LED_PIN 2
+#endif
+
+#ifndef LOG_LED
+  #if DEBUG_ENABLED == 1
+    #define LOG_LED 1
+  #else
+    #define LOG_LED 0
+  #endif
+#endif
+
+
+
+
 #if WDT_ENABLED == 1
   
   #ifndef WDT_TIMER_MS
@@ -172,6 +194,7 @@ extern char deviceId[12];
     #define MQTT_RECONNECT_DELAY_MS 5000
   #endif
 
+  //@deprecated
   #ifndef STATE_PUBLISH_INTERVAL_MS
     #define STATE_PUBLISH_INTERVAL_MS 3000
   #endif
@@ -541,6 +564,7 @@ struct Config {
   #if WIFI_ENABLED == 1
     char wifiSsid[32];
     char wifiPassword[64];
+    float wifiOutputPower;
   #endif
 
   #if MQTT_ENABLED == 1

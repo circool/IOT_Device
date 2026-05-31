@@ -1,4 +1,7 @@
 #include "config.h"
+#include "led.h"
+#include "ansi.h"
+
 char deviceId[12] = "";
 
 Config config;
@@ -103,16 +106,8 @@ void config_setDefaults() {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     config.sensorInterval = SENSOR_DURATION;
   #endif
-  
-  #ifdef ESP32
-    uint8_t mac[6];
-    esp_read_mac(mac, ESP_MAC_WIFI_STA);
-    snprintf(deviceId, sizeof(deviceId), "%s_%02X%02X", DEVICE_PREFIX, mac[4], mac[5]);
-  #elif defined(ESP8266)
-    uint32_t chipId = ESP.getChipId();
-    snprintf(deviceId, sizeof(deviceId), "%s_%04X", DEVICE_PREFIX, chipId & 0xFFFF);
-  #endif
-  
+  initDeviceId();
+   
   config_loadFromCredentials();
   
   
@@ -125,14 +120,26 @@ void config_setDefaults() {
     #endif
   #endif
 
+  #if WIFI_ENABLED == 1
+    config.wifiOutputPower = WIFI_OUTPUT_POWER;
+  #endif
+
   #if DEBUG_ENABLED == 1
     Serial.println("[CONFIG] Defaults set");
   #endif
 }
 
 bool config_clear() {
+
+  #if STATUS_LED_PIN > 0
+
+    led_setMode(LED_MODE_FAST_BLINK);  // Индикация сброса
+  #endif
+
   #if DEBUG_ENABLED == 1
+    Serial.print(ANSI_BRIGHT_RED);
     Serial.println("[CONFIG] Erasing EEPROM...");
+    Serial.print(ANSI_RESET);
   #endif
 
   EEPROM.end();
@@ -227,7 +234,10 @@ bool config_validate() {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   // === НАСТРОЙКИ ДАТЧИКА ===
   if (config.sensorInterval < 1 || config.sensorInterval > 3600) {
-    if (configLastError.length() == 0) configLastError = "Sensor interval must be 1-3600 seconds, but = " + String(config.sensorInterval);
+    // if (configLastError.length() == 0) configLastError = "Sensor interval must be 1-3600 seconds, but = " + String(config.sensorInterval);
+    char buf[80];
+    snprintf(buf, sizeof(buf), "Sensor interval must be 1-3600 seconds, but = %d", config.sensorInterval);
+    configLastError = buf;
     valid = false;
   }
   #endif
@@ -235,11 +245,15 @@ bool config_validate() {
   #if DEVICE_TYPE == 1
   // === ПОРОГИ ТЕМПЕРАТУРЫ ===
   if (config.lowTemp < -40 || config.lowTemp > 85) {
-    if (configLastError.length() == 0) configLastError = "Low Temp must be -40..85°C, but = " + String(config.lowTemp);
+    char buf[80];
+    snprintf(buf, sizeof(buf), "Low Temp must be -40..85°C, but = %.1f", config.lowTemp);
+    configLastError = buf;
     valid = false;
   }
   if (config.highTemp < -40 || config.highTemp > 85) {
-    if (configLastError.length() == 0) configLastError = "High Temp must be -40..85°C, but = " + String(config.highTemp);
+    char buf[80];
+    snprintf(buf, sizeof(buf), "High Temp must be -40..85°C, but = %.1f", config.highTemp);
+    configLastError = buf;
     valid = false;
   }
   if (config.lowTemp >= config.highTemp) {
@@ -249,11 +263,15 @@ bool config_validate() {
   
   // === ПОРОГИ ВЛАЖНОСТИ ===
   if (config.lowHum < 0 || config.lowHum > 100) {
-    if (configLastError.length() == 0) configLastError = "Low Hum must be 0..100%, but = " + String(config.lowHum);
+    char buf[80];
+    snprintf(buf, sizeof(buf), "Low Hum must be 0..100%%, but = %.1f", config.lowHum);
+    configLastError = buf;
     valid = false;
   }
   if (config.highHum < 0 || config.highHum > 100) {
-    if (configLastError.length() == 0) configLastError = "High Hum must be 0..100%, but = " + String(config.highHum);
+    char buf[80];
+    snprintf(buf, sizeof(buf), "High Hum must be 0..100%%, but = %.1f", config.highHum);
+    configLastError = buf;
     valid = false;
   }
   if (config.lowHum >= config.highHum) {
@@ -270,7 +288,9 @@ bool config_validate() {
   
   #if DEBUG_ENABLED == 1
     if (!valid) {
+      Serial.print(ANSI_BRIGHT_RED);
       Serial.printf("[CONFIG] Validation failed: %s\n", configLastError.c_str());
+      Serial.print(ANSI_RESET);
     }
   #endif
   
@@ -320,11 +340,15 @@ void config_read() {
       #if DEBUG_ENABLED == 1
         Serial.println("[CONFIG] CRC is VALID");
       #endif
-    } else {      
+    } else {  
+        Serial.print(ANSI_BRIGHT_RED);    
         Serial.printf("[CONFIG] CRC mismatch! EEPROM: 0x%04X, Calculated: 0x%04X\n", savedCrc, calcCrc);
+        Serial.print(ANSI_RESET);
     }
   } else {
+      Serial.print(ANSI_BRIGHT_RED);
       Serial.println("[CONFIG] Magic mismatch! Config is INVALID");
+      Serial.print(ANSI_RESET);
   }
   
   bool dataValid = config_validate();
@@ -407,13 +431,33 @@ void config_write() {
     // Обновляем статическую копию для веб-интерфейса
     memcpy(&staticConfig, &config, sizeof(Config));
   } else {
+    Serial.print(ANSI_BRIGHT_RED);
     Serial.println("[CONFIG] Verification FAILED!");
+    Serial.print(ANSI_RESET);
     config.crc = oldCrc;
     configValid = false;
   }
 }
 
+void initDeviceId() {
+  #ifdef ESP32
+    uint8_t mac[6];
+    esp_read_mac(mac, ESP_MAC_WIFI_STA);
+    snprintf(deviceId, sizeof(deviceId), "%s_%02X%02X", DEVICE_PREFIX, mac[4], mac[5]);
+  #elif defined(ESP8266)
+    uint32_t chipId = ESP.getChipId();
+    snprintf(deviceId, sizeof(deviceId), "%s_%04X", DEVICE_PREFIX, chipId & 0xFFFF);
+  #endif
+  
+  #if DEBUG_ENABLED == 1
+    Serial.printf("[CONFIG] Device ID initialized: %s\n", deviceId);
+  #endif
+}
+
 void config_init() {
+
+  initDeviceId();
+
   #if DEBUG_ENABLED == 1
     Serial.println("[CONFIG] Initializing EEPROM...");
   #endif
@@ -431,6 +475,7 @@ void config_init() {
 }
 
 void config_print() {
+  
   Serial.println("=== Config ===");
   Serial.printf("WiFi SSID: '%s'\n", config.wifiSsid);
   Serial.printf("WiFi Password: %s\n", config.wifiPassword[0] ? "***" : "(empty)");
@@ -475,7 +520,9 @@ void config_print() {
   }
   
   if (!configValid && HAS_CREDENTIALS) {
-    Serial.println("Factory settings: loaded");
+    Serial.print(ANSI_BRIGHT_RED);
+    Serial.println("Loaded factory settings.");
+    Serial.print(ANSI_RESET);
   }
   Serial.println("=================");
   

@@ -1,5 +1,8 @@
 #include "web.h"
 #include "sensor.h"
+
+#include "led.h"
+
 #if DEVICE_TYPE == 1
   #include "fan.h"
 #endif
@@ -817,6 +820,9 @@ void web_initAP() {
   
   apMode = true;
 
+  #if STATUS_LED_PIN > 0
+    led_setMode(LED_MODE_SLOW_BLINK);  // Режим AP
+  #endif
 
   uint8_t mac[6];
   WiFi.macAddress(mac);

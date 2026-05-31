@@ -1,5 +1,7 @@
 #include <Arduino.h>
 #include "config.h"
+#include "led.h"
+#include "ansi.h"
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 #include "sensor.h"
@@ -196,12 +198,20 @@ void checkResetButton() {
 
 #if WIFI_ENABLED == 1
 // ======================== WIFI ========================
+#ifndef DEBUG_WIFI_ENABLED
+  DEBUG_WIFI_ENABLED 0
+#endif
+
 void wifi_beginAsync() {
+  
+  #if STATUS_LED_PIN > 0
+    led_setMode(LED_MODE_SLOW_BLINK);  // Пытаемся подключиться к WiFi
+  #endif
+  
   if (strlen(config.wifiSsid) == 0) {
     #if LOG_WIFI == 1
       Serial.println("[WIFI] No SSID configured");
     #endif
-
     return;
   }
   
@@ -229,20 +239,38 @@ void wifi_checkAsync() {
     wifiLostTime = 0;
     
     #if LOG_WIFI == 1
+      Serial.print(ANSI_BRIGHT_MAGENTA);
       Serial.println("[WIFI] Connected! IP: " + WiFi.localIP().toString());
+      Serial.print(ANSI_RESET);
     #endif
     
+    #if STATUS_LED_PIN > 0
+      #if MQTT_ENABLED == 1
+        led_setMode(LED_MODE_FAST_BLINK);  // WiFi есть, ждём MQTT
+      #else
+        led_setMode(LED_MODE_ON);  // Только WiFi, горим постоянно
+      #endif
+    #endif
+
     if (apMode) {
       WiFi.softAPdisconnect(true);
       apMode = false;
     }
     
-  } else if (millis() - wifiConnectStartTime > WIFI_CONNECT_TIMEOUT_MS) {  // ← исправлено: магическое число заменено на константу
+  } else if (millis() - wifiConnectStartTime > WIFI_CONNECT_TIMEOUT_MS) {
     #if LOG_WIFI == 1
-      Serial.println("[WIFI] Connection timeout");
+      Serial.print(ANSI_BRIGHT_RED);
+      Serial.println("[WIFI] Connection timeout. Connection lost!");
+      Serial.print(ANSI_RESET);
     #endif
     wifiConnecting = false;
     WiFi.disconnect();
+  
+
+
+    #if STATUS_LED_PIN > 0
+      led_setMode(LED_MODE_SLOW_BLINK);  // Не удалось подключиться
+    #endif
   }
 }
 
@@ -264,11 +292,20 @@ void checkWiFiFallbackToAP() {
     if (wifiLostTime == 0) {
       wifiLostTime = millis();
       #if LOG_WIFI == 1
+        Serial.print(ANSI_BRIGHT_RED);
         Serial.println("[WIFI] WiFi lost, starting fallback timer");
+        Serial.print(ANSI_RESET);
       #endif
+      
+      #if STATUS_LED_PIN > 0
+        led_setMode(LED_MODE_SLOW_BLINK);  // Потеря WiFi
+      #endif
+      
     } else if (millis() - wifiLostTime > AP_FALLBACK_TIMEOUT_MS) {
       #if LOG_WIFI == 1
+        Serial.print(ANSI_BRIGHT_MAGENTA);
         Serial.printf("[WIFI] WiFi lost for %d ms, switching to AP mode\n", AP_FALLBACK_TIMEOUT_MS);
+        Serial.print(ANSI_RESET);
       #endif
       
       WiFi.disconnect(true);
@@ -305,6 +342,7 @@ void setup() {
   delay(1000);
 
   #if DEBUG_ENABLED == 1
+  delay(2000);
   Serial.println("\n\n\n=== SYSTEM INFO ===");
   
   #ifdef ESP32
@@ -345,14 +383,16 @@ void setup() {
     // Информация о flash
     uint32_t flashSize = ESP.getFlashChipSize();
     Serial.printf("Flash chip size: %u bytes (%u MB)\n", flashSize, flashSize / (1024 * 1024));
-    Serial.printf("Flash chip speed: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
-    Serial.printf("Flash chip mode: %d (0=QIO, 1=QOUT, 2=DIO, 3=DOUT)\n", ESP.getFlashChipMode());
-    
     // Реальная flash память (если доступно)
     uint32_t realFlashSize = ESP.getFlashChipRealSize();
     if (realFlashSize > 0 && realFlashSize != flashSize) {
-      Serial.printf("Real flash chip size: %u bytes (%u MB)\n", realFlashSize, realFlashSize / (1024 * 1024));
+      Serial.printf("\033[31mReal flash chip size: %u bytes (%u MB)\033[0m\n", realFlashSize, realFlashSize / (1024 * 1024));
     }
+
+    Serial.printf("\nFlash chip speed: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
+    Serial.printf("Flash chip mode: %d (0=QIO, 1=QOUT, 2=DIO, 3=DOUT)\n", ESP.getFlashChipMode());
+    
+    
     
     // Версия SDK
     Serial.printf("SDK version: %s\n", system_get_sdk_version());
@@ -362,7 +402,7 @@ void setup() {
   Serial.printf("Sketch size: %u bytes\n", ESP.getSketchSize());
   Serial.printf("Free sketch space: %u bytes\n", ESP.getFreeSketchSpace());
   Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
-  
+  Serial.printf("Firmware ver. %s\n",VERSION);
   #if MQTT_PUBLISH_RESET_REASON == 1
     getResetReason();
     Serial.printf("Reset reason: %s\n", lastResetReason);
@@ -376,16 +416,37 @@ void setup() {
   Serial.printf("Device starting with %s mode\n", DEVICE_PREFIX);
   Serial.println("==========================================");
 
+  #if STATUS_LED_PIN > 0
+    led_init();
+    led_setMode(LED_MODE_SLOW_BLINK);  // Начальный режим - ожидание конфигурации
+  #endif
+
   #if WDT_ENABLED == 1
     wdt_init();
   #endif
 
-
   checkResetButton();
-
 
   config_init();
 
+  #if DEBUG_WIFI_ENABLED == 1
+  Serial.println("[WIFI] Scanning...");
+  int n = WiFi.scanNetworks();
+  for (int i = 0; i < n; i++) {
+    String ssid = WiFi.SSID(i);
+    bool isTarget = (ssid == config.wifiSsid);  // ← сравнение с настройками
+    
+    if (isTarget) {
+        Serial.printf("[WIFI] %s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET "\n", 
+                      ssid.c_str(), WiFi.RSSI(i));
+    } else {
+        Serial.printf("[WIFI] %s (RSSI: %d)\n", 
+                      ssid.c_str(), WiFi.RSSI(i));
+    }
+  }
+  WiFi.scanDelete();
+  
+#endif
 
   config_print();  
   bool hasValidConfig = (configValid && strlen(config.wifiSsid) > 0);
@@ -402,9 +463,12 @@ void setup() {
       // Настройка колбэков для MQTT команд
       
       #if DEVICE_TYPE == 1
+      
       mqttManager.onStateCommand([](bool state) {
         fan_set(state);
       });
+
+      
       mqttManager.onSpeedCommand([](int speed) {
         
         if (config.adaptiveMode) {
@@ -424,11 +488,13 @@ void setup() {
         mqttManager.publishSpeed(config.speedPercent);
       });
 
+      
       mqttManager.onSensorControlModeCommand([](bool enabled) {
         fan_setOverrideMode(enabled);
         mqttManager.publishSensorControlMode(config.sensorControlMode);
       });
-
+      
+      
       mqttManager.onAdaptiveModeCommand([](bool enabled) {
         if (enabled && !config.sensorControlMode) {
           #if DEBUG_ENABLED == 1
@@ -451,6 +517,7 @@ void setup() {
         mqttManager.publishAdaptiveMode(config.adaptiveMode);
       });
       
+      
       mqttManager.onLowTempCommand([](float value) {
         config.lowTemp = value;
         mqttManager.publishLowTemp(config.lowTemp);
@@ -460,16 +527,19 @@ void setup() {
         config.highTemp = value;
         mqttManager.publishHighTemp(config.highTemp);
       });
+
         
       mqttManager.onLowHumCommand([](float value) {
         config.lowHum = value;
         mqttManager.publishLowHum(config.lowHum);
       });
       
+      
       mqttManager.onHighHumCommand([](float value) {
         config.highHum = value;
         mqttManager.publishHighHum(config.highHum);
-      });  
+      }); 
+      
       #endif
 
 
@@ -537,15 +607,24 @@ void setup() {
     #endif
 
     #if WIFI_ENABLED == 1
+      #if DEBUG_WIFI_ENABLED == 1
+      WiFi.setSleepMode(WIFI_NONE_SLEEP);
+      WiFi.setPhyMode(WIFI_PHY_MODE_11G);
+      delay(100);
+      #endif
+
+      #if DEBUG_WIFI_ENABLED == 1
+        WiFi.setOutputPower(15.0);  // По умолчанию 20.5 dBm
+      #endif
+
       wifi_beginAsync();
     #endif
 
     #if WEB_ENABLED == 1
       web_init();
     #endif
-       
+    
   } else {
-
     #if LOG_CONFIG == 1
       Serial.println("[CONFIG] Configuration mode - starting AP for setup");
     #endif
@@ -554,29 +633,19 @@ void setup() {
       web_initAP();
     #endif
   }
-
 }
 
 void loop() {
   
-  
   #if WDT_ENABLED == 1
     wdt_feed();
-  #elif SOFT_WDT_ENABLED
-    //   // Watchdog для loop() - если loop завис на время больше STATE_PUBLISH_INTERVAL_MS * LOOP_WATCHDOG_MULTIPLIER
-    //   static unsigned long lastLoop = 0;
-    //   if (millis() - lastLoop > STATE_PUBLISH_INTERVAL_MS * LOOP_WATCHDOG_MULTIPLIER) {
-    //   Serial.printf("[SOFT WDT] Loop stuck! Resetting! (elapsed=%lu threshold=%lu lastLoop=%lu)\n", 
-    //                 millis() - lastLoop, 
-    //                 STATE_PUBLISH_INTERVAL_MS * LOOP_WATCHDOG_MULTIPLIER, 
-    //                 lastLoop);
-    //     ESP.restart();
-    //   }
-    //   lastLoop = millis();
-    // #endif
   #endif
 
   checkResetButton();
+
+  #if STATUS_LED_PIN > 0
+    led_update();
+  #endif
 
   #if WEB_ENABLED == 1
     if (!configValid || strlen(config.wifiSsid) == 0) {
@@ -606,30 +675,43 @@ void loop() {
     checkWiFiFallbackToAP();
   #endif
 
-  #if MQTT_ENABLED==1
-  if (WiFi.status() == WL_CONNECTED) {
-    mqttManager.process();
-    publishSensorData();
+  #if MQTT_ENABLED == 1
     
-    // Периодический heartbeat: Online + RSSI (раз в STATE_PUBLISH_INTERVAL_MS)
-    static unsigned long lastHeartbeat = 0;
-    if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
-      mqttManager.publishOnline();
+    if (WiFi.status() == WL_CONNECTED) {
+      mqttManager.process();
+      publishSensorData();
       
-      #if MQTT_PUBLISH_RSSI == 1
-        mqttManager.publishRSSI();
+      // Управление LED
+      #if STATUS_LED_PIN > 0
+        if (!mqttManager.isConnected()) {
+          led_setMode(LED_MODE_FAST_BLINK);
+        } else {
+          led_setMode(LED_MODE_ON);
+        }
       #endif
       
-      lastHeartbeat = millis();
+      // Heartbeat
+      static unsigned long lastHeartbeat = 0;
+      if (mqttManager.isConnected()) {
+        if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
+          mqttManager.publishOnline();
+          #if MQTT_PUBLISH_RSSI == 1
+            mqttManager.publishRSSI();
+          #endif
+          lastHeartbeat = millis();
+        }
+      }
+    } else {
+      #if STATUS_LED_PIN > 0
+        led_setMode(LED_MODE_SLOW_BLINK);
+      #endif
     }
-  }
+    
   #endif
 
   #if WEB_ENABLED == 1
     web_update();
   #endif
   
-  
   delay(50);
-  
 }

@@ -1,6 +1,7 @@
-
-
 #include "config.h"
+
+#include "led.h"
+#include "ansi.h"
 
 #if MQTT_ENABLED == 1
 #include "mqtt.h"
@@ -35,8 +36,9 @@ bool MQTTManager::begin(const Config& cfg) {
 
     _initialized = true;
     #if LOG_MQTT == 1
-        Serial.printf("[MQTT] Initialized for %s\n", _clientId);
-
+        Serial.print(ANSI_BRIGHT_MAGENTA);
+        Serial.printf("[MQTT] Initialized for %s with keepalive = %d sec\n", _clientId,MQTT_KEEPALIVE_SEC);
+        Serial.print(ANSI_RESET);
     #endif    
     return true;
 }
@@ -54,8 +56,8 @@ void MQTTManager::setupTopics() {
     // TYPE 1: вентилятор с датчиком
     snprintf(_topics.state, sizeof(_topics.state), "%s/fan/state", prefix);
     snprintf(_topics.control, sizeof(_topics.control), "%s/c/fan/state", prefix);
-    snprintf(_topics.speed, sizeof(_topics.speed), "%s/fan/speed", prefix);                    // ← было pwmDuty
-    snprintf(_topics.speedControl, sizeof(_topics.speedControl), "%s/c/fan/speed", prefix);    // ← было pwmDutyControl
+    snprintf(_topics.speed, sizeof(_topics.speed), "%s/fan/speed", prefix);                    
+    snprintf(_topics.speedControl, sizeof(_topics.speedControl), "%s/c/fan/speed", prefix);    
     snprintf(_topics.delaySec, sizeof(_topics.delaySec), "%s/fan/delaySec", prefix);
     snprintf(_topics.delaySecControl, sizeof(_topics.delaySecControl), "%s/c/fan/delaySec", prefix);
     snprintf(_topics.maxOnTime, sizeof(_topics.maxOnTime), "%s/fan/maxOnTime", prefix);
@@ -140,28 +142,61 @@ void MQTTManager::reconnect() {
     if (now - _lastReconnectAttempt < MQTT_RECONNECT_DELAY_MS) return;
     _lastReconnectAttempt = now;
     
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Connecting to broker as %s\n", _clientId);
-    #endif
     
+    static bool lostLogged = false;
+    if (!lostLogged) {
+        #if LOG_MQTT == 1
+            Serial.print(ANSI_BRIGHT_RED);
+            Serial.println("[MQTT] Connection lost, attempting to reconnect...");
+            Serial.print(ANSI_RESET);
+        #endif
+        lostLogged = true;
+    }
+    
+    #if LOG_MQTT == 1
+        Serial.printf("[MQTT] Connecting to broker as %s\n", _clientId);
+    #endif
+
+    #if STATUS_LED_PIN > 0
+        led_setMode(LED_MODE_FAST_BLINK);
+    #endif
+
     if (_mqttClient.connect(_clientId, config.mqttUser, config.mqttPassword,
                             _topics.online, 1, true, "Offline")) {
-        #if MQTT_DEBUG == 1
-        Serial.println("[MQTT] Connected");
+        #if LOG_MQTT == 1
+            Serial.print(ANSI_BRIGHT_MAGENTA);
+            Serial.printf("[MQTT] Connected! MQTT: %s\n",config.mqttBroker);
+            Serial.print(ANSI_RESET);
+        #endif
+        lostLogged = false;
+
+        #if STATUS_LED_PIN > 0
+            led_setMode(LED_MODE_ON);
         #endif
 
         publishOnline();
+        
         #if MQTT_PUBLISH_RESET_REASON == 1
-          if (strlen(lastResetReason) > 0) {
-            publishResetReason();
-          }
+            if (strlen(lastResetReason) > 0) {
+                publishResetReason();
+            }
         #endif
         subscribe();
         publishConfig();
+    
     } else {
-        Serial.printf("[MQTT] Failed, state=%d\n", _mqttClient.state());
+        
+        #if LOG_MQTT == 1
+            // Только одно сообщение об ошибке, не спамим
+            static bool failLogged = false;
+            if (!failLogged) {
+                Serial.printf("[MQTT] Failed to connect, state=%d\n", _mqttClient.state());
+                failLogged = true;
+            }
+        #endif
     }
 }
+
 
 #if MQTT_PUBLISH_RESET_REASON == 1
 void MQTTManager::publishResetReason() {
@@ -223,10 +258,12 @@ void MQTTManager::staticCallback(char* topic, byte* payload, unsigned int length
 }
 
 void MQTTManager::callback(char* topic, byte* payload, unsigned int length) {
-    String msg;
-    for (unsigned int i = 0; i < length; i++) msg += (char)payload[i];
-    handleCommand(topic, msg);
-}
+    char msg[length + 1];
+    memcpy(msg, payload, length);
+    msg[length] = '\0';
+
+        handleCommand(topic, msg);
+    }
 
 void MQTTManager::handleCommand(const char* topic, const String& payload) {
     #if LOG_MQTT == 1
@@ -346,15 +383,22 @@ void MQTTManager::publishState(bool on) {
 
 void MQTTManager::publishSpeed(uint16_t speed) {
     if (!isConnected()) return;
-    _mqttClient.publish(_topics.speed, String(speed).c_str());
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Speed published: %d%% -> %s\n", speed, _topics.speed);
-    #endif
-}
+    
+    char speedBuf[8];
+    snprintf(speedBuf, sizeof(speedBuf), "%d", speed);
+    _mqttClient.publish(_topics.speed, speedBuf);
+        #if LOG_MQTT == 1
+        Serial.printf("[MQTT] Speed published: %d%% -> %s\n", speed, _topics.speed);
+        #endif
+    }
 
 void MQTTManager::publishDelaySec(int seconds) {
     if (!isConnected()) return;
-    _mqttClient.publish(_topics.delaySec, String(seconds).c_str());
+    
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%d", seconds);
+    _mqttClient.publish(_topics.delaySec, buf);
+    
     #if LOG_MQTT == 1
     Serial.printf("[MQTT] Delay seconds published: %d -> %s\n", seconds, _topics.delaySec);
     #endif
@@ -362,7 +406,12 @@ void MQTTManager::publishDelaySec(int seconds) {
 
 void MQTTManager::publishMaxOnTime(uint32_t seconds) {
     if (!isConnected()) return;
-    _mqttClient.publish(_topics.maxOnTime, String(seconds).c_str());
+    
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%u", seconds);  
+    _mqttClient.publish(_topics.maxOnTime, buf);
+    
+    
     #if LOG_MQTT == 1
     Serial.printf("[MQTT] Max on time published: %d -> %s\n", seconds, _topics.maxOnTime);
     #endif
@@ -413,8 +462,15 @@ void MQTTManager::publishConfig() {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 void MQTTManager::publishSensor(float temp, float hum) {
     if (!isConnected()) return;
-    _mqttClient.publish(_topics.temperature, String(temp).c_str());
-    _mqttClient.publish(_topics.humidity, String(hum).c_str());
+
+    // _mqttClient.publish(_topics.temperature, String(temp).c_str());
+    // _mqttClient.publish(_topics.humidity, String(hum).c_str());
+    char tempBuf[16], humBuf[16];
+    snprintf(tempBuf, sizeof(tempBuf), "%.2f", temp);
+    snprintf(humBuf, sizeof(humBuf), "%.2f", hum);
+    _mqttClient.publish(_topics.temperature, tempBuf);
+    _mqttClient.publish(_topics.humidity, humBuf);
+    
     #if LOG_MQTT == 1
     Serial.printf("[MQTT] Sensor published: T=%.2f°C, H=%.2f%%\n", temp, hum);
     #endif
@@ -431,23 +487,31 @@ void MQTTManager::publishAdaptiveMode(bool enabled) {
 }
 
 void MQTTManager::publishLowTemp(float temp) {
-    if (!isConnected()) return;
-    _mqttClient.publish(_topics.lowTemp, String(temp).c_str());
+    if (!isConnected()) return;   
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%.1f", temp);  
+    _mqttClient.publish(_topics.lowTemp, buf);
 }
 
 void MQTTManager::publishHighTemp(float temp) {
     if (!isConnected()) return;
-    _mqttClient.publish(_topics.highTemp, String(temp).c_str());
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%.1f", temp);
+    _mqttClient.publish(_topics.highTemp, buf);
 }
 
 void MQTTManager::publishLowHum(float hum) {
     if (!isConnected()) return;
-    _mqttClient.publish(_topics.lowHum, String(hum).c_str());
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%.1f", hum);
+    _mqttClient.publish(_topics.lowHum, buf);
 }
 
 void MQTTManager::publishHighHum(float hum) {
     if (!isConnected()) return;
-    _mqttClient.publish(_topics.highHum, String(hum).c_str());
+    char buf[16];
+    snprintf(buf, sizeof(buf), "%.1f", hum);
+    _mqttClient.publish(_topics.highHum, buf);
 }
 
 void MQTTManager::publishThresholds() {
@@ -468,7 +532,10 @@ void MQTTManager::publishRSSI() {
     if (WiFi.status() != WL_CONNECTED) return;
     
     int rssi = WiFi.RSSI();
-    _mqttClient.publish(_topics.rssi, String(rssi).c_str());
+    char buffer[8];  // достаточно для "-100" + null terminator
+    snprintf(buffer, sizeof(buffer), "%d", rssi);
+    _mqttClient.publish(_topics.rssi, buffer);
+
     #if LOG_MQTT == 1
     Serial.printf("[MQTT] WiFi RSSI published: %d dBm -> %s\n", rssi, _topics.rssi);
     #endif
