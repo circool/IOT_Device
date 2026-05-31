@@ -8,7 +8,7 @@ Config config;
 Config staticConfig;            // Копия конфигурации для веб-интерфейса
 bool configValid = false;
 bool apMode = false;
-String configLastError = "";
+char configLastError[64] = "";   // Исправлено: String → char array
 
 uint16_t crc16(const uint8_t* data, size_t len) {
   uint16_t crc = 0x0000;
@@ -98,7 +98,6 @@ void config_setDefaults() {
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     config.delaySeconds = DEFAULT_DELAY_SECONDS;
-   
     config.maxOnTime = MAX_ON_TIME_SEC;
     config.bootState = BOOT_SWITCH_STATE;
   #endif
@@ -106,12 +105,10 @@ void config_setDefaults() {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     config.sensorInterval = SENSOR_DURATION;
   #endif
+  
   initDeviceId();
-   
   config_loadFromCredentials();
   
-  
-
   #if MQTT_ENABLED == 1
     snprintf(config.mqttClientId, sizeof(config.mqttClientId), "%s", deviceId);
     
@@ -130,9 +127,7 @@ void config_setDefaults() {
 }
 
 bool config_clear() {
-
   #if STATUS_LED_PIN > 0
-
     led_setMode(LED_MODE_FAST_BLINK);  // Индикация сброса
   #endif
 
@@ -161,31 +156,36 @@ bool config_clear() {
 }
 
 bool config_validate() {
-  configLastError = "";
+  configLastError[0] = '\0';  // Очистка массива
   bool valid = true;
   
   // === СЕТЕВЫЕ НАСТРОЙКИ ===
   #if MQTT_ENABLED == 1
   if (config.mqttPort < 1 || config.mqttPort > 65535) {
-    configLastError = "MQTT Port must be 1-65535";
+    snprintf(configLastError, sizeof(configLastError), "MQTT Port must be 1-65535");
     valid = false;
   }
   #endif
 
-
   if (strlen(config.wifiSsid) == 0) {
-    if (configLastError.length() == 0) configLastError = "WiFi SSID cannot be empty";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "WiFi SSID cannot be empty");
+    }
     valid = false;
   }
   
   #if MQTT_ENABLED == 1
   if (strlen(config.mqttBroker) == 0) {
-    if (configLastError.length() == 0) configLastError = "MQTT Broker cannot be empty";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "MQTT Broker cannot be empty");
+    }
     valid = false;
   }
   
   if (strlen(config.mqttClientId) == 0) {
-    if (configLastError.length() == 0) configLastError = "MQTT Client ID cannot be empty";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "MQTT Client ID cannot be empty");
+    }
     valid = false;
   }
   #endif
@@ -193,51 +193,51 @@ bool config_validate() {
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   // === НАСТРОЙКИ УПРАВЛЕНИЯ ===
   if (config.delaySeconds < 0 || config.delaySeconds > 86400) {
-    if (configLastError.length() == 0) configLastError = "Delay must be 0-86400 seconds";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "Delay must be 0-86400 seconds");
+    }
     valid = false;
   }
   
   if (config.maxOnTime < 0 || config.maxOnTime > 86400) {
-    if (configLastError.length() == 0) configLastError = "MaxOnTime must be 0-86400 seconds";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "MaxOnTime must be 0-86400 seconds");
+    }
     valid = false;
   }
-  
-  
   
   #if DEVICE_TYPE == 1
   // === ЛОГИЧЕСКИЕ ПРОВЕРКИ ДЛЯ TYPE 1 ===
   if (config.speedPercent > 100) {  
-    if (configLastError.length() == 0) configLastError = "Speed percent must be 0-100";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "Speed percent must be 0-100");
+    }
     valid = false;
   }
   
   if (config.adaptiveMode && !config.sensorControlMode) {
-    if (configLastError.length() == 0) configLastError = "Adaptive mode requires Sensor Control Mode ON";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "Adaptive mode requires Sensor Control Mode ON");
+    }
     valid = false;
   }
   
   if (config.adaptiveMode && config.speedPercent == 0) {  
-    if (configLastError.length() == 0) configLastError = "Adaptive mode requires speed percent > 0%";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "Adaptive mode requires speed percent > 0%%");
+    }
     valid = false;
   }
   #endif
-  
-  // #if DEVICE_TYPE == 3
-  // // === ЛОГИЧЕСКИЕ ПРОВЕРКИ ДЛЯ TYPE 3 ===
-  // if (config.sensorControlMode) {
-  //   if (configLastError.length() == 0) configLastError = "Sensor Control Mode not available for Switch";
-  //   valid = false;
-  // }
-  // #endif
   #endif
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   // === НАСТРОЙКИ ДАТЧИКА ===
   if (config.sensorInterval < 1 || config.sensorInterval > 3600) {
-    // if (configLastError.length() == 0) configLastError = "Sensor interval must be 1-3600 seconds, but = " + String(config.sensorInterval);
     char buf[80];
     snprintf(buf, sizeof(buf), "Sensor interval must be 1-3600 seconds, but = %d", config.sensorInterval);
-    configLastError = buf;
+    strncpy(configLastError, buf, sizeof(configLastError) - 1);
+    configLastError[sizeof(configLastError) - 1] = '\0';
     valid = false;
   }
   #endif
@@ -247,17 +247,21 @@ bool config_validate() {
   if (config.lowTemp < -40 || config.lowTemp > 85) {
     char buf[80];
     snprintf(buf, sizeof(buf), "Low Temp must be -40..85°C, but = %.1f", config.lowTemp);
-    configLastError = buf;
+    strncpy(configLastError, buf, sizeof(configLastError) - 1);
+    configLastError[sizeof(configLastError) - 1] = '\0';
     valid = false;
   }
   if (config.highTemp < -40 || config.highTemp > 85) {
     char buf[80];
     snprintf(buf, sizeof(buf), "High Temp must be -40..85°C, but = %.1f", config.highTemp);
-    configLastError = buf;
+    strncpy(configLastError, buf, sizeof(configLastError) - 1);
+    configLastError[sizeof(configLastError) - 1] = '\0';
     valid = false;
   }
   if (config.lowTemp >= config.highTemp) {
-    if (configLastError.length() == 0) configLastError = "Low Temp must be < High Temp";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "Low Temp must be < High Temp");
+    }
     valid = false;
   }
   
@@ -265,23 +269,29 @@ bool config_validate() {
   if (config.lowHum < 0 || config.lowHum > 100) {
     char buf[80];
     snprintf(buf, sizeof(buf), "Low Hum must be 0..100%%, but = %.1f", config.lowHum);
-    configLastError = buf;
+    strncpy(configLastError, buf, sizeof(configLastError) - 1);
+    configLastError[sizeof(configLastError) - 1] = '\0';
     valid = false;
   }
   if (config.highHum < 0 || config.highHum > 100) {
     char buf[80];
     snprintf(buf, sizeof(buf), "High Hum must be 0..100%%, but = %.1f", config.highHum);
-    configLastError = buf;
+    strncpy(configLastError, buf, sizeof(configLastError) - 1);
+    configLastError[sizeof(configLastError) - 1] = '\0';
     valid = false;
   }
   if (config.lowHum >= config.highHum) {
-    if (configLastError.length() == 0) configLastError = "Low Hum must be < High Hum";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "Low Hum must be < High Hum");
+    }
     valid = false;
   }
   
   // === ДОПОЛНИТЕЛЬНЫЕ ПРОВЕРКИ ДЛЯ TYPE 1 ===
   if (config.sensorControlMode && config.speedPercent == 0) {  
-    if (configLastError.length() == 0) configLastError = "Sensor Control Mode requires speed percent > 0%";
+    if (configLastError[0] == '\0') {
+      snprintf(configLastError, sizeof(configLastError), "Sensor Control Mode requires speed percent > 0%%");
+    }
     valid = false;
   }
   #endif
@@ -289,13 +299,14 @@ bool config_validate() {
   #if DEBUG_ENABLED == 1
     if (!valid) {
       Serial.print(ANSI_BRIGHT_RED);
-      Serial.printf("[CONFIG] Validation failed: %s\n", configLastError.c_str());
+      Serial.printf("[CONFIG] Validation failed: %s\n", configLastError);
       Serial.print(ANSI_RESET);
     }
   #endif
   
   return valid;
 }
+
 
 void config_read() {
   #if DEBUG_ENABLED == 1
@@ -325,8 +336,6 @@ void config_read() {
   if (config.magic == MAGIC_VALUE) {
     uint16_t savedCrc = config.crc;
     config.crc = 0;
-    
-    // memset(config.reserved, 0, sizeof(config.reserved));
     
     uint16_t calcCrc = crc16((uint8_t*)&config, sizeof(Config));
     
@@ -380,8 +389,6 @@ void config_write() {
   uint16_t oldCrc = config.crc;
   config.crc = 0;
   
-  // memset(config.reserved, 0, sizeof(config.reserved));
-  
   config.crc = crc16((uint8_t*)&config, sizeof(Config));
   
   #if DEBUG_ENABLED == 1
@@ -409,7 +416,6 @@ void config_write() {
   }
   
   verify.crc = 0;
-  // memset(verify.reserved, 0, sizeof(verify.reserved));
   uint16_t calcVerifyCrc = crc16((uint8_t*)&verify, sizeof(Config));
   
   #if DEBUG_ENABLED == 1
@@ -455,7 +461,6 @@ void initDeviceId() {
 }
 
 void config_init() {
-
   initDeviceId();
 
   #if DEBUG_ENABLED == 1
@@ -475,7 +480,6 @@ void config_init() {
 }
 
 void config_print() {
-  
   Serial.println("=== Config ===");
   Serial.printf("WiFi SSID: '%s'\n", config.wifiSsid);
   Serial.printf("WiFi Password: %s\n", config.wifiPassword[0] ? "***" : "(empty)");
@@ -497,7 +501,6 @@ void config_print() {
   
   #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     Serial.printf("Delay: %d sec\n", config.delaySeconds);
-    
     Serial.printf("MaxOnTime: %d sec\n", config.maxOnTime);
     Serial.printf("Boot state: %s\n", config.bootState ? "ON" : "OFF");
   #endif
@@ -525,6 +528,4 @@ void config_print() {
     Serial.print(ANSI_RESET);
   }
   Serial.println("=================");
-  
-  
 }

@@ -260,7 +260,7 @@ void wifi_checkAsync() {
   } else if (millis() - wifiConnectStartTime > WIFI_CONNECT_TIMEOUT_MS) {
     #if LOG_WIFI == 1
       Serial.print(ANSI_BRIGHT_RED);
-      Serial.println("[WIFI] Connection timeout. Connection lost!");
+      Serial.println("[WIFI] Connection timeout!");
       Serial.print(ANSI_RESET);
     #endif
     wifiConnecting = false;

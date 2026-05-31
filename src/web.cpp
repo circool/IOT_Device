@@ -1,6 +1,10 @@
 #include "web.h"
 #include "sensor.h"
 
+#if defined(ESP8266)
+  #include "web_strings.h"
+#endif
+
 #include "led.h"
 
 #if DEVICE_TYPE == 1
@@ -15,7 +19,6 @@
 #if MQTT_ENABLED == 1
   #include "mqtt.h"
 #endif
-
 
 #ifdef ESP32
   #include <WiFi.h>
@@ -41,20 +44,12 @@
   const byte DNS_PORT = 53;
 #endif
 
-
-
-
-
-
-
 #if OTA_ENABLED == 1
   static bool otaInitialized = false;
 #endif
 
 #if DEVICE_TYPE == 1
-
   void handleToggle() {
-
       config.sensorControlMode = false;
     fan_set(!fan_getState());
   }
@@ -70,792 +65,991 @@
   }
 #endif
 
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ОТПРАВКИ HTML ==========
 
-String web_getConfigPage(String errorMsg) {
-  String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
-  html += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
-  html += "<title>";
-  #if DEVICE_TYPE == 1
-    html += "Fan";
-  #elif DEVICE_TYPE == 2
-    html += "Sensor";
-  #elif DEVICE_TYPE == 3
-    html += "Switch";
-  #else
-    html += "Device";
-  #endif
-  html += " Configuration</title>";
-  html += "<style>";
-  html += "body{font-family:Arial;margin:20px;background:#f0f0f0;}";
-  html += ".container{max-width:700px;margin:auto;background:white;padding:20px;border-radius:10px;}";
-  html += "h1{color:#2c3e50;}h3{color:#2c3e50;border-bottom:1px solid #ccc;padding-bottom:5px;}";
-  html += "label{display:block;margin-top:10px;font-weight:bold;}";
-  html += "input[type=text],input[type=password],input[type=number]{width:100%;padding:8px;margin:5px 0;border:1px solid #ccc;border-radius:4px;font-size:1.2em;box-sizing:border-box;}";
-  html += "input[type=checkbox]{width:20px;height:20px;margin-right:10px;vertical-align:middle;cursor:pointer;transform:scale(1.5);}";
-  html += "input[type=submit]{background:#2c3e50;color:white;padding:10px 20px;margin-top:20px;border:none;border-radius:4px;cursor:pointer;width:100%;font-size:1em;box-sizing:border-box;}";
-  html += "input[type=submit]:hover{background:#1a252f;}";
-  html += ".info{background:#e7f3ff;padding:10px;border-radius:5px;margin:10px 0;}";
-  html += ".warning{background:#fff3cd;padding:10px;border-radius:5px;margin:10px 0;color:#856404;}";
-  html += ".error{background:#ffebee;padding:10px;border-radius:5px;margin:10px 0;color:#c62828;}";
-  html += ".row{display:flex;gap:10px;}.row>div{flex:1;}";
-  html += ".password-hint{color:#7f8c8d;margin-top:-2px;margin-bottom:8px;}";
-  html += ".note{background:#f9f9f9;padding:8px;margin-top:10px;border-left:3px solid #2c3e50;font-size:0.9em;color:#555;}";
-  html += ".link-btn{background:#555;color:white;padding:10px 20px;margin-top:10px;border:none;border-radius:4px;cursor:pointer;font-size:1em;text-align:center;text-decoration:none;display:block;box-sizing:border-box;}";
-  html += ".link-btn:hover{background:#333;}"; 
-  html += "</style></head><body><div class='container'>";
-  html += "<h1>Настройка устройства " + String (deviceId)  + " v. " + String(VERSION) + "</h1>";
-  html += "<h3>Текущее состояние</h3>";
-  html += "<div class='info'>";
-  if (apMode) {  
-    html += "Platform: <strong>";
-    #ifdef ESP32
-      html += "ESP32";
-    #elif defined(ESP8266)
-      html += "ESP8266";
-    #else
-      html += "Unknown";
-    #endif
-
-    html += "</strong><br>";
-    html += "Режим: <strong>Точка доступа (AP)</strong><br>";
-    html += "SSID: <strong>" + String(deviceId) + "</strong><br>";
-    html += "IP адрес: <strong>" + String(AP_IP_ADDRESS) + "</strong><br>";   
-  } else {
-    html += "Режим: <strong>Клиент WiFi</strong><br>";
-    html += "SSID: <strong>" + String(staticConfig.wifiSsid) + "</strong><br>";
-    html += "IP адрес: <strong>" + WiFi.localIP().toString() + "</strong><br>";   
-  }
-  html += "</div><form method='POST' action='/save'>";
-  
-  if (errorMsg.length() > 0) {
-    html += "<div class='error'><strong>Ошибка:</strong> " + errorMsg + "</div>";
-  }
-  
-  html += "<h3>Настройки сети</h3>";
-  html += "<label>WiFi SSID:</label><input type='text' name='wifiSsid' required value='" + String(staticConfig.wifiSsid) + "'>";
-  html += "<label>WiFi Password:</label><input type='password' name='wifiPassword' placeholder='(не показан)'>";
-  html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль WiFi</div>";
-  #if MQTT_ENABLED == 1
-  html += "<h3>MQTT настройки</h3>";
-  html += "<div class='row'><div><label>MQTT Broker:</label><input type='text' name='mqttBroker' required value='" + String(staticConfig.mqttBroker) + "'></div>";
-  html += "<div><label>MQTT Port:</label><input type='number' name='mqttPort' required value='" + String(staticConfig.mqttPort) + "'></div></div>";
-  html += "<div class='row'><div><label>MQTT User:</label><input type='text' name='mqttUser' value='" + String(staticConfig.mqttUser) + "'></div>";
-  html += "<div><label>MQTT Password:</label><input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>";
-  html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль MQTT</div>";
-  html += "<label>MQTT Client ID:</label><input type='text' name='mqttClientId' required value='" + String(staticConfig.mqttClientId) + "'>";
-  #endif
-
-  #if DEVICE_TYPE == 1
-  html += "<h3>Настройки датчиков</h3>";
-  html += "<div class='row'><div><label>Low Temp (°C):</label><input type='number' step='0.1' name='lowTemp' required value='" + String(staticConfig.lowTemp) + "'></div>";
-  html += "<div><label>High Temp (°C):</label><input type='number' step='0.1' name='highTemp' required value='" + String(staticConfig.highTemp) + "'></div></div>";
-  html += "<div class='row'><div><label>Low Hum (%):</label><input type='number' step='0.1' name='lowHum' required value='" + String(staticConfig.lowHum) + "'></div>";
-  html += "<div><label>High Hum (%):</label><input type='number' step='0.1' name='highHum' required value='" + String(staticConfig.highHum) + "'></div></div>";
-  html += "<div class='row'><div><label>Интервал опроса датчика (сек)</label><input type='number' name='sensorInterval' required value='" + String(staticConfig.sensorInterval) + "'></div>";
-  html += "<div><label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(staticConfig.maxOnTime) + "'></div></div>";
-  html += "<h3>Управление</h3>";
-  html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(staticConfig.delaySeconds) + "'>";
-  
-  html += "<h3>Тихий режим (ШИМ)</h3>";
-  html += "<label>Скорость (0-100%):</label>";  
-  html += "<input type='number' name='speedPercent' min='0' max='100' required value='" + String(staticConfig.speedPercent) + "'>";  
-  html += "<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>";
-  html += "При значении ниже 100% вентилятор работает тише.</div>";
-  
-  html += "<h3>Адаптивный тихий режим</h3>";
-  html += "<label><input type='checkbox' name='adaptiveMode' value='1' " + String(staticConfig.adaptiveMode ? "checked" : "") + "> Включить адаптацию</label>";
-  html += "<div class='note'>Адаптивный режим автоматически регулирует скорость для поддержания температуры и влажности на уровне, зафиксированном при включении вентилятора.</div>";
-  
-  html += "<h3>Поведение при старте</h3>";
-  html += "<label><input type='checkbox' name='bootState' value='1' " + String(staticConfig.bootState ? "checked" : "") + "> Включать при старте</label>";
-  html += "<div class='note'>При включенной опции вентилятор будет включен сразу после подачи питания.</div>";
-  
-  html += "<h3>Режимы работы</h3>";
-  html += "<label><input type='checkbox' name='sensorControlMode' value='1' " + String(staticConfig.sensorControlMode ? "checked" : "") + "> Режим управления сенсором</label>";
-  html += "<div class='note'>При включённом режиме вентилятор управляется по показаниям датчиков температуры и влажности. При выключении — только вручную.</div>";
-  #endif
-  
-  #if DEVICE_TYPE == 2
-  html += "<h3>Настройки датчиков</h3>";
-  html += "<div><label>Интервал опроса датчика (сек)</label><input type='number' name='sensorInterval' required value='" + String(staticConfig.sensorInterval) + "'></div>";
-  #endif
-  
-  #if DEVICE_TYPE == 3
-  html += "<h3>Настройки управления</h3>";
-  html += "<label>Принудительно включить через </label><input type='number' name='delaySeconds' required value='" + String(staticConfig.delaySeconds) + "'>";
-  html += "<label>Аварийное отключение через </label><input type='number' name='maxOnTime' min='0' required value='" + String(staticConfig.maxOnTime) + "'>";
-  //@deprecated - ШИМ только у вентилятора!
-  // html += "<h3>Тихий режим (ШИМ)</h3>";
-  // html += "<label>Скорость (0-100%):</label>";  
-  // html += "<input type='number' name='speedPercent' min='0' max='100' required value='" + String(staticConfig.speedPercent) + "'>";  
-  // html += "<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>";
-  // html += "При значении ниже 100% выключатель работает в режиме ШИМ.</div>";
-  
-  html += "<h3>Поведение при старте</h3>";
-  html += "<label><input type='checkbox' name='bootState' value='1' " + String(staticConfig.bootState ? "checked" : "") + "> Включать при старте</label>";
-  html += "<div class='note'>При включенной опции выключатель будет включен сразу после подачи питания.</div>";
-  
-  // html += "<h3>Режимы работы</h3>";
-  // html += "<label><input type='checkbox' name='sensorControlMode' value='1' " + String(staticConfig.sensorControlMode ? "checked" : "") + "> Режим управления сенсором</label>";
-  // html += "<div class='note'>Для TYPE 3 (управляемый выключатель) этот режим не использует датчики, только ручное управление.</div>";
-  #endif
-  
-  html += "<label><input type='checkbox' name='confirmSave' required> Подтвердить сохранение</label>";
-  html += "<input type='submit' value='Сохранить и перезагрузить'>";
-  html += "</form>";
-  
-  #if OTA_ENABLED == 1
-  html += "<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>";
-  #endif
-  
-  html += "<a href='/' class='link-btn'>Домой</a>";
-
-  html += "</div></body></html>"; 
-  return html;
+#ifdef ESP8266
+// ESP8266: отправка частями (оптимизировано)
+static void web_sendChunk(const char* chunk) {
+    server.sendContent(chunk);
 }
 
-#if WEB_STATUS_ENABLED==1
-  String web_getStatusPage(int refreshInterval) {
-  String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>";
-  html += "<meta http-equiv='refresh' content='" + String(refreshInterval) + "'>";
-  html += "<title>" + String(DEVICE_PREFIX) + "</title>";
-  html += "<style>";
-  html += "body{font-family:Arial;margin:20px;background:#f0f0f0;}";
-  html += ".container{max-width:800px;margin:auto;background:white;padding:20px;border-radius:10px;}";
-  html += "h1{color:#2c3e50;text-align:center;word-break:break-all;}";
-  html += ".sensor-card{display:inline-block;width:45%;margin:10px;padding:15px;border-radius:10px;text-align:center;}";
-  html += ".sensor-value{font-size:2em;font-weight:bold;}.sensor-label{margin-top:5px;}";
-  html += ".status-card{padding:15px;border-radius:10px;text-align:center;margin:10px;}";
-  html += ".info{color:#7f8c8d;margin-top:20px;text-align:center;}";
-  
-  html += "button{background:#2c3e50;color:white;padding:10px;border:none;border-radius:4px;cursor:pointer;margin:5px;font-size:1em}";
-  html += ".flex-container{display:flex;flex-wrap:wrap;justify-content:center;}";
-  html += ".button-group{display:flex;justify-content:center;gap:10px;margin-top:20px;flex-wrap:wrap;}";
-  html += "a{text-decoration:none;}";
-  html += ".sensor-error{background:#ffebee;padding:15px;border-radius:8px;margin:15px 10px;color:#c62828;text-align:center;border:2px solid #ef9a9a;}";
-  html += ".duty-bar{background:#e0e0e0;border-radius:10px;margin:10px 0;height:20px;overflow:hidden;}";
-  html += ".duty-fill{background:#2c3e50;height:100%;border-radius:10px;transition:width 0.3s;}";
-  html += "</style></head><body><div class='container'>";
-  
-  html += "<h1>" + String(DEVICE_PREFIX) + " VERSION " + String(VERSION) + "</h1>";
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  html += "<div class='flex-container'>";
-  
-  #if DEVICE_TYPE == 1
-  String tempColor = (currentTemp >= config.highTemp) ? "#f44336" : (currentTemp <= config.lowTemp) ? "#4CAF50" : "#2196F3";
-  String humColor = (currentHum >= config.highHum) ? "#f44336" : (currentHum <= config.lowHum) ? "#4CAF50" : "#2196F3";
-  #else
-  String tempColor = "#2196F3";
-  String humColor = "#2196F3";
-  #endif
-  
-  html += "<div class='sensor-card' style='background:" + tempColor + "20; border:2px solid " + tempColor + ";'>";
-  html += "<div class='sensor-value' style='color:" + tempColor + ";'>" + String(currentTemp, 1) + " °C</div>";
-  html += "<div class='sensor-label'>Температура";
-  
-  #if DEVICE_TYPE == 1
-  html += " (выкл: " + String(config.lowTemp, 1) + " вкл: " + String(config.highTemp, 1) + ")";
-  #endif
-  
-  html += "</div></div>";
-  
-  html += "<div class='sensor-card' style='background:" + humColor + "20; border:2px solid " + humColor + ";'>";
-  html += "<div class='sensor-value' style='color:" + humColor + ";'>" + String(currentHum, 1) + " %</div>";
-  html += "<div class='sensor-label'>Влажность";
-  
-  #if DEVICE_TYPE == 1
-  html += " (выкл: " + String(config.lowHum, 1) + " вкл: " + String(config.highHum, 1) + ")";
-  #endif
-  
-  html += "</div></div>"; 
-  html += "</div>";
-  
-  if (!sensorOk && sensorError.length() > 0) {
-    html += "<div class='sensor-error'>";
-    html += "<strong>Ошибка датчика</strong><br>";
-    html += sensorError;
-    html += "</div>";
-  }
-  #endif 
+static void web_sendChunk_P(PGM_P chunk) {
+    server.sendContent(FPSTR(chunk));
+}
 
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  
-  
-  
-  #if DEVICE_TYPE == 1
-    bool state = fan_getState();
-    String label = "Вентилятор";
-    String toggleUrl = "/fan/toggle";
-    String autoUrl = "/fan/auto";
-  #else
-    bool state = switch_getState();
-    String label = "Выключатель";
-    String toggleUrl = "/switch/toggle";
-  #endif
-  
-  String stateColor = state ? "#f44336" : "#2196F3";
-  String stateText = state ? "ВКЛ" : "ВЫКЛ";
-
-  html += "<a href='" + toggleUrl + "'>";
-  html += "<div class='status-card' style='background:" + stateColor + "20; border:2px solid " + stateColor + ";'>";
-  html += "<div style='font-size:2em;font-weight:bold;color:" + stateColor + ";'>" + label + ": " + stateText + "</div></div>";
-  html += "</a>";
-  
-  #if DEVICE_TYPE == 1
-    if (state) {
-      int currentSpeed;
-      if (startingPulseActive) {
-        currentSpeed = 100;
-      } else {
-        currentSpeed = config.speedPercent;  
-      }
-      
-      html += "<div class='status-card' style='background:#2196F320; border:2px solid #2196F3;'>";
-      html += "<div style='font-size:1.2em;font-weight:bold;'>Скорость: " + String(currentSpeed) + "%</div>";
-      html += "<div class='duty-bar'><div class='duty-fill' style='width:" + String(currentSpeed) + "%;'></div></div>";
-      if (config.speedPercent < 100) {  
-        html += "<div style='font-size:0.9em;color:#555;'>Тихий режим активен";
-        if (config.adaptiveMode && DEVICE_TYPE == 1) {
-          html += " + адаптация";
-        }
-        html += "</div>";
-      } else if (config.speedPercent == 100) {  
-        html += "<div style='font-size:0.9em;color:#555;'>Максимальная скорость</div>";
-      }
-      html += "</div>";
-    }
-    
-    String modeText = config.sensorControlMode ? "УПРАВЛЕНИЕ СЕНСОРОМ" : "РУЧНОЙ";
-    String modeColor = config.sensorControlMode ? "#4CAF50" : "#f44336";
-  
-  
-
-    html += "<div class='status-card' style='background:" + modeColor + "20; border:2px solid " + modeColor + ";'>";
-    html += "<div style='font-size:1.5em;font-weight:bold;color:" + modeColor + ";'>Режим: " + modeText + "</div>";
-    
-
-    if (config.sensorControlMode  ) {
-      if (config.adaptiveMode && adaptiveActive) {
-        html += "<div style='font-size:0.9em;color:#4CAF50;'>Адаптивный режим активен</div>";
-      } else if (config.adaptiveMode && !adaptiveActive) {
-        html += "<div style='font-size:0.9em;color:#FF9800;'>Адаптивный режим ожидает включения вентилятора</div>";
-      } else if (!config.adaptiveMode && config.speedPercent != 100) {  
-        html += "<div style='font-size:0.9em;color:#f44336;'>Адаптивный режим отключён (ручное управление скоростью)</div>";
-      } else if (!config.adaptiveMode && config.speedPercent == 100) {  
-        html += "<div style='font-size:0.9em;color:#f44336;'>Адаптивный режим отключён</div>";
-      }
-    }
-    
-    
-    if (state) {
-      int currentSpeed;  
-      if (startingPulseActive) {
-        currentSpeed = 100;
-      } else {
-        currentSpeed = config.speedPercent;  
-      }
-      
-      if (config.speedPercent == 100) {  
-        html += "<div style='font-size:0.9em;color:#555;'>Режим: максимальная скорость</div>";
-      } else if (config.adaptiveMode && adaptiveActive) {
-        html += "<div style='font-size:0.9em;color:#4CAF50;'>Режим: адаптивный тихий (цель: " + String(currentSpeed) + "%)</div>";
-      } else if (!config.adaptiveMode && config.speedPercent < 100) {  
-        html += "<div style='font-size:0.9em;color:#FF9800;'>Режим: ручной тихий (" + String(currentSpeed) + "%)</div>";
-      } else {
-        html += "<div style='font-size:0.9em;color:#555;'>Режим: максимальная скорость</div>";
-      }
-    }
-  #endif
-  
-  html += "</div>";
+static void web_sendFormatted(const char* format, ...) {
+    char buffer[256];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    server.sendContent(buffer);
+}
 #endif
-  
-  html += "<hr><div class='info'>Обновление: " + String(refreshInterval) + " сек<br>";
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  html += "Опрос датчика " + String(config.sensorInterval) + " сек<br>";
-  #endif
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  if (delayActive && delayTimer > 0) {
-    unsigned long now = millis();
-    if (now < delayTimer) {
-      unsigned long remaining = (delayTimer - now + 999) / 1000;
-      html += "Принудительное включение через <strong>" + String(remaining) + "</strong> сек<br>";
-    } else {
-      html += "Принудительное включение: <strong>выполняется...</strong><br>";
-    }
-  } else if (config.delaySeconds > 0) {
-    html += "Автоматический старт: настроено на " + String(config.delaySeconds) + " сек<br>";
-  } else {
-    html += "Автоматический старт: <strong>отключено</strong><br>";
-  }
-  
-  #if DEVICE_TYPE == 1
-  if (fanOn && config.maxOnTime > 0 && fanStartTime > 0) {
-    unsigned long elapsed = (millis() - fanStartTime) / 1000;
-  #endif
-
-  #if DEVICE_TYPE == 3
-  if (switchOn && config.maxOnTime > 0 && switchStartTime > 0) {
-    unsigned long elapsed = (millis() - switchStartTime) / 1000;
-  #endif
-
-    if (elapsed < config.maxOnTime) {
-      unsigned long remaining = config.maxOnTime - elapsed;
-      html += "Аварийное отключение через <strong>" + String(remaining) + "</strong> сек<br>";
-    } else {
-      html += "Аварийное отключение: <strong>сейчас</strong><br>";
-    }
-  } else if (config.maxOnTime > 0) {
-    html += "Аварийное отключение: неактивно (лимит " + String(config.maxOnTime) + " сек)<br>";
-  } else {
-    html += "Аварийное отключение: <strong>отключено</strong><br>";
-  }
-  #endif
-
-  #if MQTT_ENABLED == 1
-  html += "MQTT: " + String(mqttManager.isConnected() ? "подключен" : "отключен") + "<br>";
-  #endif
-
-  #if WEB_SHOW_RSSI == 1
-    int rssi = WiFi.RSSI();
-    html += "RSSI: " + String(rssi) + "<br>";
-  #endif
-
-  html += "</div>";
-  
-  html += "<div class='button-group'>";
-  #if DEVICE_TYPE == 1
-  if (!config.sensorControlMode) {
-    html += "<a href='" + autoUrl + "'><button>Режим управления сенсором</button></a>";
-  }
-  #endif
-
-  html += "<a href='/config'><button>Настройки</button></a>";
-  html += "</div></div></body></html>";
-  
-  return html;
-}
-#endif 
 
 #ifdef ESP32
-void web_saveConfig(AsyncWebServerRequest *request) {
-  if (request->hasParam("wifiSsid", true)) {
-    const AsyncWebParameter* p = request->getParam("wifiSsid", true);
-    if (p) p->value().toCharArray(config.wifiSsid, sizeof(config.wifiSsid));
-  }
-  if (request->hasParam("wifiPassword", true)) {
-    const AsyncWebParameter* p = request->getParam("wifiPassword", true);
-    if (p) {
-      String pwd = p->value();
-      if (pwd.length() > 0) pwd.toCharArray(config.wifiPassword, sizeof(config.wifiPassword));
-    }
-  }
-
-  #if MQTT_ENABLED == 1
-  if (request->hasParam("mqttBroker", true)) {
-    const AsyncWebParameter* p = request->getParam("mqttBroker", true);
-    if (p) p->value().toCharArray(config.mqttBroker, sizeof(config.mqttBroker));
-  }
-  if (request->hasParam("mqttPort", true)) {
-    const AsyncWebParameter* p = request->getParam("mqttPort", true);
-    if (p) config.mqttPort = p->value().toInt();
-  }
-  if (request->hasParam("mqttUser", true)) {
-    const AsyncWebParameter* p = request->getParam("mqttUser", true);
-    if (p) p->value().toCharArray(config.mqttUser, sizeof(config.mqttUser));
-  }
-  if (request->hasParam("mqttPassword", true)) {
-    const AsyncWebParameter* p = request->getParam("mqttPassword", true);
-    if (p) {
-      String pwd = p->value();
-      if (pwd.length() > 0) pwd.toCharArray(config.mqttPassword, sizeof(config.mqttPassword));
-    }
-  }
-  if (request->hasParam("mqttClientId", true)) {
-    const AsyncWebParameter* p = request->getParam("mqttClientId", true);
-    if (p) {
-      String cid = p->value();
-      if (cid.length() > 0 && cid.length() < sizeof(config.mqttClientId)) {
-        cid.toCharArray(config.mqttClientId, sizeof(config.mqttClientId));
-      } else if (cid.length() == 0) {
-        config.mqttClientId[0] = '\0';
-      }
-    }
-  }
-  #endif
-
-
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  if (request->hasParam("sensorInterval", true)) {
-    const AsyncWebParameter* p = request->getParam("sensorInterval", true);
-    if (p) config.sensorInterval = p->value().toInt();
-  }
-  #endif
-  
-  #if DEVICE_TYPE == 1
-  if (request->hasParam("lowTemp", true)) {
-    const AsyncWebParameter* p = request->getParam("lowTemp", true);
-    if (p) config.lowTemp = p->value().toFloat();
-  }
-  if (request->hasParam("highTemp", true)) {
-    const AsyncWebParameter* p = request->getParam("highTemp", true);
-    if (p) config.highTemp = p->value().toFloat();
-  }
-  if (request->hasParam("lowHum", true)) {
-    const AsyncWebParameter* p = request->getParam("lowHum", true);
-    if (p) config.lowHum = p->value().toFloat();
-  }
-  if (request->hasParam("highHum", true)) {
-    const AsyncWebParameter* p = request->getParam("highHum", true);
-    if (p) config.highHum = p->value().toFloat();
-  }
-  if (request->hasParam("maxOnTime", true)) {
-    const AsyncWebParameter* p = request->getParam("maxOnTime", true);
-    if (p) config.maxOnTime = p->value().toInt();
-  }
-  if (request->hasParam("delaySeconds", true)) {
-    const AsyncWebParameter* p = request->getParam("delaySeconds", true);
-    if (p) config.delaySeconds = p->value().toInt();
-  }
-  
-  if (request->hasParam("speedPercent", true)) {  
-    const 
-    AsyncWebParameter* p = request->getParam("speedPercent", true);
-    if (p) config.speedPercent = p->value().toInt();
-  }
-  config.adaptiveMode = request->hasParam("adaptiveMode", true);
-  config.bootState = request->hasParam("bootState", true);
-  config.sensorControlMode = request->hasParam("sensorControlMode", true);
-  #endif
-  
-  #if DEVICE_TYPE == 3
-  if (request->hasParam("maxOnTime", true)) {
-    const AsyncWebParameter* p = request->getParam("maxOnTime", true);
-    if (p) config.maxOnTime = p->value().toInt();
-  }
-  if (request->hasParam("delaySeconds", true)) {
-    const AsyncWebParameter* p = request->getParam("delaySeconds", true);
-    if (p) config.delaySeconds = p->value().toInt();
-  }
-  // if (request->hasParam("speedPercent", true)) {  
-  //   AsyncWebParameter* p = request->getParam("speedPercent", true);
-  //   if (p) config.speedPercent = p->value().toInt();
-  // }
-  config.bootState = request->hasParam("bootState", true);
-  // config.sensorControlMode = request->hasParam("sensorControlMode", true);
-  #endif
-  
-  if (!config_validate()) {
-    request->send(200, "text/html", web_getConfigPage(configLastError));
-    return;
-  }
-  
-  config_write();
-  request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><div style='text-align:center;margin-top:50px;'><h2>Настройки сохранены!</h2><p>Перезагрузка...</p></div></body></html>");
-  delay(1000);
-  ESP.restart();
-}
-#elif defined(ESP8266)
-void web_saveConfig() {
-  if (server.hasArg("wifiSsid"))
-    server.arg("wifiSsid").toCharArray(config.wifiSsid, sizeof(config.wifiSsid));
-  if (server.hasArg("wifiPassword")) {
-    String pwd = server.arg("wifiPassword");
-    if (pwd.length() > 0) pwd.toCharArray(config.wifiPassword, sizeof(config.wifiPassword));
-  }
-
-  #if MQTT_ENABLED == 1
-  if (server.hasArg("mqttBroker"))
-    server.arg("mqttBroker").toCharArray(config.mqttBroker, sizeof(config.mqttBroker));
-  if (server.hasArg("mqttPort"))
-    config.mqttPort = server.arg("mqttPort").toInt();
-  if (server.hasArg("mqttUser"))
-    server.arg("mqttUser").toCharArray(config.mqttUser, sizeof(config.mqttUser));
-  if (server.hasArg("mqttPassword")) {
-    String pwd = server.arg("mqttPassword");
-    if (pwd.length() > 0) pwd.toCharArray(config.mqttPassword, sizeof(config.mqttPassword));
-  }
-  if (server.hasArg("mqttClientId")) {
-    String cid = server.arg("mqttClientId");
-    if (cid.length() > 0 && cid.length() < sizeof(config.mqttClientId)) {
-      cid.toCharArray(config.mqttClientId, sizeof(config.mqttClientId));
-    } else if (cid.length() == 0) {
-      config.mqttClientId[0] = '\0';
-    }
-  }
-  #endif
-
-
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  if (server.hasArg("sensorInterval"))
-    config.sensorInterval = server.arg("sensorInterval").toInt();
-  #endif
-  
-  #if DEVICE_TYPE == 1
-  if (server.hasArg("lowTemp")) {
-    config.lowTemp = server.arg("lowTemp").toFloat();
-  }
-  
-  if (server.hasArg("highTemp")) {
-    config.highTemp = server.arg("highTemp").toFloat();
-  }
-  
-  if (server.hasArg("lowHum")) {
-    config.lowHum = server.arg("lowHum").toFloat();
-  }
-  
-  if (server.hasArg("highHum")) {
-    config.highHum = server.arg("highHum").toFloat();
-  }
-  
-  if (server.hasArg("maxOnTime")) {
-    config.maxOnTime = server.arg("maxOnTime").toInt();
-  }
-  
-  if (server.hasArg("delaySeconds")) {
-    config.delaySeconds = server.arg("delaySeconds").toInt();
-  }
-  
-  if (server.hasArg("speedPercent")) {
-    config.speedPercent = server.arg("speedPercent").toInt();
-  }    
-  
-  config.adaptiveMode = server.hasArg("adaptiveMode");
-  config.bootState = server.hasArg("bootState");
-  config.sensorControlMode = server.hasArg("sensorControlMode");
-
-  #endif
-  
-  #if DEVICE_TYPE == 3
-  if (server.hasArg("maxOnTime")) {
-    config.maxOnTime = server.arg("maxOnTime").toInt();
-  }
-  if (server.hasArg("delaySeconds")) {
-    config.delaySeconds = server.arg("delaySeconds").toInt();
-  }
-  //@deprecated
-  // if (server.hasArg("speedPercent")) {
-  //   config.speedPercent = server.arg("speedPercent").toInt();
-  // }  
-  
-  config.bootState = server.hasArg("bootState");
-  
-  #endif
-  
-  if (!config_validate()) {
-    server.send(200, "text/html", web_getConfigPage(configLastError));
-    return;
-  }
-  
-  config_write();
-  server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><div style='text-align:center;margin-top:50px;'><h2>Настройки сохранены!</h2><p>Перезагрузка...</p></div></body></html>");
-  delay(1000);
-  #if DEBUG_ENABLED == 1
-    Serial.println("[DEBUG] Restarting...");
-  #endif
-  ESP.restart();
+// ESP32: генерация String (пока оставляем, но с оптимизацией)
+static String web_format(const char* format, ...) {
+    char buffer[512];
+    va_list args;
+    va_start(args, format);
+    vsnprintf(buffer, sizeof(buffer), format, args);
+    va_end(args);
+    return String(buffer);
 }
 #endif
 
-void web_init() {
-  int refreshInterval = 5;
+// ========== СТРАНИЦА КОНФИГУРАЦИИ ==========
 
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  // unsigned long elapsed = (millis() - lastSensorRead) / 1000;
-  // int timeUntilNextRead = config.sensorInterval - elapsed;
-  // refreshInterval = (timeUntilNextRead > 2) ? timeUntilNextRead : 2;
-  // if (refreshInterval > 10) refreshInterval = 10;
-  
-  refreshInterval = config.sensorInterval;
-
-  #endif
-  
-  #if WEB_STATUS_ENABLED==1
-    #ifdef ESP32
-      server.on("/", HTTP_GET, [refreshInterval](AsyncWebServerRequest *request){ 
-        request->send(200, "text/html", web_getStatusPage(refreshInterval)); 
-      });
-    #elif defined(ESP8266)
-      server.on("/", [refreshInterval](){ 
-        server.send(200, "text/html", web_getStatusPage(refreshInterval)); 
-      });
+#ifdef ESP8266
+void web_sendConfigPage(const String& errorMsg) {
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, "text/html", "");
+    
+    // Отправляем HTML частями
+    web_sendChunk_P(HTML_DOCTYPE);
+    web_sendChunk_P(HTML_VIEWPORT);
+    
+    web_sendChunk_P("<title>");
+    #if DEVICE_TYPE == 1
+    web_sendChunk_P("Fan");
+    #elif DEVICE_TYPE == 2
+    web_sendChunk_P("Sensor");
+    #elif DEVICE_TYPE == 3
+    web_sendChunk_P("Switch");
+    #else
+    web_sendChunk_P("Device");
     #endif
-  #else
+    web_sendChunk_P(" Configuration</title>");
+    
+    web_sendChunk_P(HTML_STYLE);
+    web_sendChunk_P(HTML_CONTAINER_OPEN);
+    
+    web_sendFormatted("<h1>Настройка устройства %s v. %s</h1>", deviceId, VERSION);
+    
+    web_sendChunk_P("<h3>Текущее состояние</h3>");
+    web_sendChunk_P(STATUS_INFO_OPEN);
+    
     #ifdef ESP32
-      server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
-        request->redirect("/config"); 
-      });
+    web_sendChunk_P("Platform: <strong>ESP32</strong><br>");
     #elif defined(ESP8266)
-      server.on("/", [](){ 
+    web_sendChunk_P("Platform: <strong>ESP8266</strong><br>");
+    #endif
+    
+    if (apMode) {
+        web_sendChunk_P(STATUS_MODE_AP);
+        web_sendFormatted("SSID: <strong>%s</strong><br>", deviceId);
+        web_sendFormatted("IP адрес: <strong>%s</strong><br>", AP_IP_ADDRESS);
+    } else {
+        web_sendChunk_P(STATUS_MODE_CLIENT);
+        web_sendFormatted("SSID: <strong>%s</strong><br>", staticConfig.wifiSsid);
+        web_sendFormatted("IP адрес: <strong>%s</strong><br>", WiFi.localIP().toString().c_str());
+    }
+    
+    web_sendChunk_P(STATUS_INFO_CLOSE);
+    web_sendChunk_P(HTML_FORM_OPEN);
+    
+    if (errorMsg.length() > 0) {
+        web_sendFormatted("<div class='error'><strong>Ошибка:</strong> %s</div>", errorMsg.c_str());
+    }
+    
+    // Отправляем остальные секции (аналогично предыдущей версии)
+    web_sendChunk_P(HTML_SECTION_NETWORK);
+    web_sendChunk_P(LABEL_WIFI_SSID);
+    web_sendFormatted("<input type='text' name='wifiSsid' required value='%s'>", staticConfig.wifiSsid);
+    web_sendChunk_P(LABEL_WIFI_PASSWORD);
+    web_sendChunk_P("<input type='password' name='wifiPassword' placeholder='(не показан)'>");
+    web_sendChunk_P(HINT_PASSWORD);
+    
+    #if MQTT_ENABLED == 1
+    web_sendChunk_P(HTML_SECTION_MQTT);
+    web_sendChunk_P("<div class='row'><div>");
+    web_sendChunk_P(LABEL_MQTT_BROKER);
+    web_sendFormatted("<input type='text' name='mqttBroker' required value='%s'></div>", staticConfig.mqttBroker);
+    web_sendChunk_P("<div>");
+    web_sendChunk_P(LABEL_MQTT_PORT);
+    web_sendFormatted("<input type='number' name='mqttPort' required value='%d'></div></div>", staticConfig.mqttPort);
+    
+    web_sendChunk_P("<div class='row'><div>");
+    web_sendChunk_P(LABEL_MQTT_USER);
+    web_sendFormatted("<input type='text' name='mqttUser' value='%s'></div>", staticConfig.mqttUser);
+    web_sendChunk_P("<div>");
+    web_sendChunk_P(LABEL_MQTT_PASSWORD);
+    web_sendChunk_P("<input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>");
+    web_sendChunk_P(HINT_PASSWORD);
+    
+    web_sendChunk_P(LABEL_MQTT_CLIENT_ID);
+    web_sendFormatted("<input type='text' name='mqttClientId' required value='%s'>", staticConfig.mqttClientId);
+    #endif
+    
+    #if DEVICE_TYPE == 1
+    web_sendChunk_P(HTML_SECTION_SENSOR);
+    web_sendChunk_P("<div class='row'><div>");
+    web_sendChunk_P(LABEL_LOW_TEMP);
+    web_sendFormatted("<input type='number' step='0.1' name='lowTemp' required value='%.1f'></div>", staticConfig.lowTemp);
+    web_sendChunk_P("<div>");
+    web_sendChunk_P(LABEL_HIGH_TEMP);
+    web_sendFormatted("<input type='number' step='0.1' name='highTemp' required value='%.1f'></div></div>", staticConfig.highTemp);
+    
+    web_sendChunk_P("<div class='row'><div>");
+    web_sendChunk_P(LABEL_LOW_HUM);
+    web_sendFormatted("<input type='number' step='0.1' name='lowHum' required value='%.1f'></div>", staticConfig.lowHum);
+    web_sendChunk_P("<div>");
+    web_sendChunk_P(LABEL_HIGH_HUM);
+    web_sendFormatted("<input type='number' step='0.1' name='highHum' required value='%.1f'></div></div>", staticConfig.highHum);
+    
+    web_sendChunk_P("<div class='row'><div>");
+    web_sendChunk_P(LABEL_SENSOR_INTERVAL);
+    web_sendFormatted("<input type='number' name='sensorInterval' required value='%d'></div>", staticConfig.sensorInterval);
+    web_sendChunk_P("<div>");
+    web_sendChunk_P(LABEL_MAX_ON_TIME);
+    web_sendFormatted("<input type='number' name='maxOnTime' min='0' required value='%u'></div></div>", staticConfig.maxOnTime);
+    
+    web_sendChunk_P(HTML_SECTION_CONTROL);
+    web_sendChunk_P(LABEL_DELAY_SECONDS);
+    web_sendFormatted("<input type='number' name='delaySeconds' required value='%d'>", staticConfig.delaySeconds);
+    
+    web_sendChunk_P(HTML_SECTION_SILENT);
+    web_sendChunk_P(LABEL_SPEED_PERCENT);
+    web_sendFormatted("<input type='number' name='speedPercent' min='0' max='100' required value='%d'>", staticConfig.speedPercent);
+    web_sendChunk_P(NOTE_SILENT_MODE);
+    
+    web_sendChunk_P(HTML_SECTION_ADAPTIVE);
+    web_sendChunk_P(LABEL_ADAPTIVE_MODE);
+    if (staticConfig.adaptiveMode) {
+        web_sendChunk_P("<script>document.querySelector('input[name=\"adaptiveMode\"]').checked=true;</script>");
+    }
+    web_sendChunk_P(NOTE_ADAPTIVE);
+    
+    web_sendChunk_P(HTML_SECTION_BOOT);
+    web_sendChunk_P(LABEL_BOOT_STATE);
+    if (staticConfig.bootState) {
+        web_sendChunk_P("<script>document.querySelector('input[name=\"bootState\"]').checked=true;</script>");
+    }
+    web_sendChunk_P(NOTE_BOOT);
+    
+    web_sendChunk_P(HTML_SECTION_MODES);
+    web_sendChunk_P(LABEL_SENSOR_CONTROL_MODE);
+    if (staticConfig.sensorControlMode) {
+        web_sendChunk_P("<script>document.querySelector('input[name=\"sensorControlMode\"]').checked=true;</script>");
+    }
+    web_sendChunk_P(NOTE_SENSOR_CONTROL);
+    #endif
+    
+    #if DEVICE_TYPE == 2
+    web_sendChunk_P(HTML_SECTION_SENSOR);
+    web_sendChunk_P(LABEL_SENSOR_INTERVAL);
+    web_sendFormatted("<input type='number' name='sensorInterval' required value='%d'>", staticConfig.sensorInterval);
+    #endif
+    
+    #if DEVICE_TYPE == 3
+    web_sendChunk_P(HTML_SECTION_CONTROL);
+    web_sendChunk_P(LABEL_DELAY_SECONDS);
+    web_sendFormatted("<input type='number' name='delaySeconds' required value='%d'>", staticConfig.delaySeconds);
+    web_sendChunk_P(LABEL_MAX_ON_TIME);
+    web_sendFormatted("<input type='number' name='maxOnTime' min='0' required value='%u'>", staticConfig.maxOnTime);
+    
+    web_sendChunk_P(HTML_SECTION_BOOT);
+    web_sendChunk_P(LABEL_BOOT_STATE);
+    if (staticConfig.bootState) {
+        web_sendChunk_P("<script>document.querySelector('input[name=\"bootState\"]').checked=true;</script>");
+    }
+    web_sendChunk_P(NOTE_BOOT);
+    #endif
+    
+    web_sendChunk_P(HTML_CHECKBOX_CONFIRM);
+    web_sendChunk_P(HTML_SUBMIT_BUTTON);
+    web_sendChunk_P(HTML_FORM_CLOSE);
+    
+    #if OTA_ENABLED == 1
+    web_sendChunk_P("<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>");
+    #endif
+    
+    web_sendChunk_P("<a href='/' class='link-btn'>Домой</a>");
+    web_sendChunk_P(HTML_CONTAINER_CLOSE);
+}
+
+#else // ESP32
+
+String web_getConfigPage(String errorMsg) {
+    String html;
+    html.reserve(4096); // Резервируем память для уменьшения фрагментации
+    
+    html += FPSTR(HTML_DOCTYPE);
+    html += FPSTR(HTML_VIEWPORT);
+    
+    html += "<title>";
+    #if DEVICE_TYPE == 1
+    html += "Fan";
+    #elif DEVICE_TYPE == 2
+    html += "Sensor";
+    #elif DEVICE_TYPE == 3
+    html += "Switch";
+    #else
+    html += "Device";
+    #endif
+    html += " Configuration</title>";
+    
+    html += FPSTR(HTML_STYLE);
+    html += FPSTR(HTML_CONTAINER_OPEN);
+    
+    html += web_format("<h1>Настройка устройства %s v. %s</h1>", deviceId, VERSION);
+    
+    html += "<h3>Текущее состояние</h3>";
+    html += FPSTR(STATUS_INFO_OPEN);
+    
+    #ifdef ESP32
+    html += "Platform: <strong>ESP32</strong><br>";
+    #endif
+    
+    if (apMode) {
+        html += FPSTR(STATUS_MODE_AP);
+        html += web_format("SSID: <strong>%s</strong><br>", deviceId);
+        html += web_format("IP адрес: <strong>%s</strong><br>", AP_IP_ADDRESS);
+    } else {
+        html += FPSTR(STATUS_MODE_CLIENT);
+        html += web_format("SSID: <strong>%s</strong><br>", staticConfig.wifiSsid);
+        html += web_format("IP адрес: <strong>%s</strong><br>", WiFi.localIP().toString().c_str());
+    }
+    
+    html += FPSTR(STATUS_INFO_CLOSE);
+    html += FPSTR(HTML_FORM_OPEN);
+    
+    if (errorMsg.length() > 0) {
+        html += web_format("<div class='error'><strong>Ошибка:</strong> %s</div>", errorMsg.c_str());
+    }
+    
+    // Аналогично ESP8266, но с конкатенацией строк
+    html += FPSTR(HTML_SECTION_NETWORK);
+    html += FPSTR(LABEL_WIFI_SSID);
+    html += web_format("<input type='text' name='wifiSsid' required value='%s'>", staticConfig.wifiSsid);
+    html += FPSTR(LABEL_WIFI_PASSWORD);
+    html += "<input type='password' name='wifiPassword' placeholder='(не показан)'>";
+    html += FPSTR(HINT_PASSWORD);
+    
+    #if MQTT_ENABLED == 1
+    html += FPSTR(HTML_SECTION_MQTT);
+    html += "<div class='row'><div>";
+    html += FPSTR(LABEL_MQTT_BROKER);
+    html += web_format("<input type='text' name='mqttBroker' required value='%s'></div>", staticConfig.mqttBroker);
+    html += "<div>";
+    html += FPSTR(LABEL_MQTT_PORT);
+    html += web_format("<input type='number' name='mqttPort' required value='%d'></div></div>", staticConfig.mqttPort);
+    
+    html += "<div class='row'><div>";
+    html += FPSTR(LABEL_MQTT_USER);
+    html += web_format("<input type='text' name='mqttUser' value='%s'></div>", staticConfig.mqttUser);
+    html += "<div>";
+    html += FPSTR(LABEL_MQTT_PASSWORD);
+    html += "<input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>";
+    html += FPSTR(HINT_PASSWORD);
+    
+    html += FPSTR(LABEL_MQTT_CLIENT_ID);
+    html += web_format("<input type='text' name='mqttClientId' required value='%s'>", staticConfig.mqttClientId);
+    #endif
+    
+    #if DEVICE_TYPE == 1
+    html += FPSTR(HTML_SECTION_SENSOR);
+    html += "<div class='row'><div>";
+    html += FPSTR(LABEL_LOW_TEMP);
+    html += web_format("<input type='number' step='0.1' name='lowTemp' required value='%.1f'></div>", staticConfig.lowTemp);
+    html += "<div>";
+    html += FPSTR(LABEL_HIGH_TEMP);
+    html += web_format("<input type='number' step='0.1' name='highTemp' required value='%.1f'></div></div>", staticConfig.highTemp);
+    
+    html += "<div class='row'><div>";
+    html += FPSTR(LABEL_LOW_HUM);
+    html += web_format("<input type='number' step='0.1' name='lowHum' required value='%.1f'></div>", staticConfig.lowHum);
+    html += "<div>";
+    html += FPSTR(LABEL_HIGH_HUM);
+    html += web_format("<input type='number' step='0.1' name='highHum' required value='%.1f'></div></div>", staticConfig.highHum);
+    
+    html += "<div class='row'><div>";
+    html += FPSTR(LABEL_SENSOR_INTERVAL);
+    html += web_format("<input type='number' name='sensorInterval' required value='%d'></div>", staticConfig.sensorInterval);
+    html += "<div>";
+    html += FPSTR(LABEL_MAX_ON_TIME);
+    html += web_format("<input type='number' name='maxOnTime' min='0' required value='%u'></div></div>", staticConfig.maxOnTime);
+    
+    html += FPSTR(HTML_SECTION_CONTROL);
+    html += FPSTR(LABEL_DELAY_SECONDS);
+    html += web_format("<input type='number' name='delaySeconds' required value='%d'>", staticConfig.delaySeconds);
+    
+    html += FPSTR(HTML_SECTION_SILENT);
+    html += FPSTR(LABEL_SPEED_PERCENT);
+    html += web_format("<input type='number' name='speedPercent' min='0' max='100' required value='%d'>", staticConfig.speedPercent);
+    html += FPSTR(NOTE_SILENT_MODE);
+    
+    html += FPSTR(HTML_SECTION_ADAPTIVE);
+    html += FPSTR(LABEL_ADAPTIVE_MODE);
+    if (staticConfig.adaptiveMode) {
+        html += "<script>document.querySelector('input[name=\"adaptiveMode\"]').checked=true;</script>";
+    }
+    html += FPSTR(NOTE_ADAPTIVE);
+    
+    html += FPSTR(HTML_SECTION_BOOT);
+    html += FPSTR(LABEL_BOOT_STATE);
+    if (staticConfig.bootState) {
+        html += "<script>document.querySelector('input[name=\"bootState\"]').checked=true;</script>";
+    }
+    html += FPSTR(NOTE_BOOT);
+    
+    html += FPSTR(HTML_SECTION_MODES);
+    html += FPSTR(LABEL_SENSOR_CONTROL_MODE);
+    if (staticConfig.sensorControlMode) {
+        html += "<script>document.querySelector('input[name=\"sensorControlMode\"]').checked=true;</script>";
+    }
+    html += FPSTR(NOTE_SENSOR_CONTROL);
+    #endif
+    
+    #if DEVICE_TYPE == 2
+    html += FPSTR(HTML_SECTION_SENSOR);
+    html += FPSTR(LABEL_SENSOR_INTERVAL);
+    html += web_format("<input type='number' name='sensorInterval' required value='%d'>", staticConfig.sensorInterval);
+    #endif
+    
+    #if DEVICE_TYPE == 3
+    html += FPSTR(HTML_SECTION_CONTROL);
+    html += FPSTR(LABEL_DELAY_SECONDS);
+    html += web_format("<input type='number' name='delaySeconds' required value='%d'>", staticConfig.delaySeconds);
+    html += FPSTR(LABEL_MAX_ON_TIME);
+    html += web_format("<input type='number' name='maxOnTime' min='0' required value='%u'>", staticConfig.maxOnTime);
+    
+    html += FPSTR(HTML_SECTION_BOOT);
+    html += FPSTR(LABEL_BOOT_STATE);
+    if (staticConfig.bootState) {
+        html += "<script>document.querySelector('input[name=\"bootState\"]').checked=true;</script>";
+    }
+    html += FPSTR(NOTE_BOOT);
+    #endif
+    
+    html += FPSTR(HTML_CHECKBOX_CONFIRM);
+    html += FPSTR(HTML_SUBMIT_BUTTON);
+    html += FPSTR(HTML_FORM_CLOSE);
+    
+    #if OTA_ENABLED == 1
+    html += "<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>";
+    #endif
+    
+    html += "<a href='/' class='link-btn'>Домой</a>";
+    html += FPSTR(HTML_CONTAINER_CLOSE);
+    
+    return html;
+}
+#endif
+
+// ========== СТРАНИЦА СТАТУСА ==========
+
+#if WEB_STATUS_ENABLED == 1
+#ifdef ESP8266
+void web_sendStatusPage(int refreshInterval) {
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, "text/html", "");
+    
+    web_sendChunk_P(HTML_DOCTYPE);
+    web_sendFormatted("<meta http-equiv='refresh' content='%d'>", refreshInterval);
+    web_sendFormatted("<title>%s</title>", DEVICE_PREFIX);
+    web_sendChunk_P(HTML_STYLE);
+    web_sendChunk_P(HTML_CONTAINER_OPEN);
+    
+    web_sendFormatted("<h1>%s VERSION %s</h1>", DEVICE_PREFIX, VERSION);
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    web_sendChunk_P("<div class='flex-container'>");
+    
+    #if DEVICE_TYPE == 1
+    const char* tempColor = (currentTemp >= config.highTemp) ? "#f44336" : 
+                           ((currentTemp <= config.lowTemp) ? "#4CAF50" : "#2196F3");
+    const char* humColor = (currentHum >= config.highHum) ? "#f44336" : 
+                          ((currentHum <= config.lowHum) ? "#4CAF50" : "#2196F3");
+    #else
+    const char* tempColor = "#2196F3";
+    const char* humColor = "#2196F3";
+    #endif
+    
+    web_sendFormatted("<div class='sensor-card' style='background:%s20; border:2px solid %s;'>", tempColor, tempColor);
+    web_sendFormatted("<div class='sensor-value' style='color:%s;'>%.1f °C</div>", tempColor, currentTemp);
+    web_sendChunk_P("<div class='sensor-label'>Температура");
+    #if DEVICE_TYPE == 1
+    web_sendFormatted(" (выкл: %.1f вкл: %.1f)", config.lowTemp, config.highTemp);
+    #endif
+    web_sendChunk_P("</div></div>");
+    
+    web_sendFormatted("<div class='sensor-card' style='background:%s20; border:2px solid %s;'>", humColor, humColor);
+    web_sendFormatted("<div class='sensor-value' style='color:%s;'>%.1f %%</div>", humColor, currentHum);
+    web_sendChunk_P("<div class='sensor-label'>Влажность");
+    #if DEVICE_TYPE == 1
+    web_sendFormatted(" (выкл: %.1f вкл: %.1f)", config.lowHum, config.highHum);
+    #endif
+    web_sendChunk_P("</div></div></div>");
+    
+    if (!sensorOk && sensorError.length() > 0) {
+        web_sendFormatted("<div class='sensor-error'><strong>Ошибка датчика</strong><br>%s</div>", sensorError.c_str());
+    }
+    #endif
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    #if DEVICE_TYPE == 1
+    bool state = fan_getState();
+    const char* label = "Вентилятор";
+    const char* toggleUrl = "/fan/toggle";
+    #else
+    bool state = switch_getState();
+    const char* label = "Выключатель";
+    const char* toggleUrl = "/switch/toggle";
+    #endif
+    
+    const char* stateColor = state ? "#f44336" : "#2196F3";
+    const char* stateText = state ? "ВКЛ" : "ВЫКЛ";
+    
+    web_sendFormatted("<a href='%s'>", toggleUrl);
+    web_sendFormatted("<div class='status-card' style='background:%s20; border:2px solid %s;'>", stateColor, stateColor);
+    web_sendFormatted("<div style='font-size:2em;font-weight:bold;color:%s;'>%s: %s</div></div></a>", stateColor, label, stateText);
+    
+    #if DEVICE_TYPE == 1
+    if (state) {
+        int currentSpeed = startingPulseActive ? 100 : config.speedPercent;
+        web_sendChunk_P("<div class='status-card' style='background:#2196F320; border:2px solid #2196F3;'>");
+        web_sendFormatted("<div style='font-size:1.2em;font-weight:bold;'>Скорость: %d%%</div>", currentSpeed);
+        web_sendFormatted("<div class='duty-bar'><div class='duty-fill' style='width:%d%%;'></div></div>", currentSpeed);
+        if (config.speedPercent < 100) {
+            web_sendChunk_P("<div style='font-size:0.9em;color:#555;'>Тихий режим активен");
+            if (config.adaptiveMode) {
+                web_sendChunk_P(" + адаптация");
+            }
+            web_sendChunk_P("</div>");
+        }
+        web_sendChunk_P("</div>");
+    }
+    
+    const char* modeText = config.sensorControlMode ? "УПРАВЛЕНИЕ СЕНСОРОМ" : "РУЧНОЙ";
+    const char* modeColor = config.sensorControlMode ? "#4CAF50" : "#f44336";
+    
+    web_sendFormatted("<div class='status-card' style='background:%s20; border:2px solid %s;'>", modeColor, modeColor);
+    web_sendFormatted("<div style='font-size:1.5em;font-weight:bold;color:%s;'>Режим: %s</div>", modeColor, modeText);
+    web_sendChunk_P("</div>");
+    #endif
+    #endif
+    
+    web_sendChunk_P("<hr><div class='info'>");
+    web_sendFormatted("Обновление: %d сек<br>", refreshInterval);
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    web_sendFormatted("Опрос датчика %d сек<br>", config.sensorInterval);
+    #endif
+    
+    #if MQTT_ENABLED == 1
+    web_sendFormatted("MQTT: %s<br>", mqttManager.isConnected() ? "подключен" : "отключен");
+    #endif
+    
+    #if WEB_SHOW_RSSI == 1
+    web_sendFormatted("RSSI: %d dBm<br>", WiFi.RSSI());
+    #endif
+    
+    web_sendChunk_P("</div>");
+    
+    web_sendChunk_P("<div class='button-group'>");
+    #if DEVICE_TYPE == 1
+    if (!config.sensorControlMode) {
+        web_sendChunk_P("<a href='/fan/auto'><button>Режим управления сенсором</button></a>");
+    }
+    #endif
+    web_sendChunk_P("<a href='/config'><button>Настройки</button></a>");
+    web_sendChunk_P("</div>");
+    
+    web_sendChunk_P(HTML_CONTAINER_CLOSE);
+}
+
+#else // ESP32
+
+String web_getStatusPage(int refreshInterval) {
+    String html;
+    html.reserve(4096);
+    
+    html += FPSTR(HTML_DOCTYPE);
+    html += web_format("<meta http-equiv='refresh' content='%d'>", refreshInterval);
+    html += web_format("<title>%s</title>", DEVICE_PREFIX);
+    html += FPSTR(HTML_STYLE);
+    html += FPSTR(HTML_CONTAINER_OPEN);
+    
+    html += web_format("<h1>%s VERSION %s</h1>", DEVICE_PREFIX, VERSION);
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    html += "<div class='flex-container'>";
+    
+    #if DEVICE_TYPE == 1
+    const char* tempColor = (currentTemp >= config.highTemp) ? "#f44336" : 
+                           ((currentTemp <= config.lowTemp) ? "#4CAF50" : "#2196F3");
+    const char* humColor = (currentHum >= config.highHum) ? "#f44336" : 
+                          ((currentHum <= config.lowHum) ? "#4CAF50" : "#2196F3");
+    #else
+    const char* tempColor = "#2196F3";
+    const char* humColor = "#2196F3";
+    #endif
+    
+    html += web_format("<div class='sensor-card' style='background:%s20; border:2px solid %s;'>", tempColor, tempColor);
+    html += web_format("<div class='sensor-value' style='color:%s;'>%.1f °C</div>", tempColor, currentTemp);
+    html += "<div class='sensor-label'>Температура";
+    #if DEVICE_TYPE == 1
+    html += web_format(" (выкл: %.1f вкл: %.1f)", config.lowTemp, config.highTemp);
+    #endif
+    html += "</div></div>";
+    
+    html += web_format("<div class='sensor-card' style='background:%s20; border:2px solid %s;'>", humColor, humColor);
+    html += web_format("<div class='sensor-value' style='color:%s;'>%.1f %%</div>", humColor, currentHum);
+    html += "<div class='sensor-label'>Влажность";
+    #if DEVICE_TYPE == 1
+    html += web_format(" (выкл: %.1f вкл: %.1f)", config.lowHum, config.highHum);
+    #endif
+    html += "</div></div></div>";
+    
+    if (!sensorOk && sensorError.length() > 0) {
+        html += web_format("<div class='sensor-error'><strong>Ошибка датчика</strong><br>%s</div>", sensorError.c_str());
+    }
+    #endif
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    #if DEVICE_TYPE == 1
+    bool state = fan_getState();
+    const char* label = "Вентилятор";
+    const char* toggleUrl = "/fan/toggle";
+    #else
+    bool state = switch_getState();
+    const char* label = "Выключатель";
+    const char* toggleUrl = "/switch/toggle";
+    #endif
+    
+    const char* stateColor = state ? "#f44336" : "#2196F3";
+    const char* stateText = state ? "ВКЛ" : "ВЫКЛ";
+    
+    html += web_format("<a href='%s'>", toggleUrl);
+    html += web_format("<div class='status-card' style='background:%s20; border:2px solid %s;'>", stateColor, stateColor);
+    html += web_format("<div style='font-size:2em;font-weight:bold;color:%s;'>%s: %s</div></div></a>", stateColor, label, stateText);
+    
+    #if DEVICE_TYPE == 1
+    if (state) {
+        int currentSpeed = startingPulseActive ? 100 : config.speedPercent;
+        html += "<div class='status-card' style='background:#2196F320; border:2px solid #2196F3;'>";
+        html += web_format("<div style='font-size:1.2em;font-weight:bold;'>Скорость: %d%%</div>", currentSpeed);
+        html += web_format("<div class='duty-bar'><div class='duty-fill' style='width:%d%%;'></div></div>", currentSpeed);
+        if (config.speedPercent < 100) {
+            html += "<div style='font-size:0.9em;color:#555;'>Тихий режим активен";
+            if (config.adaptiveMode) {
+                html += " + адаптация";
+            }
+            html += "</div>";
+        }
+        html += "</div>";
+    }
+    
+    const char* modeText = config.sensorControlMode ? "УПРАВЛЕНИЕ СЕНСОРОМ" : "РУЧНОЙ";
+    const char* modeColor = config.sensorControlMode ? "#4CAF50" : "#f44336";
+    
+    html += web_format("<div class='status-card' style='background:%s20; border:2px solid %s;'>", modeColor, modeColor);
+    html += web_format("<div style='font-size:1.5em;font-weight:bold;color:%s;'>Режим: %s</div>", modeColor, modeText);
+    html += "</div>";
+    #endif
+    #endif
+    
+    html += "<hr><div class='info'>";
+    html += web_format("Обновление: %d сек<br>", refreshInterval);
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    html += web_format("Опрос датчика %d сек<br>", config.sensorInterval);
+    #endif
+    
+    #if MQTT_ENABLED == 1
+    html += web_format("MQTT: %s<br>", mqttManager.isConnected() ? "подключен" : "отключен");
+    #endif
+    
+    #if WEB_SHOW_RSSI == 1
+    html += web_format("RSSI: %d dBm<br>", WiFi.RSSI());
+    #endif
+    
+    html += "</div>";
+    
+    html += "<div class='button-group'>";
+    #if DEVICE_TYPE == 1
+    if (!config.sensorControlMode) {
+        html += "<a href='/fan/auto'><button>Режим управления сенсором</button></a>";
+    }
+    #endif
+    html += "<a href='/config'><button>Настройки</button></a>";
+    html += "</div>";
+    
+    html += FPSTR(HTML_CONTAINER_CLOSE);
+    
+    return html;
+}
+#endif
+#endif
+
+// ========== СОХРАНЕНИЕ КОНФИГУРАЦИИ ==========
+
+#ifdef ESP8266
+void web_saveConfig() {
+    // WiFi настройки
+    if (server.hasArg("wifiSsid"))
+        server.arg("wifiSsid").toCharArray(config.wifiSsid, sizeof(config.wifiSsid));
+    if (server.hasArg("wifiPassword")) {
+        String pwd = server.arg("wifiPassword");
+        if (pwd.length() > 0) pwd.toCharArray(config.wifiPassword, sizeof(config.wifiPassword));
+    }
+
+    #if MQTT_ENABLED == 1
+    if (server.hasArg("mqttBroker"))
+        server.arg("mqttBroker").toCharArray(config.mqttBroker, sizeof(config.mqttBroker));
+    if (server.hasArg("mqttPort"))
+        config.mqttPort = server.arg("mqttPort").toInt();
+    if (server.hasArg("mqttUser"))
+        server.arg("mqttUser").toCharArray(config.mqttUser, sizeof(config.mqttUser));
+    if (server.hasArg("mqttPassword")) {
+        String pwd = server.arg("mqttPassword");
+        if (pwd.length() > 0) pwd.toCharArray(config.mqttPassword, sizeof(config.mqttPassword));
+    }
+    if (server.hasArg("mqttClientId")) {
+        String cid = server.arg("mqttClientId");
+        if (cid.length() > 0 && cid.length() < sizeof(config.mqttClientId)) {
+            cid.toCharArray(config.mqttClientId, sizeof(config.mqttClientId));
+        } else if (cid.length() == 0) {
+            config.mqttClientId[0] = '\0';
+        }
+    }
+    #endif
+
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    if (server.hasArg("sensorInterval"))
+        config.sensorInterval = server.arg("sensorInterval").toInt();
+    #endif
+    
+    #if DEVICE_TYPE == 1
+    if (server.hasArg("lowTemp"))
+        config.lowTemp = server.arg("lowTemp").toFloat();
+    if (server.hasArg("highTemp"))
+        config.highTemp = server.arg("highTemp").toFloat();
+    if (server.hasArg("lowHum"))
+        config.lowHum = server.arg("lowHum").toFloat();
+    if (server.hasArg("highHum"))
+        config.highHum = server.arg("highHum").toFloat();
+    if (server.hasArg("maxOnTime"))
+        config.maxOnTime = server.arg("maxOnTime").toInt();
+    if (server.hasArg("delaySeconds"))
+        config.delaySeconds = server.arg("delaySeconds").toInt();
+    if (server.hasArg("speedPercent"))
+        config.speedPercent = server.arg("speedPercent").toInt();
+    
+    config.adaptiveMode = server.hasArg("adaptiveMode");
+    config.bootState = server.hasArg("bootState");
+    config.sensorControlMode = server.hasArg("sensorControlMode");
+    #endif
+    
+    #if DEVICE_TYPE == 3
+    if (server.hasArg("maxOnTime"))
+        config.maxOnTime = server.arg("maxOnTime").toInt();
+    if (server.hasArg("delaySeconds"))
+        config.delaySeconds = server.arg("delaySeconds").toInt();
+    config.bootState = server.hasArg("bootState");
+    #endif
+    
+    if (!config_validate()) {
+        web_sendConfigPage(String(configLastError));
+        return;
+    }
+    
+    config_write();
+    server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><div style='text-align:center;margin-top:50px;'><h2>Настройки сохранены!</h2><p>Перезагрузка...</p></div></body></html>");
+    delay(1000);
+    #if DEBUG_ENABLED == 1
+        Serial.println("[DEBUG] Restarting...");
+    #endif
+    ESP.restart();
+}
+
+#else // ESP32
+
+void web_saveConfig(AsyncWebServerRequest *request) {
+    if (request->hasParam("wifiSsid", true)) {
+        const AsyncWebParameter* p = request->getParam("wifiSsid", true);
+        if (p) p->value().toCharArray(config.wifiSsid, sizeof(config.wifiSsid));
+    }
+    if (request->hasParam("wifiPassword", true)) {
+        const AsyncWebParameter* p = request->getParam("wifiPassword", true);
+        if (p) {
+            String pwd = p->value();
+            if (pwd.length() > 0) pwd.toCharArray(config.wifiPassword, sizeof(config.wifiPassword));
+        }
+    }
+
+    #if MQTT_ENABLED == 1
+    if (request->hasParam("mqttBroker", true)) {
+        const AsyncWebParameter* p = request->getParam("mqttBroker", true);
+        if (p) p->value().toCharArray(config.mqttBroker, sizeof(config.mqttBroker));
+    }
+    if (request->hasParam("mqttPort", true)) {
+        const AsyncWebParameter* p = request->getParam("mqttPort", true);
+        if (p) config.mqttPort = p->value().toInt();
+    }
+    if (request->hasParam("mqttUser", true)) {
+        const AsyncWebParameter* p = request->getParam("mqttUser", true);
+        if (p) p->value().toCharArray(config.mqttUser, sizeof(config.mqttUser));
+    }
+    if (request->hasParam("mqttPassword", true)) {
+        const AsyncWebParameter* p = request->getParam("mqttPassword", true);
+        if (p) {
+            String pwd = p->value();
+            if (pwd.length() > 0) pwd.toCharArray(config.mqttPassword, sizeof(config.mqttPassword));
+        }
+    }
+    if (request->hasParam("mqttClientId", true)) {
+        const AsyncWebParameter* p = request->getParam("mqttClientId", true);
+        if (p) {
+            String cid = p->value();
+            if (cid.length() > 0 && cid.length() < sizeof(config.mqttClientId)) {
+                cid.toCharArray(config.mqttClientId, sizeof(config.mqttClientId));
+            } else if (cid.length() == 0) {
+                config.mqttClientId[0] = '\0';
+            }
+        }
+    }
+    #endif
+
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    if (request->hasParam("sensorInterval", true)) {
+        const AsyncWebParameter* p = request->getParam("sensorInterval", true);
+        if (p) config.sensorInterval = p->value().toInt();
+    }
+    #endif
+    
+    #if DEVICE_TYPE == 1
+    if (request->hasParam("lowTemp", true)) {
+        const AsyncWebParameter* p = request->getParam("lowTemp", true);
+        if (p) config.lowTemp = p->value().toFloat();
+    }
+    if (request->hasParam("highTemp", true)) {
+        const AsyncWebParameter* p = request->getParam("highTemp", true);
+        if (p) config.highTemp = p->value().toFloat();
+    }
+    if (request->hasParam("lowHum", true)) {
+        const AsyncWebParameter* p = request->getParam("lowHum", true);
+        if (p) config.lowHum = p->value().toFloat();
+    }
+    if (request->hasParam("highHum", true)) {
+        const AsyncWebParameter* p = request->getParam("highHum", true);
+        if (p) config.highHum = p->value().toFloat();
+    }
+    if (request->hasParam("maxOnTime", true)) {
+        const AsyncWebParameter* p = request->getParam("maxOnTime", true);
+        if (p) config.maxOnTime = p->value().toInt();
+    }
+    if (request->hasParam("delaySeconds", true)) {
+        const AsyncWebParameter* p = request->getParam("delaySeconds", true);
+        if (p) config.delaySeconds = p->value().toInt();
+    }
+    if (request->hasParam("speedPercent", true)) {
+        const AsyncWebParameter* p = request->getParam("speedPercent", true);
+        if (p) config.speedPercent = p->value().toInt();
+    }
+    
+    config.adaptiveMode = request->hasParam("adaptiveMode", true);
+    config.bootState = request->hasParam("bootState", true);
+    config.sensorControlMode = request->hasParam("sensorControlMode", true);
+    #endif
+    
+    #if DEVICE_TYPE == 3
+    if (request->hasParam("maxOnTime", true)) {
+        const AsyncWebParameter* p = request->getParam("maxOnTime", true);
+        if (p) config.maxOnTime = p->value().toInt();
+    }
+    if (request->hasParam("delaySeconds", true)) {
+        const AsyncWebParameter* p = request->getParam("delaySeconds", true);
+        if (p) config.delaySeconds = p->value().toInt();
+    }
+    config.bootState = request->hasParam("bootState", true);
+    #endif
+    
+    if (!config_validate()) {
+        request->send(200, "text/html", web_getConfigPage(String(configLastError)));
+        return;
+    }
+    
+    config_write();
+    request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><div style='text-align:center;margin-top:50px;'><h2>Настройки сохранены!</h2><p>Перезагрузка...</p></div></body></html>");
+    delay(1000);
+    ESP.restart();
+}
+#endif
+
+// ========== ИНИЦИАЛИЗАЦИЯ WEB СЕРВЕРА ==========
+
+void web_init() {
+    int refreshInterval = 5;
+
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    refreshInterval = config.sensorInterval;
+    #endif
+    
+    #if WEB_STATUS_ENABLED == 1
+    #ifdef ESP8266
+    server.on("/", [refreshInterval](){ 
+        web_sendStatusPage(refreshInterval);
+    });
+    #else
+    server.on("/", HTTP_GET, [refreshInterval](AsyncWebServerRequest *request){ 
+        request->send(200, "text/html", web_getStatusPage(refreshInterval)); 
+    });
+    #endif
+    #else
+    #ifdef ESP8266
+    server.on("/", [](){ 
         server.sendHeader("Location", "/config", true); 
         server.send(302, "text/plain", ""); 
-      });
-    #endif
-  #endif
-  
-  #ifdef ESP32
-    server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request){ 
-      request->send(200, "text/html", web_getConfigPage("")); 
     });
-    
-    server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ 
-      web_saveConfig(request); 
-    });
-    
-    #if WEB_RESET_ENABLED==1
-    server.on("/resetall", HTTP_GET, [](AsyncWebServerRequest *request){
-      config_clear();
-      request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
-      delay(1000);
-      #if DEBUG_ENABLED == 1
-        Serial.println("[DEBUG] Restarting...");
-      #endif
-      ESP.restart();
+    #else
+    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        request->redirect("/config"); 
     });
     #endif
+    #endif
     
-  #elif defined(ESP8266)
+    #ifdef ESP8266
     server.on("/config", [](){ 
-      server.send(200, "text/html", web_getConfigPage("")); 
+        web_sendConfigPage(""); 
     });
     
     server.on("/save", web_saveConfig);
     
-    #if WEB_RESET_ENABLED==1
+    #if WEB_RESET_ENABLED == 1
     server.on("/resetall", [](){
-      config_clear();
-      server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
-      delay(1000);
-      #if DEBUG_ENABLED == 1
-      Serial.println("[DEBUG] Restarting...");
-    #endif
-      ESP.restart();
+        config_clear();
+        server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
+        delay(1000);
+        #if DEBUG_ENABLED == 1
+        Serial.println("[DEBUG] Restarting...");
+        #endif
+        ESP.restart();
     });
     #endif
-  #endif
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    #ifdef ESP32
-      #if DEVICE_TYPE == 1
-      server.on("/fan/toggle", HTTP_GET, [](AsyncWebServerRequest *request){ 
-        handleToggle(); 
-        request->redirect("/"); 
-      });
-      server.on("/fan/auto", HTTP_GET, [](AsyncWebServerRequest *request){ 
-        handleSensorControlMode(); 
-        request->redirect("/"); 
-      });
-      #elif DEVICE_TYPE == 3
-      server.on("/switch/toggle", HTTP_GET, [](AsyncWebServerRequest *request){ 
-        handleToggle(); 
-        request->redirect("/"); 
-      });
-      // server.on("/switch/auto", HTTP_GET, [](AsyncWebServerRequest *request){ 
-      //   handleSensorControlMode(); 
-      //   request->redirect("/"); 
-      // });
-      #endif
-    #elif defined(ESP8266)
-      #if DEVICE_TYPE == 1
-      server.on("/fan/toggle", [](){ 
-        handleToggle(); 
-        server.sendHeader("Location", "/", true); 
-        server.send(302, "text/plain", ""); 
-      });
-      server.on("/fan/auto", [](){ 
-        handleSensorControlMode(); 
-        server.sendHeader("Location", "/", true); 
-        server.send(302, "text/plain", ""); 
-      });
-      #elif DEVICE_TYPE == 3
-      server.on("/switch/toggle", [](){ 
-        handleToggle(); 
-        server.sendHeader("Location", "/", true); 
-        server.send(302, "text/plain", ""); 
-      });
-      
-      #endif
+    
+    #else // ESP32
+    server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        request->send(200, "text/html", web_getConfigPage("")); 
+    });
+    
+    server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ 
+        web_saveConfig(request); 
+    });
+    
+    #if WEB_RESET_ENABLED == 1
+    server.on("/resetall", HTTP_GET, [](AsyncWebServerRequest *request){
+        config_clear();
+        request->send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
+        delay(1000);
+        #if DEBUG_ENABLED == 1
+        Serial.println("[DEBUG] Restarting...");
+        #endif
+        ESP.restart();
+    });
     #endif
-  #endif
-  
+    #endif
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    #ifdef ESP8266
+    #if DEVICE_TYPE == 1
+    server.on("/fan/toggle", [](){ 
+        handleToggle(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+    });
+    server.on("/fan/auto", [](){ 
+        handleSensorControlMode(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+    });
+    #elif DEVICE_TYPE == 3
+    server.on("/switch/toggle", [](){ 
+        handleToggle(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+    });
+    #endif
+    
+    #else // ESP32
+    #if DEVICE_TYPE == 1
+    server.on("/fan/toggle", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        handleToggle(); 
+        request->redirect("/"); 
+    });
+    server.on("/fan/auto", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        handleSensorControlMode(); 
+        request->redirect("/"); 
+    });
+    #elif DEVICE_TYPE == 3
+    server.on("/switch/toggle", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        handleToggle(); 
+        request->redirect("/"); 
+    });
+    #endif
+    #endif
+    #endif
 
-  #if OTA_ENABLED == 1
+    #if OTA_ENABLED == 1
     #if defined(ESP32)
       ElegantOTA.begin(&server);
-      
       #if LOG_OTA == 1
         Serial.println("[OTA] ElegantOTA initialized for ESP32");
       #endif
-    
     #elif defined(ESP8266)
       if (!otaInitialized) {
-        
         #if LOG_OTA == 1
           Serial.printf("[OTA] Free heap before ElegantOTA: %d\n", ESP.getFreeHeap());
         #endif
-        
         ElegantOTA.begin(&server);
         otaInitialized = true;
-        
         #if LOG_OTA == 1
           Serial.println("[OTA] ElegantOTA initialized for ESP8266");
         #endif  
       }
     #endif
-  #endif
+    #endif
   
-  server.begin();
+    server.begin();
   
-  #if LOG_WEB == 1
+    #if LOG_WEB == 1
     Serial.println("[WEB] Web server started on port 80 (client mode)");
-      
-  #endif
+    #endif
 }
 
+// ========== РЕЖИМ ТОЧКИ ДОСТУПА ==========
+
 void web_initAP() {
-  if (apMode) return;
+    if (apMode) return;
   
-  apMode = true;
+    apMode = true;
 
-  #if STATUS_LED_PIN > 0
-    led_setMode(LED_MODE_SLOW_BLINK);  // Режим AP
-  #endif
-
-  uint8_t mac[6];
-  WiFi.macAddress(mac);
-  
-  
-  
-  WiFi.mode(WIFI_AP);
-  
-  #ifdef ESP8266
-    // WiFi.softAPConfig(IPAddress(192,168,4,1), IPAddress(192,168,4,1), IPAddress(255,255,255,0));
-    IPAddress apIP;
-    apIP.fromString(AP_IP_ADDRESS);
-    WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-
-    
-    WiFi.softAP(deviceId); 
-    dnsServer.start(DNS_PORT, "*", IPAddress(192,168,4,1));
-    
-    #if LOG_AP == 1
-      Serial.printf("[AP] AP started: %s, IP: %s\n", deviceId, AP_IP_ADDRESS);
+    #if STATUS_LED_PIN > 0
+      led_setMode(LED_MODE_SLOW_BLINK);
     #endif
-  
-  #elif defined(ESP32)    
-    WiFi.softAP(deviceId);
-    
-    #if LOG_AP == 1
-      Serial.printf("[AP] AP started: %s, IP: %s\n", deviceId, WiFi.softAPIP().toString().c_str());
-    #endif
-  
-  #endif
-  
 
-  #if OTA_ENABLED == 1
+    WiFi.mode(WIFI_AP);
+  
+    #ifdef ESP8266
+      IPAddress apIP;
+      apIP.fromString(AP_IP_ADDRESS);
+      WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+      WiFi.softAP(deviceId);
+      dnsServer.start(DNS_PORT, "*", IPAddress(192,168,4,1));
+    
+      #if LOG_AP == 1
+        Serial.printf("[AP] AP started: %s, IP: %s\n", deviceId, AP_IP_ADDRESS);
+      #endif
+    #elif defined(ESP32)    
+      WiFi.softAP(deviceId);
+      #if LOG_AP == 1
+        Serial.printf("[AP] AP started: %s, IP: %s\n", deviceId, WiFi.softAPIP().toString().c_str());
+      #endif
+    #endif
+
+    #if OTA_ENABLED == 1
     #if defined(ESP32)
       ElegantOTA.begin(&server);
       #if LOG_OTA == 1
@@ -863,34 +1057,40 @@ void web_initAP() {
       #endif
     #elif defined(ESP8266)
       #if LOG_OTA == 1
-          Serial.printf("[OTA] Free heap before ElegantOTA: %d\n", ESP.getFreeHeap());
-        #endif
+        Serial.printf("[OTA] Free heap before ElegantOTA: %d\n", ESP.getFreeHeap());
+      #endif
       ElegantOTA.begin(&server);
       #if LOG_OTA == 1
         Serial.println("[OTA] ElegantOTA initialized for ESP8266 (AP mode)");
       #endif
     #endif
-  #endif
+    #endif
 
-  #ifdef ESP8266
-    server.on("/", [](){ server.send(200, "text/html", web_getConfigPage("")); });
-    server.on("/save", web_saveConfig);
-  #elif defined(ESP32)
-    server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ request->send(200, "text/html", web_getConfigPage("")); });
-    server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ web_saveConfig(request); });
-  #endif
+    #ifdef ESP8266
+      server.on("/", [](){ web_sendConfigPage(""); });
+      server.on("/save", web_saveConfig);
+    #elif defined(ESP32)
+      server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
+        request->send(200, "text/html", web_getConfigPage("")); 
+      });
+      server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ 
+        web_saveConfig(request); 
+      });
+    #endif
   
-  server.begin();
+    server.begin();
 }
 
+// ========== ОБНОВЛЕНИЕ ==========
+
 void web_update() {
-  #ifdef ESP8266
-    server.handleClient();   
-  #endif
+    #ifdef ESP8266
+      server.handleClient();   
+    #endif
   
-  #ifdef ESP8266
-    if (apMode) {
-      dnsServer.processNextRequest();
-    }
-  #endif
+    #ifdef ESP8266
+      if (apMode) {
+        dnsServer.processNextRequest();
+      }
+    #endif
 }

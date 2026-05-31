@@ -1,4 +1,3 @@
-// @filename: web.h
 #ifndef WEB_H
 #define WEB_H
 
@@ -10,22 +9,20 @@
   extern ESP8266WebServer server;
 #endif
 
-
-
-// Прототипы функций, которые используются всегда
-String web_getConfigPage(String errorMsg);
-
-// Прототипы функций, которые зависят от WEB_STATUS_ENABLED
-// Объявляем их условно, чтобы экономить память на ESP8266, если статус не нужен.
-#if WEB_STATUS_ENABLED == 1
-  String web_getStatusPage(int refreshInterval);
-#endif
-
-// Прототипы для сохранения конфигурации
-#ifdef ESP32
-  void web_saveConfig(AsyncWebServerRequest *request);
-#elif defined(ESP8266)
+// Функции для ESP8266 (отправка HTML частями)
+#ifdef ESP8266
+  void web_sendConfigPage(const String& errorMsg);
+  #if WEB_STATUS_ENABLED == 1
+    void web_sendStatusPage(int refreshInterval);
+  #endif
   void web_saveConfig();
+#else
+  // Для ESP32 (стандартный подход с String)
+  String web_getConfigPage(String errorMsg);
+  #if WEB_STATUS_ENABLED == 1
+    String web_getStatusPage(int refreshInterval);
+  #endif
+  void web_saveConfig(AsyncWebServerRequest *request);
 #endif
 
 void web_init();

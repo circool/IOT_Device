@@ -608,7 +608,7 @@ struct Config {
 extern Config config;
 extern Config staticConfig;
 extern bool configValid;
-extern String configLastError;   
+extern char configLastError[64];   
 
 void config_init();
 void config_read();
