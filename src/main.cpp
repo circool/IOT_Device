@@ -430,11 +430,14 @@ void setup() {
   config_init();
 
   #if DEBUG_WIFI_ENABLED == 1
+  #if defined(ESP32) && WDT_ENABLED == 1
+    esp_task_wdt_delete(NULL);  // временно отключаем WDT
+  #endif
   Serial.println("[WIFI] Scanning...");
   int n = WiFi.scanNetworks();
   for (int i = 0; i < n; i++) {
     String ssid = WiFi.SSID(i);
-    bool isTarget = (ssid == config.wifiSsid);  // ← сравнение с настройками
+    bool isTarget = (ssid == config.wifiSsid);
     
     if (isTarget) {
         Serial.printf("[WIFI] %s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET "\n", 
@@ -443,10 +446,12 @@ void setup() {
         Serial.printf("[WIFI] %s (RSSI: %d)\n", 
                       ssid.c_str(), WiFi.RSSI(i));
     }
+    #if defined(ESP32) && WDT_ENABLED == 1
+      esp_task_wdt_add(NULL);  // снова включаем WDT
+    #endif
   }
   WiFi.scanDelete();
-  
-#endif
+  #endif
 
   config_print();  
   bool hasValidConfig = (configValid && strlen(config.wifiSsid) > 0);
@@ -608,17 +613,22 @@ void setup() {
 
     #if WIFI_ENABLED == 1
       #if DEBUG_WIFI_ENABLED == 1
-      WiFi.setSleepMode(WIFI_NONE_SLEEP);
-      WiFi.setPhyMode(WIFI_PHY_MODE_11G);
-      delay(100);
-      #endif
-
-      #if DEBUG_WIFI_ENABLED == 1
-        WiFi.setOutputPower(15.0);  // По умолчанию 20.5 dBm
+        #ifdef ESP8266
+          // ESP8266 специфичные настройки
+          WiFi.setSleepMode(WIFI_NONE_SLEEP);
+          WiFi.setPhyMode(WIFI_PHY_MODE_11G);
+          // WiFi.setOutputPower(15.0);
+          delay(100);
+        #elif defined(ESP32)
+          // ESP32 специфичные настройки
+          WiFi.setSleep(false);  // отключаем энергосбережение
+          // WiFi.setTxPower(WIFI_POWER_19_5dBm);  // опционально
+          delay(100);
+        #endif
       #endif
 
       wifi_beginAsync();
-    #endif
+#endif
 
     #if WEB_ENABLED == 1
       web_init();
