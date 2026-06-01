@@ -22,6 +22,9 @@
   #include <ESPAsyncWebServer.h>
   #include <esp_chip_info.h>
   #include <esp_flash.h>
+  #if WDT_ENABLED == 1
+    #include <esp_task_wdt.h>
+  #endif
   #if OTA_ENABLED == 1
     #include <ElegantOTA.h>
   #endif
@@ -1015,23 +1018,20 @@ void web_init() {
     #endif
 
     #if OTA_ENABLED == 1
-    #if defined(ESP32)
-      ElegantOTA.begin(&server);
-      #if LOG_OTA == 1
-        Serial.println("[OTA] ElegantOTA initialized for ESP32");
-      #endif
-    #elif defined(ESP8266)
-      if (!otaInitialized) {
-        #if LOG_OTA == 1
-          Serial.printf("[OTA] Free heap before ElegantOTA: %d\n", ESP.getFreeHeap());
-        #endif
+        #if defined(ESP32)
         ElegantOTA.begin(&server);
-        otaInitialized = true;
         #if LOG_OTA == 1
-          Serial.println("[OTA] ElegantOTA initialized for ESP8266");
-        #endif  
-      }
-    #endif
+            Serial.println("[OTA] ElegantOTA initialized for ESP32");
+        #endif
+        #elif defined(ESP8266)
+        if (!otaInitialized) {
+            ElegantOTA.begin(&server);
+            otaInitialized = true;
+            #if LOG_OTA == 1
+            Serial.println("[OTA] ElegantOTA initialized for ESP8266");
+            #endif
+        }
+        #endif
     #endif
   
     server.begin();
