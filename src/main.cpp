@@ -600,16 +600,30 @@ void setup() {
     #endif
 
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    sensor_init();
-    #endif
+      sensor_init();
+      
+      #if DEVICE_TYPE == 1
+      if (!sensorOk && (
+          #if SENSOR_TYPE == 1
+          strcmp(sensorError, "AHT10 not found") == 0
+          #elif SENSOR_TYPE == 2
+          strcmp(sensorError, "DHT read failed (NaN)") == 0
+          #endif
+      )) {
+        config.sensorControlMode = false;
+        config.adaptiveMode = false;
+        Serial.println("[SENSOR] Not found - switching to MANUAL mode");
+      }
+      #endif //DEVICE_TYPE == 1   
+    #endif //DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
     #if DEVICE_TYPE == 1 
       fan_init();
-    #endif
+    #endif //DEVICE_TYPE == 1
     
     #if DEVICE_TYPE == 3 
       switch_init();
-    #endif
+    #endif //DEVICE_TYPE == 3
 
     #if WIFI_ENABLED == 1
       #if DEBUG_WIFI_ENABLED == 1
@@ -625,16 +639,17 @@ void setup() {
           // WiFi.setTxPower(WIFI_POWER_19_5dBm);  // опционально
           delay(100);
         #endif
-      #endif
+      #endif //DEBUG_WIFI_ENABLED == 1
 
       wifi_beginAsync();
-#endif
+    #endif //WIFI_ENABLED == 1
 
     #if WEB_ENABLED == 1
       web_init();
     #endif
     
   } else {
+    
     #if LOG_CONFIG == 1
       Serial.println("[CONFIG] Configuration mode - starting AP for setup");
     #endif
@@ -698,7 +713,7 @@ void loop() {
         } else {
           led_setMode(LED_MODE_ON);
         }
-      #endif
+      #endif //STATUS_LED_PIN > 0
       
       // Heartbeat
       static unsigned long lastHeartbeat = 0;
@@ -717,7 +732,7 @@ void loop() {
       #endif
     }
     
-  #endif
+  #endif //MQTT_ENABLED == 1
 
   #if WEB_ENABLED == 1
     web_update();

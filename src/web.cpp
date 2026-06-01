@@ -551,7 +551,7 @@ void web_sendStatusPage(int refreshInterval) {
     
     web_sendChunk_P("<div class='button-group'>");
     #if DEVICE_TYPE == 1
-    if (!config.sensorControlMode) {
+    if (!config.sensorControlMode && sensorOk ) {
         web_sendChunk_P("<a href='/fan/auto'><button>Режим управления сенсором</button></a>");
     }
     #endif
@@ -693,7 +693,7 @@ void web_sendStatusPage(AsyncWebServerRequest *request, int refreshInterval) {
     
     html += "<div class='button-group'>";
     #if DEVICE_TYPE == 1
-    if (!config.sensorControlMode) {
+    if (!config.sensorControlMode && sensorOk) {
         html += "<a href='/fan/auto'><button>Режим управления сенсором</button></a>";
     }
     #endif
