@@ -2,6 +2,7 @@
 
 [![Platform](https://img.shields.io/badge/platform-ESP8266%20%7C%20ESP32-blue)](https://github.com/)
 [![Framework](https://img.shields.io/badge/framework-Arduino-red)](https://www.arduino.cc/)
+[![Version](https://img.shields.io/badge/version-1.4-brightgreen)](https://github.com/circool/IOT_Device/releases)
 [![License](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![MQTT](https://img.shields.io/badge/MQTT-v3.1.1-orange)](https://mqtt.org/)
 
