@@ -1,5 +1,3 @@
-#ifdef ESP8266
-
 #ifndef WEB_STRINGS_H
 #define WEB_STRINGS_H
 
@@ -91,5 +89,3 @@ const char STATUS_MODE_CLIENT[] PROGMEM = "Режим: <strong>Клиент WiFi
 const char STATUS_MODE_AP[] PROGMEM = "Режим: <strong>Точка доступа (AP)</strong><br>";
 
 #endif
-
-#endif // ESP8266

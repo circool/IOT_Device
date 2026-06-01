@@ -199,7 +199,7 @@ void checkResetButton() {
 #if WIFI_ENABLED == 1
 // ======================== WIFI ========================
 #ifndef DEBUG_WIFI_ENABLED
-  DEBUG_WIFI_ENABLED 0
+  #define DEBUG_WIFI_ENABLED 0
 #endif
 
 void wifi_beginAsync() {

@@ -147,7 +147,7 @@ void initDeviceId();
 
 // Индикация состояния
 #ifndef STATUS_LED_PIN
-  #define STATUS_LED_PIN 2
+  #define STATUS_LED_PIN 0
 #endif
 
 #ifndef LOG_LED

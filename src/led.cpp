@@ -5,7 +5,12 @@
 #if STATUS_LED_PIN > 0
 
 #ifndef LED_INVERTED
-    #define LED_INVERTED 1  // По умолчанию инвертирован
+    #ifdef ESP32
+        #define LED_INVERTED 0
+    #endif
+    #ifdef ESP8266
+        #define LED_INVERTED 1 
+    #endif        
 #endif
 
 static bool ledState = false;

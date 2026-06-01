@@ -16,8 +16,8 @@ extern float currentTemp;
 extern float currentHum;
 extern bool sensorOk;
 extern unsigned long lastSensorRead;
-extern String sensorError;            // Описание ошибки
-extern float humRate;                 // скорость изменения влажности (%/сек)
+extern char sensorError[64];            
+extern float humRate;                   // скорость изменения влажности (%/сек)
 
 void sensor_init();
 void sensor_read();

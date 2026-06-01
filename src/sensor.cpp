@@ -1,4 +1,5 @@
 #include "sensor.h"
+#include "ansi.h"
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
@@ -9,7 +10,7 @@ float currentTemp = 0;
 float currentHum = 0;
 bool sensorOk = false;
 unsigned long lastSensorRead = 0;
-String sensorError = "";
+char sensorError[64] = "";  // Было String sensorError = ""
 float humRate = 0;  
 
 #if SENSOR_TYPE == 1
@@ -23,21 +24,23 @@ void sensor_init() {
     
     if (aht.begin()) {
       sensorOk = false;
-      sensorError = "Waiting for first valid reading";
+      strcpy(sensorError, "Waiting for first valid reading");
       
       #if LOG_SENSOR == 1
         Serial.println("[SENSOR] AHT10 found, waiting for first valid reading...");
       #endif
     } else {
       sensorOk = false;
-      sensorError = "AHT10 not found";
+      strcpy(sensorError, "AHT10 not found");
+      Serial.print(ANSI_BRIGHT_RED);
       Serial.println("[SENSOR] AHT10 not found! Sensor will be disabled.");
+      Serial.print(ANSI_RESET);
     }
   #elif SENSOR_TYPE == 2    
     dht.begin();
     delay(2000);
     sensorOk = false;
-    sensorError = "Waiting for first valid reading";
+    strcpy(sensorError, "Waiting for first valid reading");
     #if LOG_SENSOR == 1
       Serial.println("[SENSOR] DHT initialized, waiting for first valid reading...");
     #endif
@@ -54,7 +57,7 @@ bool isSensorValueValid(float temp, float hum) {
 }
 
 void sensor_read() {
-  if (sensorError == "AHT10 not found") {
+  if (strcmp(sensorError, "AHT10 not found") == 0) {
     return;
   }
   
@@ -74,8 +77,10 @@ void sensor_read() {
       readSuccess = true;
     } else {
       sensorOk = false;
-      sensorError = "AHT10 I2C read failed";
+      strcpy(sensorError, "AHT10 I2C read failed");
+      Serial.print(ANSI_BRIGHT_RED);
       Serial.println("[SENSOR] AHT10 read error!");
+      Serial.print(ANSI_RESET);
     }
   #elif SENSOR_TYPE == 2
     float t = dht.readTemperature();
@@ -86,8 +91,10 @@ void sensor_read() {
       readSuccess = true;
     } else {
       sensorOk = false;
-      sensorError = "DHT read failed (NaN)";
+      strcpy(sensorError, "DHT read failed (NaN)");
+      Serial.print(ANSI_BRIGHT_RED);
       Serial.println("[SENSOR] DHT read error!");
+      Serial.print(ANSI_RESET);
     }
   #endif
   
@@ -115,7 +122,7 @@ void sensor_read() {
       currentTemp = temp;
       currentHum = hum;
       sensorOk = true;
-      sensorError = "";
+      sensorError[0] = '\0';
       
       #if LOG_SENSOR == 1
         Serial.printf("[SENSOR] T=%.2f°C, H=%.2f%% (rate=%.2f%%/s)\n", 
@@ -124,11 +131,11 @@ void sensor_read() {
 
     } else {
       sensorOk = false;
-      sensorError = "Out of range (T=" + String(temp, 1) + " H=" + String(hum, 1) + ")";
+      snprintf(sensorError, sizeof(sensorError), "Out of range (T=%.1f H=%.1f)", temp, hum);
       humRate = 0;
       
       #if LOG_SENSOR == 1
-        Serial.printf("[SENSOR] %s\n", sensorError.c_str());
+        Serial.printf("[SENSOR] %s\n", sensorError);
       #endif
     }
   } else {

@@ -1,10 +1,6 @@
 #include "web.h"
+#include "web_strings.h"
 #include "sensor.h"
-
-#if defined(ESP8266)
-  #include "web_strings.h"
-#endif
-
 #include "led.h"
 
 #if DEVICE_TYPE == 1
@@ -68,11 +64,6 @@
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ОТПРАВКИ HTML ==========
 
 #ifdef ESP8266
-// ESP8266: отправка частями (оптимизировано)
-static void web_sendChunk(const char* chunk) {
-    server.sendContent(chunk);
-}
-
 static void web_sendChunk_P(PGM_P chunk) {
     server.sendContent(FPSTR(chunk));
 }
@@ -87,17 +78,7 @@ static void web_sendFormatted(const char* format, ...) {
 }
 #endif
 
-#ifdef ESP32
-// ESP32: генерация String (пока оставляем, но с оптимизацией)
-static String web_format(const char* format, ...) {
-    char buffer[512];
-    va_list args;
-    va_start(args, format);
-    vsnprintf(buffer, sizeof(buffer), format, args);
-    va_end(args);
-    return String(buffer);
-}
-#endif
+
 
 // ========== СТРАНИЦА КОНФИГУРАЦИИ ==========
 
@@ -106,7 +87,6 @@ void web_sendConfigPage(const String& errorMsg) {
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "text/html", "");
     
-    // Отправляем HTML частями
     web_sendChunk_P(HTML_DOCTYPE);
     web_sendChunk_P(HTML_VIEWPORT);
     
@@ -153,7 +133,6 @@ void web_sendConfigPage(const String& errorMsg) {
         web_sendFormatted("<div class='error'><strong>Ошибка:</strong> %s</div>", errorMsg.c_str());
     }
     
-    // Отправляем остальные секции (аналогично предыдущей версии)
     web_sendChunk_P(HTML_SECTION_NETWORK);
     web_sendChunk_P(LABEL_WIFI_SSID);
     web_sendFormatted("<input type='text' name='wifiSsid' required value='%s'>", staticConfig.wifiSsid);
@@ -271,9 +250,9 @@ void web_sendConfigPage(const String& errorMsg) {
 
 #else // ESP32
 
-String web_getConfigPage(String errorMsg) {
+void web_sendConfigPage(AsyncWebServerRequest *request, const String& errorMsg) {
     String html;
-    html.reserve(4096); // Резервируем память для уменьшения фрагментации
+    html.reserve(4096);
     
     html += FPSTR(HTML_DOCTYPE);
     html += FPSTR(HTML_VIEWPORT);
@@ -293,7 +272,9 @@ String web_getConfigPage(String errorMsg) {
     html += FPSTR(HTML_STYLE);
     html += FPSTR(HTML_CONTAINER_OPEN);
     
-    html += web_format("<h1>Настройка устройства %s v. %s</h1>", deviceId, VERSION);
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "<h1>Настройка устройства %s v. %s</h1>", deviceId, VERSION);
+    html += buffer;
     
     html += "<h3>Текущее состояние</h3>";
     html += FPSTR(STATUS_INFO_OPEN);
@@ -304,25 +285,30 @@ String web_getConfigPage(String errorMsg) {
     
     if (apMode) {
         html += FPSTR(STATUS_MODE_AP);
-        html += web_format("SSID: <strong>%s</strong><br>", deviceId);
-        html += web_format("IP адрес: <strong>%s</strong><br>", AP_IP_ADDRESS);
+        snprintf(buffer, sizeof(buffer), "SSID: <strong>%s</strong><br>", deviceId);
+        html += buffer;
+        snprintf(buffer, sizeof(buffer), "IP адрес: <strong>%s</strong><br>", AP_IP_ADDRESS);
+        html += buffer;
     } else {
         html += FPSTR(STATUS_MODE_CLIENT);
-        html += web_format("SSID: <strong>%s</strong><br>", staticConfig.wifiSsid);
-        html += web_format("IP адрес: <strong>%s</strong><br>", WiFi.localIP().toString().c_str());
+        snprintf(buffer, sizeof(buffer), "SSID: <strong>%s</strong><br>", staticConfig.wifiSsid);
+        html += buffer;
+        snprintf(buffer, sizeof(buffer), "IP адрес: <strong>%s</strong><br>", WiFi.localIP().toString().c_str());
+        html += buffer;
     }
     
     html += FPSTR(STATUS_INFO_CLOSE);
     html += FPSTR(HTML_FORM_OPEN);
     
     if (errorMsg.length() > 0) {
-        html += web_format("<div class='error'><strong>Ошибка:</strong> %s</div>", errorMsg.c_str());
+        snprintf(buffer, sizeof(buffer), "<div class='error'><strong>Ошибка:</strong> %s</div>", errorMsg.c_str());
+        html += buffer;
     }
     
-    // Аналогично ESP8266, но с конкатенацией строк
     html += FPSTR(HTML_SECTION_NETWORK);
     html += FPSTR(LABEL_WIFI_SSID);
-    html += web_format("<input type='text' name='wifiSsid' required value='%s'>", staticConfig.wifiSsid);
+    snprintf(buffer, sizeof(buffer), "<input type='text' name='wifiSsid' required value='%s'>", staticConfig.wifiSsid);
+    html += buffer;
     html += FPSTR(LABEL_WIFI_PASSWORD);
     html += "<input type='password' name='wifiPassword' placeholder='(не показан)'>";
     html += FPSTR(HINT_PASSWORD);
@@ -331,53 +317,65 @@ String web_getConfigPage(String errorMsg) {
     html += FPSTR(HTML_SECTION_MQTT);
     html += "<div class='row'><div>";
     html += FPSTR(LABEL_MQTT_BROKER);
-    html += web_format("<input type='text' name='mqttBroker' required value='%s'></div>", staticConfig.mqttBroker);
+    snprintf(buffer, sizeof(buffer), "<input type='text' name='mqttBroker' required value='%s'></div>", staticConfig.mqttBroker);
+    html += buffer;
     html += "<div>";
     html += FPSTR(LABEL_MQTT_PORT);
-    html += web_format("<input type='number' name='mqttPort' required value='%d'></div></div>", staticConfig.mqttPort);
+    snprintf(buffer, sizeof(buffer), "<input type='number' name='mqttPort' required value='%d'></div></div>", staticConfig.mqttPort);
+    html += buffer;
     
     html += "<div class='row'><div>";
     html += FPSTR(LABEL_MQTT_USER);
-    html += web_format("<input type='text' name='mqttUser' value='%s'></div>", staticConfig.mqttUser);
+    snprintf(buffer, sizeof(buffer), "<input type='text' name='mqttUser' value='%s'></div>", staticConfig.mqttUser);
+    html += buffer;
     html += "<div>";
     html += FPSTR(LABEL_MQTT_PASSWORD);
     html += "<input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>";
     html += FPSTR(HINT_PASSWORD);
     
     html += FPSTR(LABEL_MQTT_CLIENT_ID);
-    html += web_format("<input type='text' name='mqttClientId' required value='%s'>", staticConfig.mqttClientId);
+    snprintf(buffer, sizeof(buffer), "<input type='text' name='mqttClientId' required value='%s'>", staticConfig.mqttClientId);
+    html += buffer;
     #endif
     
     #if DEVICE_TYPE == 1
     html += FPSTR(HTML_SECTION_SENSOR);
     html += "<div class='row'><div>";
     html += FPSTR(LABEL_LOW_TEMP);
-    html += web_format("<input type='number' step='0.1' name='lowTemp' required value='%.1f'></div>", staticConfig.lowTemp);
+    snprintf(buffer, sizeof(buffer), "<input type='number' step='0.1' name='lowTemp' required value='%.1f'></div>", staticConfig.lowTemp);
+    html += buffer;
     html += "<div>";
     html += FPSTR(LABEL_HIGH_TEMP);
-    html += web_format("<input type='number' step='0.1' name='highTemp' required value='%.1f'></div></div>", staticConfig.highTemp);
+    snprintf(buffer, sizeof(buffer), "<input type='number' step='0.1' name='highTemp' required value='%.1f'></div></div>", staticConfig.highTemp);
+    html += buffer;
     
     html += "<div class='row'><div>";
     html += FPSTR(LABEL_LOW_HUM);
-    html += web_format("<input type='number' step='0.1' name='lowHum' required value='%.1f'></div>", staticConfig.lowHum);
+    snprintf(buffer, sizeof(buffer), "<input type='number' step='0.1' name='lowHum' required value='%.1f'></div>", staticConfig.lowHum);
+    html += buffer;
     html += "<div>";
     html += FPSTR(LABEL_HIGH_HUM);
-    html += web_format("<input type='number' step='0.1' name='highHum' required value='%.1f'></div></div>", staticConfig.highHum);
+    snprintf(buffer, sizeof(buffer), "<input type='number' step='0.1' name='highHum' required value='%.1f'></div></div>", staticConfig.highHum);
+    html += buffer;
     
     html += "<div class='row'><div>";
     html += FPSTR(LABEL_SENSOR_INTERVAL);
-    html += web_format("<input type='number' name='sensorInterval' required value='%d'></div>", staticConfig.sensorInterval);
+    snprintf(buffer, sizeof(buffer), "<input type='number' name='sensorInterval' required value='%d'></div>", staticConfig.sensorInterval);
+    html += buffer;
     html += "<div>";
     html += FPSTR(LABEL_MAX_ON_TIME);
-    html += web_format("<input type='number' name='maxOnTime' min='0' required value='%u'></div></div>", staticConfig.maxOnTime);
+    snprintf(buffer, sizeof(buffer), "<input type='number' name='maxOnTime' min='0' required value='%u'></div></div>", staticConfig.maxOnTime);
+    html += buffer;
     
     html += FPSTR(HTML_SECTION_CONTROL);
     html += FPSTR(LABEL_DELAY_SECONDS);
-    html += web_format("<input type='number' name='delaySeconds' required value='%d'>", staticConfig.delaySeconds);
+    snprintf(buffer, sizeof(buffer), "<input type='number' name='delaySeconds' required value='%d'>", staticConfig.delaySeconds);
+    html += buffer;
     
     html += FPSTR(HTML_SECTION_SILENT);
     html += FPSTR(LABEL_SPEED_PERCENT);
-    html += web_format("<input type='number' name='speedPercent' min='0' max='100' required value='%d'>", staticConfig.speedPercent);
+    snprintf(buffer, sizeof(buffer), "<input type='number' name='speedPercent' min='0' max='100' required value='%d'>", staticConfig.speedPercent);
+    html += buffer;
     html += FPSTR(NOTE_SILENT_MODE);
     
     html += FPSTR(HTML_SECTION_ADAPTIVE);
@@ -405,15 +403,18 @@ String web_getConfigPage(String errorMsg) {
     #if DEVICE_TYPE == 2
     html += FPSTR(HTML_SECTION_SENSOR);
     html += FPSTR(LABEL_SENSOR_INTERVAL);
-    html += web_format("<input type='number' name='sensorInterval' required value='%d'>", staticConfig.sensorInterval);
+    snprintf(buffer, sizeof(buffer), "<input type='number' name='sensorInterval' required value='%d'>", staticConfig.sensorInterval);
+    html += buffer;
     #endif
     
     #if DEVICE_TYPE == 3
     html += FPSTR(HTML_SECTION_CONTROL);
     html += FPSTR(LABEL_DELAY_SECONDS);
-    html += web_format("<input type='number' name='delaySeconds' required value='%d'>", staticConfig.delaySeconds);
+    snprintf(buffer, sizeof(buffer), "<input type='number' name='delaySeconds' required value='%d'>", staticConfig.delaySeconds);
+    html += buffer;
     html += FPSTR(LABEL_MAX_ON_TIME);
-    html += web_format("<input type='number' name='maxOnTime' min='0' required value='%u'>", staticConfig.maxOnTime);
+    snprintf(buffer, sizeof(buffer), "<input type='number' name='maxOnTime' min='0' required value='%u'>", staticConfig.maxOnTime);
+    html += buffer;
     
     html += FPSTR(HTML_SECTION_BOOT);
     html += FPSTR(LABEL_BOOT_STATE);
@@ -434,7 +435,7 @@ String web_getConfigPage(String errorMsg) {
     html += "<a href='/' class='link-btn'>Домой</a>";
     html += FPSTR(HTML_CONTAINER_CLOSE);
     
-    return html;
+    request->send(200, "text/html", html);
 }
 #endif
 
@@ -483,8 +484,8 @@ void web_sendStatusPage(int refreshInterval) {
     #endif
     web_sendChunk_P("</div></div></div>");
     
-    if (!sensorOk && sensorError.length() > 0) {
-        web_sendFormatted("<div class='sensor-error'><strong>Ошибка датчика</strong><br>%s</div>", sensorError.c_str());
+    if (!sensorOk && strlen(sensorError) > 0) {
+        web_sendFormatted("<div class='sensor-error'><strong>Ошибка датчика</strong><br>%s</div>", sensorError);
     }
     #endif
     
@@ -562,17 +563,21 @@ void web_sendStatusPage(int refreshInterval) {
 
 #else // ESP32
 
-String web_getStatusPage(int refreshInterval) {
+void web_sendStatusPage(AsyncWebServerRequest *request, int refreshInterval) {
     String html;
     html.reserve(4096);
     
     html += FPSTR(HTML_DOCTYPE);
-    html += web_format("<meta http-equiv='refresh' content='%d'>", refreshInterval);
-    html += web_format("<title>%s</title>", DEVICE_PREFIX);
+    char buffer[256];
+    snprintf(buffer, sizeof(buffer), "<meta http-equiv='refresh' content='%d'>", refreshInterval);
+    html += buffer;
+    snprintf(buffer, sizeof(buffer), "<title>%s</title>", DEVICE_PREFIX);
+    html += buffer;
     html += FPSTR(HTML_STYLE);
     html += FPSTR(HTML_CONTAINER_OPEN);
     
-    html += web_format("<h1>%s VERSION %s</h1>", DEVICE_PREFIX, VERSION);
+    snprintf(buffer, sizeof(buffer), "<h1>%s VERSION %s</h1>", DEVICE_PREFIX, VERSION);
+    html += buffer;
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     html += "<div class='flex-container'>";
@@ -587,24 +592,31 @@ String web_getStatusPage(int refreshInterval) {
     const char* humColor = "#2196F3";
     #endif
     
-    html += web_format("<div class='sensor-card' style='background:%s20; border:2px solid %s;'>", tempColor, tempColor);
-    html += web_format("<div class='sensor-value' style='color:%s;'>%.1f °C</div>", tempColor, currentTemp);
+    snprintf(buffer, sizeof(buffer), "<div class='sensor-card' style='background:%s20; border:2px solid %s;'>", tempColor, tempColor);
+    html += buffer;
+    snprintf(buffer, sizeof(buffer), "<div class='sensor-value' style='color:%s;'>%.1f °C</div>", tempColor, currentTemp);
+    html += buffer;
     html += "<div class='sensor-label'>Температура";
     #if DEVICE_TYPE == 1
-    html += web_format(" (выкл: %.1f вкл: %.1f)", config.lowTemp, config.highTemp);
+    snprintf(buffer, sizeof(buffer), " (выкл: %.1f вкл: %.1f)", config.lowTemp, config.highTemp);
+    html += buffer;
     #endif
     html += "</div></div>";
     
-    html += web_format("<div class='sensor-card' style='background:%s20; border:2px solid %s;'>", humColor, humColor);
-    html += web_format("<div class='sensor-value' style='color:%s;'>%.1f %%</div>", humColor, currentHum);
+    snprintf(buffer, sizeof(buffer), "<div class='sensor-card' style='background:%s20; border:2px solid %s;'>", humColor, humColor);
+    html += buffer;
+    snprintf(buffer, sizeof(buffer), "<div class='sensor-value' style='color:%s;'>%.1f %%</div>", humColor, currentHum);
+    html += buffer;
     html += "<div class='sensor-label'>Влажность";
     #if DEVICE_TYPE == 1
-    html += web_format(" (выкл: %.1f вкл: %.1f)", config.lowHum, config.highHum);
+    snprintf(buffer, sizeof(buffer), " (выкл: %.1f вкл: %.1f)", config.lowHum, config.highHum);
+    html += buffer;
     #endif
     html += "</div></div></div>";
     
-    if (!sensorOk && sensorError.length() > 0) {
-        html += web_format("<div class='sensor-error'><strong>Ошибка датчика</strong><br>%s</div>", sensorError.c_str());
+    if (!sensorOk && strlen(sensorError) > 0) {
+        snprintf(buffer, sizeof(buffer), "<div class='sensor-error'><strong>Ошибка датчика</strong><br>%s</div>", sensorError);
+        html += buffer;
     }
     #endif
     
@@ -622,16 +634,21 @@ String web_getStatusPage(int refreshInterval) {
     const char* stateColor = state ? "#f44336" : "#2196F3";
     const char* stateText = state ? "ВКЛ" : "ВЫКЛ";
     
-    html += web_format("<a href='%s'>", toggleUrl);
-    html += web_format("<div class='status-card' style='background:%s20; border:2px solid %s;'>", stateColor, stateColor);
-    html += web_format("<div style='font-size:2em;font-weight:bold;color:%s;'>%s: %s</div></div></a>", stateColor, label, stateText);
+    snprintf(buffer, sizeof(buffer), "<a href='%s'>", toggleUrl);
+    html += buffer;
+    snprintf(buffer, sizeof(buffer), "<div class='status-card' style='background:%s20; border:2px solid %s;'>", stateColor, stateColor);
+    html += buffer;
+    snprintf(buffer, sizeof(buffer), "<div style='font-size:2em;font-weight:bold;color:%s;'>%s: %s</div></div></a>", stateColor, label, stateText);
+    html += buffer;
     
     #if DEVICE_TYPE == 1
     if (state) {
         int currentSpeed = startingPulseActive ? 100 : config.speedPercent;
         html += "<div class='status-card' style='background:#2196F320; border:2px solid #2196F3;'>";
-        html += web_format("<div style='font-size:1.2em;font-weight:bold;'>Скорость: %d%%</div>", currentSpeed);
-        html += web_format("<div class='duty-bar'><div class='duty-fill' style='width:%d%%;'></div></div>", currentSpeed);
+        snprintf(buffer, sizeof(buffer), "<div style='font-size:1.2em;font-weight:bold;'>Скорость: %d%%</div>", currentSpeed);
+        html += buffer;
+        snprintf(buffer, sizeof(buffer), "<div class='duty-bar'><div class='duty-fill' style='width:%d%%;'></div></div>", currentSpeed);
+        html += buffer;
         if (config.speedPercent < 100) {
             html += "<div style='font-size:0.9em;color:#555;'>Тихий режим активен";
             if (config.adaptiveMode) {
@@ -645,25 +662,31 @@ String web_getStatusPage(int refreshInterval) {
     const char* modeText = config.sensorControlMode ? "УПРАВЛЕНИЕ СЕНСОРОМ" : "РУЧНОЙ";
     const char* modeColor = config.sensorControlMode ? "#4CAF50" : "#f44336";
     
-    html += web_format("<div class='status-card' style='background:%s20; border:2px solid %s;'>", modeColor, modeColor);
-    html += web_format("<div style='font-size:1.5em;font-weight:bold;color:%s;'>Режим: %s</div>", modeColor, modeText);
+    snprintf(buffer, sizeof(buffer), "<div class='status-card' style='background:%s20; border:2px solid %s;'>", modeColor, modeColor);
+    html += buffer;
+    snprintf(buffer, sizeof(buffer), "<div style='font-size:1.5em;font-weight:bold;color:%s;'>Режим: %s</div>", modeColor, modeText);
+    html += buffer;
     html += "</div>";
     #endif
     #endif
     
     html += "<hr><div class='info'>";
-    html += web_format("Обновление: %d сек<br>", refreshInterval);
+    snprintf(buffer, sizeof(buffer), "Обновление: %d сек<br>", refreshInterval);
+    html += buffer;
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    html += web_format("Опрос датчика %d сек<br>", config.sensorInterval);
+    snprintf(buffer, sizeof(buffer), "Опрос датчика %d сек<br>", config.sensorInterval);
+    html += buffer;
     #endif
     
     #if MQTT_ENABLED == 1
-    html += web_format("MQTT: %s<br>", mqttManager.isConnected() ? "подключен" : "отключен");
+    snprintf(buffer, sizeof(buffer), "MQTT: %s<br>", mqttManager.isConnected() ? "подключен" : "отключен");
+    html += buffer;
     #endif
     
     #if WEB_SHOW_RSSI == 1
-    html += web_format("RSSI: %d dBm<br>", WiFi.RSSI());
+    snprintf(buffer, sizeof(buffer), "RSSI: %d dBm<br>", WiFi.RSSI());
+    html += buffer;
     #endif
     
     html += "</div>";
@@ -679,7 +702,7 @@ String web_getStatusPage(int refreshInterval) {
     
     html += FPSTR(HTML_CONTAINER_CLOSE);
     
-    return html;
+    request->send(200, "text/html", html);
 }
 #endif
 #endif
@@ -688,7 +711,6 @@ String web_getStatusPage(int refreshInterval) {
 
 #ifdef ESP8266
 void web_saveConfig() {
-    // WiFi настройки
     if (server.hasArg("wifiSsid"))
         server.arg("wifiSsid").toCharArray(config.wifiSsid, sizeof(config.wifiSsid));
     if (server.hasArg("wifiPassword")) {
@@ -868,7 +890,7 @@ void web_saveConfig(AsyncWebServerRequest *request) {
     #endif
     
     if (!config_validate()) {
-        request->send(200, "text/html", web_getConfigPage(String(configLastError)));
+        web_sendConfigPage(request, String(configLastError));
         return;
     }
     
@@ -895,7 +917,7 @@ void web_init() {
     });
     #else
     server.on("/", HTTP_GET, [refreshInterval](AsyncWebServerRequest *request){ 
-        request->send(200, "text/html", web_getStatusPage(refreshInterval)); 
+        web_sendStatusPage(request, refreshInterval);
     });
     #endif
     #else
@@ -932,7 +954,7 @@ void web_init() {
     
     #else // ESP32
     server.on("/config", HTTP_GET, [](AsyncWebServerRequest *request){ 
-        request->send(200, "text/html", web_getConfigPage("")); 
+        web_sendConfigPage(request, ""); 
     });
     
     server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ 
@@ -1071,10 +1093,10 @@ void web_initAP() {
       server.on("/save", web_saveConfig);
     #elif defined(ESP32)
       server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){ 
-        request->send(200, "text/html", web_getConfigPage("")); 
+          web_sendConfigPage(request, ""); 
       });
       server.on("/save", HTTP_POST, [](AsyncWebServerRequest *request){ 
-        web_saveConfig(request); 
+          web_saveConfig(request); 
       });
     #endif
   

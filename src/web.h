@@ -17,10 +17,10 @@
   #endif
   void web_saveConfig();
 #else
-  // Для ESP32 (стандартный подход с String)
-  String web_getConfigPage(String errorMsg);
+  // Для ESP32 (тоже используем отправку)
+  void web_sendConfigPage(AsyncWebServerRequest *request, const String& errorMsg);
   #if WEB_STATUS_ENABLED == 1
-    String web_getStatusPage(int refreshInterval);
+    void web_sendStatusPage(AsyncWebServerRequest *request, int refreshInterval);
   #endif
   void web_saveConfig(AsyncWebServerRequest *request);
 #endif
