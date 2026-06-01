@@ -41,11 +41,11 @@ extern char deviceId[12];
 
   #if SENSOR_TYPE == 2
     #ifndef SENSOR_PIN
-      #define SENSOR_PIN 2
-    #endif
-    
-    #ifndef DHT_TYPE
-      #define DHT_TYPE DHT11
+      #ifdef ESP8266
+        #define SENSOR_PIN 4      // GPIO4 свободен 
+      #elif defined(ESP32)
+        #define SENSOR_PIN 16     // GPIO16 свободный пин на ESP32
+      #endif
     #endif
   #endif
 #endif
