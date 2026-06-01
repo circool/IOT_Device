@@ -239,9 +239,8 @@ void wifi_checkAsync() {
     wifiLostTime = 0;
     
     #if LOG_WIFI == 1
-      Serial.print(ANSI_BRIGHT_MAGENTA);
-      Serial.println("[WIFI] Connected! IP: " + WiFi.localIP().toString());
-      Serial.print(ANSI_RESET);
+
+      Serial.printf(ANSI_BRIGHT_MAGENTA "[WIFI] Connected! IP: " ANSI_BOLD "%s" ANSI_RESET "\n", WiFi.localIP().toString().c_str());
     #endif
     
     #if STATUS_LED_PIN > 0

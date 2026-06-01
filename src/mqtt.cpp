@@ -164,9 +164,7 @@ void MQTTManager::reconnect() {
     if (_mqttClient.connect(_clientId, config.mqttUser, config.mqttPassword,
                             _topics.online, 1, true, "Offline")) {
         #if LOG_MQTT == 1
-            Serial.print(ANSI_BRIGHT_MAGENTA);
-            Serial.printf("[MQTT] Connected! MQTT: %s\n",config.mqttBroker);
-            Serial.print(ANSI_RESET);
+            Serial.printf(ANSI_BRIGHT_MAGENTA "[MQTT] Connected! MQTT: " ANSI_BOLD "%s" ANSI_RESET "\n",config.mqttBroker);
         #endif
         lostLogged = false;
 
@@ -212,7 +210,7 @@ void MQTTManager::publishResetReason() {
   
   if (shouldIgnore) {
     #if LOG_MQTT == 1
-      Serial.printf("[MQTT] Skipping publish reset reason: %s\n", lastResetReason);
+      Serial.printf("[MQTT] Skipping publish reset reason: " ANSI_BOLD "%s" ANSI_RESET "\n", lastResetReason);
     #endif
     return;
   }
@@ -221,7 +219,7 @@ void MQTTManager::publishResetReason() {
   snprintf(topic, sizeof(topic), "%s/last_reset", _clientId);
   _mqttClient.publish(topic, lastResetReason, true);
   #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Reset reason published: %s -> %s\n", lastResetReason, topic);
+    Serial.printf("[MQTT] Reset reason published: " ANSI_BOLD "%s -> %s" ANSI_RESET "\n", lastResetReason, topic);
   #endif
 }
 #endif
