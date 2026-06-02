@@ -10,7 +10,7 @@ float currentTemp = 0;
 float currentHum = 0;
 bool sensorOk = false;
 unsigned long lastSensorRead = 0;
-char sensorError[64] = "";  // Было String sensorError = ""
+char sensorError[64] = ""; 
 float humRate = 0;  
 
 #if SENSOR_TYPE == 1
@@ -32,9 +32,11 @@ void sensor_init() {
     } else {
       sensorOk = false;
       strcpy(sensorError, "AHT10 not found");
+      #if DEBUG_ENABLED == 1
       Serial.print(ANSI_BRIGHT_RED);
       Serial.println("[SENSOR] AHT10 not found! Sensor will be disabled.");
       Serial.print(ANSI_RESET);
+      #endif
     }
   #elif SENSOR_TYPE == 2    
     dht.begin();
@@ -78,9 +80,11 @@ void sensor_read() {
     } else {
       sensorOk = false;
       strcpy(sensorError, "AHT10 I2C read failed");
+      #if DEBUG_ENABLED == 1
       Serial.print(ANSI_BRIGHT_RED);
       Serial.println("[SENSOR] AHT10 read error!");
       Serial.print(ANSI_RESET);
+      #endif
     }
   #elif SENSOR_TYPE == 2
     float t = dht.readTemperature();
@@ -92,9 +96,11 @@ void sensor_read() {
     } else {
       sensorOk = false;
       strcpy(sensorError, "DHT read failed (NaN)");
+      #if DEBUG_ENABLED == 1
       Serial.print(ANSI_BRIGHT_RED);
       Serial.println("[SENSOR] DHT read error!");
       Serial.print(ANSI_RESET);
+      #endif
     }
   #endif
   

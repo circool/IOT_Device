@@ -1049,7 +1049,7 @@ void web_initAP() {
     apMode = true;
 
     #if STATUS_LED_PIN > 0
-      led_setMode(LED_MODE_SLOW_BLINK);
+      led_setMode(LED_MODE_AP_BLINK);  
     #endif
 
     WiFi.mode(WIFI_AP);

@@ -1,7 +1,5 @@
 #include "led.h"
 
-
-
 #if STATUS_LED_PIN > 0
 
 #ifndef LED_INVERTED
@@ -81,6 +79,72 @@ void led_update() {
                 }
             }
             break;
+            
+        case LED_MODE_AP_BLINK:   // Тройные вспышки (режим AP) = "..."
+            // Паттерн: ВКЛ(100) -> ВЫКЛ(100) -> ВКЛ(100) -> ВЫКЛ(100) -> ВКЛ(100) -> ПАУЗА(700)
+            // blinkStep: 0=пауза/начало, 1=вспышка1, 2=пауза1, 3=вспышка2, 4=пауза2, 5=вспышка3, 6=пауза3
+            
+            if (blinkStep == 0) {
+                // Состояние паузы между сериями
+                if (now - lastBlinkTime >= 700) {
+                    lastBlinkTime = now;
+                    blinkStep = 1;
+                    shouldBeOn = true;
+                } else {
+                    shouldBeOn = false;
+                }
+            }
+            else if (blinkStep == 1) {
+                // Первая вспышка
+                if (now - lastBlinkTime >= 100) {
+                    lastBlinkTime = now;
+                    blinkStep = 2;
+                    shouldBeOn = false;
+                } else {
+                    shouldBeOn = true;
+                }
+            }
+            else if (blinkStep == 2) {
+                // Пауза после первой вспышки
+                if (now - lastBlinkTime >= 100) {
+                    lastBlinkTime = now;
+                    blinkStep = 3;
+                    shouldBeOn = true;
+                } else {
+                    shouldBeOn = false;
+                }
+            }
+            else if (blinkStep == 3) {
+                // Вторая вспышка
+                if (now - lastBlinkTime >= 100) {
+                    lastBlinkTime = now;
+                    blinkStep = 4;
+                    shouldBeOn = false;
+                } else {
+                    shouldBeOn = true;
+                }
+            }
+            else if (blinkStep == 4) {
+                // Пауза после второй вспышки
+                if (now - lastBlinkTime >= 100) {
+                    lastBlinkTime = now;
+                    blinkStep = 5;
+                    shouldBeOn = true;
+                } else {
+                    shouldBeOn = false;
+                }
+            }
+            else if (blinkStep == 5) {
+                // Третья вспышка
+                if (now - lastBlinkTime >= 100) {
+                    lastBlinkTime = now;
+                    blinkStep = 0;  // Возврат к паузе
+                    shouldBeOn = false;
+                } else {
+                    shouldBeOn = true;
+                }
+            }
+            break;
     }
     
     if (shouldBeOn != ledState) {
@@ -97,6 +161,7 @@ void led_setMode(LedMode mode) {
     if (currentLedMode != mode) {
         currentLedMode = mode;
         blinkStep = 0;
+        lastBlinkTime = millis();  // Сбрасываем таймер при смене режима
         #if LOG_LED == 1
             const char* modeName = "UNKNOWN";
             switch (mode) {
@@ -104,6 +169,7 @@ void led_setMode(LedMode mode) {
                 case LED_MODE_ON: modeName = "ON"; break;
                 case LED_MODE_SLOW_BLINK: modeName = "SLOW_BLINK (WiFi lost)"; break;
                 case LED_MODE_FAST_BLINK: modeName = "FAST_BLINK (MQTT lost)"; break;
+                case LED_MODE_AP_BLINK: modeName = "AP_BLINK (AP mode)"; break;
             }
             Serial.printf("[LED] Mode changed to: %s\n", modeName);
         #endif

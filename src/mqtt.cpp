@@ -19,7 +19,9 @@ MQTTManager::~MQTTManager() {
 
 bool MQTTManager::begin(const Config& cfg) {
     if (strlen(cfg.mqttBroker) == 0) {
+        #if DEBUG_ENABLED == 1
         Serial.println("[MQTT] No broker configured");
+        #endif
         return false;
     }
     
@@ -90,10 +92,10 @@ void MQTTManager::setupTopics() {
     // TYPE 3: управляемый выключатель
     snprintf(_topics.state, sizeof(_topics.state), "%s/switch/state", prefix);
     snprintf(_topics.control, sizeof(_topics.control), "%s/c/switch/state", prefix);
-    snprintf(_topics.speed, sizeof(_topics.speed), "%s/switch/speed", prefix);                  // ← было pwmDuty
-    snprintf(_topics.speedControl, sizeof(_topics.speedControl), "%s/c/switch/speed", prefix);  // ← было pwmDutyControl
+    
     snprintf(_topics.delaySec, sizeof(_topics.delaySec), "%s/switch/delaySec", prefix);
     snprintf(_topics.delaySecControl, sizeof(_topics.delaySecControl), "%s/c/switch/delaySec", prefix);
+    
     snprintf(_topics.maxOnTime, sizeof(_topics.maxOnTime), "%s/switch/maxOnTime", prefix);
     snprintf(_topics.maxOnTimeControl, sizeof(_topics.maxOnTimeControl), "%s/c/switch/maxOnTime", prefix);
 
@@ -231,14 +233,14 @@ void MQTTManager::subscribe() {
     #endif
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    _mqttClient.subscribe(_topics.control);
-    _mqttClient.subscribe(_topics.speedControl);      
+    _mqttClient.subscribe(_topics.control);        
     _mqttClient.subscribe(_topics.delaySecControl);
-    _mqttClient.subscribe(_topics.maxOnTimeControl);
-    _mqttClient.subscribe(_topics.sensorControlModeControl);
+    _mqttClient.subscribe(_topics.maxOnTimeControl);  
     #endif
     
     #if DEVICE_TYPE == 1
+    _mqttClient.subscribe(_topics.speedControl);
+    _mqttClient.subscribe(_topics.sensorControlModeControl);
     _mqttClient.subscribe(_topics.adaptiveModeControl);
     _mqttClient.subscribe(_topics.lowTempControl);
     _mqttClient.subscribe(_topics.highTempControl);
@@ -287,7 +289,7 @@ void MQTTManager::handleCommand(const char* topic, const String& payload) {
         return;
     }
     
-    // Управление скоростью (ШИМ)  ← было Управление ШИМ
+    // Управление скоростью (ШИМ)
     if (strcmp(topic, _topics.speedControl) == 0) {
         int speed = payload.toInt();
         if (speed >= 0 && speed <= 100 && _speedCallback) {
@@ -446,11 +448,7 @@ void MQTTManager::publishConfig() {
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3        
     publishDelaySec(config.delaySeconds);
     publishMaxOnTime(config.maxOnTime);
-    #endif
-
-    
-    
-    
+    #endif 
     
     #if LOG_MQTT == 1
     Serial.println("[MQTT] Config published");
@@ -461,8 +459,6 @@ void MQTTManager::publishConfig() {
 void MQTTManager::publishSensor(float temp, float hum) {
     if (!isConnected()) return;
 
-    // _mqttClient.publish(_topics.temperature, String(temp).c_str());
-    // _mqttClient.publish(_topics.humidity, String(hum).c_str());
     char tempBuf[16], humBuf[16];
     snprintf(tempBuf, sizeof(tempBuf), "%.2f", temp);
     snprintf(humBuf, sizeof(humBuf), "%.2f", hum);

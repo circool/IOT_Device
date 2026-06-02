@@ -615,7 +615,11 @@ void config_read();
 void config_write();
 void config_setDefaults();
 uint16_t crc16(const uint8_t* data, size_t len);
+
+#if DEBUG_ENABLED == 1
 void config_print();
+#endif
+
 bool config_clear();
 bool config_validate();           
 

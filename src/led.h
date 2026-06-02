@@ -3,12 +3,12 @@
 
 #include "config.h"
 
-// Объявляем enum ДО условной компиляции
 enum LedMode {
     LED_MODE_OFF,
     LED_MODE_ON,
-    LED_MODE_SLOW_BLINK,
-    LED_MODE_FAST_BLINK
+    LED_MODE_SLOW_BLINK,      // Одиночное мигание (потеря WiFi)
+    LED_MODE_FAST_BLINK,      // Двойные вспышки (потеря MQTT)
+    LED_MODE_AP_BLINK         // Тройные вспышки (режим AP) — НОВЫЙ РЕЖИМ
 };
 
 // Функции всегда объявлены, но их реализация может быть пустой если STATUS_LED_PIN == 0

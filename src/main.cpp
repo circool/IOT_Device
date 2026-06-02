@@ -451,8 +451,11 @@ void setup() {
   }
   WiFi.scanDelete();
   #endif
-
-  config_print();  
+  
+  #if DEBUG_ENABLED==1
+    config_print();  
+  #endif
+  
   bool hasValidConfig = (configValid && strlen(config.wifiSsid) > 0);
   
   if (hasValidConfig) {
@@ -611,7 +614,9 @@ void setup() {
       )) {
         config.sensorControlMode = false;
         config.adaptiveMode = false;
+        #if DEBUG_ENABLED == 1
         Serial.println("[SENSOR] Not found - switching to MANUAL mode");
+        #endif
       }
       #endif //DEVICE_TYPE == 1   
     #endif //DEVICE_TYPE == 1 || DEVICE_TYPE == 2

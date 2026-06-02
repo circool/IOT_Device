@@ -350,14 +350,18 @@ void config_read() {
         Serial.println("[CONFIG] CRC is VALID");
       #endif
     } else {  
+      #if DEBUG_ENABLED == 1
         Serial.print(ANSI_BRIGHT_RED);    
         Serial.printf("[CONFIG] CRC mismatch! EEPROM: 0x%04X, Calculated: 0x%04X\n", savedCrc, calcCrc);
         Serial.print(ANSI_RESET);
+      #endif
     }
   } else {
-      Serial.print(ANSI_BRIGHT_RED);
-      Serial.println("[CONFIG] Magic mismatch! Config is INVALID");
-      Serial.print(ANSI_RESET);
+      #if DEBUG_ENABLED == 1
+        Serial.print(ANSI_BRIGHT_RED);
+        Serial.println("[CONFIG] Magic mismatch! Config is INVALID");
+        Serial.print(ANSI_RESET);
+      #endif
   }
   
   bool dataValid = config_validate();
@@ -378,7 +382,7 @@ void config_read() {
 
 void config_write() {
   #if LOG_CONFIG == 1
-    Serial.println("[CONFIG] Writing to EEPROM...");
+    Serial.println(ANSI_BRIGHT_RED "[CONFIG] Writing to EEPROM..." ANSI_RESET);
     Serial.printf("[CONFIG] WiFi SSID: '%s'\n", config.wifiSsid);
     #if MQTT_ENABLED == 1
     Serial.printf("[CONFIG] MQTT Broker: '%s:%d'\n", config.mqttBroker, config.mqttPort);
@@ -403,7 +407,7 @@ void config_write() {
   EEPROM.commit();
   
   #if DEBUG_ENABLED == 1
-    Serial.println("[CONFIG] Write completed");
+    Serial.println(ANSI_MAGENTA "[CONFIG] Write completed!" ANSI_RESET);
     Serial.println("[CONFIG] Verifying...");
   #endif
   
@@ -437,9 +441,11 @@ void config_write() {
     // Обновляем статическую копию для веб-интерфейса
     memcpy(&staticConfig, &config, sizeof(Config));
   } else {
-    Serial.print(ANSI_BRIGHT_RED);
-    Serial.println("[CONFIG] Verification FAILED!");
-    Serial.print(ANSI_RESET);
+    #if DEBUG_ENABLED == 1
+      Serial.print(ANSI_BRIGHT_RED);
+      Serial.println("[CONFIG] Verification FAILED!");
+      Serial.print(ANSI_RESET);
+    #endif
     config.crc = oldCrc;
     configValid = false;
   }
@@ -479,6 +485,7 @@ void config_init() {
   #endif
 }
 
+#if DEBUG_ENABLED == 1
 void config_print() {
   Serial.println("=== Config ===");
   Serial.printf("WiFi SSID: '%s'\n", config.wifiSsid);
@@ -529,3 +536,4 @@ void config_print() {
   }
   Serial.println("=================");
 }
+#endif
