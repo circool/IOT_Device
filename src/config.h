@@ -1,7 +1,7 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-#include <Arduino.h>
+// #include <Arduino.h>
 
 #ifndef VERSION
   #define VERSION "1.0"
@@ -115,6 +115,14 @@ void initDeviceId();
     #define OTA_ENABLED 1
   #endif
 
+  #if OTA_ENABLED == 1
+    #if defined(ESP32)
+        #include <ElegantOTA.h>
+    #elif defined(ESP8266)
+        #include <ElegantOTA.h>
+    #endif
+  #endif
+
 #else
   #define WEB_ENABLED 0
   #define MQTT_ENABLED 0
@@ -135,7 +143,7 @@ void initDeviceId();
   #endif
   
   #ifndef WEB_RESET_ENABLED 
-    #define WEB_RESET_ENABLED 1
+    #define WEB_RESET_ENABLED 0
   #endif
 
 #endif
@@ -150,13 +158,7 @@ void initDeviceId();
   #define STATUS_LED_PIN 0
 #endif
 
-#ifndef LOG_LED
-  #if DEBUG_ENABLED == 1
-    #define LOG_LED 1
-  #else
-    #define LOG_LED 0
-  #endif
-#endif
+
 
 
 
@@ -290,6 +292,10 @@ void initDeviceId();
     #define LOG_OTA 1
   #endif
 
+  #ifndef LOG_LED
+    #define LOG_LED 1
+  #endif
+
 #else
   #define LOG_SENSOR 0
   #define LOG_CONFIG 0
@@ -299,6 +305,7 @@ void initDeviceId();
   #define LOG_WEB 0
   #define LOG_AP 0
   #define LOG_OTA 0
+  #define LOG_LED 0
 #endif
 
 // ======================== ЗАВИСИМЫЙ ФУНКЦИОНАЛЬНЫЙ СОСТАВ ========================
@@ -604,6 +611,7 @@ struct Config {
   extern bool apMode;
 #endif
 
+extern bool eepromAvailable;
 
 extern Config config;
 extern Config staticConfig;

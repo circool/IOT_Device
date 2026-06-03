@@ -25,6 +25,12 @@
   void web_saveConfig(AsyncWebServerRequest *request);
 #endif
 
+#if OTA_ENABLED == 1
+    void web_setOtaAvailable(bool available);
+    bool web_isOtaAvailable();
+#endif
+
+
 void web_init();
 void web_initAP();
 void web_update();

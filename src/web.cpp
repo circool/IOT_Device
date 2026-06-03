@@ -2,6 +2,7 @@
 #include "web_strings.h"
 #include "sensor.h"
 #include "led.h"
+#include "ansi.h"
 
 #if DEVICE_TYPE == 1
   #include "fan.h"
@@ -64,14 +65,41 @@
   }
 #endif
 
+
+#if OTA_ENABLED == 1
+    static bool otaAvailable = false;
+
+    void web_setOtaAvailable(bool available) {
+        otaAvailable = available;
+    }
+
+    bool web_isOtaAvailable() {
+        return otaAvailable;
+    }
+#endif
+
+
+
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ОТПРАВКИ HTML ==========
 
 #ifdef ESP8266
-static void web_sendChunk_P(PGM_P chunk) {
+static void web_sendChunk_P(PGM_P chunk) {   
+    if (!server.client().connected()) {
+        #if DEBUG_ENABLED == 1
+            Serial.print("[WEB] Client not connected, ignore sending web content");
+        #endif
+        return;
+    }
     server.sendContent(FPSTR(chunk));
 }
 
 static void web_sendFormatted(const char* format, ...) {
+    if (!server.client().connected()) {
+        #if DEBUG_ENABLED == 1
+            Serial.print("[WEB] Client not connected, ignore sending web content");
+        #endif
+        return;
+    }
     char buffer[256];
     va_list args;
     va_start(args, format);
@@ -94,17 +122,18 @@ void web_sendConfigPage(const String& errorMsg) {
     web_sendChunk_P(HTML_VIEWPORT);
     
     web_sendChunk_P("<title>");
-    #if DEVICE_TYPE == 1
-    web_sendChunk_P("Fan");
-    #elif DEVICE_TYPE == 2
-    web_sendChunk_P("Sensor");
-    #elif DEVICE_TYPE == 3
-    web_sendChunk_P("Switch");
-    #else
-    web_sendChunk_P("Device");
-    #endif
-    web_sendChunk_P(" Configuration</title>");
     
+    #if DEVICE_TYPE == 1
+        web_sendChunk_P("Fan");
+    #elif DEVICE_TYPE == 2
+        web_sendChunk_P("Sensor");
+    #elif DEVICE_TYPE == 3
+        web_sendChunk_P("Switch");
+    #else
+        web_sendChunk_P("Device");
+    #endif
+    
+    web_sendChunk_P(" Configuration</title>");   
     web_sendChunk_P(HTML_STYLE);
     web_sendChunk_P(HTML_CONTAINER_OPEN);
     
@@ -244,7 +273,11 @@ void web_sendConfigPage(const String& errorMsg) {
     web_sendChunk_P(HTML_FORM_CLOSE);
     
     #if OTA_ENABLED == 1
-    web_sendChunk_P("<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>");
+    if (web_isOtaAvailable()) {
+        web_sendChunk_P("<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>");
+    } else {
+        web_sendChunk_P("<div class='warning' style='text-align:center;background:#fff3cd;padding:10px;border-radius:5px;'>OTA недоступно: недостаточно Flash памяти (требуется 2MB)</div>");
+    }
     #endif
     
     web_sendChunk_P("<a href='/' class='link-btn'>Домой</a>");
@@ -432,7 +465,11 @@ void web_sendConfigPage(AsyncWebServerRequest *request, const String& errorMsg) 
     html += FPSTR(HTML_FORM_CLOSE);
     
     #if OTA_ENABLED == 1
-    html += "<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>";
+    if (web_isOtaAvailable()) {
+        html += "<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>";
+    } else {
+        html += "<div class='warning' style='text-align:center;background:#fff3cd;padding:10px;border-radius:5px;'>OTA недоступно: недостаточно Flash памяти (требуется 2MB)</div>";
+    }
     #endif
     
     html += "<a href='/' class='link-btn'>Домой</a>";
@@ -945,12 +982,19 @@ void web_init() {
     
     #if WEB_RESET_ENABLED == 1
     server.on("/resetall", [](){
+        
+        #if LOG_WEB == 1
+            Serial.println(ANSI_BOLD ANSI_BRIGHT_RED "[WEB] Receive RESET command!" ANSI_RESET);
+        #endif
+        
         config_clear();
         server.send(200, "text/html", "<!DOCTYPE html><html><head><meta charset='UTF-8'><meta http-equiv='refresh' content='5;url=/'></head><body><h2>Настройки сброшены, перезагрузка...</h2></body></html>");
         delay(1000);
+        
         #if DEBUG_ENABLED == 1
-        Serial.println("[DEBUG] Restarting...");
+            Serial.println(ANSI_BOLD ANSI_BRIGHT_RED "[DEBUG] Restarting..." ANSI_RESET);
         #endif
+        
         ESP.restart();
     });
     #endif
@@ -1019,18 +1063,22 @@ void web_init() {
 
     #if OTA_ENABLED == 1
         #if defined(ESP32)
-        ElegantOTA.begin(&server);
-        #if LOG_OTA == 1
-            Serial.println("[OTA] ElegantOTA initialized for ESP32");
-        #endif
+            if (web_isOtaAvailable()) {
+                ElegantOTA.begin(&server);
+                #if LOG_OTA == 1
+                    Serial.println("[OTA] ElegantOTA initialized for ESP32");
+                #endif
+            }
         #elif defined(ESP8266)
-        if (!otaInitialized) {
-            ElegantOTA.begin(&server);
-            otaInitialized = true;
-            #if LOG_OTA == 1
-            Serial.println("[OTA] ElegantOTA initialized for ESP8266");
-            #endif
-        }
+            if (web_isOtaAvailable()) {
+                if (!otaInitialized) {
+                    ElegantOTA.begin(&server);
+                    otaInitialized = true;
+                    #if LOG_OTA == 1
+                    Serial.println("[OTA] ElegantOTA initialized for ESP8266");
+                    #endif
+                }
+            }
         #endif
     #endif
   
@@ -1072,20 +1120,22 @@ void web_initAP() {
     #endif
 
     #if OTA_ENABLED == 1
-    #if defined(ESP32)
-      ElegantOTA.begin(&server);
-      #if LOG_OTA == 1
-        Serial.println("[OTA] ElegantOTA initialized for ESP32 (AP mode)");
-      #endif
-    #elif defined(ESP8266)
-      #if LOG_OTA == 1
-        Serial.printf("[OTA] Free heap before ElegantOTA: %d\n", ESP.getFreeHeap());
-      #endif
-      ElegantOTA.begin(&server);
-      #if LOG_OTA == 1
-        Serial.println("[OTA] ElegantOTA initialized for ESP8266 (AP mode)");
-      #endif
-    #endif
+        if (web_isOtaAvailable()) {
+            #if defined(ESP32)
+                ElegantOTA.begin(&server);
+                #if LOG_OTA == 1
+                    Serial.println("[OTA] ElegantOTA initialized for ESP32 (AP mode)");
+                #endif
+            #elif defined(ESP8266)
+                #if LOG_OTA == 1
+                    Serial.printf("[OTA] Free heap before ElegantOTA: %d\n", ESP.getFreeHeap());
+                #endif
+                ElegantOTA.begin(&server);
+                #if LOG_OTA == 1
+                    Serial.println("[OTA] ElegantOTA initialized for ESP8266 (AP mode)");
+                #endif
+            #endif
+        }
     #endif
 
     #ifdef ESP8266

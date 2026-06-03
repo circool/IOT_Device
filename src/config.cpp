@@ -8,7 +8,7 @@ Config config;
 Config staticConfig;            // Копия конфигурации для веб-интерфейса
 bool configValid = false;
 bool apMode = false;
-char configLastError[64] = "";   // Исправлено: String → char array
+char configLastError[64] = "";   
 
 uint16_t crc16(const uint8_t* data, size_t len) {
   uint16_t crc = 0x0000;

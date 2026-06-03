@@ -2,6 +2,7 @@
 #include "config.h"
 #include "led.h"
 #include "ansi.h"
+#include "ota_check.h"
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 #include "sensor.h"
@@ -427,6 +428,18 @@ void setup() {
   checkResetButton();
 
   config_init();
+
+  #if OTA_ENABLED == 1
+    bool otaCapable = isOtaAvailable();
+    #if WEB_ENABLED == 1
+        web_setOtaAvailable(otaCapable);
+    #endif
+    
+    #if LOG_OTA == 1
+    Serial.printf("[OTA] Available: %s\n", otaCapable ? "YES" : "NO");
+    #endif
+  #endif
+
 
   #if DEBUG_WIFI_ENABLED == 1
   #if defined(ESP32) && WDT_ENABLED == 1
