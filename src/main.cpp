@@ -4,6 +4,10 @@
 #include "ansi.h"
 #include "ota_check.h"
 
+#ifdef ESP32
+#include <esp_chip_info.h>
+#endif
+
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 #include "sensor.h"
 #endif
@@ -129,7 +133,8 @@ void wdt_init() {
   Serial.printf("[WDT] ESP8266 WDT enabled, timeout=%d ms\n", WDT_TIMER_MS);
   
 #elif defined(ESP32)
-  esp_task_wdt_init(WDT_TIMER_MS / 1000, true);  // конвертация в секунды
+  // Для платформы 5.2.0 используем старый API
+  esp_task_wdt_init(WDT_TIMER_MS / 1000, true);
   esp_task_wdt_add(NULL);
   Serial.printf("[WDT] ESP32 task WDT enabled, timeout=%d ms\n", WDT_TIMER_MS);
 #endif
