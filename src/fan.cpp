@@ -326,7 +326,7 @@ void fan_checkMaxOnTime() {
     
     #endif
     
-    fan_set(false);  // ручное (manual = true по умолчанию)
+    fan_set(false);
   }
 }
 
@@ -448,18 +448,6 @@ void fan_adaptiveUpdate() {
       #endif
     }
   }
-  else if (deltaTemp < -ADAPTIVE_EPSILON_TEMP && deltaHum < -ADAPTIVE_EPSILON_HUM) {
-    newSpeed -= step;
-    if (newSpeed < MIN_SPEED_PERCENT) newSpeed = MIN_SPEED_PERCENT;
-    if (newSpeed != config.speedPercent) {
-      needChange = true;
-
-      #if LOG_FAN == 1
-        Serial.printf("[FAN] Adaptive step -%d%% (ΔT=%.2f ΔH=%.2f rate=%.1f) → %d%%\n", 
-                      step, deltaTemp, deltaHum, humRate, newSpeed);
-      #endif
-    }
-  }
   
   if (needChange) {
     config.speedPercent = newSpeed;
@@ -569,7 +557,7 @@ void fan_update() {
     }
   } else {
     if (fanOn) {
-      fan_set(false, false);  // автоматическое выключение
+      fan_set(false, false);
       #if DEVICE_TYPE == 1
       if (config.delaySeconds > 0 && !delayActive && config.sensorControlMode) {
         fan_delayTimer(true);
