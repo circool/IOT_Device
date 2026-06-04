@@ -2,6 +2,10 @@
 #include "led.h"
 #include "ansi.h"
 
+#ifdef ESP32
+#include <esp_mac.h>
+#endif
+
 char deviceId[12] = "";
 
 Config config;
