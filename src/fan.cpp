@@ -5,9 +5,7 @@
 #include "config.h"
 #include "sensor.h"
 
-#if MQTT_ENABLED == 1
-#include "mqtt.h"
-#endif
+// MQTT больше не используется в fan.cpp
 
 bool fanOn = false;
 unsigned long fanStartTime = 0;
@@ -167,16 +165,10 @@ void fan_set(bool on, bool manual) {
   
   if (fanOn == on) return;
   
- 
   if (manual) {
-    
     if (config.sensorControlMode) {
       config.sensorControlMode = false;
-      
-      #if MQTT_ENABLED == 1
-        mqttManager.publishSensorControlMode(false);
-      #endif
-
+      // >>> ИЗМЕНЕНО: mqttManager.publishSensorControlMode(false) УДАЛЁН
       #if LOG_FAN == 1
         Serial.println("[FAN] Manual control - sensor control mode disabled");
       #endif
@@ -185,20 +177,14 @@ void fan_set(bool on, bool manual) {
     if (config.adaptiveMode) {
       config.adaptiveMode = false;
       adaptiveActive = false;
-      
-      #if MQTT_ENABLED == 1
-        mqttManager.publishAdaptiveMode(false);
-      #endif
-
+      // >>> ИЗМЕНЕНО: mqttManager.publishAdaptiveMode(false) УДАЛЁН
       #if LOG_FAN == 1
         Serial.println("[FAN] Manual control - adaptive mode disabled");
       #endif
     }
 
-    
     if (delayActive) {
       delayActive = false;
-      
       #if LOG_FAN == 1
         Serial.println("[FAN] Manual control - delay timer cancelled");
       #endif
@@ -230,7 +216,6 @@ void fan_set(bool on, bool manual) {
         Serial.printf("[FAN] FULL ON: pin=%d, level=RELAY_ON_LEVEL (forced)\n", SWITCH_PIN);
       #endif
       
-      
       if (config.adaptiveMode && sensor_isOk()) {
         adaptiveActive = true;
         baseTemp = currentTemp;
@@ -242,7 +227,6 @@ void fan_set(bool on, bool manual) {
         #endif
       }
 
-      
       #if LOG_FAN == 1
         Serial.println("[FAN] Fan turned ON");
       #endif
@@ -262,26 +246,17 @@ void fan_set(bool on, bool manual) {
     fanStartTime = 0;
     adaptiveActive = false;
     
-
     uint16_t oldSpeed = config.speedPercent;
     config.speedPercent = staticConfig.speedPercent;
     
-    #if MQTT_ENABLED == 1
-    if (oldSpeed != config.speedPercent) {
-      mqttManager.publishSpeed(config.speedPercent);
-      #if LOG_MQTT == 1
-        Serial.printf("[MQTT] Speed restored to %d%% (was %d%%)\n", config.speedPercent, oldSpeed);
-      #endif
-    }
-    #endif
-
+    // >>> ИЗМЕНЕНО: ВЕСЬ БЛОК mqttManager.publishSpeed УДАЛЁН
+    
     #if LOG_FAN == 1
-      Serial.printf("[FAN] Fan turned OFF, restored speed to %d%%\n", config.speedPercent);
+      Serial.printf("[FAN] Fan turned OFF, restored speed to %d%% (was %d%%)\n", config.speedPercent, oldSpeed);
     #endif
   }
-  #if MQTT_ENABLED == 1
-    mqttManager.publishState(fanOn);
-  #endif
+  
+  // >>> ИЗМЕНЕНО: mqttManager.publishState(fanOn) УДАЛЁН
 }
 
 bool fan_getState() {
@@ -319,11 +294,9 @@ void fan_checkMaxOnTime() {
     
     #if DEVICE_TYPE == 1
       config.sensorControlMode = false;
-
       #if LOG_FAN == 1
         Serial.println("[FAN] Switched to MANUAL mode after safety shutdown");
       #endif
-    
     #endif
     
     fan_set(false);
@@ -339,7 +312,6 @@ bool fan_delayTimer(bool start) {
       #if LOG_FAN == 1
         Serial.printf("[FAN] Delay ON timer started: %d seconds\n", config.delaySeconds);
       #endif
-
       return false;
     }
     delayActive = false;
@@ -349,17 +321,13 @@ bool fan_delayTimer(bool start) {
       delayActive = false;
       #if DEVICE_TYPE == 1
         config.sensorControlMode = false;
-
         #if LOG_FAN == 1
           Serial.println("[FAN] Delay ON timer finished - switching to MANUAL mode (temporary)");
         #endif
-
       #elif DEVICE_TYPE == 3
-
         #if LOG_FAN == 1
           Serial.println("[FAN] Delay ON timer finished - turning ON");
         #endif
-
       #endif
       return true;
     }
@@ -419,7 +387,6 @@ void fan_adaptiveUpdate() {
     #if LOG_FAN == 1
       Serial.printf("[FAN] Adaptive active: base T=%.2f, H=%.2f\n", baseTemp, baseHum);
     #endif
-    
     return;
   }
   
@@ -452,9 +419,7 @@ void fan_adaptiveUpdate() {
   if (needChange) {
     config.speedPercent = newSpeed;
     fan_applySpeed(config.speedPercent);
-    #if MQTT_ENABLED == 1
-      mqttManager.publishSpeed(config.speedPercent);
-    #endif
+    // >>> ИЗМЕНЕНО: mqttManager.publishSpeed УДАЛЁН
     
     baseTemp = currentTemp;
     baseHum = currentHum;
@@ -475,7 +440,6 @@ void fan_update() {
         #if LOG_FAN == 1
           Serial.println("[FAN] Starting pulse finished, but speed is 0% - turning OFF");
         #endif
-
       } else {
         fan_applySpeed(config.speedPercent);
         startingPulseActive = false;
@@ -543,13 +507,11 @@ void fan_update() {
   
   timerExpired = fan_delayTimer(false);
   
-
   if (sensorShouldBeOn || timerExpired) {
     if (!fanOn) {
       fan_set(true, false);  
       if (delayActive) {
         delayActive = false;
-
         #if LOG_FAN == 1
           Serial.println("[FAN] Timer cancelled - fan turned ON by sensor");
         #endif

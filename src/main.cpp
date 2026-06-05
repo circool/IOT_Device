@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "config.h"
+#include "Device.h"
 #include "led.h"
 #include "ansi.h"
 #include "ota_check.h"
@@ -31,9 +32,7 @@
   unsigned long wifiLostTime = 0;
   bool wifiConnecting = false;
   unsigned long wifiConnectStartTime = 0;
-
 #endif
-
 
 #if WEB_ENABLED == 1
   #include "web.h"
@@ -44,14 +43,12 @@
   #endif
 #endif
 
-#if defined(ESP32)  && WDT_ENABLED==1
+#if defined(ESP32) && WDT_ENABLED == 1
   #include <esp_task_wdt.h>  
 #endif
 
-
-
 // ======================== MQTT FUNCTIONS ========================
-#if MQTT_ENABLED==1
+#if MQTT_ENABLED == 1
   #include "mqtt.h"
   unsigned long lastMQTTAttempt = 0;
 
@@ -133,7 +130,6 @@ void wdt_init() {
   Serial.printf("[WDT] ESP8266 WDT enabled, timeout=%d ms\n", WDT_TIMER_MS);
   
 #elif defined(ESP32)
-  // Для платформы 5.2.0 используем старый API
   esp_task_wdt_init(WDT_TIMER_MS / 1000, true);
   esp_task_wdt_add(NULL);
   Serial.printf("[WDT] ESP32 task WDT enabled, timeout=%d ms\n", WDT_TIMER_MS);
@@ -141,11 +137,9 @@ void wdt_init() {
 }
 
 void wdt_feed() {
-  
 #if defined(WDT_TEST)
   return;
 #endif
-  
 #if defined(ESP8266)
   ESP.wdtFeed();
 #elif defined(ESP32)
@@ -201,7 +195,6 @@ void checkResetButton() {
   }
 }
 
-
 #if WIFI_ENABLED == 1
 // ======================== WIFI ========================
 #ifndef DEBUG_WIFI_ENABLED
@@ -209,9 +202,8 @@ void checkResetButton() {
 #endif
 
 void wifi_beginAsync() {
-  
   #if STATUS_LED_PIN > 0
-    led_setMode(LED_MODE_SLOW_BLINK);  // Пытаемся подключиться к WiFi
+    led_setMode(LED_MODE_SLOW_BLINK);
   #endif
   
   if (strlen(config.wifiSsid) == 0) {
@@ -245,15 +237,14 @@ void wifi_checkAsync() {
     wifiLostTime = 0;
     
     #if LOG_WIFI == 1
-
       Serial.printf(ANSI_BRIGHT_MAGENTA "[WIFI] Connected! IP: " ANSI_BOLD "%s" ANSI_RESET "\n", WiFi.localIP().toString().c_str());
     #endif
     
     #if STATUS_LED_PIN > 0
       #if MQTT_ENABLED == 1
-        led_setMode(LED_MODE_FAST_BLINK);  // WiFi есть, ждём MQTT
+        led_setMode(LED_MODE_FAST_BLINK);
       #else
-        led_setMode(LED_MODE_ON);  // Только WiFi, горим постоянно
+        led_setMode(LED_MODE_ON);
       #endif
     #endif
 
@@ -270,16 +261,13 @@ void wifi_checkAsync() {
     #endif
     wifiConnecting = false;
     WiFi.disconnect();
-  
-
 
     #if STATUS_LED_PIN > 0
-      led_setMode(LED_MODE_SLOW_BLINK);  // Не удалось подключиться
+      led_setMode(LED_MODE_SLOW_BLINK);
     #endif
   }
 }
 
-// ======================== AP ========================
 void checkWiFiFallbackToAP() {
   if (strlen(config.wifiSsid) == 0) return;
   if (apMode) return;
@@ -303,7 +291,7 @@ void checkWiFiFallbackToAP() {
       #endif
       
       #if STATUS_LED_PIN > 0
-        led_setMode(LED_MODE_SLOW_BLINK);  // Потеря WiFi
+        led_setMode(LED_MODE_SLOW_BLINK);
       #endif
       
     } else if (millis() - wifiLostTime > AP_FALLBACK_TIMEOUT_MS) {
@@ -326,22 +314,7 @@ void checkWiFiFallbackToAP() {
 }
 #endif
 
-#if MQTT_ENABLED == 1
-void publishSensorData() {
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  if (sensor_isOk()) {
-    static float lastTemp = 0, lastHum = 0;
-    const float EPSILON = 0.05;
-    if (fabs(currentTemp - lastTemp) > EPSILON || fabs(currentHum - lastHum) > EPSILON) {
-        mqttManager.publishSensor(currentTemp, currentHum);
-        lastTemp = currentTemp;
-        lastHum = currentHum;
-    }
-  }
-  #endif
-}
-#endif
-
+// ======================== SETUP ========================
 void setup() {
   Serial.begin(115200);
   delay(1000);
@@ -363,7 +336,6 @@ void setup() {
     Serial.printf("Flash chip size: %u bytes (%u MB)\n", flashSize, flashSize / (1024 * 1024));
     Serial.printf("Flash chip speed: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
     Serial.printf("Flash chip mode: %d\n", ESP.getFlashChipMode());
-    // PSRAM информация
     #ifdef CONFIG_SPIRAM_SUPPORT
       Serial.printf("PSRAM size: %u bytes\n", ESP.getPsramSize());
       Serial.printf("Free PSRAM: %u bytes\n", ESP.getFreePsram());
@@ -371,11 +343,9 @@ void setup() {
       Serial.println("PSRAM: not supported/enabled");
     #endif
 
-    // Heap информация
     Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
     Serial.printf("Minimum free heap: %u bytes\n", ESP.getMinFreeHeap());
     Serial.printf("Maximum allocatable heap: %u bytes\n", ESP.getMaxAllocHeap());
-
     Serial.printf("ESP-IDF version: %s\n", esp_get_idf_version());
 
   #elif defined(ESP8266)
@@ -384,22 +354,14 @@ void setup() {
     Serial.printf("Core version: %s\n", ESP.getCoreVersion().c_str());
     Serial.printf("CPU frequency: %d MHz\n", ESP.getCpuFreqMHz());
     Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
-    
-    // Информация о flash
     uint32_t flashSize = ESP.getFlashChipSize();
     Serial.printf("Flash chip size: %u bytes (%u MB)\n", flashSize, flashSize / (1024 * 1024));
-    // Реальная flash память (если доступно)
     uint32_t realFlashSize = ESP.getFlashChipRealSize();
     if (realFlashSize > 0 && realFlashSize != flashSize) {
       Serial.printf("\033[31mReal flash chip size: %u bytes (%u MB)\033[0m\n", realFlashSize, realFlashSize / (1024 * 1024));
     }
-
     Serial.printf("\nFlash chip speed: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
     Serial.printf("Flash chip mode: %d (0=QIO, 1=QOUT, 2=DIO, 3=DOUT)\n", ESP.getFlashChipMode());
-    
-    
-    
-    // Версия SDK
     Serial.printf("SDK version: %s\n", system_get_sdk_version());
   #endif
   
@@ -407,7 +369,7 @@ void setup() {
   Serial.printf("Sketch size: %u bytes\n", ESP.getSketchSize());
   Serial.printf("Free sketch space: %u bytes\n", ESP.getFreeSketchSpace());
   Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
-  Serial.printf("Firmware ver. %s\n",VERSION);
+  Serial.printf("Firmware ver. %s\n", VERSION);
   #if MQTT_PUBLISH_RESET_REASON == 1
     getResetReason();
     Serial.printf("Reset reason: %s\n", lastResetReason);
@@ -416,14 +378,14 @@ void setup() {
   Serial.println("===================\n");
 #endif
   
-
   Serial.println("\n==========================================");
   Serial.printf("Device starting with %s mode\n", DEVICE_PREFIX);
   Serial.println("==========================================");
-
+  
+  // ========== ИНИЦИАЛИЗАЦИЯ ПОДСИСТЕМ ==========
   #if STATUS_LED_PIN > 0
     led_init();
-    led_setMode(LED_MODE_SLOW_BLINK);  // Начальный режим - ожидание конфигурации
+    led_setMode(LED_MODE_SLOW_BLINK);
   #endif
 
   #if WDT_ENABLED == 1
@@ -431,334 +393,438 @@ void setup() {
   #endif
 
   checkResetButton();
-
   config_init();
 
   #if OTA_ENABLED == 1
     bool otaCapable = isOtaAvailable();
     #if WEB_ENABLED == 1
-        web_setOtaAvailable(otaCapable);
+      web_setOtaAvailable(otaCapable);
     #endif
-    
     #if LOG_OTA == 1
-    Serial.printf("[OTA] Available: %s\n", otaCapable ? "YES" : "NO");
+      Serial.printf("[OTA] Available: %s\n", otaCapable ? "YES" : "NO");
     #endif
   #endif
-
 
   #if DEBUG_WIFI_ENABLED == 1
-  #if defined(ESP32) && WDT_ENABLED == 1
-    esp_task_wdt_delete(NULL);  // временно отключаем WDT
-  #endif
-  Serial.println("[WIFI] Scanning...");
-  int n = WiFi.scanNetworks();
-  for (int i = 0; i < n; i++) {
-    String ssid = WiFi.SSID(i);
-    bool isTarget = (ssid == config.wifiSsid);
-    
-    if (isTarget) {
-        Serial.printf("[WIFI] %s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET "\n", 
-                      ssid.c_str(), WiFi.RSSI(i));
-    } else {
-        Serial.printf("[WIFI] %s (RSSI: %d)\n", 
-                      ssid.c_str(), WiFi.RSSI(i));
-    }
     #if defined(ESP32) && WDT_ENABLED == 1
-      esp_task_wdt_add(NULL);  // снова включаем WDT
+      esp_task_wdt_delete(NULL);
     #endif
-  }
-  WiFi.scanDelete();
+    Serial.println("[WIFI] Scanning...");
+    int n = WiFi.scanNetworks();
+    for (int i = 0; i < n; i++) {
+      String ssid = WiFi.SSID(i);
+      bool isTarget = (ssid == config.wifiSsid);
+      if (isTarget) {
+        Serial.printf("[WIFI] %s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET "\n", ssid.c_str(), WiFi.RSSI(i));
+      } else {
+        Serial.printf("[WIFI] %s (RSSI: %d)\n", ssid.c_str(), WiFi.RSSI(i));
+      }
+    }
+    WiFi.scanDelete();
+    #if defined(ESP32) && WDT_ENABLED == 1
+      esp_task_wdt_add(NULL);
+    #endif
   #endif
-  
-  #if DEBUG_ENABLED==1
-    config_print();  
+
+  #if DEBUG_ENABLED == 1
+    config_print();
   #endif
-  
+
   bool hasValidConfig = (configValid && strlen(config.wifiSsid) > 0);
-  
+
   if (hasValidConfig) {
     #if LOG_CONFIG == 1
       Serial.println("[CONFIG] Normal mode - starting with saved config");
-    #endif    
-    
-    #if MQTT_ENABLED==1
-      // Инициализация MQTT
-      mqttManager.begin(config);
-      
-      // Настройка колбэков для MQTT команд
-      
-      #if DEVICE_TYPE == 1
-      
-      mqttManager.onStateCommand([](bool state) {
-        fan_set(state);
-      });
-
-      
-      mqttManager.onSpeedCommand([](int speed) {
-        
-        if (config.adaptiveMode) {
-          config.adaptiveMode = false;
-          adaptiveActive = false;
-          mqttManager.publishAdaptiveMode(false);
-        }
-        if (speed == 0 || speed < MIN_SPEED_PERCENT) {
-          config.speedPercent = speed;
-          fan_set(false);
-        } else {
-          config.speedPercent = speed;
-          if (fanOn && !startingPulseActive) {
-            fan_applySpeed(config.speedPercent);
-          }
-        }
-        mqttManager.publishSpeed(config.speedPercent);
-      });
-
-      
-      mqttManager.onSensorControlModeCommand([](bool enabled) {
-        fan_setOverrideMode(enabled);
-        mqttManager.publishSensorControlMode(config.sensorControlMode);
-      });
-      
-      
-      mqttManager.onAdaptiveModeCommand([](bool enabled) {
-        if (enabled && !config.sensorControlMode) {
-          #if DEBUG_ENABLED == 1
-            Serial.println("[MQTT] Cannot enable adaptive mode - sensor control mode is OFF");
-          #endif
-          mqttManager.publishAdaptiveMode(false);
-          return;
-        }
-        
-        config.adaptiveMode = enabled;
-        
-        if (fanOn && config.sensorControlMode && config.adaptiveMode && sensor_isOk()) {
-          adaptiveActive = true;
-          baseTemp = currentTemp;
-          baseHum = currentHum;
-          lastAdaptiveCheck = millis();
-        } else if (!config.adaptiveMode) {
-          adaptiveActive = false;
-        }
-        mqttManager.publishAdaptiveMode(config.adaptiveMode);
-      });
-      
-      
-      mqttManager.onLowTempCommand([](float value) {
-        config.lowTemp = value;
-        mqttManager.publishLowTemp(config.lowTemp);
-      });
-        
-      mqttManager.onHighTempCommand([](float value) {
-        config.highTemp = value;
-        mqttManager.publishHighTemp(config.highTemp);
-      });
-
-        
-      mqttManager.onLowHumCommand([](float value) {
-        config.lowHum = value;
-        mqttManager.publishLowHum(config.lowHum);
-      });
-      
-      
-      mqttManager.onHighHumCommand([](float value) {
-        config.highHum = value;
-        mqttManager.publishHighHum(config.highHum);
-      }); 
-      
-      #endif
-
-
-      #if DEVICE_TYPE == 3  
-      mqttManager.onStateCommand([](bool state) {
-        switch_set(state);
-      });
-      #endif  
-        
-      #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-      mqttManager.onDelaySecCommand([](int delaySec) {
-        int oldDelay = config.delaySeconds;
-        config.delaySeconds = delaySec;
-        if (delayActive) {
-          long remaining = (delayTimer - millis()) + (delaySec - oldDelay) * 1000L;
-          if (remaining > 0) {
-            delayTimer = millis() + remaining;
-          } else {
-            delayActive = false;
-            #if DEVICE_TYPE == 1
-              fan_set(true);
-            #endif
-            #if DEVICE_TYPE == 3
-              switch_set(true);
-            #endif
-
-          }
-        }
-        mqttManager.publishDelaySec(config.delaySeconds);
-      });
-      
-      mqttManager.onMaxOnTimeCommand([](uint32_t maxOnTime) {
-        config.maxOnTime = maxOnTime;
-        mqttManager.publishMaxOnTime(config.maxOnTime);
-      });
-      #endif
-      
-      #if MQTT_RESET_ENABLED == 1
-      mqttManager.onResetCommand([]() {
-        #if LOG_MQTT == 1 
-          Serial.println("[MQTT] Resetting due MQTT RESET");
-        #endif
-        mqttManager.disconnect();
-        config_clear();
-        delay(1000);
-        #if DEBUG_ENABLED == 1
-          Serial.println("[DEBUG] Restarting...");
-        #endif
-        ESP.restart();
-      });
-      #endif
-    
     #endif
 
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-      sensor_init();
-      
-      #if DEVICE_TYPE == 1
-      if (!sensorOk && (
-          #if SENSOR_TYPE == 1
-          strcmp(sensorError, "AHT10 not found") == 0
-          #elif SENSOR_TYPE == 2
-          strcmp(sensorError, "DHT read failed (NaN)") == 0
+    // ========== MQTT ИНИЦИАЛИЗАЦИЯ ==========
+    #if MQTT_ENABLED == 1
+      #ifndef TEST_DEVICE_MQTT
+        // >>> НОВЫЙ СПОСОБ: передаём параметры явно
+        mqttManager.begin(config.mqttBroker, config.mqttPort, config.mqttClientId,
+                          config.mqttUser, config.mqttPassword);
+        
+        // Регистрация колбэков (только меняют глобальные переменные, без прямой публикации)
+        mqttManager.onStateCommand([](bool state) { 
+          fan_set(state); 
+        });
+        
+        mqttManager.onSpeedCommand([](int speed) {
+          if (config.adaptiveMode) {
+            config.adaptiveMode = false;
+            adaptiveActive = false;
+          }
+          if (speed == 0 || speed < MIN_SPEED_PERCENT) {
+            fan_set(false);
+          } else {
+            config.speedPercent = speed;
+            if (fanOn && !startingPulseActive) {
+              fan_applySpeed(config.speedPercent);
+            }
+          }
+        });
+        
+        mqttManager.onSensorControlModeCommand([](bool enabled) {
+          fan_setOverrideMode(enabled);
+        });
+        
+        mqttManager.onAdaptiveModeCommand([](bool enabled) {
+          if (enabled && !config.sensorControlMode) {
+            #if DEBUG_ENABLED == 1
+              Serial.println("[MQTT] Cannot enable adaptive mode - sensor control mode is OFF");
+            #endif
+            return;
+          }
+          config.adaptiveMode = enabled;
+          if (fanOn && config.sensorControlMode && config.adaptiveMode && sensor_isOk()) {
+            adaptiveActive = true;
+            baseTemp = currentTemp;
+            baseHum = currentHum;
+            lastAdaptiveCheck = millis();
+          } else if (!config.adaptiveMode) {
+            adaptiveActive = false;
+          }
+        });
+        
+        mqttManager.onLowTempCommand([](float value) { 
+          config.lowTemp = value; 
+        });
+        mqttManager.onHighTempCommand([](float value) { 
+          config.highTemp = value; 
+        });
+        mqttManager.onLowHumCommand([](float value) { 
+          config.lowHum = value; 
+        });
+        mqttManager.onHighHumCommand([](float value) { 
+          config.highHum = value; 
+        });
+        mqttManager.onDelaySecCommand([](int delaySec) {
+          int oldDelay = config.delaySeconds;
+          config.delaySeconds = delaySec;
+          if (delayActive) {
+            long remaining = (delayTimer - millis()) + (delaySec - oldDelay) * 1000L;
+            if (remaining > 0) {
+              delayTimer = millis() + remaining;
+            } else {
+              delayActive = false;
+              fan_set(true);
+            }
+          }
+        });
+        
+        mqttManager.onMaxOnTimeCommand([](uint32_t maxOnTime) { 
+          config.maxOnTime = maxOnTime; 
+        });
+        
+        #if MQTT_RESET_ENABLED == 1
+        mqttManager.onResetCommand([]() {
+          #if LOG_MQTT == 1
+            Serial.println("[MQTT] Resetting due MQTT RESET");
           #endif
-      )) {
-        config.sensorControlMode = false;
-        config.adaptiveMode = false;
-        #if DEBUG_ENABLED == 1
-        Serial.println("[SENSOR] Not found - switching to MANUAL mode");
+          mqttManager.disconnect();
+          config_clear();
+          delay(1000);
+          ESP.restart();
+        });
         #endif
-      }
-      #endif //DEVICE_TYPE == 1   
-    #endif //DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+      #endif
+    #endif
 
-    #if DEVICE_TYPE == 1 
-      fan_init();
-    #endif //DEVICE_TYPE == 1
-    
-    #if DEVICE_TYPE == 3 
-      switch_init();
-    #endif //DEVICE_TYPE == 3
+    // ========== ДАТЧИК ==========
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+      #ifndef TEST_DEVICE_SENSOR
+        sensor_init();
+        #if DEVICE_TYPE == 1
+          if (!sensorOk && (
+              #if SENSOR_TYPE == 1
+              strcmp(sensorError, "AHT10 not found") == 0
+              #elif SENSOR_TYPE == 2
+              strcmp(sensorError, "DHT read failed (NaN)") == 0
+              #endif
+          )) {
+            config.sensorControlMode = false;
+            config.adaptiveMode = false;
+            #if DEBUG_ENABLED == 1
+              Serial.println("[SENSOR] Not found - switching to MANUAL mode");
+            #endif
+          }
+        #endif
+      #endif
+    #endif
 
+    // ========== ВЕНТИЛЯТОР ==========
+    #if DEVICE_TYPE == 1
+      #ifndef TEST_DEVICE_FAN
+        fan_init();
+      #endif
+    #endif
+
+    // ========== ВЫКЛЮЧАТЕЛЬ ==========
+    #if DEVICE_TYPE == 3
+      #ifndef TEST_DEVICE_SWITCH
+        switch_init();
+      #endif
+    #endif
+
+    // ========== WIFI ==========
     #if WIFI_ENABLED == 1
       #if DEBUG_WIFI_ENABLED == 1
         #ifdef ESP8266
-          // ESP8266 специфичные настройки
           WiFi.setSleepMode(WIFI_NONE_SLEEP);
           WiFi.setPhyMode(WIFI_PHY_MODE_11G);
-          // WiFi.setOutputPower(15.0);
           delay(100);
         #elif defined(ESP32)
-          // ESP32 специфичные настройки
-          WiFi.setSleep(false);  // отключаем энергосбережение
-          // WiFi.setTxPower(WIFI_POWER_19_5dBm);  // опционально
+          WiFi.setSleep(false);
           delay(100);
         #endif
-      #endif //DEBUG_WIFI_ENABLED == 1
-
-      wifi_beginAsync();
-    #endif //WIFI_ENABLED == 1
-
-    #if WEB_ENABLED == 1
-      web_init();
+      #endif
+      #ifndef TEST_DEVICE_WIFI
+        wifi_beginAsync();
+      #endif
     #endif
-    
+
+    // ========== WEB ==========
+    #if WEB_ENABLED == 1
+      #ifndef TEST_DEVICE_WEB
+        web_init();
+      #endif
+    #endif
+
   } else {
-    
     #if LOG_CONFIG == 1
       Serial.println("[CONFIG] Configuration mode - starting AP for setup");
     #endif
-    
     #if AP_ENABLED == 1
-      web_initAP();
+      #ifndef TEST_DEVICE_WIFI
+        web_initAP();
+      #endif
     #endif
   }
 }
 
+// ======================== LOOP ========================
 void loop() {
+  #if USE_DEVICE_CLASS == 1
+    device.loop();
+  #else
   
-  #if WDT_ENABLED == 1
-    wdt_feed();
-  #endif
+    #if WDT_ENABLED == 1
+      wdt_feed();
+    #endif
 
-  checkResetButton();
+    checkResetButton();
 
-  #if STATUS_LED_PIN > 0
-    led_update();
-  #endif
+    #if STATUS_LED_PIN > 0
+      led_update();
+    #endif
 
-  #if WEB_ENABLED == 1
-    if (!configValid || strlen(config.wifiSsid) == 0) {
-      web_update();
-      delay(100);
-      return;
-    }
-  #endif
-
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    sensor_read();
-  #endif
-  
-  #if DEVICE_TYPE == 1
-    fan_update();
-  #endif
-  
-  #if DEVICE_TYPE == 3
-    switch_update();
-  #endif
-
-  #if WIFI_ENABLED == 1
-    wifi_checkAsync();   
-  #endif
-
-  #if AP_ENABLED == 1
-    checkWiFiFallbackToAP();
-  #endif
-
-  #if MQTT_ENABLED == 1
-    
-    if (WiFi.status() == WL_CONNECTED) {
-      mqttManager.process();
-      publishSensorData();
-      
-      // Управление LED
-      #if STATUS_LED_PIN > 0
-        if (!mqttManager.isConnected()) {
-          led_setMode(LED_MODE_FAST_BLINK);
-        } else {
-          led_setMode(LED_MODE_ON);
-        }
-      #endif //STATUS_LED_PIN > 0
-      
-      // Heartbeat
-      static unsigned long lastHeartbeat = 0;
-      if (mqttManager.isConnected()) {
-        if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
-          mqttManager.publishOnline();
-          #if MQTT_PUBLISH_RSSI == 1
-            mqttManager.publishRSSI();
-          #endif
-          lastHeartbeat = millis();
-        }
+    #if WEB_ENABLED == 1
+      if (!configValid || strlen(config.wifiSsid) == 0) {
+        web_update();
+        delay(100);
+        return;
       }
-    } else {
-      #if STATUS_LED_PIN > 0
-        led_setMode(LED_MODE_SLOW_BLINK);
-      #endif
-    }
-    
-  #endif //MQTT_ENABLED == 1
+    #endif
 
-  #if WEB_ENABLED == 1
-    web_update();
+    // ========== ДАТЧИК ==========
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+      #ifndef TEST_DEVICE_SENSOR
+        sensor_read();
+      #endif
+    #endif
+
+    // ========== ВЕНТИЛЯТОР ==========
+    #if DEVICE_TYPE == 1
+      #ifndef TEST_DEVICE_FAN
+        fan_update();
+      #endif
+    #endif
+
+    // ========== ВЫКЛЮЧАТЕЛЬ ==========
+    #if DEVICE_TYPE == 3
+      #ifndef TEST_DEVICE_SWITCH
+        switch_update();
+      #endif
+    #endif
+
+    // ========== WIFI ==========
+    #if WIFI_ENABLED == 1
+      #ifndef TEST_DEVICE_WIFI
+        wifi_checkAsync();
+      #endif
+    #endif
+
+    #if AP_ENABLED == 1
+      #ifndef TEST_DEVICE_WIFI
+        checkWiFiFallbackToAP();
+      #endif
+    #endif
+
+    // ========== MQTT ==========
+    #if MQTT_ENABLED == 1
+      #ifndef TEST_DEVICE_MQTT
+        if (WiFi.status() == WL_CONNECTED) {
+          mqttManager.process();
+          
+          // ========== ОТСЛЕЖИВАНИЕ ИЗМЕНЕНИЙ ДЛЯ ПУБЛИКАЦИИ В MQTT ==========
+          
+          // 1. Состояние вентилятора/выключателя
+          #if DEVICE_TYPE == 1
+          static bool lastFanState = false;
+          bool currentFanState = fan_getState();
+          if (currentFanState != lastFanState) {
+            mqttManager.publishState(currentFanState);
+            lastFanState = currentFanState;
+          }
+          #elif DEVICE_TYPE == 3
+          static bool lastSwitchState = false;
+          bool currentSwitchState = switch_getState();
+          if (currentSwitchState != lastSwitchState) {
+            mqttManager.publishState(currentSwitchState);
+            lastSwitchState = currentSwitchState;
+          }
+          #endif
+          
+          // 2. Скорость вентилятора (только TYPE 1)
+          #if DEVICE_TYPE == 1
+          static uint16_t lastSpeedPercent = 0;
+          if (config.speedPercent != lastSpeedPercent) {
+            mqttManager.publishSpeed(config.speedPercent);
+            lastSpeedPercent = config.speedPercent;
+          }
+          #endif
+          
+          // 3. Режим управления сенсором (только TYPE 1)
+          #if DEVICE_TYPE == 1
+          static bool lastSensorControlMode = false;
+          if (config.sensorControlMode != lastSensorControlMode) {
+            mqttManager.publishSensorControlMode(config.sensorControlMode);
+            lastSensorControlMode = config.sensorControlMode;
+          }
+          #endif
+          
+          // 4. Адаптивный режим (только TYPE 1)
+          #if DEVICE_TYPE == 1
+          static bool lastAdaptiveMode = false;
+          if (config.adaptiveMode != lastAdaptiveMode) {
+            mqttManager.publishAdaptiveMode(config.adaptiveMode);
+            lastAdaptiveMode = config.adaptiveMode;
+          }
+          #endif
+          
+          // 5. Пороги температуры и влажности (только TYPE 1)
+          #if DEVICE_TYPE == 1
+          static float lastLowTemp = 0, lastHighTemp = 0, lastLowHum = 0, lastHighHum = 0;
+          if (fabs(config.lowTemp - lastLowTemp) > 0.01 ||
+              fabs(config.highTemp - lastHighTemp) > 0.01 ||
+              fabs(config.lowHum - lastLowHum) > 0.01 ||
+              fabs(config.highHum - lastHighHum) > 0.01) {
+            mqttManager.publishThresholds(config.lowTemp, config.highTemp, config.lowHum, config.highHum);
+            lastLowTemp = config.lowTemp;
+            lastHighTemp = config.highTemp;
+            lastLowHum = config.lowHum;
+            lastHighHum = config.highHum;
+          }
+          #endif
+          
+          // 6. Задержка отложенного включения (TYPE 1 и 3)
+          #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+          static int lastDelaySeconds = -1;  // -1 чтобы при первом цикле гарантированно опубликовать
+          if (config.delaySeconds != lastDelaySeconds) {
+            mqttManager.publishDelaySec(config.delaySeconds);
+            lastDelaySeconds = config.delaySeconds;
+          }
+          #endif
+          
+          // 7. Аварийное отключение (TYPE 1 и 3)
+          #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+          static uint32_t lastMaxOnTime = 0;
+          if (config.maxOnTime != lastMaxOnTime) {
+            mqttManager.publishMaxOnTime(config.maxOnTime);
+            lastMaxOnTime = config.maxOnTime;
+          }
+          #endif
+          
+          // 8. Публикация датчиков при изменении (TYPE 1 и 2)
+          #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+          if (sensor_isOk()) {
+            static float lastTemp = 0, lastHum = 0;
+            const float EPSILON = 0.05;
+            if (fabs(currentTemp - lastTemp) > EPSILON || fabs(currentHum - lastHum) > EPSILON) {
+              mqttManager.publishSensor(currentTemp, currentHum);
+              lastTemp = currentTemp;
+              lastHum = currentHum;
+            }
+          }
+          #endif
+          
+          // ========== HEARTBEAT (ONLINE + RSSI) ==========
+          static unsigned long lastHeartbeat = 0;
+          static bool initialConfigPublished = false;
+          
+          if (mqttManager.isConnected()) {
+            // Публикация начальной конфигурации при первом подключении
+            if (!initialConfigPublished) {
+              #if DEVICE_TYPE == 1
+              mqttManager.publishState(fan_getState());
+              mqttManager.publishSpeed(config.speedPercent);
+              mqttManager.publishSensorControlMode(config.sensorControlMode);
+              mqttManager.publishAdaptiveMode(config.adaptiveMode);
+              mqttManager.publishThresholds(config.lowTemp, config.highTemp, config.lowHum, config.highHum);
+              #elif DEVICE_TYPE == 3
+              mqttManager.publishState(switch_getState());
+              #endif
+              
+              #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+              mqttManager.publishDelaySec(config.delaySeconds);
+              mqttManager.publishMaxOnTime(config.maxOnTime);
+              #endif
+              
+              #if MQTT_PUBLISH_RESET_REASON == 1
+              mqttManager.publishResetReason(lastResetReason);
+              #endif
+              
+              initialConfigPublished = true;
+              #if LOG_MQTT == 1
+              Serial.println("[MQTT] Initial config published");
+              #endif
+            }
+            
+            // Heartbeat
+            if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
+              mqttManager.publishOnline();
+              #if MQTT_PUBLISH_RSSI == 1
+              mqttManager.publishRSSI(WiFi.RSSI());
+              #endif
+              lastHeartbeat = millis();
+            }
+          } else {
+            // При потере соединения сбрасываем флаг, чтобы при переподключении всё опубликовать заново
+            initialConfigPublished = false;
+          }
+          
+          // Индикация LED по статусу MQTT
+          #if STATUS_LED_PIN > 0
+            if (!mqttManager.isConnected()) {
+              led_setMode(LED_MODE_FAST_BLINK);
+            } else {
+              led_setMode(LED_MODE_ON);
+            }
+          #endif
+          
+        } else {
+          #if STATUS_LED_PIN > 0
+            led_setMode(LED_MODE_SLOW_BLINK);
+          #endif
+        }
+      #endif
+    #endif
+
+    // ========== WEB ==========
+    #if WEB_ENABLED == 1
+      #ifndef TEST_DEVICE_WEB
+        web_update();
+      #endif
+    #endif
   #endif
-  
-  delay(50);
 }

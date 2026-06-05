@@ -17,20 +17,21 @@ public:
     MQTTManager();
     ~MQTTManager();
     
-    // Инициализация и управление
-    bool begin(const Config& cfg);
+    // Инициализация с явными параметрами
+    bool begin(const char* broker, uint16_t port, const char* clientId,
+               const char* user = nullptr, const char* password = nullptr);
+    
     void process();
     bool isConnected();
     void disconnect();
     
-    // Публикации состояния
+    // Публикации — все данные передаются аргументами
     void publishOnline();
     void publishState(bool on);
-    void publishSpeed(uint16_t speed);           
+    void publishSpeed(int percent);
     void publishDelaySec(int seconds);
     void publishMaxOnTime(uint32_t seconds);
     void publishSensorControlMode(bool enabled);
-    void publishConfig();
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     void publishSensor(float temp, float hum);
@@ -38,20 +39,20 @@ public:
     
     #if DEVICE_TYPE == 1
     void publishAdaptiveMode(bool enabled);
-    void publishLowTemp(float temp);
-    void publishHighTemp(float temp);
-    void publishLowHum(float hum);
-    void publishHighHum(float hum);
-    void publishThresholds();
+    void publishThresholds(float lowTemp, float highTemp, float lowHum, float highHum);
     #endif
     
     #if MQTT_PUBLISH_RSSI == 1
-    void publishRSSI();
+    void publishRSSI(int rssi);
     #endif
     
-    // Установка колбэков для команд
+    #if MQTT_PUBLISH_RESET_REASON == 1
+    void publishResetReason(const char* reason);
+    #endif
+    
+    // Колбэки для команд
     void onStateCommand(std::function<void(bool)> callback);
-    void onSpeedCommand(std::function<void(int)> callback);        
+    void onSpeedCommand(std::function<void(int)> callback);
     void onDelaySecCommand(std::function<void(int)> callback);
     void onMaxOnTimeCommand(std::function<void(uint32_t)> callback);
     void onSensorControlModeCommand(std::function<void(bool)> callback);
@@ -66,10 +67,6 @@ public:
     
     #if MQTT_RESET_ENABLED == 1
     void onResetCommand(std::function<void()> callback);
-    #endif
-
-    #if MQTT_PUBLISH_RESET_REASON == 1
-      void publishResetReason();
     #endif
     
 private:
@@ -89,8 +86,8 @@ private:
         char reset[48];
         char state[48];
         char control[48];
-        char speed[48];              
-        char speedControl[48];       
+        char speed[48];
+        char speedControl[48];
         char delaySec[48];
         char delaySecControl[48];
         char maxOnTime[48];
@@ -125,9 +122,15 @@ private:
     bool _initialized;
     unsigned long _lastReconnectAttempt;
     
+    // Храним параметры для reconnect
+    char _broker[64];
+    uint16_t _port;
+    char _user[32];
+    char _password[64];
+    
     // Колбэки
     std::function<void(bool)> _stateCallback;
-    std::function<void(int)> _speedCallback;        
+    std::function<void(int)> _speedCallback;
     std::function<void(int)> _delaySecCallback;
     std::function<void(uint32_t)> _maxOnTimeCallback;
     std::function<void(bool)> _sensorControlModeCallback;
@@ -145,9 +148,6 @@ private:
     #endif
 };
 
-// Глобальный экземпляр
 extern MQTTManager mqttManager;
-#if MQTT_PUBLISH_RESET_REASON == 1
-  extern char lastResetReason[32];
+
 #endif
-#endif // MQTT_H
