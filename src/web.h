@@ -9,7 +9,7 @@
   extern ESP8266WebServer server;
 #endif
 
-// Функции для ESP8266 (отправка HTML частями)
+// Функции для ESP8266
 #ifdef ESP8266
   void web_sendConfigPage(const String& errorMsg);
   #if WEB_STATUS_ENABLED == 1
@@ -17,7 +17,7 @@
   #endif
   void web_saveConfig();
 #else
-  // Для ESP32 (тоже используем отправку)
+  // Для ESP32
   void web_sendConfigPage(AsyncWebServerRequest *request, const String& errorMsg);
   #if WEB_STATUS_ENABLED == 1
     void web_sendStatusPage(AsyncWebServerRequest *request, int refreshInterval);
@@ -25,11 +25,13 @@
   void web_saveConfig(AsyncWebServerRequest *request);
 #endif
 
+// Формирует HTML-строку статуса для страницы состояния
+String web_buildStatusHtml();
+
 #if OTA_ENABLED == 1
     void web_setOtaAvailable(bool available);
     bool web_isOtaAvailable();
 #endif
-
 
 void web_init();
 void web_initAP();

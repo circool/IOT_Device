@@ -9,7 +9,7 @@
 char deviceId[12] = "";
 
 Config config;
-Config staticConfig;            // Копия конфигурации для веб-интерфейса
+
 bool configValid = false;
 bool apMode = false;
 char configLastError[64] = "";   
@@ -442,8 +442,7 @@ void config_write() {
     #endif
     configValid = true;
     
-    // Обновляем статическую копию для веб-интерфейса
-    memcpy(&staticConfig, &config, sizeof(Config));
+    
   } else {
     #if DEBUG_ENABLED == 1
       Serial.print(ANSI_BRIGHT_RED);
@@ -481,49 +480,69 @@ void config_init() {
     Serial.printf("[CONFIG] EEPROM size: %d bytes\n", EEPROM.length());
   #endif
   config_read();
-  
-  // Создаём копию для веб-интерфейса
-  memcpy(&staticConfig, &config, sizeof(Config));
-  #if DEBUG_ENABLED == 1
-    Serial.println("[CONFIG] Static config copy created for web interface");
-  #endif
 }
+
+Config config_getSaved() {
+    Config saved;
+    memset(&saved, 0, sizeof(Config));
+    
+    // Читаем весь блок EEPROM во временную структуру
+    uint8_t* ptr = (uint8_t*)&saved;
+    for (size_t i = 0; i < sizeof(Config); i++) {
+        ptr[i] = EEPROM.read(i);
+    }
+    
+    // Проверяем валидность магического числа
+    if (saved.magic != MAGIC_VALUE) {
+        // Если невалидно, возвращаем defaults (но не сохраняем в EEPROM)
+        #if DEBUG_ENABLED == 1
+            Serial.println("[CONFIG] config_getSaved: invalid magic, returning defaults");
+        #endif
+        config_setDefaults();
+        memcpy(&saved, &config, sizeof(Config));
+        saved.crc = 0;  // сбросим CRC, т.к. это временные данные
+    }
+    
+    return saved;
+}
+
 
 #if DEBUG_ENABLED == 1
 void config_print() {
-  Serial.println("=== Config ===");
-  Serial.printf("WiFi SSID: '%s'\n", config.wifiSsid);
-  Serial.printf("WiFi Password: %s\n", config.wifiPassword[0] ? "***" : "(empty)");
-  #if MQTT_ENABLED == 1
-  Serial.printf("MQTT Broker: '%s:%d'\n", config.mqttBroker, config.mqttPort);
-  Serial.printf("MQTT User: '%s'\n", config.mqttUser);
-  Serial.printf("MQTT Client ID: '%s'\n", config.mqttClientId);
-  #endif
-  
-  #if DEVICE_TYPE == 1
-    Serial.printf("Temp range: %.1f - %.1f\n", config.lowTemp, config.highTemp);
-    Serial.printf("Hum range: %.1f - %.1f\n", config.lowHum, config.highHum);
-    Serial.printf("Sensor control mode: %s\n", config.sensorControlMode ? "ON" : "OFF");
-    Serial.printf("Speed percent: %d%% (%s)\n", 
-                  config.speedPercent,  
-                  config.speedPercent == 100 ? "full power" : "slow mode");
-    Serial.printf("Adaptive mode: %s\n", config.adaptiveMode ? "ON" : "OFF");
-  #endif
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    Serial.printf("Delay: %d sec\n", config.delaySeconds);
-    Serial.printf("MaxOnTime: %d sec\n", config.maxOnTime);
-    Serial.printf("Boot state: %s\n", config.bootState ? "ON" : "OFF");
-  #endif
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    Serial.printf("Sensor interval: %d sec\n", config.sensorInterval);
-    Serial.printf("Sensor type: %d\n", SENSOR_TYPE);
-    #if SENSOR_TYPE == 2
-      Serial.printf("Sensor pin: %d\n", SENSOR_PIN);
+  #if LOG_CONFIG == 1
+    Serial.println("=== Config ===");
+    Serial.printf("WiFi SSID: '%s'\n", config.wifiSsid);
+    Serial.printf("WiFi Password: %s\n", config.wifiPassword[0] ? "***" : "(empty)");
+    #if MQTT_ENABLED == 1
+    Serial.printf("MQTT Broker: '%s:%d'\n", config.mqttBroker, config.mqttPort);
+    Serial.printf("MQTT User: '%s'\n", config.mqttUser);
+    Serial.printf("MQTT Client ID: '%s'\n", config.mqttClientId);
     #endif
-  #endif
   
+    #if DEVICE_TYPE == 1
+      Serial.printf("Temp range: %.1f - %.1f\n", config.lowTemp, config.highTemp);
+      Serial.printf("Hum range: %.1f - %.1f\n", config.lowHum, config.highHum);
+      Serial.printf("Sensor control mode: %s\n", config.sensorControlMode ? "ON" : "OFF");
+      Serial.printf("Speed percent: %d%% (%s)\n", 
+                    config.speedPercent,  
+                    config.speedPercent == 100 ? "full power" : "slow mode");
+      Serial.printf("Adaptive mode: %s\n", config.adaptiveMode ? "ON" : "OFF");
+    #endif
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+      Serial.printf("Delay: %d sec\n", config.delaySeconds);
+      Serial.printf("MaxOnTime: %d sec\n", config.maxOnTime);
+      Serial.printf("Boot state: %s\n", config.bootState ? "ON" : "OFF");
+    #endif
+  
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+      Serial.printf("Sensor interval: %d sec\n", config.sensorInterval);
+      Serial.printf("Sensor type: %d\n", SENSOR_TYPE);
+      #if SENSOR_TYPE == 2
+        Serial.printf("Sensor pin: %d\n", SENSOR_PIN);
+      #endif
+    #endif
+  #endif //LOG_CONFIG == 1
   Serial.printf("CRC: 0x%04X\n", config.crc);
   Serial.printf("Config valid: %s\n", configValid ? "YES" : "NO");
   

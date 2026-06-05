@@ -1,3 +1,5 @@
+// ===== ФАЙЛ: web_templates.h (ПОЛНОСТЬЮ, ИСПРАВЛЕННЫЙ) =====
+
 #ifndef WEB_TEMPLATES_H
 #define WEB_TEMPLATES_H
 
@@ -8,38 +10,14 @@
 extern bool web_isOtaAvailable();
 #endif
 
-// Для currentTemp, currentHum, sensorOk, sensorError
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-#include "sensor.h"
-#endif
-
-// Для fan_getState, startingPulseActive
-#if DEVICE_TYPE == 1
-#include "fan.h"
-#endif
-
-// Для switch_getState
-#if DEVICE_TYPE == 3
-#include "switch.h"
-#endif
-
-// Для mqttManager
-#if MQTT_ENABLED == 1
-#include "mqtt.h"
-#endif
-
-// Для web_isOtaAvailable
-#if OTA_ENABLED == 1
-#include "web.h"
-#endif
-
-// ========== ОБЩИЙ ШАБЛОН СТРАНИЦЫ ==========
+// ========== ОБЩИЙ ШАБЛОН СТРАНИЦЫ (НАЧАЛО, БЕЗ МАРКЕРОВ) ==========
 const char HTML_PAGE_START[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html><head><meta charset='UTF-8'>
 <meta name='viewport' content='width=device-width, initial-scale=1'>
-{META_REFRESH}
-<title>{TITLE}</title>
+)rawliteral";
+
+const char HTML_STYLE[] PROGMEM = R"rawliteral(
 <style>
 body{font-family:Arial;margin:20px;background:#f0f0f0;}
 .container{max-width:700px;margin:auto;background:white;padding:20px;border-radius:10px;}
@@ -67,333 +45,464 @@ input[type=submit]:hover,button:hover,.link-btn:hover{background:#333;}
 .button-group{display:flex;justify-content:center;gap:10px;margin-top:20px;flex-wrap:wrap;}
 a{text-decoration:none;}
 </style>
-</head>
-<body><div class='container'>
 )rawliteral";
 
 const char HTML_PAGE_END[] PROGMEM = R"rawliteral(
 </div></body></html>
 )rawliteral";
 
-// ========== ФУНКЦИИ ГЕНЕРАЦИИ СТРАНИЦ ==========
+// ========== ESP32: СТРОКОВЫЕ ФУНКЦИИ ==========
+#ifdef ESP32
 
-inline String renderStatusPage(int refreshInterval) {
-    String html = FPSTR(HTML_PAGE_START);
+inline String renderStatusPage(int refreshInterval, const String& statusHtml) {
+    String html;
+    html += FPSTR(HTML_PAGE_START);
     
-    // Мета-тег refresh
+    // Meta refresh (если нужен)
     if (refreshInterval > 0) {
         char refresh[64];
-        snprintf(refresh, sizeof(refresh), "<meta http-equiv='refresh' content='%d'>", refreshInterval);
-        html.replace("{META_REFRESH}", refresh);
-    } else {
-        html.replace("{META_REFRESH}", "");
+        snprintf_P(refresh, sizeof(refresh), PSTR("<meta http-equiv='refresh' content='%d'>"), refreshInterval);
+        html += refresh;
     }
     
-    // Заголовок
-    char title[64];
-    snprintf(title, sizeof(title), "<title>%s</title>", DEVICE_PREFIX);
-    html.replace("{TITLE}", title);
-    
-    // Заголовок страницы
-    char header[128];
-    snprintf(header, sizeof(header), "<h1>%s VERSION %s</h1>", DEVICE_PREFIX, VERSION);
-    html += header;
-    
-    // Блок датчиков (TYPE 1 или 2)
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    html += "<div class='flex-container'>";
-    
-    #if DEVICE_TYPE == 1
-    const char* tempColor = (currentTemp >= config.highTemp) ? "#f44336" : 
-                           ((currentTemp <= config.lowTemp) ? "#4CAF50" : "#2196F3");
-    const char* humColor = (currentHum >= config.highHum) ? "#f44336" : 
-                          ((currentHum <= config.lowHum) ? "#4CAF50" : "#2196F3");
-    #else
-    const char* tempColor = "#2196F3";
-    const char* humColor = "#2196F3";
+    // Отключение кеша при отладке
+    #if DEBUG_ENABLED == 1
+    html += F("<meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate'>");
+    html += F("<meta http-equiv='Pragma' content='no-cache'>");
+    html += F("<meta http-equiv='Expires' content='0'>");
     #endif
     
-    char buffer[256];
+    html += F("<title>");
+    html += deviceId;
+    html += F("</title>");
     
-    // Температура
-    snprintf(buffer, sizeof(buffer), 
-        "<div class='sensor-card' style='background:%s20; border:2px solid %s;'>"
-        "<div class='sensor-value' style='color:%s;'>%.1f °C</div>"
-        "<div class='sensor-label'>Температура",
-        tempColor, tempColor, tempColor, currentTemp);
-    html += buffer;
+    html += FPSTR(HTML_STYLE);
+    html += F("</head><body><div class='container'>");
     
-    #if DEVICE_TYPE == 1
-    snprintf(buffer, sizeof(buffer), " (выкл: %.1f вкл: %.1f)", config.lowTemp, config.highTemp);
-    html += buffer;
-    #endif
+    html += F("<h1>");
+    html += deviceId;
+    html += F(" VERSION ");
+    html += VERSION;
+    html += F("</h1>");
     
-    html += "</div></div>";
+    html += statusHtml;
     
-    // Влажность
-    snprintf(buffer, sizeof(buffer),
-        "<div class='sensor-card' style='background:%s20; border:2px solid %s;'>"
-        "<div class='sensor-value' style='color:%s;'>%.1f %%</div>"
-        "<div class='sensor-label'>Влажность",
-        humColor, humColor, humColor, currentHum);
-    html += buffer;
-    
-    #if DEVICE_TYPE == 1
-    snprintf(buffer, sizeof(buffer), " (выкл: %.1f вкл: %.1f)", config.lowHum, config.highHum);
-    html += buffer;
-    #endif
-    
-    html += "</div></div></div>";
-    
-    if (!sensorOk && strlen(sensorError) > 0) {
-        snprintf(buffer, sizeof(buffer), 
-            "<div class='sensor-error'><strong>Ошибка датчика</strong><br>%s</div>", sensorError);
-        html += buffer;
-    }
-    #endif // DEVICE_TYPE == 1 || 2
-    
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    #if DEVICE_TYPE == 1
-    bool state = fan_getState();
-    const char* label = "Вентилятор";
-    const char* toggleUrl = "/fan/toggle";
-    #else
-    bool state = switch_getState();
-    const char* label = "Выключатель";
-    const char* toggleUrl = "/switch/toggle";
-    #endif
-    
-    const char* stateColor = state ? "#f44336" : "#2196F3";
-    const char* stateText = state ? "ВКЛ" : "ВЫКЛ";
-    
-    snprintf(buffer, sizeof(buffer),
-        "<a href='%s'><div class='status-card' style='background:%s20; border:2px solid %s;'>"
-        "<div style='font-size:2em;font-weight:bold;color:%s;'>%s: %s</div></div></a>",
-        toggleUrl, stateColor, stateColor, stateColor, label, stateText);
-    html += buffer;
-    
-    #if DEVICE_TYPE == 1
-    if (state) {
-        int currentSpeed = startingPulseActive ? 100 : config.speedPercent;
-        snprintf(buffer, sizeof(buffer),
-            "<div class='status-card' style='background:#2196F320; border:2px solid #2196F3;'>"
-            "<div style='font-size:1.2em;font-weight:bold;'>Скорость: %d%%</div>"
-            "<div class='duty-bar'><div class='duty-fill' style='width:%d%%;'></div></div>",
-            currentSpeed, currentSpeed);
-        html += buffer;
-        if (config.speedPercent < 100) {
-            html += "<div style='font-size:0.9em;color:#555;'>Тихий режим активен";
-            if (config.adaptiveMode) html += " + адаптация";
-            html += "</div>";
-        }
-        html += "</div>";
-    }
-    
-    const char* modeText = config.sensorControlMode ? "УПРАВЛЕНИЕ СЕНСОРОМ" : "РУЧНОЙ";
-    const char* modeColor = config.sensorControlMode ? "#4CAF50" : "#f44336";
-    
-    snprintf(buffer, sizeof(buffer),
-        "<div class='status-card' style='background:%s20; border:2px solid %s;'>"
-        "<div style='font-size:1.5em;font-weight:bold;color:%s;'>Режим: %s</div></div>",
-        modeColor, modeColor, modeColor, modeText);
-    html += buffer;
-    #endif // DEVICE_TYPE == 1
-    #endif // DEVICE_TYPE == 1 || 3
-    
-    // Информационная панель
-    html += "<hr><div class='info'>";
-    snprintf(buffer, sizeof(buffer), "Обновление: %d сек<br>", refreshInterval);
-    html += buffer;
-    
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    snprintf(buffer, sizeof(buffer), "Опрос датчика %d сек<br>", config.sensorInterval);
-    html += buffer;
-    #endif
-    
-    #if MQTT_ENABLED == 1
-    html += "MQTT: ";
-    html += mqttManager.isConnected() ? "подключен" : "отключен";
-    html += "<br>";
-    #endif
-    
-    #if WEB_SHOW_RSSI == 1
-    snprintf(buffer, sizeof(buffer), "RSSI: %d dBm<br>", WiFi.RSSI());
-    html += buffer;
-    #endif
-    
-    html += "</div>";
-    
-    // Кнопки
-    html += "<div class='button-group'>";
-    #if DEVICE_TYPE == 1
-    if (!config.sensorControlMode && sensorOk) {
-        html += "<a href='/fan/auto'><button>Режим управления сенсором</button></a>";
-    }
-    #endif
-    html += "<a href='/config'><button>Настройки</button></a>";
-    html += "</div>";
+    html += F("<div class='button-group'><a href='/config'><button>Настройки</button></a></div>");
     
     html += FPSTR(HTML_PAGE_END);
     return html;
 }
 
-inline String renderConfigPage(const String& errorMsg = "") {
-    String html = FPSTR(HTML_PAGE_START);
-    html.replace("{META_REFRESH}", "");
+inline String renderConfigPage(const String& errorMsg,
+                                const Config& savedConfig,
+                                const String& currentMode,
+                                const String& currentSsid,
+                                const String& currentIp) {
+    String html;
+    html += FPSTR(HTML_PAGE_START);
     
-    char title[64];
-    snprintf(title, sizeof(title), "<title>%s Configuration</title>", DEVICE_PREFIX);
-    html.replace("{TITLE}", title);
-    
-    // Заголовок
-    char header[256];
-    snprintf(header, sizeof(header), "<h1>Настройка устройства %s v. %s</h1>", deviceId, VERSION);
-    html += header;
-    
-    Config savedConfig = config_getSaved();
-
-    // Блок состояния
-    html += "<h3>Текущее состояние</h3><div class='info'>";
-    #if AP_ENABLED == 1
-    if (apMode) {
-        html += "Режим: <strong>Точка доступа (AP)</strong><br>";
-        snprintf(header, sizeof(header), "SSID: <strong>%s</strong><br>", deviceId);
-        html += header;
-        snprintf(header, sizeof(header), "IP адрес: <strong>%s</strong><br>", AP_IP_ADDRESS);
-        html += header;
-    } else 
+    // Отключение кеша при отладке
+    #if DEBUG_ENABLED == 1
+    html += F("<meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate'>");
+    html += F("<meta http-equiv='Pragma' content='no-cache'>");
+    html += F("<meta http-equiv='Expires' content='0'>");
     #endif
-    {
-        html += "Режим: <strong>Клиент WiFi</strong><br>";
-        snprintf(header, sizeof(header), "SSID: <strong>%s</strong><br>", savedConfig.wifiSsid);
-        html += header;
-        snprintf(header, sizeof(header), "IP адрес: <strong>%s</strong><br>", WiFi.localIP().toString().c_str());
-        html += header;
-    }
-    html += "</div>";
+    
+    html += F("<title>");
+    html += deviceId;
+    html += F(" Configuration</title>");
+    
+    html += FPSTR(HTML_STYLE);
+    html += F("</head><body><div class='container'>");
+    
+    html += F("<h1>Настройка устройства ");
+    html += deviceId;
+    html += F(" v. ");
+    html += VERSION;
+    html += F("</h1>");
+    
+    html += F("<h3>Текущее состояние</h3><div class='info'>");
+    html += F("Режим: <strong>"); html += currentMode; html += F("</strong><br>");
+    html += F("SSID: <strong>"); html += currentSsid; html += F("</strong><br>");
+    html += F("IP адрес: <strong>"); html += currentIp; html += F("</strong><br>");
+    html += F("</div>");
     
     if (errorMsg.length() > 0) {
-        snprintf(header, sizeof(header), "<div class='error'><strong>Ошибка:</strong> %s</div>", errorMsg.c_str());
-        html += header;
+        html += F("<div class='error'><strong>Ошибка:</strong> ");
+        html += errorMsg;
+        html += F("</div>");
     }
     
-    // Форма
-    html += "<form method='POST' action='/save'>";
-    html += "<h3>Настройки сети</h3>";
-    html += "<label>WiFi SSID:</label>";
-    snprintf(header, sizeof(header), "<input type='text' name='wifiSsid' required value='%s'>", savedConfig.wifiSsid);
-    html += header;
-    html += "<label>WiFi Password:</label>";
-    html += "<input type='password' name='wifiPassword' placeholder='(не показан)'>";
-    html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль</div>";
+    html += F("<form method='POST' action='/save'>");
+    html += F("<h3>Настройки сети</h3>");
+    html += F("<label>WiFi SSID:</label>");
+    html += F("<input type='text' name='wifiSsid' required value='");
+    html += savedConfig.wifiSsid;
+    html += F("'>");
+    
+    html += F("<label>WiFi Password:</label>");
+    html += F("<input type='password' name='wifiPassword' placeholder='(не показан)'>");
+    html += F("<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль</div>");
     
     #if MQTT_ENABLED == 1
-    html += "<h3>MQTT настройки</h3>";
-    html += "<div class='row'><div><label>MQTT Broker:</label>";
-    snprintf(header, sizeof(header), "<input type='text' name='mqttBroker' required value='%s'></div>", savedConfig.mqttBroker);
-    html += header;
-    html += "<div><label>MQTT Port:</label>";
-    snprintf(header, sizeof(header), "<input type='number' name='mqttPort' required value='%d'></div></div>", savedConfig.mqttPort);
-    html += header;
-    html += "<div class='row'><div><label>MQTT User:</label>";
-    snprintf(header, sizeof(header), "<input type='text' name='mqttUser' value='%s'></div>", savedConfig.mqttUser);
-    html += header;
-    html += "<div><label>MQTT Password:</label>";
-    html += "<input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>";
-    html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль</div>";
-    html += "<label>MQTT Client ID:</label>";
-    snprintf(header, sizeof(header), "<input type='text' name='mqttClientId' required value='%s'>", savedConfig.mqttClientId);
-    html += header;
+    html += F("<h3>MQTT настройки</h3>");
+    html += F("<div class='row'><div><label>MQTT Broker:</label>");
+    html += F("<input type='text' name='mqttBroker' required value='");
+    html += savedConfig.mqttBroker;
+    html += F("'></div>");
+    
+    html += F("<div><label>MQTT Port:</label>");
+    html += F("<input type='number' name='mqttPort' required value='");
+    html += String(savedConfig.mqttPort);
+    html += F("'></div></div>");
+    
+    html += F("<div class='row'><div><label>MQTT User:</label>");
+    html += F("<input type='text' name='mqttUser' value='");
+    html += savedConfig.mqttUser;
+    html += F("'></div>");
+    
+    html += F("<div><label>MQTT Password:</label>");
+    html += F("<input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>");
+    html += F("<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль</div>");
+    
+    html += F("<label>MQTT Client ID:</label>");
+    html += F("<input type='text' name='mqttClientId' required value='");
+    html += savedConfig.mqttClientId;
+    html += F("'>");
     #endif
     
     #if DEVICE_TYPE == 1
-    html += "<h3>Настройки датчиков</h3>";
-    html += "<div class='row'><div><label>Low Temp (°C):</label>";
-    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='lowTemp' required value='%.1f'></div>", savedConfig.lowTemp);
-    html += header;
-    html += "<div><label>High Temp (°C):</label>";
-    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='highTemp' required value='%.1f'></div></div>", savedConfig.highTemp);
-    html += header;
-    html += "<div class='row'><div><label>Low Hum (%):</label>";
-    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='lowHum' required value='%.1f'></div>", savedConfig.lowHum);
-    html += header;
-    html += "<div><label>High Hum (%):</label>";
-    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='highHum' required value='%.1f'></div></div>", savedConfig.highHum);
-    html += header;
-    html += "<div class='row'><div><label>Интервал опроса датчика (сек)</label>";
-    snprintf(header, sizeof(header), "<input type='number' name='sensorInterval' required value='%d'></div>", savedConfig.sensorInterval);
-    html += header;
-    html += "<div><label>Аварийное отключение через </label>";
-    snprintf(header, sizeof(header), "<input type='number' name='maxOnTime' min='0' required value='%u'></div></div>", savedConfig.maxOnTime);
-    html += header;
+    html += F("<h3>Настройки датчиков</h3>");
     
-    html += "<h3>Управление</h3>";
-    html += "<label>Принудительно включить через </label>";
-    snprintf(header, sizeof(header), "<input type='number' name='delaySeconds' required value='%d'> сек", savedConfig.delaySeconds);
-    html += header;
+    html += F("<div class='row'><div><label>Low Temp (°C):</label>");
+    html += F("<input type='number' step='0.1' name='lowTemp' required value='");
+    html += String(savedConfig.lowTemp);
+    html += F("'></div>");
     
-    html += "<h3>Тихий режим (ШИМ)</h3>";
-    html += "<label>Скорость (0-100%):</label>";
-    snprintf(header, sizeof(header), "<input type='number' name='speedPercent' min='0' max='100' required value='%d'>", savedConfig.speedPercent);
-    html += header;
-    html += "<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>При значении ниже 100% вентилятор работает тише.</div>";
+    html += F("<div><label>High Temp (°C):</label>");
+    html += F("<input type='number' step='0.1' name='highTemp' required value='");
+    html += String(savedConfig.highTemp);
+    html += F("'></div></div>");
     
-    html += "<h3>Адаптивный тихий режим</h3>";
-    html += "<label><input type='checkbox' name='adaptiveMode' value='1'";
-    if (savedConfig.adaptiveMode) html += " checked";
-    html += "> Включить адаптацию</label>";
-    html += "<div class='note'>Адаптивный режим автоматически регулирует скорость для поддержания температуры и влажности на уровне, зафиксированном при включении вентилятора.</div>";
+    html += F("<div class='row'><div><label>Low Hum (%):</label>");
+    html += F("<input type='number' step='0.1' name='lowHum' required value='");
+    html += String(savedConfig.lowHum);
+    html += F("'></div>");
     
-    html += "<h3>Поведение при старте</h3>";
-    html += "<label><input type='checkbox' name='bootState' value='1'";
-    if (savedConfig.bootState) html += " checked";
-    html += "> Включать при старте</label>";
-    html += "<div class='note'>При включенной опции вентилятор будет включен сразу после подачи питания.</div>";
+    html += F("<div><label>High Hum (%):</label>");
+    html += F("<input type='number' step='0.1' name='highHum' required value='");
+    html += String(savedConfig.highHum);
+    html += F("'></div></div>");
     
-    html += "<h3>Режимы работы</h3>";
-    html += "<label><input type='checkbox' name='sensorControlMode' value='1'";
-    if (savedConfig.sensorControlMode) html += " checked";
-    html += "> Режим управления сенсором</label>";
-    html += "<div class='note'>При включённом режиме вентилятор управляется по показаниям датчиков температуры и влажности. При выключении — только вручную.</div>";
+    html += F("<div class='row'><div><label>Интервал опроса датчика (сек)</label>");
+    html += F("<input type='number' name='sensorInterval' required value='");
+    html += String(savedConfig.sensorInterval);
+    html += F("'></div>");
+    
+    html += F("<div><label>Аварийное отключение через </label>");
+    html += F("<input type='number' name='maxOnTime' min='0' required value='");
+    html += String(savedConfig.maxOnTime);
+    html += F("'></div></div>");
+    
+    html += F("<h3>Управление</h3>");
+    html += F("<label>Принудительно включить через </label>");
+    html += F("<input type='number' name='delaySeconds' required value='");
+    html += String(savedConfig.delaySeconds);
+    html += F("'> сек");
+    
+    html += F("<h3>Тихий режим (ШИМ)</h3>");
+    html += F("<label>Скорость (0-100%):</label>");
+    html += F("<input type='number' name='speedPercent' min='0' max='100' required value='");
+    html += String(savedConfig.speedPercent);
+    html += F("'>");
+    html += F("<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>При значении ниже 100% вентилятор работает тише.</div>");
+    
+    html += F("<h3>Адаптивный тихий режим</h3>");
+    html += F("<label><input type='checkbox' name='adaptiveMode' value='1'");
+    if (savedConfig.adaptiveMode) html += F(" checked");
+    html += F("> Включить адаптацию</label>");
+    html += F("<div class='note'>Адаптивный режим автоматически регулирует скорость для поддержания температуры и влажности на уровне, зафиксированном при включении вентилятора.</div>");
+    
+    html += F("<h3>Поведение при старте</h3>");
+    html += F("<label><input type='checkbox' name='bootState' value='1'");
+    if (savedConfig.bootState) html += F(" checked");
+    html += F("> Включать при старте</label>");
+    html += F("<div class='note'>При включенной опции вентилятор будет включен сразу после подачи питания.</div>");
+    
+    html += F("<h3>Режимы работы</h3>");
+    html += F("<label><input type='checkbox' name='sensorControlMode' value='1'");
+    if (savedConfig.sensorControlMode) html += F(" checked");
+    html += F("> Режим управления сенсором</label>");
+    html += F("<div class='note'>При включённом режиме вентилятор управляется по показаниям датчиков температуры и влажности. При выключении — только вручную.</div>");
     
     #elif DEVICE_TYPE == 2
-    html += "<h3>Настройки датчиков</h3>";
-    html += "<label>Интервал опроса датчика (сек)</label>";
-    snprintf(header, sizeof(header), "<input type='number' name='sensorInterval' required value='%d'>", savedConfig.sensorInterval);
-    html += header;
+    html += F("<h3>Настройки датчиков</h3>");
+    html += F("<label>Интервал опроса датчика (сек)</label>");
+    html += F("<input type='number' name='sensorInterval' required value='");
+    html += String(savedConfig.sensorInterval);
+    html += F("'>");
     
     #elif DEVICE_TYPE == 3
-    html += "<h3>Управление</h3>";
-    html += "<label>Принудительно включить через </label>";
-    snprintf(header, sizeof(header), "<input type='number' name='delaySeconds' required value='%d'> сек<br>", savedConfig.delaySeconds);
-    html += header;
-    html += "<label>Аварийное отключение через </label>";
-    snprintf(header, sizeof(header), "<input type='number' name='maxOnTime' min='0' required value='%u'> сек", savedConfig.maxOnTime);
-    html += header;
+    html += F("<h3>Управление</h3>");
+    html += F("<label>Принудительно включить через </label>");
+    html += F("<input type='number' name='delaySeconds' required value='");
+    html += String(savedConfig.delaySeconds);
+    html += F("'> сек<br>");
     
-    html += "<h3>Поведение при старте</h3>";
-    html += "<label><input type='checkbox' name='bootState' value='1'";
-    if (savedConfig.bootState) html += " checked";
-    html += "> Включать при старте</label>";
-    html += "<div class='note'>При включенной опции выключатель будет включен сразу после подачи питания.</div>";
+    html += F("<label>Аварийное отключение через </label>");
+    html += F("<input type='number' name='maxOnTime' min='0' required value='");
+    html += String(savedConfig.maxOnTime);
+    html += F("'> сек");
+    
+    html += F("<h3>Поведение при старте</h3>");
+    html += F("<label><input type='checkbox' name='bootState' value='1'");
+    if (savedConfig.bootState) html += F(" checked");
+    html += F("> Включать при старте</label>");
+    html += F("<div class='note'>При включенной опции выключатель будет включен сразу после подачи питания.</div>");
     #endif
     
-    html += "<label><input type='checkbox' name='confirmSave' required> Подтвердить сохранение</label>";
-    html += "<input type='submit' value='Сохранить и перезагрузить'>";
-    html += "</form>";
+    html += F("<label><input type='checkbox' name='confirmSave' required> Подтвердить сохранение</label>");
+    html += F("<input type='submit' value='Сохранить и перезагрузить'>");
+    html += F("</form>");
     
     #if OTA_ENABLED == 1
     if (web_isOtaAvailable()) {
-        html += "<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>";
+        html += F("<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>");
     } else {
-        html += "<div class='warning' style='text-align:center;background:#fff3cd;padding:10px;border-radius:5px;'>OTA недоступно: недостаточно Flash памяти (требуется 2MB)</div>";
+        html += F("<div class='warning'>OTA недоступно: недостаточно Flash памяти (требуется 2MB)</div>");
     }
     #endif
     
-    html += "<a href='/' class='link-btn'>Домой</a>";
+    html += F("<a href='/' class='link-btn'>Домой</a>");
     html += FPSTR(HTML_PAGE_END);
     
     return html;
 }
+
+#endif // ESP32
+
+// ========== ESP8266: ПОТОКОВЫЕ ФУНКЦИИ ==========
+#ifdef ESP8266
+
+using WebSendCallback = std::function<void(const String&)>;
+
+inline void sendStatusPage(WebSendCallback send, int refreshInterval, const String& statusHtml) {
+    send(FPSTR(HTML_PAGE_START));
+    
+    if (refreshInterval > 0) {
+        char refresh[64];
+        snprintf_P(refresh, sizeof(refresh), PSTR("<meta http-equiv='refresh' content='%d'>"), refreshInterval);
+        send(refresh);
+    }
+    
+    #if DEBUG_ENABLED == 1
+    send(F("<meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate'>"));
+    send(F("<meta http-equiv='Pragma' content='no-cache'>"));
+    send(F("<meta http-equiv='Expires' content='0'>"));
+    #endif
+    
+    send(F("<title>"));
+    send(deviceId);
+    send(F("</title>"));
+    
+    send(FPSTR(HTML_STYLE));
+    send(F("</head><body><div class='container'>"));
+    
+    send(F("<h1>"));
+    send(deviceId);
+    send(F(" VERSION "));
+    send(VERSION);
+    send(F("</h1>"));
+    
+    send(statusHtml);
+    
+    send(F("<div class='button-group'><a href='/config'><button>Настройки</button></a></div>"));
+    
+    send(FPSTR(HTML_PAGE_END));
+}
+
+inline void sendConfigPage(WebSendCallback send, const String& errorMsg,
+                            const Config& savedConfig,
+                            const String& currentMode,
+                            const String& currentSsid,
+                            const String& currentIp) {
+    send(FPSTR(HTML_PAGE_START));
+    
+    #if DEBUG_ENABLED == 1
+    send(F("<meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate'>"));
+    send(F("<meta http-equiv='Pragma' content='no-cache'>"));
+    send(F("<meta http-equiv='Expires' content='0'>"));
+    #endif
+    
+    send(F("<title>"));
+    send(deviceId);
+    send(F(" Configuration</title>"));
+    
+    send(FPSTR(HTML_STYLE));
+    send(F("</head><body><div class='container'>"));
+    
+    send(F("<h1>Настройка устройства "));
+    send(deviceId);
+    send(F(" v. "));
+    send(VERSION);
+    send(F("</h1>"));
+    
+    send(F("<h3>Текущее состояние</h3><div class='info'>"));
+    send(F("Режим: <strong>")); send(currentMode); send(F("</strong><br>"));
+    send(F("SSID: <strong>")); send(currentSsid); send(F("</strong><br>"));
+    send(F("IP адрес: <strong>")); send(currentIp); send(F("</strong><br>"));
+    send(F("</div>"));
+    
+    if (errorMsg.length() > 0) {
+        send(F("<div class='error'><strong>Ошибка:</strong> "));
+        send(errorMsg);
+        send(F("</div>"));
+    }
+    
+    send(F("<form method='POST' action='/save'>"));
+    send(F("<h3>Настройки сети</h3>"));
+    send(F("<label>WiFi SSID:</label>"));
+    send(F("<input type='text' name='wifiSsid' required value='"));
+    send(savedConfig.wifiSsid);
+    send(F("'>"));
+    
+    send(F("<label>WiFi Password:</label>"));
+    send(F("<input type='password' name='wifiPassword' placeholder='(не показан)'>"));
+    send(F("<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль</div>"));
+    
+    #if MQTT_ENABLED == 1
+    send(F("<h3>MQTT настройки</h3>"));
+    send(F("<div class='row'><div><label>MQTT Broker:</label>"));
+    send(F("<input type='text' name='mqttBroker' required value='"));
+    send(savedConfig.mqttBroker);
+    send(F("'></div>"));
+    
+    send(F("<div><label>MQTT Port:</label>"));
+    send(F("<input type='number' name='mqttPort' required value='"));
+    send(String(savedConfig.mqttPort));
+    send(F("'></div></div>"));
+    
+    send(F("<div class='row'><div><label>MQTT User:</label>"));
+    send(F("<input type='text' name='mqttUser' value='"));
+    send(savedConfig.mqttUser);
+    send(F("'></div>"));
+    
+    send(F("<div><label>MQTT Password:</label>"));
+    send(F("<input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>"));
+    send(F("<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль</div>"));
+    
+    send(F("<label>MQTT Client ID:</label>"));
+    send(F("<input type='text' name='mqttClientId' required value='"));
+    send(savedConfig.mqttClientId);
+    send(F("'>"));
+    #endif
+    
+    #if DEVICE_TYPE == 1
+    send(F("<h3>Настройки датчиков</h3>"));
+    
+    send(F("<div class='row'><div><label>Low Temp (°C):</label>"));
+    send(F("<input type='number' step='0.1' name='lowTemp' required value='"));
+    send(String(savedConfig.lowTemp));
+    send(F("'></div>"));
+    
+    send(F("<div><label>High Temp (°C):</label>"));
+    send(F("<input type='number' step='0.1' name='highTemp' required value='"));
+    send(String(savedConfig.highTemp));
+    send(F("'></div></div>"));
+    
+    send(F("<div class='row'><div><label>Low Hum (%):</label>"));
+    send(F("<input type='number' step='0.1' name='lowHum' required value='"));
+    send(String(savedConfig.lowHum));
+    send(F("'></div>"));
+    
+    send(F("<div><label>High Hum (%):</label>"));
+    send(F("<input type='number' step='0.1' name='highHum' required value='"));
+    send(String(savedConfig.highHum));
+    send(F("'></div></div>"));
+    
+    send(F("<div class='row'><div><label>Интервал опроса датчика (сек)</label>"));
+    send(F("<input type='number' name='sensorInterval' required value='"));
+    send(String(savedConfig.sensorInterval));
+    send(F("'></div>"));
+    
+    send(F("<div><label>Аварийное отключение через </label>"));
+    send(F("<input type='number' name='maxOnTime' min='0' required value='"));
+    send(String(savedConfig.maxOnTime));
+    send(F("'></div></div>"));
+    
+    send(F("<h3>Управление</h3>"));
+    send(F("<label>Принудительно включить через </label>"));
+    send(F("<input type='number' name='delaySeconds' required value='"));
+    send(String(savedConfig.delaySeconds));
+    send(F("'> сек"));
+    
+    send(F("<h3>Тихий режим (ШИМ)</h3>"));
+    send(F("<label>Скорость (0-100%):</label>"));
+    send(F("<input type='number' name='speedPercent' min='0' max='100' required value='"));
+    send(String(savedConfig.speedPercent));
+    send(F("'>"));
+    send(F("<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>При значении ниже 100% вентилятор работает тише.</div>"));
+    
+    send(F("<h3>Адаптивный тихий режим</h3>"));
+    send(F("<label><input type='checkbox' name='adaptiveMode' value='1'"));
+    if (savedConfig.adaptiveMode) send(F(" checked"));
+    send(F("> Включить адаптацию</label>"));
+    send(F("<div class='note'>Адаптивный режим автоматически регулирует скорость для поддержания температуры и влажности на уровне, зафиксированном при включении вентилятора.</div>"));
+    
+    send(F("<h3>Поведение при старте</h3>"));
+    send(F("<label><input type='checkbox' name='bootState' value='1'"));
+    if (savedConfig.bootState) send(F(" checked"));
+    send(F("> Включать при старте</label>"));
+    send(F("<div class='note'>При включенной опции вентилятор будет включен сразу после подачи питания.</div>"));
+    
+    send(F("<h3>Режимы работы</h3>"));
+    send(F("<label><input type='checkbox' name='sensorControlMode' value='1'"));
+    if (savedConfig.sensorControlMode) send(F(" checked"));
+    send(F("> Режим управления сенсором</label>"));
+    send(F("<div class='note'>При включённом режиме вентилятор управляется по показаниям датчиков температуры и влажности. При выключении — только вручную.</div>"));
+    
+    #elif DEVICE_TYPE == 2
+    send(F("<h3>Настройки датчиков</h3>"));
+    send(F("<label>Интервал опроса датчика (сек)</label>"));
+    send(F("<input type='number' name='sensorInterval' required value='"));
+    send(String(savedConfig.sensorInterval));
+    send(F("'>"));
+    
+    #elif DEVICE_TYPE == 3
+    send(F("<h3>Управление</h3>"));
+    send(F("<label>Принудительно включить через </label>"));
+    send(F("<input type='number' name='delaySeconds' required value='"));
+    send(String(savedConfig.delaySeconds));
+    send(F("'> сек<br>"));
+    
+    send(F("<label>Аварийное отключение через </label>"));
+    send(F("<input type='number' name='maxOnTime' min='0' required value='"));
+    send(String(savedConfig.maxOnTime));
+    send(F("'> сек"));
+    
+    send(F("<h3>Поведение при старте</h3>"));
+    send(F("<label><input type='checkbox' name='bootState' value='1'"));
+    if (savedConfig.bootState) send(F(" checked"));
+    send(F("> Включать при старте</label>"));
+    send(F("<div class='note'>При включенной опции выключатель будет включен сразу после подачи питания.</div>"));
+    #endif
+    
+    send(F("<label><input type='checkbox' name='confirmSave' required> Подтвердить сохранение</label>"));
+    send(F("<input type='submit' value='Сохранить и перезагрузить'>"));
+    send(F("</form>"));
+    
+    #if OTA_ENABLED == 1
+    if (web_isOtaAvailable()) {
+        send(F("<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>"));
+    } else {
+        send(F("<div class='warning'>OTA недоступно: недостаточно Flash памяти (требуется 2MB)</div>"));
+    }
+    #endif
+    
+    send(F("<a href='/' class='link-btn'>Домой</a>"));
+    send(FPSTR(HTML_PAGE_END));
+}
+
+#endif // ESP8266
 
 #endif // WEB_TEMPLATES_H
