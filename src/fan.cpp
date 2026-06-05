@@ -246,8 +246,9 @@ void fan_set(bool on, bool manual) {
     fanStartTime = 0;
     adaptiveActive = false;
     
+    Config savedConfig = config_getSaved();
     uint16_t oldSpeed = config.speedPercent;
-    config.speedPercent = staticConfig.speedPercent;
+    config.speedPercent = savedConfig.speedPercent;
     
     // >>> ИЗМЕНЕНО: ВЕСЬ БЛОК mqttManager.publishSpeed УДАЛЁН
     

@@ -250,6 +250,8 @@ inline String renderConfigPage(const String& errorMsg = "") {
     snprintf(header, sizeof(header), "<h1>Настройка устройства %s v. %s</h1>", deviceId, VERSION);
     html += header;
     
+    Config savedConfig = config_getSaved();
+
     // Блок состояния
     html += "<h3>Текущее состояние</h3><div class='info'>";
     #if AP_ENABLED == 1
@@ -263,7 +265,7 @@ inline String renderConfigPage(const String& errorMsg = "") {
     #endif
     {
         html += "Режим: <strong>Клиент WiFi</strong><br>";
-        snprintf(header, sizeof(header), "SSID: <strong>%s</strong><br>", staticConfig.wifiSsid);
+        snprintf(header, sizeof(header), "SSID: <strong>%s</strong><br>", savedConfig.wifiSsid);
         html += header;
         snprintf(header, sizeof(header), "IP адрес: <strong>%s</strong><br>", WiFi.localIP().toString().c_str());
         html += header;
@@ -279,7 +281,7 @@ inline String renderConfigPage(const String& errorMsg = "") {
     html += "<form method='POST' action='/save'>";
     html += "<h3>Настройки сети</h3>";
     html += "<label>WiFi SSID:</label>";
-    snprintf(header, sizeof(header), "<input type='text' name='wifiSsid' required value='%s'>", staticConfig.wifiSsid);
+    snprintf(header, sizeof(header), "<input type='text' name='wifiSsid' required value='%s'>", savedConfig.wifiSsid);
     html += header;
     html += "<label>WiFi Password:</label>";
     html += "<input type='password' name='wifiPassword' placeholder='(не показан)'>";
@@ -288,90 +290,90 @@ inline String renderConfigPage(const String& errorMsg = "") {
     #if MQTT_ENABLED == 1
     html += "<h3>MQTT настройки</h3>";
     html += "<div class='row'><div><label>MQTT Broker:</label>";
-    snprintf(header, sizeof(header), "<input type='text' name='mqttBroker' required value='%s'></div>", staticConfig.mqttBroker);
+    snprintf(header, sizeof(header), "<input type='text' name='mqttBroker' required value='%s'></div>", savedConfig.mqttBroker);
     html += header;
     html += "<div><label>MQTT Port:</label>";
-    snprintf(header, sizeof(header), "<input type='number' name='mqttPort' required value='%d'></div></div>", staticConfig.mqttPort);
+    snprintf(header, sizeof(header), "<input type='number' name='mqttPort' required value='%d'></div></div>", savedConfig.mqttPort);
     html += header;
     html += "<div class='row'><div><label>MQTT User:</label>";
-    snprintf(header, sizeof(header), "<input type='text' name='mqttUser' value='%s'></div>", staticConfig.mqttUser);
+    snprintf(header, sizeof(header), "<input type='text' name='mqttUser' value='%s'></div>", savedConfig.mqttUser);
     html += header;
     html += "<div><label>MQTT Password:</label>";
     html += "<input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>";
     html += "<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль</div>";
     html += "<label>MQTT Client ID:</label>";
-    snprintf(header, sizeof(header), "<input type='text' name='mqttClientId' required value='%s'>", staticConfig.mqttClientId);
+    snprintf(header, sizeof(header), "<input type='text' name='mqttClientId' required value='%s'>", savedConfig.mqttClientId);
     html += header;
     #endif
     
     #if DEVICE_TYPE == 1
     html += "<h3>Настройки датчиков</h3>";
     html += "<div class='row'><div><label>Low Temp (°C):</label>";
-    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='lowTemp' required value='%.1f'></div>", staticConfig.lowTemp);
+    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='lowTemp' required value='%.1f'></div>", savedConfig.lowTemp);
     html += header;
     html += "<div><label>High Temp (°C):</label>";
-    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='highTemp' required value='%.1f'></div></div>", staticConfig.highTemp);
+    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='highTemp' required value='%.1f'></div></div>", savedConfig.highTemp);
     html += header;
     html += "<div class='row'><div><label>Low Hum (%):</label>";
-    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='lowHum' required value='%.1f'></div>", staticConfig.lowHum);
+    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='lowHum' required value='%.1f'></div>", savedConfig.lowHum);
     html += header;
     html += "<div><label>High Hum (%):</label>";
-    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='highHum' required value='%.1f'></div></div>", staticConfig.highHum);
+    snprintf(header, sizeof(header), "<input type='number' step='0.1' name='highHum' required value='%.1f'></div></div>", savedConfig.highHum);
     html += header;
     html += "<div class='row'><div><label>Интервал опроса датчика (сек)</label>";
-    snprintf(header, sizeof(header), "<input type='number' name='sensorInterval' required value='%d'></div>", staticConfig.sensorInterval);
+    snprintf(header, sizeof(header), "<input type='number' name='sensorInterval' required value='%d'></div>", savedConfig.sensorInterval);
     html += header;
     html += "<div><label>Аварийное отключение через </label>";
-    snprintf(header, sizeof(header), "<input type='number' name='maxOnTime' min='0' required value='%u'></div></div>", staticConfig.maxOnTime);
+    snprintf(header, sizeof(header), "<input type='number' name='maxOnTime' min='0' required value='%u'></div></div>", savedConfig.maxOnTime);
     html += header;
     
     html += "<h3>Управление</h3>";
     html += "<label>Принудительно включить через </label>";
-    snprintf(header, sizeof(header), "<input type='number' name='delaySeconds' required value='%d'> сек", staticConfig.delaySeconds);
+    snprintf(header, sizeof(header), "<input type='number' name='delaySeconds' required value='%d'> сек", savedConfig.delaySeconds);
     html += header;
     
     html += "<h3>Тихий режим (ШИМ)</h3>";
     html += "<label>Скорость (0-100%):</label>";
-    snprintf(header, sizeof(header), "<input type='number' name='speedPercent' min='0' max='100' required value='%d'>", staticConfig.speedPercent);
+    snprintf(header, sizeof(header), "<input type='number' name='speedPercent' min='0' max='100' required value='%d'>", savedConfig.speedPercent);
     html += header;
     html += "<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>При значении ниже 100% вентилятор работает тише.</div>";
     
     html += "<h3>Адаптивный тихий режим</h3>";
     html += "<label><input type='checkbox' name='adaptiveMode' value='1'";
-    if (staticConfig.adaptiveMode) html += " checked";
+    if (savedConfig.adaptiveMode) html += " checked";
     html += "> Включить адаптацию</label>";
     html += "<div class='note'>Адаптивный режим автоматически регулирует скорость для поддержания температуры и влажности на уровне, зафиксированном при включении вентилятора.</div>";
     
     html += "<h3>Поведение при старте</h3>";
     html += "<label><input type='checkbox' name='bootState' value='1'";
-    if (staticConfig.bootState) html += " checked";
+    if (savedConfig.bootState) html += " checked";
     html += "> Включать при старте</label>";
     html += "<div class='note'>При включенной опции вентилятор будет включен сразу после подачи питания.</div>";
     
     html += "<h3>Режимы работы</h3>";
     html += "<label><input type='checkbox' name='sensorControlMode' value='1'";
-    if (staticConfig.sensorControlMode) html += " checked";
+    if (savedConfig.sensorControlMode) html += " checked";
     html += "> Режим управления сенсором</label>";
     html += "<div class='note'>При включённом режиме вентилятор управляется по показаниям датчиков температуры и влажности. При выключении — только вручную.</div>";
     
     #elif DEVICE_TYPE == 2
     html += "<h3>Настройки датчиков</h3>";
     html += "<label>Интервал опроса датчика (сек)</label>";
-    snprintf(header, sizeof(header), "<input type='number' name='sensorInterval' required value='%d'>", staticConfig.sensorInterval);
+    snprintf(header, sizeof(header), "<input type='number' name='sensorInterval' required value='%d'>", savedConfig.sensorInterval);
     html += header;
     
     #elif DEVICE_TYPE == 3
     html += "<h3>Управление</h3>";
     html += "<label>Принудительно включить через </label>";
-    snprintf(header, sizeof(header), "<input type='number' name='delaySeconds' required value='%d'> сек<br>", staticConfig.delaySeconds);
+    snprintf(header, sizeof(header), "<input type='number' name='delaySeconds' required value='%d'> сек<br>", savedConfig.delaySeconds);
     html += header;
     html += "<label>Аварийное отключение через </label>";
-    snprintf(header, sizeof(header), "<input type='number' name='maxOnTime' min='0' required value='%u'> сек", staticConfig.maxOnTime);
+    snprintf(header, sizeof(header), "<input type='number' name='maxOnTime' min='0' required value='%u'> сек", savedConfig.maxOnTime);
     html += header;
     
     html += "<h3>Поведение при старте</h3>";
     html += "<label><input type='checkbox' name='bootState' value='1'";
-    if (staticConfig.bootState) html += " checked";
+    if (savedConfig.bootState) html += " checked";
     html += "> Включать при старте</label>";
     html += "<div class='note'>При включенной опции выключатель будет включен сразу после подачи питания.</div>";
     #endif

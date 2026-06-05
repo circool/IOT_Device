@@ -614,7 +614,7 @@ struct Config {
 extern bool eepromAvailable;
 
 extern Config config;
-extern Config staticConfig;
+
 extern bool configValid;
 extern char configLastError[64];   
 
@@ -622,6 +622,8 @@ void config_init();
 void config_read();
 void config_write();
 void config_setDefaults();
+Config config_getSaved();
+
 uint16_t crc16(const uint8_t* data, size_t len);
 
 #if DEBUG_ENABLED == 1
