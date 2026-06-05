@@ -36,11 +36,12 @@
 
 #if WEB_ENABLED == 1
   #include "web.h"
-  #ifdef ESP32
-    AsyncWebServer server(80);
-  #elif defined(ESP8266)
-    ESP8266WebServer server(80);
-  #endif
+  // #ifdef ESP32
+  //   AsyncWebServer server(80);
+  // #elif defined(ESP8266)
+  //   ESP8266WebServer server(80);
+  // #endif
+  WebServerClass server(80);
 #endif
 
 #if defined(ESP32) && WDT_ENABLED == 1
