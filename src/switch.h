@@ -4,7 +4,6 @@
 #define SWITCH_H
 
 
-
 extern bool switchOn;
 extern unsigned long switchStartTime;
 extern unsigned long delayTimer;
