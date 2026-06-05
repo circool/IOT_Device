@@ -7,7 +7,6 @@
 #include "config.h"
 
 
-
 extern bool fanOn;
 extern unsigned long fanStartTime;
 extern unsigned long delayTimer;
@@ -32,7 +31,6 @@ void fan_checkMaxOnTime();
 bool fan_delayTimer(bool start);
 void fan_applySpeed(int percent);
 void fan_adaptiveUpdate();
-
 
 
 #endif // FAN_H
