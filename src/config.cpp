@@ -184,13 +184,24 @@ bool config_validate() {
       snprintf(configLastError, sizeof(configLastError), "MQTT Broker cannot be empty");
     }
     valid = false;
-  }
+  } 
   
   if (strlen(config.mqttClientId) == 0) {
     if (configLastError[0] == '\0') {
       snprintf(configLastError, sizeof(configLastError), "MQTT Client ID cannot be empty");
     }
     valid = false;
+  } else {
+    for (size_t i = 0; i < strlen(config.mqttClientId); i++) {
+      char c = config.mqttClientId[i];
+      if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || 
+            (c >= '0' && c <= '9') || c == '_' || c == '-')) {
+        snprintf(configLastError, sizeof(configLastError), 
+         "MQTT Client ID invalid char '%c' (use a-z, A-Z, 0-9, _, -)", c);
+        valid = false;
+        break;
+      }
+    }
   }
   #endif
 
@@ -384,7 +395,7 @@ void config_read() {
   }
 }
 
-void config_write() {
+bool config_write() {
   #if LOG_CONFIG == 1
     Serial.println(ANSI_BRIGHT_RED "[CONFIG] Writing to EEPROM..." ANSI_RESET);
     Serial.printf("[CONFIG] WiFi SSID: '%s'\n", config.wifiSsid);
@@ -403,16 +414,28 @@ void config_write() {
     Serial.printf("[CONFIG] Calculated CRC: 0x%04X\n", config.crc);
   #endif
   
+  //@TODO: Убрать после отладки
+  #if SIMULATE_EEPROM_MALFUNCTION == 1
+    Serial.println(ANSI_BRIGHT_RED "[CONFIG] SIMULATE: EEPROM commit FAILED" ANSI_RESET);
+    config.crc = oldCrc;
+    return false;
+  #endif
+
   uint8_t* ptr = (uint8_t*)&config;
   for (size_t i = 0; i < sizeof(Config); i++) {
     EEPROM.write(i, ptr[i]);
   }
   
-  EEPROM.commit();
+  if (!EEPROM.commit()) {
+    #if DEBUG_ENABLED == 1
+      Serial.println(ANSI_BRIGHT_RED "[CONFIG] EEPROM commit FAILED! Configuration NOT saved." ANSI_RESET);
+    #endif
+    return false;
+  }
   
   #if DEBUG_ENABLED == 1
     Serial.println(ANSI_MAGENTA "[CONFIG] Write completed!" ANSI_RESET);
-    Serial.println("[CONFIG] Verifying...");
+    Serial.println("[CONFIG] Verifying saved data...");
   #endif
   
   Config verify;
@@ -438,19 +461,20 @@ void config_write() {
   
   if (verify.magic == config.magic && calcVerifyCrc == config.crc) {
     #if DEBUG_ENABLED == 1
-      Serial.println("[CONFIG] Verification PASSED");
+      Serial.println("[CONFIG] Verification saved config PASSED");
     #endif
     configValid = true;
-    
+    return true;
     
   } else {
     #if DEBUG_ENABLED == 1
       Serial.print(ANSI_BRIGHT_RED);
-      Serial.println("[CONFIG] Verification FAILED!");
+      Serial.println("[CONFIG] Verification saved config FAILED!");
       Serial.print(ANSI_RESET);
     #endif
     config.crc = oldCrc;
     configValid = false;
+    return false;
   }
 }
 
