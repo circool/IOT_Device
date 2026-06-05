@@ -67,16 +67,6 @@ extern char deviceId[12];
   #ifndef RELAY_ON_LEVEL
     #define RELAY_ON_LEVEL LOW
   #endif
-  
-  // TODO: Удалить - достаточно RELAY_ON_LEVEL
-  // #if RELAY_ON_LEVEL == LOW
-  //   #define RELAY_OFF_LEVEL HIGH
-  // #else
-  //   #define RELAY_OFF_LEVEL LOW
-  // #endif
-
-
-
 #endif
 
 
@@ -159,10 +149,6 @@ void initDeviceId();
 #endif
 
 
-
-
-
-
 #if WDT_ENABLED == 1
   
   #ifndef WDT_TIMER_MS
@@ -182,7 +168,6 @@ void initDeviceId();
 #endif
 
 
-
 #if WIFI_ENABLED
   #ifndef WIFI_CONNECT_TIMEOUT_MS
     #define WIFI_CONNECT_TIMEOUT_MS 30000   // Таймаут подключения WiFi (30 секунд)
@@ -196,7 +181,7 @@ void initDeviceId();
     #define MQTT_RECONNECT_DELAY_MS 5000
   #endif
 
-  //@deprecated
+
   #ifndef STATE_PUBLISH_INTERVAL_MS
     #define STATE_PUBLISH_INTERVAL_MS 3000
   #endif
@@ -341,9 +326,6 @@ void initDeviceId();
       #define DEFAULT_SPEED_PERCENT 50  
     #endif
 
-
-
-
   #endif
   
   // Адаптивное управлени скоростью
@@ -378,7 +360,6 @@ void initDeviceId();
       #ifndef MIN_SPEED_PERCENT
         #define MIN_SPEED_PERCENT 1
       #endif
-
 
     #endif
   #endif
@@ -417,63 +398,12 @@ void initDeviceId();
 
 #include <EEPROM.h>
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-// ======================== НАСТРОЙКИ ШИМ ДЛЯ ТИХОГО РЕЖИМА ========================
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  
-  
-  
-
-
-
-  
-
-  
-
- 
-
-  
-
-  
-
-  
-   
-
-#endif
-
-// ======================== НАСТРОЙКИ ПОВЕДЕНИЯ ========================
-
-
-
-
-
 // ======================== НАСТРОЙКИ СЕТИ ========================
-
-
-
-
 
 // Интервал проверки WiFi соединения (мс)
 #ifndef WIFI_CHECK_INTERVAL_MS
   #define WIFI_CHECK_INTERVAL_MS 10000
 #endif
-
-
 
 // ======================== ПОРОГИ ПО УМОЛЧАНИЮ ========================
 #if DEVICE_TYPE == 1
@@ -513,13 +443,10 @@ void initDeviceId();
   #endif
 #endif
 
-
-
 // ======================== ДЛЯ ОТЛАДКИ СОСТОЯНИЯ EEPROM ========================
 #ifndef MAGIC_VALUE
   #define MAGIC_VALUE 0x5A6B
 #endif
-
 
 // ======================== ПОДКЛЮЧЕНИЕ CREDENTIALS ========================
 
@@ -620,7 +547,7 @@ extern char configLastError[64];
 
 void config_init();
 void config_read();
-void config_write();
+bool config_write();  // ИЗМЕНЕНО: void -> bool
 void config_setDefaults();
 Config config_getSaved();
 
