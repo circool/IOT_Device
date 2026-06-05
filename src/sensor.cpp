@@ -21,23 +21,33 @@ float humRate = 0;
 
 void sensor_init() {
   #if SENSOR_TYPE == 1
-    
-    if (aht.begin()) {
-      sensorOk = false;
-      strcpy(sensorError, "Waiting for first valid reading");
-      
-      #if LOG_SENSOR == 1
-        Serial.println("[SENSOR] AHT10 found, waiting for first valid reading...");
-      #endif
+    sensorOk = aht.begin();
+    if (sensorOk) {
+        strcpy(sensorError, "Waiting for first valid reading");
+        #if LOG_SENSOR == 1
+          Serial.println("[SENSOR] AHT10 found, waiting for first valid reading...");
+        #endif
+        sensors_event_t humidity, temperature;
+        if (aht.getEvent(&humidity, &temperature)) {
+          currentTemp = temperature.temperature;
+          currentHum = humidity.relative_humidity;
+          sensorError[0] = '\0';
+          lastSensorRead = millis();
+          
+          #if LOG_SENSOR == 1
+          Serial.printf("[SENSOR] First reading: T=%.2f°C, H=%.2f%%\n", currentTemp, currentHum);
+          #endif
+        }
     } else {
-      sensorOk = false;
-      strcpy(sensorError, "AHT10 not found");
-      #if DEBUG_ENABLED == 1
-      Serial.print(ANSI_BRIGHT_RED);
-      Serial.println("[SENSOR] AHT10 not found! Sensor will be disabled.");
-      Serial.print(ANSI_RESET);
-      #endif
+        strcpy(sensorError, "AHT10 not found");
+        #if DEBUG_ENABLED == 1
+        Serial.print(ANSI_BRIGHT_RED);
+        Serial.println("[SENSOR] AHT10 not found! Sensor will be disabled.");
+        Serial.print(ANSI_RESET);
+        #endif
     }
+    
+
   #elif SENSOR_TYPE == 2    
     dht.begin();
     delay(2000);
