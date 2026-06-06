@@ -12,19 +12,44 @@
   #include <DHT.h>
 #endif
 
-extern float currentTemp;
-extern float currentHum;
-extern bool sensorOk;
-extern unsigned long lastSensorRead;
-extern char sensorError[64];            
-extern float humRate;                   // скорость изменения влажности (%/сек)
+// ========== НОВЫЙ API (ГЕТТЕРЫ) ==========
 
+/**
+ * Инициализация датчика. Вызывается один раз при старте.
+ */
 void sensor_init();
-void sensor_read();
-bool sensor_isOk();
+
+/**
+ * Обновление показаний датчика. Вызывается в loop().
+ * @return true если данные были обновлены (изменились), false если нет.
+ */
+bool sensor_update();
+
+/**
+ * @return текущая температура в градусах Цельсия
+ */
 float sensor_getTemperature();
+
+/**
+ * @return текущая влажность в процентах
+ */
 float sensor_getHumidity();
+
+/**
+ * @return true если датчик работает корректно
+ */
+bool sensor_isOk();
+
+/**
+ * @return текст последней ошибки (или пустую строку)
+ */
+const char* sensor_getError();
+
+/**
+ * @return скорость изменения влажности (%/сек)
+ */
+float sensor_getHumRate();
 
 #endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
-#endif
+#endif // SENSOR_H

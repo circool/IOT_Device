@@ -221,8 +221,8 @@ void fan_set(bool on, bool manual) {
       
       if (config_get()->adaptiveMode && sensor_isOk()) {
         adaptiveActive = true;
-        baseTemp = currentTemp;
-        baseHum = currentHum;
+        baseTemp = sensor_getTemperature();
+        baseHum = sensor_getHumidity();
         lastAdaptiveCheck = millis();
         
         #if LOG_FAN == 1
@@ -279,8 +279,8 @@ void fan_setOverrideMode(bool sensorControl) {
     #if DEVICE_TYPE == 1
     if (fanOn && config_get()->adaptiveMode && sensor_isOk()) {
       adaptiveActive = true;
-      baseTemp = currentTemp;
-      baseHum = currentHum;
+      baseTemp = sensor_getTemperature();
+      baseHum = sensor_getHumidity();
       lastAdaptiveCheck = millis();
     }
     #endif
@@ -391,8 +391,8 @@ void fan_adaptiveUpdate() {
   
   if (!adaptiveActive) {
     adaptiveActive = true;
-    baseTemp = currentTemp;
-    baseHum = currentHum;
+    baseTemp = sensor_getTemperature();
+    baseHum = sensor_getHumidity();
     lastAdaptiveCheck = millis();
 
     #if LOG_FAN == 1
@@ -407,13 +407,13 @@ void fan_adaptiveUpdate() {
   }
   lastAdaptiveCheck = millis();
   
-  float deltaTemp = currentTemp - baseTemp;
-  float deltaHum = currentHum - baseHum;
+  float deltaTemp = sensor_getTemperature() - baseTemp;
+  float deltaHum = sensor_getHumidity() - baseHum;
   
   int newSpeed = config_get()->speedPercent;
   bool needChange = false;
   
-  int step = calculateAdaptiveStep(deltaTemp, deltaHum, humRate);
+  int step = calculateAdaptiveStep(deltaTemp, deltaHum, sensor_getHumRate());
   
   if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
     newSpeed += step;
@@ -423,7 +423,7 @@ void fan_adaptiveUpdate() {
       
       #if LOG_FAN == 1
         Serial.printf("[FAN] Adaptive step +%d%% (ΔT=%.2f ΔH=%.2f rate=%.1f) → %d%%\n", 
-                      step, deltaTemp, deltaHum, humRate, newSpeed);
+                      step, deltaTemp, deltaHum, sensor_getHumRate(), newSpeed);
       #endif
     }
   }
@@ -431,8 +431,8 @@ void fan_adaptiveUpdate() {
   if (needChange) {
     config_setSpeedPercent(newSpeed);
     fan_applySpeed(config_get()->speedPercent);
-    baseTemp = currentTemp;
-    baseHum = currentHum;
+    baseTemp = sensor_getTemperature();
+    baseHum = sensor_getHumidity();
   }
   #endif // DEVICE_TYPE == 1
 }
@@ -457,8 +457,8 @@ void fan_update() {
         #if DEVICE_TYPE == 1
         if (config_get()->adaptiveMode && sensor_isOk() && config_get()->sensorControlMode) {
           adaptiveActive = true;
-          baseTemp = currentTemp;
-          baseHum = currentHum;
+          baseTemp = sensor_getTemperature();
+          baseHum = sensor_getHumidity();
           lastAdaptiveCheck = millis();
           
           #if LOG_FAN == 1
@@ -500,10 +500,10 @@ void fan_update() {
   #if DEVICE_TYPE == 1
   if (sensor_isOk()) {
     // >>> ИЗМЕНЕНИЕ: чтение порогов через геттеры
-    bool tempHigh = (currentTemp >= config_get()->highTemp);
-    bool humHigh = (currentHum >= config_get()->highHum);
-    bool tempLow = (currentTemp <= config_get()->lowTemp);
-    bool humLow = (currentHum <= config_get()->lowHum);
+    bool tempHigh = (sensor_getTemperature() >= config_get()->highTemp);
+    bool humHigh = (sensor_getHumidity() >= config_get()->highHum);
+    bool tempLow = (sensor_getTemperature() <= config_get()->lowTemp);
+    bool humLow = (sensor_getHumidity() <= config_get()->lowHum);
     
     if (tempHigh || humHigh) {
       sensorShouldBeOn = true;

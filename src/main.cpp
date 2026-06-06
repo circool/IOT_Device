@@ -484,8 +484,8 @@ void setup() {
           config_setAdaptiveMode(enabled);
           if (fanOn && config_get()->sensorControlMode && config_get()->adaptiveMode && sensor_isOk()) {
             adaptiveActive = true;
-            baseTemp = currentTemp;
-            baseHum = currentHum;
+            baseTemp = sensor_getTemperature();;
+            baseHum = sensor_getHumidity();
             lastAdaptiveCheck = millis();
           } else if (!config_get()->adaptiveMode) {
             adaptiveActive = false;
@@ -544,9 +544,9 @@ void setup() {
       #ifndef TEST_DEVICE_SENSOR
         sensor_init();
         #if DEVICE_TYPE == 1
-          if (!sensorOk && (
+          if (!sensor_isOk() && (
               #if SENSOR_TYPE == 1
-              strcmp(sensorError, "AHT10 not found") == 0
+              strcmp(sensor_getError(), "AHT10 not found") == 0
               #elif SENSOR_TYPE == 2
               strcmp(sensorError, "DHT read failed (NaN)") == 0
               #endif
@@ -638,7 +638,7 @@ void loop() {
     // ========== ДАТЧИК ==========
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
       #ifndef TEST_DEVICE_SENSOR
-        sensor_read();
+        sensor_update();
       #endif
     #endif
 
@@ -769,13 +769,15 @@ void loop() {
           #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
           if (sensor_isOk()) {
             static float lastTemp = 0, lastHum = 0;
+            float temp = sensor_getTemperature();
+            float hum = sensor_getHumidity();
             const float EPSILON = 0.05;
-            if (fabs(currentTemp - lastTemp) > EPSILON || fabs(currentHum - lastHum) > EPSILON) {
-              mqttManager.publishSensor(currentTemp, currentHum);
-              lastTemp = currentTemp;
-              lastHum = currentHum;
-            }
+            if (fabs(temp - lastTemp) > EPSILON || fabs(hum - lastHum) > EPSILON) {
+              mqttManager.publishSensor(temp, hum);
+              lastTemp = temp;
+              lastHum = hum;
           }
+                }
           #endif
           
           // ========== HEARTBEAT (ONLINE + RSSI) ==========

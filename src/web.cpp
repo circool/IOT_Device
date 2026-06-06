@@ -49,6 +49,9 @@ String web_buildStatusHtml() {
     html += F("<div class='flex-container'>");
     
     #if DEVICE_TYPE == 1
+    float currentTemp = sensor_getTemperature();
+    float currentHum = sensor_getHumidity();
+
     String tempColor = (currentTemp >= config_get()->highTemp) ? "#f44336" : 
                        ((currentTemp <= config_get()->lowTemp) ? "#4CAF50" : "#2196F3");
     String humColor = (currentHum >= config_get()->highHum) ? "#f44336" : 
@@ -110,9 +113,9 @@ String web_buildStatusHtml() {
     
     html += F("</div>");
     
-    if (!sensorOk && strlen(sensorError) > 0) {
+    if (!sensor_isOk() && strlen(sensor_getError()) > 0) {
         html += F("<div class='sensor-error'><strong>Ошибка датчика</strong><br>");
-        html += sensorError;
+        html += sensor_getError();
         html += F("</div>");
     }
     #endif
@@ -207,7 +210,7 @@ String web_buildStatusHtml() {
     html += F("</div>");
     
     #if DEVICE_TYPE == 1
-    if (!config_get()->sensorControlMode && sensorOk) {
+    if (!config_get()->sensorControlMode && sensor_isOk()) {
         html += F("<div class='button-group' style='margin-top:10px;'>");
         html += F("<a href='/fan/auto'><button>Режим управления сенсором</button></a>");
         html += F("</div>");
