@@ -14,11 +14,11 @@
 #endif
 
 #if DEVICE_TYPE == 1
-  #include "fan.h"
+  #include "fan_actuator.h"
 #endif
 
 #if DEVICE_TYPE == 3
-  #include "switch.h"
+  #include "switch_actuator.h"
 #endif
 
 #if WIFI_ENABLED == 1
@@ -191,6 +191,13 @@ void checkResetButton() {
   }
 }
 
+// ======================== ГЛОБАЛЬНЫЕ ОБЪЕКТЫ АКТУАТОРОВ ========================
+#if DEVICE_TYPE == 1
+  FanActuator fan;
+#elif DEVICE_TYPE == 3
+  SwitchActuator switchActuator;
+#endif
+
 #if WIFI_ENABLED == 1
 // ======================== WIFI ========================
 #ifndef DEBUG_WIFI_ENABLED
@@ -202,7 +209,6 @@ void wifi_beginAsync() {
     led_setMode(LED_MODE_SLOW_BLINK);
   #endif
   
-  // >>> ИЗМЕНЕНИЕ: config.wifiSsid → config_get()->wifiSsid
   if (strlen(config_get()->wifiSsid) == 0) {
     #if LOG_WIFI == 1
       Serial.println("[WIFI] No SSID configured");
@@ -266,7 +272,6 @@ void wifi_checkAsync() {
 }
 
 void checkWiFiFallbackToAP() {
-  // >>> ИЗМЕНЕНИЕ: config.wifiSsid → config_get()->wifiSsid
   if (strlen(config_get()->wifiSsid) == 0) return;
   if (apMode) return;
   
@@ -411,7 +416,6 @@ void setup() {
     int n = WiFi.scanNetworks();
     for (int i = 0; i < n; i++) {
       String ssid = WiFi.SSID(i);
-      // >>> ИЗМЕНЕНИЕ: config.wifiSsid → config_get()->wifiSsid
       bool isTarget = (ssid == config_get()->wifiSsid);
       if (isTarget) {
         Serial.printf("[WIFI] %s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET "\n", ssid.c_str(), WiFi.RSSI(i));
@@ -429,7 +433,6 @@ void setup() {
     config_print();
   #endif
 
-  // >>> ИЗМЕНЕНИЕ: config.wifiSsid → config_get()->wifiSsid
   bool hasValidConfig = (config_isValid() && strlen(config_get()->wifiSsid) > 0);
 
   if (hasValidConfig) {
@@ -440,7 +443,6 @@ void setup() {
     // ========== MQTT ИНИЦИАЛИЗАЦИЯ ==========
     #if MQTT_ENABLED == 1
       #ifndef TEST_DEVICE_MQTT
-        // >>> ИЗМЕНЕНИЕ: все параметры через геттеры
         mqttManager.begin(config_get()->mqttBroker, 
                           config_get()->mqttPort, 
                           config_get()->mqttClientId,
@@ -450,31 +452,32 @@ void setup() {
         // Регистрация колбэков
         #if DEVICE_TYPE == 1
         mqttManager.onStateCommand([](bool state) { 
-          fan_set(state); 
+          fan.set(state, true);
         });
         
         mqttManager.onSpeedCommand([](int speed) {
-          // >>> ИЗМЕНЕНИЕ: config через геттеры/сеттеры
           if (config_get()->adaptiveMode) {
             config_setAdaptiveMode(false);
-            adaptiveActive = false;
+            fan.setAdaptiveMode(false);
           }
           if (speed == 0 || speed < MIN_SPEED_PERCENT) {
-            fan_set(false);
+            fan.set(false, true);
           } else {
-            config_setSpeedPercent(speed);
-            if (fanOn && !startingPulseActive) {
-              fan_applySpeed(config_get()->speedPercent);
+            fan.setSpeed(speed, true);
+            if (fan.getState()) {
+              fan.setSpeed(speed, false);
             }
           }
         });
         
         mqttManager.onSensorControlModeCommand([](bool enabled) {
-          fan_setOverrideMode(enabled);
+          config_setSensorControlMode(enabled);
+          if (!enabled) {
+            fan.setAdaptiveMode(false);
+          }
         });
         
         mqttManager.onAdaptiveModeCommand([](bool enabled) {
-          // >>> ИЗМЕНЕНИЕ: config через геттеры/сеттеры
           if (enabled && !config_get()->sensorControlMode) {
             #if DEBUG_ENABLED == 1
               Serial.println("[MQTT] Cannot enable adaptive mode - sensor control mode is OFF");
@@ -482,14 +485,7 @@ void setup() {
             return;
           }
           config_setAdaptiveMode(enabled);
-          if (fanOn && config_get()->sensorControlMode && config_get()->adaptiveMode && sensor_isOk()) {
-            adaptiveActive = true;
-            baseTemp = sensor_getTemperature();;
-            baseHum = sensor_getHumidity();
-            lastAdaptiveCheck = millis();
-          } else if (!config_get()->adaptiveMode) {
-            adaptiveActive = false;
-          }
+          fan.setAdaptiveMode(enabled);
         });
         
         mqttManager.onLowTempCommand([](float value) { 
@@ -506,18 +502,7 @@ void setup() {
         });
         
         mqttManager.onDelaySecCommand([](int delaySec) {
-          // >>> ИЗМЕНЕНИЕ: config через геттеры/сеттеры
-          int oldDelay = config_get()->delaySeconds;
           config_setDelaySeconds(delaySec);
-          if (delayActive) {
-            long remaining = (delayTimer - millis()) + (delaySec - oldDelay) * 1000L;
-            if (remaining > 0) {
-              delayTimer = millis() + remaining;
-            } else {
-              delayActive = false;
-              fan_set(true);
-            }
-          }
         });
         #endif
         
@@ -548,11 +533,12 @@ void setup() {
               #if SENSOR_TYPE == 1
               strcmp(sensor_getError(), "AHT10 not found") == 0
               #elif SENSOR_TYPE == 2
-              strcmp(sensorError, "DHT read failed (NaN)") == 0
+              strcmp(sensor_getError(), "DHT read failed (NaN)") == 0
               #endif
           )) {
             config_setSensorControlMode(false);
             config_setAdaptiveMode(false);
+            fan.setAdaptiveMode(false);
             #if DEBUG_ENABLED == 1
               Serial.println("[SENSOR] Not found - switching to MANUAL mode");
             #endif
@@ -564,14 +550,15 @@ void setup() {
     // ========== ВЕНТИЛЯТОР ==========
     #if DEVICE_TYPE == 1
       #ifndef TEST_DEVICE_FAN
-        fan_init();
+        fan.init(SWITCH_PIN, RELAY_ON_LEVEL, config_get()->bootState, config_get()->speedPercent);
+        fan.setAdaptiveMode(config_get()->adaptiveMode);
       #endif
     #endif
 
     // ========== ВЫКЛЮЧАТЕЛЬ ==========
     #if DEVICE_TYPE == 3
       #ifndef TEST_DEVICE_SWITCH
-        switch_init();
+        switchActuator.init(SWITCH_PIN, RELAY_ON_LEVEL, config_get()->bootState);
       #endif
     #endif
 
@@ -645,14 +632,14 @@ void loop() {
     // ========== ВЕНТИЛЯТОР ==========
     #if DEVICE_TYPE == 1
       #ifndef TEST_DEVICE_FAN
-        fan_update();
+        fan.update();
       #endif
     #endif
 
     // ========== ВЫКЛЮЧАТЕЛЬ ==========
     #if DEVICE_TYPE == 3
       #ifndef TEST_DEVICE_SWITCH
-        switch_update();
+        switchActuator.update();
       #endif
     #endif
 
@@ -680,14 +667,14 @@ void loop() {
           // 1. Состояние вентилятора/выключателя
           #if DEVICE_TYPE == 1
           static bool lastFanState = false;
-          bool currentFanState = fan_getState();
+          bool currentFanState = fan.getState();
           if (currentFanState != lastFanState) {
             mqttManager.publishState(currentFanState);
             lastFanState = currentFanState;
           }
           #elif DEVICE_TYPE == 3
           static bool lastSwitchState = false;
-          bool currentSwitchState = switch_getState();
+          bool currentSwitchState = switchActuator.getState();
           if (currentSwitchState != lastSwitchState) {
             mqttManager.publishState(currentSwitchState);
             lastSwitchState = currentSwitchState;
@@ -697,17 +684,15 @@ void loop() {
           // 2. Скорость вентилятора (только TYPE 1)
           #if DEVICE_TYPE == 1
           static uint16_t lastSpeedPercent = 0;
-          // >>> ИЗМЕНЕНИЕ: config.speedPercent → config_get()->speedPercent
-          if (config_get()->speedPercent != lastSpeedPercent) {
-            mqttManager.publishSpeed(config_get()->speedPercent);
-            lastSpeedPercent = config_get()->speedPercent;
+          if (fan.getSpeed() != lastSpeedPercent) {
+            mqttManager.publishSpeed(fan.getSpeed());
+            lastSpeedPercent = fan.getSpeed();
           }
           #endif
           
           // 3. Режим управления сенсором (только TYPE 1)
           #if DEVICE_TYPE == 1
           static bool lastSensorControlMode = false;
-          // >>> ИЗМЕНЕНИЕ: config.sensorControlMode → config_get()->sensorControlMode
           if (config_get()->sensorControlMode != lastSensorControlMode) {
             mqttManager.publishSensorControlMode(config_get()->sensorControlMode);
             lastSensorControlMode = config_get()->sensorControlMode;
@@ -717,17 +702,15 @@ void loop() {
           // 4. Адаптивный режим (только TYPE 1)
           #if DEVICE_TYPE == 1
           static bool lastAdaptiveMode = false;
-          // >>> ИЗМЕНЕНИЕ: config.adaptiveMode → config_get()->adaptiveMode
-          if (config_get()->adaptiveMode != lastAdaptiveMode) {
-            mqttManager.publishAdaptiveMode(config_get()->adaptiveMode);
-            lastAdaptiveMode = config_get()->adaptiveMode;
+          if (fan.getAdaptiveMode() != lastAdaptiveMode) {
+            mqttManager.publishAdaptiveMode(fan.getAdaptiveMode());
+            lastAdaptiveMode = fan.getAdaptiveMode();
           }
           #endif
           
           // 5. Пороги температуры и влажности (только TYPE 1)
           #if DEVICE_TYPE == 1
           static float lastLowTemp = 0, lastHighTemp = 0, lastLowHum = 0, lastHighHum = 0;
-          // >>> ИЗМЕНЕНИЯ: все через геттеры
           if (fabs(config_get()->lowTemp - lastLowTemp) > 0.01 ||
               fabs(config_get()->highTemp - lastHighTemp) > 0.01 ||
               fabs(config_get()->lowHum - lastLowHum) > 0.01 ||
@@ -748,7 +731,6 @@ void loop() {
           // 6. Задержка отложенного включения (TYPE 1 и 3)
           #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
           static int lastDelaySeconds = -1;
-          // >>> ИЗМЕНЕНИЕ: config.delaySeconds → config_get()->delaySeconds
           if (config_get()->delaySeconds != lastDelaySeconds) {
             mqttManager.publishDelaySec(config_get()->delaySeconds);
             lastDelaySeconds = config_get()->delaySeconds;
@@ -758,7 +740,6 @@ void loop() {
           // 7. Аварийное отключение (TYPE 1 и 3)
           #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
           static uint32_t lastMaxOnTime = 0;
-          // >>> ИЗМЕНЕНИЕ: config.maxOnTime → config_get()->maxOnTime
           if (config_get()->maxOnTime != lastMaxOnTime) {
             mqttManager.publishMaxOnTime(config_get()->maxOnTime);
             lastMaxOnTime = config_get()->maxOnTime;
@@ -769,15 +750,15 @@ void loop() {
           #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
           if (sensor_isOk()) {
             static float lastTemp = 0, lastHum = 0;
+            const float EPSILON = 0.05;
             float temp = sensor_getTemperature();
             float hum = sensor_getHumidity();
-            const float EPSILON = 0.05;
             if (fabs(temp - lastTemp) > EPSILON || fabs(hum - lastHum) > EPSILON) {
               mqttManager.publishSensor(temp, hum);
               lastTemp = temp;
               lastHum = hum;
+            }
           }
-                }
           #endif
           
           // ========== HEARTBEAT (ONLINE + RSSI) ==========
@@ -788,10 +769,10 @@ void loop() {
             // Публикация начальной конфигурации при первом подключении
             if (!initialConfigPublished) {
               #if DEVICE_TYPE == 1
-              mqttManager.publishState(fan_getState());
-              mqttManager.publishSpeed(config_get()->speedPercent);
+              mqttManager.publishState(fan.getState());
+              mqttManager.publishSpeed(fan.getSpeed());
               mqttManager.publishSensorControlMode(config_get()->sensorControlMode);
-              mqttManager.publishAdaptiveMode(config_get()->adaptiveMode);
+              mqttManager.publishAdaptiveMode(fan.getAdaptiveMode());
               mqttManager.publishThresholds(
                 config_get()->lowTemp, 
                 config_get()->highTemp, 
@@ -799,7 +780,7 @@ void loop() {
                 config_get()->highHum
               );
               #elif DEVICE_TYPE == 3
-              mqttManager.publishState(switch_getState());
+              mqttManager.publishState(switchActuator.getState());
               #endif
               
               #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
