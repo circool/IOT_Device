@@ -1,8 +1,6 @@
 #ifndef CONFIG_H
 #define CONFIG_H
 
-// #include <Arduino.h>
-
 #ifndef VERSION
   #define VERSION "1.0"
 #endif
@@ -18,8 +16,6 @@
 #ifndef DEVICE_TYPE
   #define DEVICE_TYPE 1           // 1 – вентилятор с датчиками, 2 – только датчик, 3 – управляемый выключатель 
 #endif
-
-extern char deviceId[12];
 
 // Префикс устройства (для MQTT или AP SSID)
 #if DEVICE_TYPE==1
@@ -76,14 +72,12 @@ extern char deviceId[12];
 #ifndef WIFI_ENABLED
   #define WIFI_ENABLED 1
 #endif
-void initDeviceId();
 
 #if WIFI_ENABLED == 1
 
   #ifndef WIFI_OUTPUT_POWER
     #define WIFI_OUTPUT_POWER 15.0   // от 0 до 20.5, по умолчанию 15.0
   #endif
-
 
   // Поддержка Access point
   #ifndef AP_ENABLED
@@ -158,15 +152,11 @@ void initDeviceId();
   #ifndef LOOP_WATCHDOG_MULTIPLIER
     #define LOOP_WATCHDOG_MULTIPLIER 3      // Множитель STATE_PUBLISH_INTERVAL_MS для watchdog
   #endif
-
 #else
-  
   #ifndef SOFT_WDT_ENABLED
     #define SOFT_WDT_ENABLED 1
   #endif
-
 #endif
-
 
 #if WIFI_ENABLED
   #ifndef WIFI_CONNECT_TIMEOUT_MS
@@ -180,7 +170,6 @@ void initDeviceId();
   #ifndef MQTT_RECONNECT_DELAY_MS
     #define MQTT_RECONNECT_DELAY_MS 5000
   #endif
-
 
   #ifndef STATE_PUBLISH_INTERVAL_MS
     #define STATE_PUBLISH_INTERVAL_MS 3000
@@ -394,9 +383,7 @@ void initDeviceId();
 
 #endif
 
-// 
 
-#include <EEPROM.h>
 
 // ======================== НАСТРОЙКИ СЕТИ ========================
 
@@ -490,6 +477,10 @@ void initDeviceId();
   #define MQTT_PASSWORD ""
 #endif
 
+#include <EEPROM.h>
+
+extern char deviceId[12];
+void initDeviceId();
 // ======================== СТРУКТУРА КОНФИГУРАЦИИ ========================
 struct Config {
   uint16_t magic;
@@ -538,17 +529,53 @@ struct Config {
   extern bool apMode;
 #endif
 
-extern bool eepromAvailable;
+const Config* config_get();              // ТОЛЬКО ДЛЯ ЧТЕНИЯ! Не изменять через указатель.
+bool config_isValid();
+const char* config_getLastError();
+// --- Общие сеттеры (с валидацией) ---
+bool config_setWifiSsid(const char* ssid);
+bool config_setWifiPassword(const char* password);
+bool config_setWifiOutputPower(float power);
 
-extern Config config;
+#if MQTT_ENABLED == 1
+bool config_setMqttBroker(const char* broker);
+bool config_setMqttPort(uint16_t port);
+bool config_setMqttUser(const char* user);
+bool config_setMqttPassword(const char* password);
+bool config_setMqttClientId(const char* clientId);
+#endif
 
-extern bool configValid;
-extern char configLastError[64];   
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+bool config_setDelaySeconds(int seconds);
+bool config_setMaxOnTime(uint32_t seconds);
+bool config_setBootState(bool state);
+#endif
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+bool config_setSensorInterval(uint16_t interval);
+#endif
+
+#if DEVICE_TYPE == 1
+bool config_setLowTemp(double temp);
+bool config_setHighTemp(double temp);
+bool config_setLowHum(double hum);
+bool config_setHighHum(double hum);
+bool config_setSensorControlMode(bool enabled);
+bool config_setSpeedPercent(uint16_t percent);
+bool config_setAdaptiveMode(bool enabled);
+#endif
+
+
+bool config_isValid();                   
+const char* config_getLastError();   
 
 void config_init();
 void config_read();
-bool config_write();  // ИЗМЕНЕНО: void -> bool
+bool config_write();  
 void config_setDefaults();
+bool config_clear();
+bool config_validate();  
+
 Config config_getSaved();
 
 uint16_t crc16(const uint8_t* data, size_t len);
@@ -557,7 +584,6 @@ uint16_t crc16(const uint8_t* data, size_t len);
 void config_print();
 #endif
 
-bool config_clear();
-bool config_validate();           
+         
 
 #endif

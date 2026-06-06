@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "config.h"
-#include "Device.h"
+
 #include "led.h"
 #include "ansi.h"
 #include "ota_check.h"
@@ -36,11 +36,6 @@
 
 #if WEB_ENABLED == 1
   #include "web.h"
-  // #ifdef ESP32
-  //   AsyncWebServer server(80);
-  // #elif defined(ESP8266)
-  //   ESP8266WebServer server(80);
-  // #endif
   WebServerClass server(80);
 #endif
 
@@ -207,7 +202,8 @@ void wifi_beginAsync() {
     led_setMode(LED_MODE_SLOW_BLINK);
   #endif
   
-  if (strlen(config.wifiSsid) == 0) {
+  // >>> ИЗМЕНЕНИЕ: config.wifiSsid → config_get()->wifiSsid
+  if (strlen(config_get()->wifiSsid) == 0) {
     #if LOG_WIFI == 1
       Serial.println("[WIFI] No SSID configured");
     #endif
@@ -218,11 +214,11 @@ void wifi_beginAsync() {
   if (wifiConnecting) return;
   
   #if LOG_WIFI == 1
-    Serial.printf("[WIFI] Starting async connection to %s\n", config.wifiSsid);
+    Serial.printf("[WIFI] Starting async connection to %s\n", config_get()->wifiSsid);
   #endif
   
   WiFi.mode(WIFI_STA);
-  WiFi.begin(config.wifiSsid, config.wifiPassword);
+  WiFi.begin(config_get()->wifiSsid, config_get()->wifiPassword);
   wifiConnecting = true;
   wifiConnectStartTime = millis();
   wifiLostTime = 0;
@@ -270,7 +266,8 @@ void wifi_checkAsync() {
 }
 
 void checkWiFiFallbackToAP() {
-  if (strlen(config.wifiSsid) == 0) return;
+  // >>> ИЗМЕНЕНИЕ: config.wifiSsid → config_get()->wifiSsid
+  if (strlen(config_get()->wifiSsid) == 0) return;
   if (apMode) return;
   
   IPAddress ip = WiFi.localIP();
@@ -414,7 +411,8 @@ void setup() {
     int n = WiFi.scanNetworks();
     for (int i = 0; i < n; i++) {
       String ssid = WiFi.SSID(i);
-      bool isTarget = (ssid == config.wifiSsid);
+      // >>> ИЗМЕНЕНИЕ: config.wifiSsid → config_get()->wifiSsid
+      bool isTarget = (ssid == config_get()->wifiSsid);
       if (isTarget) {
         Serial.printf("[WIFI] %s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET "\n", ssid.c_str(), WiFi.RSSI(i));
       } else {
@@ -431,7 +429,8 @@ void setup() {
     config_print();
   #endif
 
-  bool hasValidConfig = (configValid && strlen(config.wifiSsid) > 0);
+  // >>> ИЗМЕНЕНИЕ: config.wifiSsid → config_get()->wifiSsid
+  bool hasValidConfig = (config_isValid() && strlen(config_get()->wifiSsid) > 0);
 
   if (hasValidConfig) {
     #if LOG_CONFIG == 1
@@ -441,26 +440,31 @@ void setup() {
     // ========== MQTT ИНИЦИАЛИЗАЦИЯ ==========
     #if MQTT_ENABLED == 1
       #ifndef TEST_DEVICE_MQTT
-        // >>> НОВЫЙ СПОСОБ: передаём параметры явно
-        mqttManager.begin(config.mqttBroker, config.mqttPort, config.mqttClientId,
-                          config.mqttUser, config.mqttPassword);
+        // >>> ИЗМЕНЕНИЕ: все параметры через геттеры
+        mqttManager.begin(config_get()->mqttBroker, 
+                          config_get()->mqttPort, 
+                          config_get()->mqttClientId,
+                          config_get()->mqttUser, 
+                          config_get()->mqttPassword);
         
-        // Регистрация колбэков (только меняют глобальные переменные, без прямой публикации)
+        // Регистрация колбэков
+        #if DEVICE_TYPE == 1
         mqttManager.onStateCommand([](bool state) { 
           fan_set(state); 
         });
         
         mqttManager.onSpeedCommand([](int speed) {
-          if (config.adaptiveMode) {
-            config.adaptiveMode = false;
+          // >>> ИЗМЕНЕНИЕ: config через геттеры/сеттеры
+          if (config_get()->adaptiveMode) {
+            config_setAdaptiveMode(false);
             adaptiveActive = false;
           }
           if (speed == 0 || speed < MIN_SPEED_PERCENT) {
             fan_set(false);
           } else {
-            config.speedPercent = speed;
+            config_setSpeedPercent(speed);
             if (fanOn && !startingPulseActive) {
-              fan_applySpeed(config.speedPercent);
+              fan_applySpeed(config_get()->speedPercent);
             }
           }
         });
@@ -470,38 +474,41 @@ void setup() {
         });
         
         mqttManager.onAdaptiveModeCommand([](bool enabled) {
-          if (enabled && !config.sensorControlMode) {
+          // >>> ИЗМЕНЕНИЕ: config через геттеры/сеттеры
+          if (enabled && !config_get()->sensorControlMode) {
             #if DEBUG_ENABLED == 1
               Serial.println("[MQTT] Cannot enable adaptive mode - sensor control mode is OFF");
             #endif
             return;
           }
-          config.adaptiveMode = enabled;
-          if (fanOn && config.sensorControlMode && config.adaptiveMode && sensor_isOk()) {
+          config_setAdaptiveMode(enabled);
+          if (fanOn && config_get()->sensorControlMode && config_get()->adaptiveMode && sensor_isOk()) {
             adaptiveActive = true;
             baseTemp = currentTemp;
             baseHum = currentHum;
             lastAdaptiveCheck = millis();
-          } else if (!config.adaptiveMode) {
+          } else if (!config_get()->adaptiveMode) {
             adaptiveActive = false;
           }
         });
         
         mqttManager.onLowTempCommand([](float value) { 
-          config.lowTemp = value; 
+          config_setLowTemp(value); 
         });
         mqttManager.onHighTempCommand([](float value) { 
-          config.highTemp = value; 
+          config_setHighTemp(value); 
         });
         mqttManager.onLowHumCommand([](float value) { 
-          config.lowHum = value; 
+          config_setLowHum(value); 
         });
         mqttManager.onHighHumCommand([](float value) { 
-          config.highHum = value; 
+          config_setHighHum(value); 
         });
+        
         mqttManager.onDelaySecCommand([](int delaySec) {
-          int oldDelay = config.delaySeconds;
-          config.delaySeconds = delaySec;
+          // >>> ИЗМЕНЕНИЕ: config через геттеры/сеттеры
+          int oldDelay = config_get()->delaySeconds;
+          config_setDelaySeconds(delaySec);
           if (delayActive) {
             long remaining = (delayTimer - millis()) + (delaySec - oldDelay) * 1000L;
             if (remaining > 0) {
@@ -512,9 +519,10 @@ void setup() {
             }
           }
         });
+        #endif
         
         mqttManager.onMaxOnTimeCommand([](uint32_t maxOnTime) { 
-          config.maxOnTime = maxOnTime; 
+          config_setMaxOnTime(maxOnTime); 
         });
         
         #if MQTT_RESET_ENABLED == 1
@@ -543,8 +551,8 @@ void setup() {
               strcmp(sensorError, "DHT read failed (NaN)") == 0
               #endif
           )) {
-            config.sensorControlMode = false;
-            config.adaptiveMode = false;
+            config_setSensorControlMode(false);
+            config_setAdaptiveMode(false);
             #if DEBUG_ENABLED == 1
               Serial.println("[SENSOR] Not found - switching to MANUAL mode");
             #endif
@@ -620,7 +628,7 @@ void loop() {
     #endif
 
     #if WEB_ENABLED == 1
-      if (!configValid || strlen(config.wifiSsid) == 0) {
+      if (!config_isValid() || strlen(config_get()->wifiSsid) == 0) {
         web_update();
         delay(100);
         return;
@@ -689,60 +697,71 @@ void loop() {
           // 2. Скорость вентилятора (только TYPE 1)
           #if DEVICE_TYPE == 1
           static uint16_t lastSpeedPercent = 0;
-          if (config.speedPercent != lastSpeedPercent) {
-            mqttManager.publishSpeed(config.speedPercent);
-            lastSpeedPercent = config.speedPercent;
+          // >>> ИЗМЕНЕНИЕ: config.speedPercent → config_get()->speedPercent
+          if (config_get()->speedPercent != lastSpeedPercent) {
+            mqttManager.publishSpeed(config_get()->speedPercent);
+            lastSpeedPercent = config_get()->speedPercent;
           }
           #endif
           
           // 3. Режим управления сенсором (только TYPE 1)
           #if DEVICE_TYPE == 1
           static bool lastSensorControlMode = false;
-          if (config.sensorControlMode != lastSensorControlMode) {
-            mqttManager.publishSensorControlMode(config.sensorControlMode);
-            lastSensorControlMode = config.sensorControlMode;
+          // >>> ИЗМЕНЕНИЕ: config.sensorControlMode → config_get()->sensorControlMode
+          if (config_get()->sensorControlMode != lastSensorControlMode) {
+            mqttManager.publishSensorControlMode(config_get()->sensorControlMode);
+            lastSensorControlMode = config_get()->sensorControlMode;
           }
           #endif
           
           // 4. Адаптивный режим (только TYPE 1)
           #if DEVICE_TYPE == 1
           static bool lastAdaptiveMode = false;
-          if (config.adaptiveMode != lastAdaptiveMode) {
-            mqttManager.publishAdaptiveMode(config.adaptiveMode);
-            lastAdaptiveMode = config.adaptiveMode;
+          // >>> ИЗМЕНЕНИЕ: config.adaptiveMode → config_get()->adaptiveMode
+          if (config_get()->adaptiveMode != lastAdaptiveMode) {
+            mqttManager.publishAdaptiveMode(config_get()->adaptiveMode);
+            lastAdaptiveMode = config_get()->adaptiveMode;
           }
           #endif
           
           // 5. Пороги температуры и влажности (только TYPE 1)
           #if DEVICE_TYPE == 1
           static float lastLowTemp = 0, lastHighTemp = 0, lastLowHum = 0, lastHighHum = 0;
-          if (fabs(config.lowTemp - lastLowTemp) > 0.01 ||
-              fabs(config.highTemp - lastHighTemp) > 0.01 ||
-              fabs(config.lowHum - lastLowHum) > 0.01 ||
-              fabs(config.highHum - lastHighHum) > 0.01) {
-            mqttManager.publishThresholds(config.lowTemp, config.highTemp, config.lowHum, config.highHum);
-            lastLowTemp = config.lowTemp;
-            lastHighTemp = config.highTemp;
-            lastLowHum = config.lowHum;
-            lastHighHum = config.highHum;
+          // >>> ИЗМЕНЕНИЯ: все через геттеры
+          if (fabs(config_get()->lowTemp - lastLowTemp) > 0.01 ||
+              fabs(config_get()->highTemp - lastHighTemp) > 0.01 ||
+              fabs(config_get()->lowHum - lastLowHum) > 0.01 ||
+              fabs(config_get()->highHum - lastHighHum) > 0.01) {
+            mqttManager.publishThresholds(
+              config_get()->lowTemp, 
+              config_get()->highTemp, 
+              config_get()->lowHum, 
+              config_get()->highHum
+            );
+            lastLowTemp = config_get()->lowTemp;
+            lastHighTemp = config_get()->highTemp;
+            lastLowHum = config_get()->lowHum;
+            lastHighHum = config_get()->highHum;
           }
           #endif
           
           // 6. Задержка отложенного включения (TYPE 1 и 3)
           #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-          static int lastDelaySeconds = -1;  // -1 чтобы при первом цикле гарантированно опубликовать
-          if (config.delaySeconds != lastDelaySeconds) {
-            mqttManager.publishDelaySec(config.delaySeconds);
-            lastDelaySeconds = config.delaySeconds;
+          static int lastDelaySeconds = -1;
+          // >>> ИЗМЕНЕНИЕ: config.delaySeconds → config_get()->delaySeconds
+          if (config_get()->delaySeconds != lastDelaySeconds) {
+            mqttManager.publishDelaySec(config_get()->delaySeconds);
+            lastDelaySeconds = config_get()->delaySeconds;
           }
           #endif
           
           // 7. Аварийное отключение (TYPE 1 и 3)
           #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
           static uint32_t lastMaxOnTime = 0;
-          if (config.maxOnTime != lastMaxOnTime) {
-            mqttManager.publishMaxOnTime(config.maxOnTime);
-            lastMaxOnTime = config.maxOnTime;
+          // >>> ИЗМЕНЕНИЕ: config.maxOnTime → config_get()->maxOnTime
+          if (config_get()->maxOnTime != lastMaxOnTime) {
+            mqttManager.publishMaxOnTime(config_get()->maxOnTime);
+            lastMaxOnTime = config_get()->maxOnTime;
           }
           #endif
           
@@ -768,17 +787,22 @@ void loop() {
             if (!initialConfigPublished) {
               #if DEVICE_TYPE == 1
               mqttManager.publishState(fan_getState());
-              mqttManager.publishSpeed(config.speedPercent);
-              mqttManager.publishSensorControlMode(config.sensorControlMode);
-              mqttManager.publishAdaptiveMode(config.adaptiveMode);
-              mqttManager.publishThresholds(config.lowTemp, config.highTemp, config.lowHum, config.highHum);
+              mqttManager.publishSpeed(config_get()->speedPercent);
+              mqttManager.publishSensorControlMode(config_get()->sensorControlMode);
+              mqttManager.publishAdaptiveMode(config_get()->adaptiveMode);
+              mqttManager.publishThresholds(
+                config_get()->lowTemp, 
+                config_get()->highTemp, 
+                config_get()->lowHum, 
+                config_get()->highHum
+              );
               #elif DEVICE_TYPE == 3
               mqttManager.publishState(switch_getState());
               #endif
               
               #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-              mqttManager.publishDelaySec(config.delaySeconds);
-              mqttManager.publishMaxOnTime(config.maxOnTime);
+              mqttManager.publishDelaySec(config_get()->delaySeconds);
+              mqttManager.publishMaxOnTime(config_get()->maxOnTime);
               #endif
               
               #if MQTT_PUBLISH_RESET_REASON == 1

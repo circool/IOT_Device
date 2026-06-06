@@ -5,8 +5,6 @@
 #include "config.h"
 #include "sensor.h"
 
-// MQTT больше не используется в fan.cpp
-
 bool fanOn = false;
 unsigned long fanStartTime = 0;
 unsigned long delayTimer = 0;
@@ -129,7 +127,8 @@ void fan_init() {
   adaptiveActive = false;
   fanStartTime = 0;
   
-  if (config.bootState) {
+  // >>> ИЗМЕНЕНИЕ: config.bootState → config_get()->bootState
+  if (config_get()->bootState) {
     disablePWM();
     digitalWrite(SWITCH_PIN, RELAY_ON_LEVEL);
     fanOn = true;
@@ -150,7 +149,7 @@ void fan_init() {
   #if LOG_FAN == 1
     Serial.printf("[FAN] Init complete: fanOn=%s, bootState=%s, RELAY_ON_LEVEL=%s\n", 
                   fanOn ? "ON" : "OFF", 
-                  config.bootState ? "ON" : "OFF",
+                  config_get()->bootState ? "ON" : "OFF",
                   RELAY_ON_LEVEL == LOW ? "LOW" : "HIGH");
   #endif
 }
@@ -165,19 +164,20 @@ void fan_set(bool on, bool manual) {
   
   if (fanOn == on) return;
   
+  // >>> ИЗМЕНЕНИЯ: чтение и запись через геттеры/сеттеры
   if (manual) {
-    if (config.sensorControlMode) {
-      config.sensorControlMode = false;
-      // >>> ИЗМЕНЕНО: mqttManager.publishSensorControlMode(false) УДАЛЁН
+    if (config_get()->sensorControlMode) {
+      config_setSensorControlMode(false);
+
       #if LOG_FAN == 1
         Serial.println("[FAN] Manual control - sensor control mode disabled");
       #endif
     }
     
-    if (config.adaptiveMode) {
-      config.adaptiveMode = false;
+    if (config_get()->adaptiveMode) {
+      config_setAdaptiveMode(false);
       adaptiveActive = false;
-      // >>> ИЗМЕНЕНО: mqttManager.publishAdaptiveMode(false) УДАЛЁН
+
       #if LOG_FAN == 1
         Serial.println("[FAN] Manual control - adaptive mode disabled");
       #endif
@@ -199,7 +199,10 @@ void fan_set(bool on, bool manual) {
   if (fanOn) {
     fanStartTime = millis();
     
-    if (config.speedPercent < 100 && config.speedPercent > 0) {
+    // >>> ИЗМЕНЕНИЕ: config.speedPercent → config_get()->speedPercent
+    uint16_t currentSpeed = config_get()->speedPercent;
+    
+    if (currentSpeed < 100 && currentSpeed > 0) {
       fan_applySpeed(100);
       startingPulseActive = true;
       startingPulseStart = millis();
@@ -208,7 +211,7 @@ void fan_set(bool on, bool manual) {
         Serial.printf("[FAN] Starting pulse started, duration=%d ms\n", PWM_STARTING);
       #endif
     
-    } else if (config.speedPercent >= 100) {
+    } else if (currentSpeed >= 100) {
       disablePWM();
       digitalWrite(SWITCH_PIN, RELAY_ON_LEVEL);
       
@@ -216,7 +219,7 @@ void fan_set(bool on, bool manual) {
         Serial.printf("[FAN] FULL ON: pin=%d, level=RELAY_ON_LEVEL (forced)\n", SWITCH_PIN);
       #endif
       
-      if (config.adaptiveMode && sensor_isOk()) {
+      if (config_get()->adaptiveMode && sensor_isOk()) {
         adaptiveActive = true;
         baseTemp = currentTemp;
         baseHum = currentHum;
@@ -246,18 +249,20 @@ void fan_set(bool on, bool manual) {
     fanStartTime = 0;
     adaptiveActive = false;
     
+    // >>> ИСПРАВЛЕНИЕ ОШИБКИ: правильный синтаксис #if и объявление savedConfig
     Config savedConfig = config_getSaved();
-    uint16_t oldSpeed = config.speedPercent;
-    config.speedPercent = savedConfig.speedPercent;
+    #if LOG_FAN == 1
+    uint16_t oldSpeed = config_get()->speedPercent;
+    #endif
     
-    // >>> ИЗМЕНЕНО: ВЕСЬ БЛОК mqttManager.publishSpeed УДАЛЁН
+    config_setSpeedPercent(savedConfig.speedPercent);
     
     #if LOG_FAN == 1
-      Serial.printf("[FAN] Fan turned OFF, restored speed to %d%% (was %d%%)\n", config.speedPercent, oldSpeed);
+      Serial.printf("[FAN] Fan turned OFF, restored speed to %d%% (was %d%%)\n", 
+                    config_get()->speedPercent, oldSpeed);
     #endif
   }
   
-  // >>> ИЗМЕНЕНО: mqttManager.publishState(fanOn) УДАЛЁН
 }
 
 bool fan_getState() {
@@ -265,13 +270,14 @@ bool fan_getState() {
 }
 
 void fan_setOverrideMode(bool sensorControl) {
-  config.sensorControlMode = sensorControl;
+  // >>> ИЗМЕНЕНИЕ: использование сеттера
+  config_setSensorControlMode(sensorControl);
   if (!sensorControl) {
     delayActive = false;
     adaptiveActive = false;
   } else {
     #if DEVICE_TYPE == 1
-    if (fanOn && config.adaptiveMode && sensor_isOk()) {
+    if (fanOn && config_get()->adaptiveMode && sensor_isOk()) {
       adaptiveActive = true;
       baseTemp = currentTemp;
       baseHum = currentHum;
@@ -286,15 +292,16 @@ void fan_setOverrideMode(bool sensorControl) {
 }
 
 void fan_checkMaxOnTime() {
-  if (fanOn && fanStartTime != 0 && config.maxOnTime > 0 &&
-      (millis() - fanStartTime) > config.maxOnTime * 1000UL) {
+  // >>> ИЗМЕНЕНИЕ: config.maxOnTime → config_get()->maxOnTime
+  if (fanOn && fanStartTime != 0 && config_get()->maxOnTime > 0 &&
+      (millis() - fanStartTime) > config_get()->maxOnTime * 1000UL) {
     
     #if LOG_FAN == 1
       Serial.println("[FAN] Max on time exceeded, forcing OFF");
     #endif
     
     #if DEVICE_TYPE == 1
-      config.sensorControlMode = false;
+      config_setSensorControlMode(false);
       #if LOG_FAN == 1
         Serial.println("[FAN] Switched to MANUAL mode after safety shutdown");
       #endif
@@ -305,13 +312,15 @@ void fan_checkMaxOnTime() {
 }
 
 bool fan_delayTimer(bool start) {
+  // >>> ИЗМЕНЕНИЕ: config.delaySeconds → config_get()->delaySeconds
   if (start) {
-    if (config.delaySeconds > 0) {
+    uint16_t delaySec = config_get()->delaySeconds;
+    if (delaySec > 0) {
       delayActive = true;
-      delayTimer = millis() + config.delaySeconds * 1000UL;
+      delayTimer = millis() + delaySec * 1000UL;
       
       #if LOG_FAN == 1
-        Serial.printf("[FAN] Delay ON timer started: %d seconds\n", config.delaySeconds);
+        Serial.printf("[FAN] Delay ON timer started: %d seconds\n", delaySec);
       #endif
       return false;
     }
@@ -321,7 +330,7 @@ bool fan_delayTimer(bool start) {
     if (delayActive && millis() >= delayTimer) {
       delayActive = false;
       #if DEVICE_TYPE == 1
-        config.sensorControlMode = false;
+        config_setSensorControlMode(false);
         #if LOG_FAN == 1
           Serial.println("[FAN] Delay ON timer finished - switching to MANUAL mode (temporary)");
         #endif
@@ -367,14 +376,15 @@ void fan_adaptiveUpdate() {
       #endif
 
       if (fanOn && !startingPulseActive) {
-        config.speedPercent = 100;
+        config_setSpeedPercent(100);
         fan_applySpeed(100);
       }
     }
     return;
   }
   
-  if (!fanOn || startingPulseActive || !config.adaptiveMode || !config.sensorControlMode) {
+  // >>> ИЗМЕНЕНИЕ: чтение через геттеры
+  if (!fanOn || startingPulseActive || !config_get()->adaptiveMode || !config_get()->sensorControlMode) {
     if (adaptiveActive) adaptiveActive = false;
     return;
   }
@@ -391,7 +401,8 @@ void fan_adaptiveUpdate() {
     return;
   }
   
-  if (millis() - lastAdaptiveCheck < config.sensorInterval * 1000UL) {
+  // >>> ИЗМЕНЕНИЕ: config.sensorInterval → config_get()->sensorInterval
+  if (millis() - lastAdaptiveCheck < config_get()->sensorInterval * 1000UL) {
     return;
   }
   lastAdaptiveCheck = millis();
@@ -399,7 +410,7 @@ void fan_adaptiveUpdate() {
   float deltaTemp = currentTemp - baseTemp;
   float deltaHum = currentHum - baseHum;
   
-  int newSpeed = config.speedPercent;
+  int newSpeed = config_get()->speedPercent;
   bool needChange = false;
   
   int step = calculateAdaptiveStep(deltaTemp, deltaHum, humRate);
@@ -407,7 +418,7 @@ void fan_adaptiveUpdate() {
   if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
     newSpeed += step;
     if (newSpeed > 100) newSpeed = 100;
-    if (newSpeed != config.speedPercent) {
+    if (newSpeed != config_get()->speedPercent) {
       needChange = true;
       
       #if LOG_FAN == 1
@@ -418,10 +429,8 @@ void fan_adaptiveUpdate() {
   }
   
   if (needChange) {
-    config.speedPercent = newSpeed;
-    fan_applySpeed(config.speedPercent);
-    // >>> ИЗМЕНЕНО: mqttManager.publishSpeed УДАЛЁН
-    
+    config_setSpeedPercent(newSpeed);
+    fan_applySpeed(config_get()->speedPercent);
     baseTemp = currentTemp;
     baseHum = currentHum;
   }
@@ -432,7 +441,7 @@ void fan_update() {
   // Обработка завершения стартового импульса
   if (startingPulseActive) {
     if (millis() - startingPulseStart >= PWM_STARTING) {
-      if (config.speedPercent <= 0) {
+      if (config_get()->speedPercent <= 0) {
         fanOn = false;
         fan_applySpeed(0);
         startingPulseActive = false;
@@ -442,11 +451,11 @@ void fan_update() {
           Serial.println("[FAN] Starting pulse finished, but speed is 0% - turning OFF");
         #endif
       } else {
-        fan_applySpeed(config.speedPercent);
+        fan_applySpeed(config_get()->speedPercent);
         startingPulseActive = false;
         
         #if DEVICE_TYPE == 1
-        if (config.adaptiveMode && sensor_isOk() && config.sensorControlMode) {
+        if (config_get()->adaptiveMode && sensor_isOk() && config_get()->sensorControlMode) {
           adaptiveActive = true;
           baseTemp = currentTemp;
           baseHum = currentHum;
@@ -454,20 +463,21 @@ void fan_update() {
           
           #if LOG_FAN == 1
             Serial.printf("[FAN] Adaptive mode activated after starting pulse: base T=%.2f, H=%.2f, speed=%d%%\n", 
-                          baseTemp, baseHum, config.speedPercent);
+                          baseTemp, baseHum, config_get()->speedPercent);
           #endif
         }
         #endif
       }
       
       #if LOG_FAN == 1
-        Serial.printf("[FAN] Starting pulse finished, switched to speed=%d%%\n", config.speedPercent);
+        Serial.printf("[FAN] Starting pulse finished, switched to speed=%d%%\n", config_get()->speedPercent);
       #endif
     }
   }
 
   #if DEVICE_TYPE == 1
-  if (!config.sensorControlMode) {
+  // >>> ИЗМЕНЕНИЕ: чтение через геттер
+  if (!config_get()->sensorControlMode) {
     fan_checkMaxOnTime();
     if (adaptiveActive) adaptiveActive = false;
     return;
@@ -479,7 +489,7 @@ void fan_update() {
   #endif
   
   #if DEVICE_TYPE == 1
-  if (config.sensorControlMode && fanOn) {
+  if (config_get()->sensorControlMode && fanOn) {
     fan_adaptiveUpdate();
   }
   #endif
@@ -489,10 +499,11 @@ void fan_update() {
   
   #if DEVICE_TYPE == 1
   if (sensor_isOk()) {
-    bool tempHigh = (currentTemp >= config.highTemp);
-    bool humHigh = (currentHum >= config.highHum);
-    bool tempLow = (currentTemp <= config.lowTemp);
-    bool humLow = (currentHum <= config.lowHum);
+    // >>> ИЗМЕНЕНИЕ: чтение порогов через геттеры
+    bool tempHigh = (currentTemp >= config_get()->highTemp);
+    bool humHigh = (currentHum >= config_get()->highHum);
+    bool tempLow = (currentTemp <= config_get()->lowTemp);
+    bool humLow = (currentHum <= config_get()->lowHum);
     
     if (tempHigh || humHigh) {
       sensorShouldBeOn = true;
@@ -522,21 +533,22 @@ void fan_update() {
     if (fanOn) {
       fan_set(false, false);
       #if DEVICE_TYPE == 1
-      if (config.delaySeconds > 0 && !delayActive && config.sensorControlMode) {
+      // >>> ИЗМЕНЕНИЕ: чтение через геттер
+      if (config_get()->delaySeconds > 0 && !delayActive && config_get()->sensorControlMode) {
         fan_delayTimer(true);
       }
       #elif DEVICE_TYPE == 3
-      if (config.delaySeconds > 0 && !delayActive) {
+      if (config_get()->delaySeconds > 0 && !delayActive) {
         fan_delayTimer(true);
       }
       #endif
     } else {
       #if DEVICE_TYPE == 1
-      if (config.delaySeconds > 0 && !delayActive && !sensorShouldBeOn && config.sensorControlMode) {
+      if (config_get()->delaySeconds > 0 && !delayActive && !sensorShouldBeOn && config_get()->sensorControlMode) {
         fan_delayTimer(true);
       }
       #elif DEVICE_TYPE == 3
-      if (config.delaySeconds > 0 && !delayActive && !sensorShouldBeOn) {
+      if (config_get()->delaySeconds > 0 && !delayActive && !sensorShouldBeOn) {
         fan_delayTimer(true);
       }
       #endif

@@ -27,20 +27,16 @@
 #endif
 
 #if OTA_ENABLED == 1
-  #if defined(ESP32)
-    #include <ElegantOTA.h>
-  #elif defined(ESP8266)
-    #include <ElegantOTA.h>
-  #endif
+  #include <ElegantOTA.h>
 
-  static bool otaAvailable = false;
-  static bool otaInitialized = false;
+    static bool otaAvailable = false;
 
-  void web_setOtaAvailable(bool available) {
-      otaAvailable = available;
-  }
 
-  bool web_isOtaAvailable() {
+    void web_setOtaAvailable(bool available) {
+        otaAvailable = available;
+    }
+
+    bool web_isOtaAvailable() {
       return otaAvailable;
   }
 #endif
@@ -53,10 +49,10 @@ String web_buildStatusHtml() {
     html += F("<div class='flex-container'>");
     
     #if DEVICE_TYPE == 1
-    String tempColor = (currentTemp >= config.highTemp) ? "#f44336" : 
-                       ((currentTemp <= config.lowTemp) ? "#4CAF50" : "#2196F3");
-    String humColor = (currentHum >= config.highHum) ? "#f44336" : 
-                      ((currentHum <= config.lowHum) ? "#4CAF50" : "#2196F3");
+    String tempColor = (currentTemp >= config_get()->highTemp) ? "#f44336" : 
+                       ((currentTemp <= config_get()->lowTemp) ? "#4CAF50" : "#2196F3");
+    String humColor = (currentHum >= config_get()->highHum) ? "#f44336" : 
+                      ((currentHum <= config_get()->lowHum) ? "#4CAF50" : "#2196F3");
     #else
     String tempColor = "#2196F3";
     String humColor = "#2196F3";
@@ -79,9 +75,9 @@ String web_buildStatusHtml() {
     html += F("<div class='sensor-label'>Температура");
     #if DEVICE_TYPE == 1
     html += F(" (выкл: ");
-    html += String(config.lowTemp, 1);
+    html += String(config_get()->lowTemp, 1);
     html += F(" вкл: ");
-    html += String(config.highTemp, 1);
+    html += String(config_get()->highTemp, 1);
     html += F(")");
     #endif
     html += F("</div>");
@@ -104,9 +100,9 @@ String web_buildStatusHtml() {
     html += F("<div class='sensor-label'>Влажность");
     #if DEVICE_TYPE == 1
     html += F(" (выкл: ");
-    html += String(config.lowHum, 1);
+    html += String(config_get()->lowHum, 1);
     html += F(" вкл: ");
-    html += String(config.highHum, 1);
+    html += String(config_get()->highHum, 1);
     html += F(")");
     #endif
     html += F("</div>");
@@ -155,7 +151,7 @@ String web_buildStatusHtml() {
     
     #if DEVICE_TYPE == 1
     if (state) {
-        int currentSpeed = config.speedPercent;
+        int currentSpeed = config_get()->speedPercent;
         html += F("<div class='status-card' style='background:#2196F320; border:2px solid #2196F3;'>");
         html += F("<div style='font-size:1.2em;font-weight:bold;'>Скорость: ");
         html += String(currentSpeed);
@@ -163,16 +159,16 @@ String web_buildStatusHtml() {
         html += F("<div class='duty-bar'><div class='duty-fill' style='width:");
         html += String(currentSpeed);
         html += F("%;'></div></div>");
-        if (config.speedPercent < 100) {
+        if (config_get()->speedPercent < 100) {
             html += F("<div style='font-size:0.9em;color:#555;'>Тихий режим активен");
-            if (config.adaptiveMode) html += F(" + адаптация");
+            if (config_get()->adaptiveMode) html += F(" + адаптация");
             html += F("</div>");
         }
         html += F("</div>");
     }
     
-    String modeText = config.sensorControlMode ? "УПРАВЛЕНИЕ СЕНСОРОМ" : "РУЧНОЙ";
-    String modeColor = config.sensorControlMode ? "#4CAF50" : "#f44336";
+    String modeText = config_get()->sensorControlMode ? "УПРАВЛЕНИЕ СЕНСОРОМ" : "РУЧНОЙ";
+    String modeColor = config_get()->sensorControlMode ? "#4CAF50" : "#f44336";
     
     html += F("<div class='status-card' style='background:");
     html += modeColor;
@@ -192,7 +188,7 @@ String web_buildStatusHtml() {
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     html += F("Опрос датчика ");
-    html += String(config.sensorInterval);
+    html += String(config_get()->sensorInterval);
     html += F(" сек<br>");
     #endif
     
@@ -211,7 +207,7 @@ String web_buildStatusHtml() {
     html += F("</div>");
     
     #if DEVICE_TYPE == 1
-    if (!config.sensorControlMode && sensorOk) {
+    if (!config_get()->sensorControlMode && sensorOk) {
         html += F("<div class='button-group' style='margin-top:10px;'>");
         html += F("<a href='/fan/auto'><button>Режим управления сенсором</button></a>");
         html += F("</div>");
@@ -225,7 +221,7 @@ String web_buildStatusHtml() {
 
 #if DEVICE_TYPE == 1
 void handleToggle() {
-    config.sensorControlMode = false;
+    config_setSensorControlMode(false);
     fan_set(!fan_getState());
 }
 
@@ -299,70 +295,88 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
 }
 
 void web_saveConfig() {
-    if (server.hasArg("wifiSsid"))
-        server.arg("wifiSsid").toCharArray(config.wifiSsid, sizeof(config.wifiSsid));
+    if (server.hasArg("wifiSsid")) {
+        config_setWifiSsid(server.arg("wifiSsid").c_str());
+    }
+
     if (server.hasArg("wifiPassword")) {
         String pwd = server.arg("wifiPassword");
-        if (pwd.length() > 0) pwd.toCharArray(config.wifiPassword, sizeof(config.wifiPassword));
+        if (pwd.length() > 0) {
+            config_setWifiPassword(pwd.c_str());
+        }
+        // Если пусто — пароль не меняем (сеттер сам обработает)
     }
 
     #if MQTT_ENABLED == 1
-    if (server.hasArg("mqttBroker"))
-        server.arg("mqttBroker").toCharArray(config.mqttBroker, sizeof(config.mqttBroker));
-    if (server.hasArg("mqttPort"))
-        config.mqttPort = server.arg("mqttPort").toInt();
-    if (server.hasArg("mqttUser"))
-        server.arg("mqttUser").toCharArray(config.mqttUser, sizeof(config.mqttUser));
+    if (server.hasArg("mqttBroker")) {
+        config_setMqttBroker(server.arg("mqttBroker").c_str());
+    }
+    if (server.hasArg("mqttPort")) {
+        config_setMqttPort(server.arg("mqttPort").toInt());
+    }
+    if (server.hasArg("mqttUser")) {
+        config_setMqttUser(server.arg("mqttUser").c_str());
+    }
     if (server.hasArg("mqttPassword")) {
         String pwd = server.arg("mqttPassword");
-        if (pwd.length() > 0) pwd.toCharArray(config.mqttPassword, sizeof(config.mqttPassword));
+        if (pwd.length() > 0) {
+            config_setMqttPassword(pwd.c_str());
+        }
     }
     if (server.hasArg("mqttClientId")) {
         String cid = server.arg("mqttClientId");
-        if (cid.length() > 0 && cid.length() < sizeof(config.mqttClientId)) {
-            cid.toCharArray(config.mqttClientId, sizeof(config.mqttClientId));
-        } else if (cid.length() == 0) {
-            config.mqttClientId[0] = '\0';
+        if (cid.length() > 0 && cid.length() < sizeof(config_get()->mqttClientId)) {
+            config_setMqttClientId(cid.c_str());
         }
     }
     #endif
 
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    if (server.hasArg("sensorInterval"))
-        config.sensorInterval = server.arg("sensorInterval").toInt();
+    if (server.hasArg("sensorInterval")) {
+        config_setSensorInterval(server.arg("sensorInterval").toInt());
+    }
     #endif
     
     #if DEVICE_TYPE == 1
-    if (server.hasArg("lowTemp"))
-        config.lowTemp = server.arg("lowTemp").toFloat();
-    if (server.hasArg("highTemp"))
-        config.highTemp = server.arg("highTemp").toFloat();
-    if (server.hasArg("lowHum"))
-        config.lowHum = server.arg("lowHum").toFloat();
-    if (server.hasArg("highHum"))
-        config.highHum = server.arg("highHum").toFloat();
-    if (server.hasArg("maxOnTime"))
-        config.maxOnTime = server.arg("maxOnTime").toInt();
-    if (server.hasArg("delaySeconds"))
-        config.delaySeconds = server.arg("delaySeconds").toInt();
-    if (server.hasArg("speedPercent"))
-        config.speedPercent = server.arg("speedPercent").toInt();
+    if (server.hasArg("lowTemp")) {
+        config_setLowTemp(server.arg("lowTemp").toFloat());
+    }
+    if (server.hasArg("highTemp")) {
+        config_setHighTemp(server.arg("highTemp").toFloat());
+    }
+    if (server.hasArg("lowHum")) {
+        config_setLowHum(server.arg("lowHum").toFloat());
+    }
+    if (server.hasArg("highHum")) {
+        config_setHighHum(server.arg("highHum").toFloat());
+    }
+    if (server.hasArg("maxOnTime")) {
+        config_setMaxOnTime(server.arg("maxOnTime").toInt());
+    }
+    if (server.hasArg("delaySeconds")) {
+        config_setDelaySeconds(server.arg("delaySeconds").toInt());
+    }
+    if (server.hasArg("speedPercent")) {
+        config_setSpeedPercent(server.arg("speedPercent").toInt());
+    }
     
-    config.adaptiveMode = server.hasArg("adaptiveMode");
-    config.bootState = server.hasArg("bootState");
-    config.sensorControlMode = server.hasArg("sensorControlMode");
+    config_setAdaptiveMode(server.hasArg("adaptiveMode"));
+    config_setBootState(server.hasArg("bootState"));
+    config_setSensorControlMode(server.hasArg("sensorControlMode"));
     #endif
     
     #if DEVICE_TYPE == 3
-    if (server.hasArg("maxOnTime"))
-        config.maxOnTime = server.arg("maxOnTime").toInt();
-    if (server.hasArg("delaySeconds"))
-        config.delaySeconds = server.arg("delaySeconds").toInt();
-    config.bootState = server.hasArg("bootState");
+    if (server.hasArg("maxOnTime")) {
+        config_setMaxOnTime(server.arg("maxOnTime").toInt());
+    }
+    if (server.hasArg("delaySeconds")) {
+        config_setDelaySeconds(server.arg("delaySeconds").toInt());
+    }
+    config_setBootState(server.hasArg("bootState"));
     #endif
     
     if (!config_validate()) {
-        web_sendConfigPage(String(configLastError), "");
+        web_sendConfigPage(String(config_getLastError()), "");
         return;
     }
     
@@ -400,7 +414,7 @@ void web_saveConfig() {
 void web_init() {
     int refreshInterval = 5;
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    refreshInterval = config.sensorInterval;
+    refreshInterval = config_get()->sensorInterval;
     #endif
     
     #if WEB_STATUS_ENABLED == 1

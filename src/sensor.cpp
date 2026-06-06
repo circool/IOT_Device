@@ -73,7 +73,7 @@ void sensor_read() {
     return;
   }
   
-  if (millis() - lastSensorRead < config.sensorInterval * 1000UL) {
+  if (millis() - lastSensorRead < config_get()->sensorInterval * 1000UL) {
     return;
   }
   lastSensorRead = millis();

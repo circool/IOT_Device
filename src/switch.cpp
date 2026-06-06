@@ -3,10 +3,6 @@
 #include "config.h"
 #include "switch.h"
 
-#if MQTT_ENABLED == 1
-#include "mqtt.h"
-#endif
-
 // Глобальные переменные
 bool switchOn = false;
 unsigned long switchStartTime = 0;
@@ -20,8 +16,8 @@ void switch_init() {
     delayTimer = 0;
     switchStartTime = 0;
     
-    // Начальное состояние по bootState
-    if (config.bootState) {
+    // >>> ИЗМЕНЕНИЕ: config.bootState → config_get()->bootState
+    if (config_get()->bootState) {
         digitalWrite(SWITCH_PIN, RELAY_ON_LEVEL);
         switchOn = true;
         
@@ -39,17 +35,11 @@ void switch_init() {
         #endif
     }
     
-    // Опубликовать начальное состояние в MQTT
-    #if MQTT_ENABLED == 1
-        mqttManager.publishState(switchOn);
-        mqttManager.publishDelaySec(config.delaySeconds);
-        mqttManager.publishMaxOnTime(config.maxOnTime);
-    #endif
-    
+       
     #if LOG_SWITCH == 1
         Serial.printf("[SWITCH] Init complete: switchOn=%s, bootState=%s\n", 
                       switchOn ? "ON" : "OFF", 
-                      config.bootState ? "ON" : "OFF");
+                      config_get()->bootState ? "ON" : "OFF");
     #endif
 }
 
@@ -91,9 +81,6 @@ void switch_set(bool on, bool manual) {
         #endif
     }
     
-    #if MQTT_ENABLED == 1
-        mqttManager.publishState(switchOn);
-    #endif
 }
 
 bool switch_getState() {
@@ -102,10 +89,11 @@ bool switch_getState() {
 
 void switch_checkMaxOnTime() {
     if (!switchOn) return;
-    if (config.maxOnTime == 0) return;  // Отключено
+    // >>> ИЗМЕНЕНИЕ: config.maxOnTime → config_get()->maxOnTime
+    if (config_get()->maxOnTime == 0) return;
     if (switchStartTime == 0) return;
     
-    if ((millis() - switchStartTime) > config.maxOnTime * 1000UL) {
+    if ((millis() - switchStartTime) > config_get()->maxOnTime * 1000UL) {
         #if LOG_SWITCH == 1
             Serial.println("[SWITCH] Max on time exceeded, forcing OFF");
         #endif
@@ -118,12 +106,13 @@ void switch_checkMaxOnTime() {
 bool switch_delayTimer(bool start) {
     if (start) {
         // Запуск таймера отложенного включения
-        if (config.delaySeconds > 0 && !delayActive && !switchOn) {
+        // >>> ИЗМЕНЕНИЕ: config.delaySeconds → config_get()->delaySeconds
+        if (config_get()->delaySeconds > 0 && !delayActive && !switchOn) {
             delayActive = true;
-            delayTimer = millis() + config.delaySeconds * 1000UL;
+            delayTimer = millis() + config_get()->delaySeconds * 1000UL;
             
             #if LOG_SWITCH == 1
-                Serial.printf("[SWITCH] Delay timer started: %d seconds\n", config.delaySeconds);
+                Serial.printf("[SWITCH] Delay timer started: %d seconds\n", config_get()->delaySeconds);
             #endif
         }
         return false;
@@ -155,7 +144,8 @@ void switch_update() {
     }
     
     // 4. Запуск таймера при необходимости
-    if (!switchOn && !delayActive && config.delaySeconds > 0) {
+    // >>> ИЗМЕНЕНИЕ: config.delaySeconds → config_get()->delaySeconds
+    if (!switchOn && !delayActive && config_get()->delaySeconds > 0) {
         switch_delayTimer(true);
     }
 }
