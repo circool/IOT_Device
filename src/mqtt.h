@@ -75,6 +75,10 @@ public:
     void publishRSSI(int rssi);                 // Уровень WiFi-сигнала
     #endif
     
+    #if MQTT_PUBLISH_VERSION == 1
+    void publishVersion(const char* version);
+    #endif
+    
     #if MQTT_PUBLISH_RESET_REASON == 1
     void publishResetReason(const char* reason);  // Причина последней перезагрузки
     #endif

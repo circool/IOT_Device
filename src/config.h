@@ -187,6 +187,10 @@
     #define MQTT_PUBLISH_RSSI 1
   #endif
   
+  #ifndef MQTT_PUBLISH_VERSION 
+    #define MQTT_PUBLISH_VERSION 1
+  #endif
+
   #if WDT_ENABLED == 1
     #ifndef MQTT_PUBLISH_RESET_REASON 
       #define MQTT_PUBLISH_RESET_REASON 1

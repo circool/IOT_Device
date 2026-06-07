@@ -816,6 +816,10 @@ void loop() {
               mqttManager.publishResetReason(lastResetReason);
               #endif
               
+              #if MQTT_PUBLISH_VERSION == 1
+              mqttManager.publishVersion(VERSION);
+              #endif
+
               initialConfigPublished = true;
               #if LOG_MQTT == 1
               Serial.println("[MQTT] Initial config published");

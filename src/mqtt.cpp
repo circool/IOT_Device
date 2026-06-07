@@ -66,7 +66,11 @@ void MQTTManager::setupTopics() {
     const char* prefix = _clientId;
     
     snprintf(_topics.online, sizeof(_topics.online), "%s/status", prefix);
+    
+    #if MQTT_PUBLISH_VERSION == 1
     snprintf(_topics.version, sizeof(_topics.version), "%s/version", prefix);
+    #endif
+
     snprintf(_topics.reset, sizeof(_topics.reset), "%s/c/system/reset", prefix);
     
     #if DEVICE_TYPE == 1
@@ -99,6 +103,7 @@ void MQTTManager::setupTopics() {
     #if MQTT_PUBLISH_RSSI == 1
     snprintf(_topics.rssi, sizeof(_topics.rssi), "%s/rssi", prefix);
     #endif
+
 }
 
 void MQTTManager::process() {
@@ -416,6 +421,16 @@ void MQTTManager::publishRSSI(int rssi) {
     _mqttClient.publish(_topics.rssi, buffer);
     #if LOG_MQTT == 1
     Serial.printf("[MQTT] WiFi RSSI published: %d dBm -> %s\n", rssi, _topics.rssi);
+    #endif
+}
+#endif
+
+#if MQTT_PUBLISH_VERSION == 1
+void MQTTManager::publishVersion(const char* version) {
+    if (!isConnected()) return;
+    _mqttClient.publish(_topics.version, version, true);  // retain = true
+    #if LOG_MQTT == 1
+        Serial.printf("[MQTT] Version published: %s -> %s\n", version, _topics.version);
     #endif
 }
 #endif
