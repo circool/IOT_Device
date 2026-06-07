@@ -529,8 +529,13 @@ struct Config {
   extern bool apMode;
 #endif
 
-const Config* config_get();              // ТОЛЬКО ДЛЯ ЧТЕНИЯ! Не изменять через указатель.
-bool config_isValid();
+/**
+ * @brief Получить указатель на текущую конфигурацию (ТОЛЬКО ДЛЯ ЧТЕНИЯ)
+ * @return Указатель на константную структуру Config
+ */
+const Config* config_get();             
+
+
 const char* config_getLastError();
 // --- Общие сеттеры (с валидацией) ---
 bool config_setWifiSsid(const char* ssid);
@@ -565,19 +570,57 @@ bool config_setSpeedPercent(uint16_t percent);
 bool config_setAdaptiveMode(bool enabled);
 #endif
 
+/**
+ * @brief Проверить валидность текущей конфигурации
+ * @return true — конфигурация загружена из EEPROM и прошла CRC
+ */
+bool config_isValid();
 
-bool config_isValid();                   
+/**
+ * @brief Получить текст последней ошибки валидации
+ */
 const char* config_getLastError();   
 
+/**
+ * @brief Инициализация EEPROM и загрузка конфигурации
+ * Вызывается один раз в setup()
+ */
 void config_init();
+
+
+
 void config_read();
+
+/**
+ * @brief Запись текущей конфигурации в EEPROM
+ * @return true — запись успешна, false — ошибка
+ */
 bool config_write();  
+
 void config_setDefaults();
+
+/**
+ * @brief Сброс конфигурации к значениям по умолчанию (очистка EEPROM)
+ * @return true — успешно, false — ошибка
+ */
 bool config_clear();
+
+/**
+ * @brief Проверка всех параметров на валидность
+ * @return true — конфигурация корректна
+ */
 bool config_validate();  
 
+/**
+ * @brief Получить конфигурацию, сохранённую в EEPROM (без загрузки в рабочую)
+ * Используется веб-интерфейсом для отображения текущих сохранённых значений
+ */
 Config config_getSaved();
 
+/**
+ * @brief Рассчитать CRC16 для блока данных
+ * Используется для проверки целостности конфигурации в EEPROM
+ */
 uint16_t crc16(const uint8_t* data, size_t len);
 
 #if DEBUG_ENABLED == 1

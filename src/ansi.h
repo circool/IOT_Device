@@ -1,6 +1,12 @@
 #ifndef ANSI_H
 #define ANSI_H
 
+/**
+ * @brief ANSI-коды для цветного вывода в Serial
+ * 
+ * Используются при DEBUG_ENABLED == 1
+ * Для монохромных терминалов (PlatformIO, Arduino IDE) игнорируются
+ */
 // Цвета текста
 #define ANSI_BLACK   "\033[30m"
 #define ANSI_RED     "\033[31m"
@@ -32,10 +38,8 @@
 #define ANSI_ITALIC  "\033[3m"
 #define ANSI_UNDERLINE "\033[4m"
 
-
 // Сброс
 #define ANSI_RESET "\033[0m"
-
 
 
 #endif

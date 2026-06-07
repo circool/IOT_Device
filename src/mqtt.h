@@ -12,45 +12,74 @@
   #include <ESP8266WiFi.h>
 #endif
 
+/**
+ * @brief Менеджер MQTT-соединения
+ * 
+ * Обеспечивает:
+ * - Автоматическое переподключение к брокеру
+ * - Публикацию состояния, показаний датчиков, конфигурации
+ * - Обработку входящих команд
+ */
 class MQTTManager {
 public:
     MQTTManager();
     ~MQTTManager();
     
-    // Инициализация с явными параметрами
+    /**
+     * @brief Инициализация MQTT-клиента
+     * @param broker Адрес брокера (IP или домен)
+     * @param port Порт брокера (обычно 1883)
+     * @param clientId Уникальный идентификатор клиента
+     * @param user Имя пользователя (опционально)
+     * @param password Пароль (опционально)
+     * @return true — успешно, false — ошибка (нет брокера)
+     */
     bool begin(const char* broker, uint16_t port, const char* clientId,
                const char* user = nullptr, const char* password = nullptr);
     
+    /**
+     * @brief Периодический вызов в loop()
+     * Обрабатывает входящие сообщения и переподключение
+     */
     void process();
+    
+    /**
+     * @brief Проверить соединение с брокером
+     * @return true — подключён, false — нет
+     */
     bool isConnected();
+    
+    /**
+     * @brief Принудительно отключиться от брокера
+     */
     void disconnect();
     
-    // Публикации — все данные передаются аргументами
-    void publishOnline();
-    void publishState(bool on);
-    void publishSpeed(int percent);
-    void publishDelaySec(int seconds);
-    void publishMaxOnTime(uint32_t seconds);
-    void publishSensorControlMode(bool enabled);
+    // --- Публикации ---
+    void publishOnline();                    // Статус Online/Offline (LWT)
+    void publishState(bool on);              // Состояние вентилятора/выключателя
+    void publishSpeed(int percent);          // Текущая скорость (0-100)
+    void publishDelaySec(int seconds);       // Таймер отложенного включения
+    void publishMaxOnTime(uint32_t seconds); // Таймер аварийного отключения
+    void publishSensorControlMode(bool enabled);  // Режим AUTO/MANUAL
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    void publishSensor(float temp, float hum);
+    void publishSensor(float temp, float hum);  // Показания датчика
     #endif
     
     #if DEVICE_TYPE == 1
-    void publishAdaptiveMode(bool enabled);
+    void publishAdaptiveMode(bool enabled);     // Состояние адаптивного режима
     void publishThresholds(float lowTemp, float highTemp, float lowHum, float highHum);
     #endif
     
     #if MQTT_PUBLISH_RSSI == 1
-    void publishRSSI(int rssi);
+    void publishRSSI(int rssi);                 // Уровень WiFi-сигнала
     #endif
     
     #if MQTT_PUBLISH_RESET_REASON == 1
-    void publishResetReason(const char* reason);
+    void publishResetReason(const char* reason);  // Причина последней перезагрузки
     #endif
     
-    // Колбэки для команд
+    // --- Колбэки на входящие команды ---
     void onStateCommand(std::function<void(bool)> callback);
     void onSpeedCommand(std::function<void(int)> callback);
     void onDelaySecCommand(std::function<void(int)> callback);
@@ -70,9 +99,9 @@ public:
     #endif
     
 private:
-    void reconnect();
-    void setupTopics();
-    void subscribe();
+    void reconnect();                    // Попытка переподключения к брокеру
+    void setupTopics();                  // Формирование MQTT-топиков на основе clientId
+    void subscribe();                    // Подписка на управляющие топики
     void callback(char* topic, byte* payload, unsigned int length);
     static void staticCallback(char* topic, byte* payload, unsigned int length);
     void handleCommand(const char* topic, const String& payload);
@@ -80,6 +109,7 @@ private:
     WiFiClient _wifiClient;
     PubSubClient _mqttClient;
     
+    // Хранение топиков (pre-allocated, не String)
     struct Topics {
         char online[48];
         char version[48];
@@ -122,13 +152,13 @@ private:
     bool _initialized;
     unsigned long _lastReconnectAttempt;
     
-    // Храним параметры для reconnect
+    // Сохранённые параметры для reconnect
     char _broker[64];
     uint16_t _port;
     char _user[32];
     char _password[64];
     
-    // Колбэки
+    // Колбэки (std::function допустим на ESP32, на ESP8266 экономит Flash)
     std::function<void(bool)> _stateCallback;
     std::function<void(int)> _speedCallback;
     std::function<void(int)> _delaySecCallback;
@@ -150,4 +180,4 @@ private:
 
 extern MQTTManager mqttManager;
 
-#endif
+#endif // MQTT_H

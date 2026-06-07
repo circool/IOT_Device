@@ -10,8 +10,13 @@
 #endif
 
 /**
- * @brief Проверяет, доступно ли OTA на данном устройстве
- * @return true - OTA доступно, false - недоступно
+ * @brief Проверить, доступно ли обновление по воздуху (OTA)
+ * 
+ * OTA требует:
+ * - ESP8266: Flash >= 2MB (иначе не хватит места)
+ * - ESP32: Flash >= 2MB
+ * 
+ * @return true — OTA возможно, false — недоступно (мало Flash)
  */
 static inline bool isOtaAvailable() {
     #if DEBUG_OTA == 1

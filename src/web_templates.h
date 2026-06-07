@@ -5,6 +5,13 @@
 #include "config.h"
 #include <functional>
 
+/**
+ * @brief Константы HTML-шаблонов
+ * 
+ * Хранятся в PROGMEM (Flash) для экономии RAM
+ */
+
+
 #if OTA_ENABLED == 1
 extern bool web_isOtaAvailable();
 #endif
