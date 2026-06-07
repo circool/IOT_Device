@@ -524,7 +524,9 @@ void web_initAP() {
     }
     #endif
     #if LOG_WEB == 1
-    Serial.println("[WEB] Web server started in AP mode");
+    Serial.printf("[WEB] Web server started in AP mode: SSID %s%s%s, IP %s%s%s\n", 
+                  ANSI_BOLD , deviceId, ANSI_RESET,
+                  ANSI_BOLD ANSI_MAGENTA, AP_IP_ADDRESS, ANSI_RESET);
     #endif
     server.begin();
 }
