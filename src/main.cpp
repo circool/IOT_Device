@@ -133,14 +133,16 @@ void wdt_init() {
 }
 
 void wdt_feed() {
-#if defined(WDT_TEST)
-  return;
-#endif
-#if defined(ESP8266)
-  ESP.wdtFeed();
-#elif defined(ESP32)
-  esp_task_wdt_reset();
-#endif
+
+  #if defined(WDT_TEST)
+    return;
+  #endif
+
+  #if defined(ESP8266)
+    ESP.wdtFeed();
+  #elif defined(ESP32)
+    esp_task_wdt_reset();
+  #endif
 }
 #endif
 
@@ -625,8 +627,30 @@ void loop() {
     // ========== ДАТЧИК ==========
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
       #ifndef TEST_DEVICE_SENSOR
-        sensor_update();
+        bool sensorDataChanged = sensor_update();
+        #if DEVICE_TYPE == 1
+          if (config_get()->sensorControlMode && sensor_isOk() && sensorDataChanged) {
+            float temp = sensor_getTemperature();
+            float hum = sensor_getHumidity();
+            
+            bool shouldBeOn = (temp >= config_get()->highTemp || hum >= config_get()->highHum);
+            bool shouldBeOff = (temp <= config_get()->lowTemp && hum <= config_get()->lowHum);
+            
+            if (shouldBeOn && !fan.getState()) {
+              fan.set(true, false);
+              #if LOG_SENSOR == 1
+                Serial.printf("[SENSOR] Auto ON: T=%.1f°C H=%.1f%%\n", temp, hum);
+              #endif
+            } else if (shouldBeOff && fan.getState()) {
+              fan.set(false, false);
+              #if LOG_SENSOR == 1
+                Serial.printf("[SENSOR] Auto OFF: T=%.1f°C H=%.1f%%\n", temp, hum);
+              #endif
+            }
+          }
+        #endif
       #endif
+
     #endif
 
     // ========== ВЕНТИЛЯТОР ==========

@@ -144,6 +144,11 @@ void FanActuator::onSetPhysicalCallback(void* context, bool on) {
         self->applySpeed(0);
         self->_adaptiveActive = false;
         self->_startingPulseActive = false;
+        // ВОССТАНОВЛЕНИЕ СКОРОСТИ ИЗ КОНФИГА
+        self->_currentSpeed = config_get()->speedPercent;
+        #if LOG_FAN == 1
+            Serial.printf("[FAN] OFF - restored speed to %d%%\n", self->_currentSpeed);
+        #endif
     }
 }
 
