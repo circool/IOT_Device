@@ -61,7 +61,6 @@
 - [Компиляция из исходников](#-компиляция-из-исходников)
 - [TODO](#-todo)
 
-
 ## Поддерживаемые устройства
 
 | Тип | DEVICE_TYPE | Компоненты | Применение |
@@ -601,17 +600,15 @@ build_flags =
     -DWEB_ENABLED=1
 lib_deps = 
     knolleary/PubSubClient @ ^2.8
-    me-no-dev/AsyncTCP @ ^1.1.1
-    https://github.com/me-no-dev/ESPAsyncWebServer.git
     adafruit/Adafruit AHTX0 @ ^2.0.5
-    ayushsharma82/ElegantOTA @ ^3.1.0
+    ayushsharma82/ElegantOTA @ ^2.2.8
+    adafruit/DHT sensor library@^1.4.6
 ```
 
 ### Предупреждение относительно OTA
 
 **ESP8266 с 1MB flash (ESP-01, ESP-07) не поддерживают OTA!**
 Несмотря на то, что веб-интерфейс ElegantOTA показывает успешную загрузку, после перезагрузки устройство останется на старой прошивке. Для OTA требуется минимум **2MB flash**. Используйте модули с 4MB (NodeMCU, Wemos D1 mini, ESP-12F) или установите константу/флаг `OTA_ENABLED=0` / `-DOTA_ENABLED=0` для исключения OTA.
-
 
 ### Отладка
 
