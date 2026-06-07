@@ -23,9 +23,6 @@
   #include <WiFi.h>
 #elif defined(ESP8266)
   #include <ESP8266WiFi.h>
-  #include <DNSServer.h>
-  DNSServer dnsServer;
-  const byte DNS_PORT = 53;
 #endif
 
 #if OTA_ENABLED == 1
@@ -512,37 +509,26 @@ void web_initAP() {
       IPAddress apIP;
       apIP.fromString(AP_IP_ADDRESS);
       WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-      WiFi.softAP(deviceId);
-      dnsServer.start(DNS_PORT, "*", IPAddress(192,168,4,1));
-      
-      server.on("/", [](){ web_sendConfigPage("", ""); });
-      server.on("/save", web_saveConfig);
-      server.on("/favicon.ico", [](){ server.send(404); });
-      
+      WiFi.softAP(deviceId);     
     #elif defined(ESP32)    
-      WiFi.softAP(deviceId);
-      
-      server.on("/", [](){ web_sendConfigPage("", ""); });
-      server.on("/save", web_saveConfig);
-      server.on("/favicon.ico", [](){ server.send(404); });
+      WiFi.softAP(deviceId);      
     #endif
+    
+    server.on("/", [](){ web_sendConfigPage("", ""); });
+    server.on("/save", web_saveConfig);
+    server.on("/favicon.ico", [](){ server.send(404); });
 
     #if OTA_ENABLED == 1
     if (web_isOtaAvailable()) {
         ElegantOTA.begin(&server);
     }
     #endif
-  
+    #if LOG_WEB == 1
+    Serial.println("[WEB] Web server started in AP mode");
+    #endif
     server.begin();
 }
 
 void web_update() {
-    #ifdef ESP8266
-      server.handleClient();   
-      if (apMode) {
-        dnsServer.processNextRequest();
-      }
-    #elif defined(ESP32)
-      server.handleClient();
-    #endif
+    server.handleClient();   
 }
