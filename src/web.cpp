@@ -6,11 +6,13 @@
 #include "config.h"
 
 #if DEVICE_TYPE == 1
-  #include "fan.h"
+  #include "fan_actuator.h"
+  extern FanActuator fan;
 #endif
 
 #if DEVICE_TYPE == 3
-  #include "switch.h"
+  #include "switch_actuator.h"
+  extern SwitchActuator switchActuator;
 #endif
 
 #if MQTT_ENABLED == 1
@@ -29,15 +31,14 @@
 #if OTA_ENABLED == 1
   #include <ElegantOTA.h>
 
-    static bool otaAvailable = false;
+  static bool otaAvailable = false;
 
+  void web_setOtaAvailable(bool available) {
+      otaAvailable = available;
+  }
 
-    void web_setOtaAvailable(bool available) {
-        otaAvailable = available;
-    }
-
-    bool web_isOtaAvailable() {
-      return otaAvailable;
+  bool web_isOtaAvailable() {
+    return otaAvailable;
   }
 #endif
 
@@ -122,11 +123,11 @@ String web_buildStatusHtml() {
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     #if DEVICE_TYPE == 1
-    bool state = fan_getState();
+    bool state = fan.getState();
     const char* label = "Вентилятор";
     const char* toggleUrl = "/fan/toggle";
     #else
-    bool state = switch_getState();
+    bool state = switchActuator.getState();
     const char* label = "Выключатель";
     const char* toggleUrl = "/switch/toggle";
     #endif
@@ -225,17 +226,20 @@ String web_buildStatusHtml() {
 #if DEVICE_TYPE == 1
 void handleToggle() {
     config_setSensorControlMode(false);
-    fan_set(!fan_getState());
+    fan.set(!fan.getState(), true);
 }
 
 void handleSensorControlMode() {
-    fan_setOverrideMode(true);
+    config_setSensorControlMode(true);
+    // Принудительно выключаем адаптивный режим при переходе в AUTO
+    // (адаптация включится отдельно, если пользователь её активирует)
+    fan.setAdaptiveMode(false);
 }
 #endif
 
 #if DEVICE_TYPE == 3
 void handleToggle() {
-    switch_set(!switch_getState());
+    switchActuator.set(!switchActuator.getState(), true);
 }
 #endif
 
@@ -307,7 +311,6 @@ void web_saveConfig() {
         if (pwd.length() > 0) {
             config_setWifiPassword(pwd.c_str());
         }
-        // Если пусто — пароль не меняем (сеттер сам обработает)
     }
 
     #if MQTT_ENABLED == 1
