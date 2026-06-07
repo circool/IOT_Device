@@ -234,6 +234,11 @@
     #define LOG_SENSOR 1
   #endif
 
+  #ifndef LOG_ACTUATOR
+    #define LOG_ACTUATOR 1
+  #endif
+
+  
   #ifndef LOG_CONFIG
     #define LOG_CONFIG 1
   #endif

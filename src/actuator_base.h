@@ -59,7 +59,8 @@ public:
     // Указатели на колбэки (экономия Flash вместо virtual функций)
     void (*onSetPhysicalCallback)(void*, bool);  // Вызов при изменении физического состояния пина
     void (*onForceStopCallback)(void*);          // Вызов при принудительной остановке
-    void* callbackContext;                        // Контекст (this для производного класса)
+    void (*onManualCommandCallback)(void*);      // ВЫЗОВ ПРИ РУЧНОЙ КОМАНДЕ (manual=true)
+    void* callbackContext;                       // Контекст (this для производного класса)
 
 protected:
     void checkMaxOnTime();      // Проверка превышения максимального времени работы

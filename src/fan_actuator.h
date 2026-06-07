@@ -83,6 +83,7 @@ public:
     // Статические колбэки для ActuatorBase
     static void onSetPhysicalCallback(void* context, bool on);
     static void onForceStopCallback(void* context);
+    static void onManualCommandCallback(void* context);
     
 private:
     /**

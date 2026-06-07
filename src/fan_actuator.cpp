@@ -14,6 +14,7 @@ FanActuator::FanActuator()
     
     _base.onSetPhysicalCallback = FanActuator::onSetPhysicalCallback;
     _base.onForceStopCallback = FanActuator::onForceStopCallback;
+    _base.onManualCommandCallback = FanActuator::onManualCommandCallback;  
     _base.callbackContext = this;
 }
 
@@ -153,6 +154,22 @@ void FanActuator::onForceStopCallback(void* context) {
     config_setAdaptiveMode(false);
     self->_adaptiveMode = false;
     self->_adaptiveActive = false;
+}
+
+// НОВЫЙ КОЛБЭК
+void FanActuator::onManualCommandCallback(void* context) {
+    FanActuator* self = (FanActuator*)context;
+    if (!self) return;
+    
+    #if DEVICE_TYPE == 1
+    // Переход в ручной режим при любой ручной команде
+    if (config_get()->sensorControlMode) {
+        config_setSensorControlMode(false);
+        #if LOG_FAN == 1
+            Serial.println("[FAN] Manual command - switching to MANUAL mode");
+        #endif
+    }
+    #endif
 }
 
 // Приватные методы PWM

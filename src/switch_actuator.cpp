@@ -5,6 +5,7 @@ SwitchActuator::SwitchActuator()
     : _pin(0), _relayOnLevel(LOW) {
     _base.onSetPhysicalCallback = SwitchActuator::onSetPhysicalCallback;
     _base.onForceStopCallback = SwitchActuator::onForceStopCallback;
+    _base.onManualCommandCallback = nullptr;
     _base.callbackContext = this;
 }
 

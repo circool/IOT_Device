@@ -4,6 +4,7 @@
 ActuatorBase::ActuatorBase()
     : onSetPhysicalCallback(nullptr)
     , onForceStopCallback(nullptr)
+    , onManualCommandCallback(nullptr)  
     , callbackContext(nullptr)
     , _pin(0)
     , _relayOnLevel(LOW)
@@ -39,15 +40,22 @@ void ActuatorBase::init(uint8_t pin, uint8_t relayOnLevel, bool bootState) {
 }
 
 void ActuatorBase::set(bool on, bool manual) {
-    if (_state == on) return;
-    
-    if (manual && _delayActive) {
-        _delayActive = false;
-        #if LOG_ACTUATOR == 1
-            Serial.println("[ACTUATOR] Manual - delay cancelled");
-        #endif
+    // Обработка ручного режима выполняется всегда, даже если состояние не меняется
+    if (manual) {
+        if (onManualCommandCallback) {
+            onManualCommandCallback(callbackContext);
+        }
+        
+        if (_delayActive) {
+            _delayActive = false;
+            #if LOG_ACTUATOR == 1
+                Serial.println("[ACTUATOR] Manual - delay cancelled");
+            #endif
+        }
     }
-    
+       
+    if (_state == on) return;
+
     _state = on;
     
     if (onSetPhysicalCallback) {
@@ -76,7 +84,7 @@ void ActuatorBase::update() {
     
     bool timerExpired = delayTimer(false);
     if (timerExpired && !_state) {
-        set(true, false);
+        set(true, true);
     }
     
     if (!_state && !_delayActive && config_get()->delaySeconds > 0) {

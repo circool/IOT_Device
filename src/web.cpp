@@ -225,7 +225,9 @@ String web_buildStatusHtml() {
 
 #if DEVICE_TYPE == 1
 void handleToggle() {
-    config_setSensorControlMode(false);
+    #if LOG_WEB == 1
+        Serial.println("[WEB] Toggle button pressed - toggling fan");
+    #endif
     fan.set(!fan.getState(), true);
 }
 
@@ -233,12 +235,18 @@ void handleSensorControlMode() {
     config_setSensorControlMode(true);
     // Принудительно выключаем адаптивный режим при переходе в AUTO
     // (адаптация включится отдельно, если пользователь её активирует)
+    #if LOG_WEB == 1
+        Serial.println("[WEB] Sensor control mode button pressed - enabling AUTO mode");
+    #endif
     fan.setAdaptiveMode(false);
 }
 #endif
 
 #if DEVICE_TYPE == 3
 void handleToggle() {
+    #if LOG_WEB == 1
+        Serial.println("[WEB] Toggle button pressed - toggling fan");
+    #endif
     switchActuator.set(!switchActuator.getState(), true);
 }
 #endif
@@ -390,7 +398,10 @@ void web_saveConfig() {
         web_sendConfigPage("Ошибка записи во Flash. Пожалуйста, попробуйте ещё раз.", "");
         return;
     }
-    
+    #if LOG_WEB == 1
+        Serial.println("[WEB] Configuration saved successfully, restarting...");
+    #endif
+
     String html = R"rawliteral(
 <!DOCTYPE html>
 <html>
@@ -424,13 +435,35 @@ void web_init() {
     #endif
     
     #if WEB_STATUS_ENABLED == 1
-    server.on("/", [refreshInterval](){ web_sendStatusPage(refreshInterval); });
+    server.on("/", [refreshInterval](){ 
+        #if LOG_WEB == 1
+            Serial.println("[WEB] GET / - serving status page");
+        #endif
+        web_sendStatusPage(refreshInterval); 
+    });
     #else
-    server.on("/", [](){ server.sendHeader("Location", "/config", true); server.send(302, "text/plain", ""); });
+    server.on("/", [](){ 
+        #if LOG_WEB == 1
+            Serial.println("[WEB] GET / - redirect to config");
+        #endif
+        server.sendHeader("Location", "/config", true); 
+        server.send(302, "text/plain", ""); 
+    });
     #endif
     
-    server.on("/config", [](){ web_sendConfigPage("", ""); });
-    server.on("/save", web_saveConfig);
+    server.on("/config", [](){ 
+        #if LOG_WEB == 1
+            Serial.println("[WEB] GET /config - serving config page");
+        #endif
+        web_sendConfigPage("", ""); 
+    });
+    server.on("/save", [](){
+        #if LOG_WEB == 1
+            Serial.println("[WEB] POST /save - saving configuration");
+        #endif
+        web_saveConfig();
+    });
+
     server.on("/favicon.ico", [](){ server.send(404); });
     
     #if WEB_RESET_ENABLED == 1
