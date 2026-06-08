@@ -10,7 +10,7 @@
 .DS_Store
 .disabled/*
 hidden/*
-doc/*
+doc/*.*
 Fan/fp-info-cache
 build.log
 .openhabignore
