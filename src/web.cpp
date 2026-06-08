@@ -125,7 +125,10 @@ static String getMaxOnTimeRemaining() {
         }
         #endif
         
-        if (!isOn || startTime == 0) return "не активен";
+        if (!isOn || startTime == 0) {
+            // Показываем настроенное значение, даже если таймер не активен
+            return String(maxOnTime) + " сек (не активен)";
+        }
         
         unsigned long elapsed = millis() - startTime;
         if (elapsed >= maxOnTime * 1000UL) return "0 сек (сработает)";
@@ -136,7 +139,6 @@ static String getMaxOnTimeRemaining() {
         return "не применимо";
     #endif
 }
-
 static String getDelayTimerRemaining() {
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
         bool delayActive = false;

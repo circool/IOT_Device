@@ -167,6 +167,14 @@ void FanActuator::onManualCommandCallback(void* context) {
     FanActuator* self = (FanActuator*)context;
     if (!self) return;
     
+    // Временно отключаем таймер до перезагрузки (для TYPE 1 и TYPE 3)
+    if (config_get()->delaySeconds != 0) {
+        config_setDelaySeconds(0);
+        #if LOG_ACTUATOR == 1
+            Serial.println("[ACTUATOR] Manual command - delaySeconds temporarily disabled");
+        #endif
+    }
+
     #if DEVICE_TYPE == 1
     // Переход в ручной режим при любой ручной команде
     if (config_get()->sensorControlMode) {
@@ -176,6 +184,7 @@ void FanActuator::onManualCommandCallback(void* context) {
         #endif
     }
     #endif
+
 }
 
 // Приватные методы PWM

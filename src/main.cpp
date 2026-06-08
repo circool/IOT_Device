@@ -792,7 +792,7 @@ void loop() {
               #endif
               
               #if MQTT_PUBLISH_RESET_REASON == 1
-              mqttManager.publishResetReason(lastResetReason);
+              mqttManager.publishResetReason(getResetReason());
               #endif
               
               #if MQTT_PUBLISH_VERSION == 1
