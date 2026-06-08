@@ -7,12 +7,12 @@
 
 #if DEVICE_TYPE == 1
   #include "fan_actuator.h"
-  extern FanActuator fan;
+  // extern объявление убрано, теперь указатель передаётся через регистрацию
 #endif
 
 #if DEVICE_TYPE == 3
   #include "switch_actuator.h"
-  extern SwitchActuator switchActuator;
+  // extern объявление убрано, теперь указатель передаётся через регистрацию
 #endif
 
 #if MQTT_ENABLED == 1
@@ -39,6 +39,140 @@
   }
 #endif
 
+// ========== ГЛОБАЛЬНЫЕ УКАЗАТЕЛИ НА АКТУАТОРЫ ==========
+// >>> НАЧАЛО ИЗМЕНЕНИЙ
+static FanActuator* g_fanActuator = nullptr;
+static SwitchActuator* g_switchActuator = nullptr;
+
+void web_registerActuators(FanActuator* fanPtr, SwitchActuator* switchPtr) {
+    g_fanActuator = fanPtr;
+    g_switchActuator = switchPtr;
+}
+// <<< КОНЕЦ ИЗМЕНЕНИЙ
+
+// ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАСЧЁТА ТАЙМЕРОВ ==========
+// >>> НАЧАЛО ИЗМЕНЕНИЙ
+static String formatRemainingTime(unsigned long remainingMs) {
+    if (remainingMs <= 0) return "0 сек";
+    unsigned long remainingSec = remainingMs / 1000;
+    if (remainingSec < 60) return String(remainingSec) + " сек";
+    if (remainingSec < 3600) return String(remainingSec / 60) + " мин " + String(remainingSec % 60) + " сек";
+    return String(remainingSec / 3600) + " ч " + String((remainingSec % 3600) / 60) + " мин";
+}
+
+static String getCurrentModeText() {
+    #if DEVICE_TYPE == 1
+        if (g_fanActuator == nullptr) return "Н/Д";
+        
+        // 1. Приоритет: режим управления сенсором
+        if (config_get()->sensorControlMode) {
+            return F("<span style='color:#4CAF50;'>СЕНСОРОМ</span>");
+        }
+        
+        // 2. Таймер отложенного включения активен
+        if (g_fanActuator->isDelayActive()) {
+            unsigned long remaining = g_fanActuator->getDelayTimer() - millis();
+            if (remaining > 0) {
+                char buf[64];
+                snprintf_P(buf, sizeof(buf), PSTR("<span style='color:#FFC107;'>ПО ТАЙМЕРУ: %s</span>"), formatRemainingTime(remaining).c_str());
+                return String(buf);
+            }
+            return F("<span style='color:#FFC107;'>ПО ТАЙМЕРУ</span>");
+        }
+        
+        // 3. Ручной режим
+        return F("<span style='color:#f44336;'>РУЧНОЙ</span>");
+        
+    #elif DEVICE_TYPE == 3
+        if (g_switchActuator == nullptr) return "Н/Д";
+        
+        // 1. Таймер отложенного включения активен
+        if (g_switchActuator->isDelayActive()) {
+            unsigned long remaining = g_switchActuator->getDelayTimer() - millis();
+            if (remaining > 0) {
+                char buf[64];
+                snprintf_P(buf, sizeof(buf), PSTR("<span style='color:#FFC107;'>ПО ТАЙМЕРУ: %s</span>"), formatRemainingTime(remaining).c_str());
+                return String(buf);
+            }
+            return F("<span style='color:#FFC107;'>ПО ТАЙМЕРУ</span>");
+        }
+        
+        // 2. Ручной режим
+        return F("<span style='color:#f44336;'>РУЧНОЙ</span>");
+        
+    #else
+        return "";
+    #endif
+}
+
+static String getMaxOnTimeRemaining() {
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+        uint32_t maxOnTime = config_get()->maxOnTime;
+        if (maxOnTime == 0) return "отключён";
+        
+        bool isOn = false;
+        unsigned long startTime = 0;
+        
+        #if DEVICE_TYPE == 1
+        if (g_fanActuator != nullptr && g_fanActuator->getState()) {
+            isOn = true;
+            startTime = g_fanActuator->getStartTime();
+        }
+        #elif DEVICE_TYPE == 3
+        if (g_switchActuator != nullptr && g_switchActuator->getState()) {
+            isOn = true;
+            startTime = g_switchActuator->getStartTime();
+        }
+        #endif
+        
+        if (!isOn || startTime == 0) return "не активен";
+        
+        unsigned long elapsed = millis() - startTime;
+        if (elapsed >= maxOnTime * 1000UL) return "0 сек (сработает)";
+        
+        unsigned long remaining = (maxOnTime * 1000UL) - elapsed;
+        return formatRemainingTime(remaining);
+    #else
+        return "не применимо";
+    #endif
+}
+
+static String getDelayTimerRemaining() {
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+        bool delayActive = false;
+        unsigned long delayTimer = 0;
+        
+        #if DEVICE_TYPE == 1
+        if (g_fanActuator != nullptr) {
+            delayActive = g_fanActuator->isDelayActive();
+            delayTimer = g_fanActuator->getDelayTimer();
+        }
+        #elif DEVICE_TYPE == 3
+        if (g_switchActuator != nullptr) {
+            delayActive = g_switchActuator->isDelayActive();
+            delayTimer = g_switchActuator->getDelayTimer();
+        }
+        #endif
+        
+        if (!delayActive) {
+            uint16_t delaySec = config_get()->delaySeconds;
+            if (delaySec > 0) {
+                return String(delaySec) + " сек (не активен)";
+            } else {
+                return "отключён (0 сек)";
+            }
+        }
+        
+        
+        unsigned long remaining = delayTimer - millis();
+        if (remaining <= 0) return "0 сек (включение)";
+        return formatRemainingTime(remaining);
+    #else
+        return "не применимо";
+    #endif
+}
+// <<< КОНЕЦ ИЗМЕНЕНИЙ
+
 // ========== ФОРМИРОВАНИЕ СТАТУСА ДЛЯ СТРАНИЦЫ СОСТОЯНИЯ ==========
 String web_buildStatusHtml() {
     String html;
@@ -46,10 +180,10 @@ String web_buildStatusHtml() {
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     html += F("<div class='flex-container'>");
     
-    #if DEVICE_TYPE == 1
     float currentTemp = sensor_getTemperature();
     float currentHum = sensor_getHumidity();
-
+    
+    #if DEVICE_TYPE == 1
     String tempColor = (currentTemp >= config_get()->highTemp) ? "#f44336" : 
                        ((currentTemp <= config_get()->lowTemp) ? "#4CAF50" : "#2196F3");
     String humColor = (currentHum >= config_get()->highHum) ? "#f44336" : 
@@ -59,20 +193,17 @@ String web_buildStatusHtml() {
     String humColor = "#2196F3";
     #endif
     
-    // ========== ТЕМПЕРАТУРА ==========
+    // Температура
     html += F("<div class='sensor-card' style='background:");
     html += tempColor;
     html += F("20; border:2px solid ");
     html += tempColor;
     html += F(";'>");
-    
     html += F("<div class='sensor-value' style='color:");
     html += tempColor;
     html += F(";'>");
     html += String(currentTemp, 1);
-    html += F(" °C");
-    html += F("</div>");
-    
+    html += F(" °C</div>");
     html += F("<div class='sensor-label'>Температура");
     #if DEVICE_TYPE == 1
     html += F(" (выкл: ");
@@ -81,23 +212,19 @@ String web_buildStatusHtml() {
     html += String(config_get()->highTemp, 1);
     html += F(")");
     #endif
-    html += F("</div>");
-    html += F("</div>");
+    html += F("</div></div>");
     
-    // ========== ВЛАЖНОСТЬ ==========
+    // Влажность
     html += F("<div class='sensor-card' style='background:");
     html += humColor;
     html += F("20; border:2px solid ");
     html += humColor;
     html += F(";'>");
-    
     html += F("<div class='sensor-value' style='color:");
     html += humColor;
     html += F(";'>");
     html += String(currentHum, 1);
-    html += F(" %");
-    html += F("</div>");
-    
+    html += F(" %</div>");
     html += F("<div class='sensor-label'>Влажность");
     #if DEVICE_TYPE == 1
     html += F(" (выкл: ");
@@ -106,8 +233,7 @@ String web_buildStatusHtml() {
     html += String(config_get()->highHum, 1);
     html += F(")");
     #endif
-    html += F("</div>");
-    html += F("</div>");
+    html += F("</div></div>");
     
     html += F("</div>");
     
@@ -118,13 +244,23 @@ String web_buildStatusHtml() {
     }
     #endif
     
+    // >>> НАЧАЛО ИЗМЕНЕНИЙ
+    // Блок отображения режима работы (для TYPE 1 и 3)
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    html += F("<div class='status-card' style='background:#f5f5f5; border:2px solid #ddd;'>");
+    html += F("<div style='font-size:1.5em;font-weight:bold;'>Режим: ");
+    html += getCurrentModeText();
+    html += F("</div></div>");
+    #endif
+    // <<< КОНЕЦ ИЗМЕНЕНИЙ
+    
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     #if DEVICE_TYPE == 1
-    bool state = fan.getState();
+    bool state = (g_fanActuator != nullptr) ? g_fanActuator->getState() : false;
     const char* label = "Вентилятор";
     const char* toggleUrl = "/fan/toggle";
     #else
-    bool state = switchActuator.getState();
+    bool state = (g_switchActuator != nullptr) ? g_switchActuator->getState() : false;
     const char* label = "Выключатель";
     const char* toggleUrl = "/switch/toggle";
     #endif
@@ -146,13 +282,11 @@ String web_buildStatusHtml() {
     html += label;
     html += F(": ");
     html += stateText;
-    html += F("</div>");
-    html += F("</div>");
-    html += F("</a>");
+    html += F("</div></div></a>");
     
     #if DEVICE_TYPE == 1
-    if (state) {
-        int currentSpeed = config_get()->speedPercent;
+    if (state && g_fanActuator != nullptr) {
+        int currentSpeed = g_fanActuator->getSpeed();
         html += F("<div class='status-card' style='background:#2196F320; border:2px solid #2196F3;'>");
         html += F("<div style='font-size:1.2em;font-weight:bold;'>Скорость: ");
         html += String(currentSpeed);
@@ -168,29 +302,27 @@ String web_buildStatusHtml() {
         html += F("</div>");
     }
     
-    String modeText = config_get()->sensorControlMode ? "УПРАВЛЕНИЕ СЕНСОРОМ" : "РУЧНОЙ";
-    String modeColor = config_get()->sensorControlMode ? "#4CAF50" : "#f44336";
-    
-    html += F("<div class='status-card' style='background:");
-    html += modeColor;
-    html += F("20; border:2px solid ");
-    html += modeColor;
-    html += F(";'>");
-    html += F("<div style='font-size:1.5em;font-weight:bold;color:");
-    html += modeColor;
-    html += F(";'>Режим: ");
-    html += modeText;
-    html += F("</div>");
-    html += F("</div>");
+    // Старый блок режима убран, перемещён вверх
     #endif
     #endif
     
+    // Информационная панель с таймерами
+    // >>> НАЧАЛО ИЗМЕНЕНИЙ
     html += F("<hr><div class='info'>");
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     html += F("Опрос датчика ");
     html += String(config_get()->sensorInterval);
     html += F(" сек<br>");
+    #endif
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    html += F("Аварийное отключение: ");
+    html += getMaxOnTimeRemaining();
+    html += F("<br>");
+    html += F("Таймер отложенного включения: ");
+    html += getDelayTimerRemaining();
+    html += F("<br>");
     #endif
     
     #if MQTT_ENABLED == 1
@@ -206,9 +338,10 @@ String web_buildStatusHtml() {
     #endif
     
     html += F("</div>");
+    // <<< КОНЕЦ ИЗМЕНЕНИЙ
     
     #if DEVICE_TYPE == 1
-    if (!config_get()->sensorControlMode && sensor_isOk()) {
+    if (!config_get()->sensorControlMode && sensor_isOk() && g_fanActuator != nullptr) {
         html += F("<div class='button-group' style='margin-top:10px;'>");
         html += F("<a href='/fan/auto'><button>Режим управления сенсором</button></a>");
         html += F("</div>");
@@ -225,26 +358,30 @@ void handleToggle() {
     #if LOG_WEB == 1
         Serial.println("[WEB] Toggle button pressed - toggling fan");
     #endif
-    fan.set(!fan.getState(), true);
+    if (g_fanActuator != nullptr) {
+        g_fanActuator->set(!g_fanActuator->getState(), true);
+    }
 }
 
 void handleSensorControlMode() {
     config_setSensorControlMode(true);
-    // Принудительно выключаем адаптивный режим при переходе в AUTO
-    // (адаптация включится отдельно, если пользователь её активирует)
     #if LOG_WEB == 1
         Serial.println("[WEB] Sensor control mode button pressed - enabling AUTO mode");
     #endif
-    fan.setAdaptiveMode(false);
+    if (g_fanActuator != nullptr) {
+        g_fanActuator->setAdaptiveMode(false);
+    }
 }
 #endif
 
 #if DEVICE_TYPE == 3
 void handleToggle() {
     #if LOG_WEB == 1
-        Serial.println("[WEB] Toggle button pressed - toggling fan");
+        Serial.println("[WEB] Toggle button pressed - toggling switch");
     #endif
-    switchActuator.set(!switchActuator.getState(), true);
+    if (g_switchActuator != nullptr) {
+        g_switchActuator->set(!g_switchActuator->getState(), true);
+    }
 }
 #endif
 
@@ -289,9 +426,10 @@ void web_sendStatusPage(int refreshInterval) {
 }
 
 void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
-    Config savedConfig = config_getSaved();
+    const Config* cfg = config_get();
+    
     String currentMode = apMode ? F("Точка доступа (AP)") : F("Клиент WiFi");
-    String currentSsid = apMode ? String(deviceId) : String(savedConfig.wifiSsid);
+    String currentSsid = apMode ? String(deviceId) : String(cfg->wifiSsid);
     String currentIp = apMode ? String(AP_IP_ADDRESS) : WiFi.localIP().toString();
     
     int refreshSeconds = (successMsg.length() > 0) ? 5 : 0;
@@ -303,7 +441,8 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
         server.sendContent(chunk);
     };
     
-    sendConfigPage(send, errorMsg, successMsg, savedConfig, currentMode, currentSsid, currentIp, refreshSeconds);
+    // Передаём флаг apMode в функцию рендеринга
+    sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid, currentIp, refreshSeconds, apMode);
 }
 
 void web_saveConfig() {

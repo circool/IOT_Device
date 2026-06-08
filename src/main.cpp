@@ -28,10 +28,10 @@
     #include <ESP8266WiFi.h>
   #endif
 
-  unsigned long lastWiFiCheck = 0;
-  unsigned long wifiLostTime = 0;
-  bool wifiConnecting = false;
-  unsigned long wifiConnectStartTime = 0;
+  unsigned long lastWiFiCheck = 0;        // Время в мсек, прошедшее с момента последней проверки доступности WiFi
+  unsigned long wifiLostTime = 0;         // Время в мс, прошедшее с момента потери WiFi
+  bool wifiConnecting = false;            // Состояние подключения в WiFi (true - выполняется подключение)
+  unsigned long wifiConnectStartTime = 0; // Время в мсек, прошедшее с момента подключения к WiFi
 #endif
 
 #if WEB_ENABLED == 1
@@ -49,72 +49,40 @@
   unsigned long lastMQTTAttempt = 0;
 
   #if MQTT_PUBLISH_RESET_REASON == 1
-    char lastResetReason[32] = "";
-
-    #ifdef ESP8266
-      void getResetReason() {
-        struct rst_info *resetInfo = system_get_rst_info();
-        uint8 reason = resetInfo->reason;
-        
-        switch(reason) {
-          case REASON_DEFAULT_RST:
-            strcpy(lastResetReason, "POWER_ON");
-            break;
-          case REASON_WDT_RST:
-            strcpy(lastResetReason, "WATCHDOG_CRASH");
-            break;
-          case REASON_EXCEPTION_RST:
-            strcpy(lastResetReason, "EXCEPTION_CRASH");
-            break;
-          case REASON_SOFT_WDT_RST:
-            strcpy(lastResetReason, "SOFT_WDT_CRASH");
-            break;
-          case REASON_SOFT_RESTART:
-            strcpy(lastResetReason, "SOFT_RESTART");
-            break;
-          case REASON_EXT_SYS_RST:
-            strcpy(lastResetReason, "EXT_RESET");
-            break;
-          default:
-            strcpy(lastResetReason, "UNKNOWN");
-        }
-      }
-    #endif
-
-    #ifdef ESP32
-    void getResetReason() {
-      esp_reset_reason_t reason = esp_reset_reason();
-      
-      switch(reason) {
-        case ESP_RST_POWERON:
-          strcpy(lastResetReason, "POWER_ON");
-          break;
-        case ESP_RST_EXT:
-          strcpy(lastResetReason, "EXT_RESET");
-          break;
-        case ESP_RST_SW:
-          strcpy(lastResetReason, "SOFT_RESTART");
-          break;
-        case ESP_RST_PANIC:
-          strcpy(lastResetReason, "PANIC_CRASH");
-          break;
-        case ESP_RST_INT_WDT:
-          strcpy(lastResetReason, "INT_WDT_CRASH");
-          break;
-        case ESP_RST_TASK_WDT:
-          strcpy(lastResetReason, "TASK_WDT_CRASH");
-          break;
-        case ESP_RST_WDT:
-          strcpy(lastResetReason, "WDT_CRASH");
-          break;
-        case ESP_RST_DEEPSLEEP:
-          strcpy(lastResetReason, "DEEP_SLEEP_WAKE");
-          break;
-        default:
-          strcpy(lastResetReason, "UNKNOWN");
-      }
+    const char* getResetReason() {
+        #ifdef ESP8266
+            struct rst_info *resetInfo = system_get_rst_info();
+            uint8_t reason = resetInfo->reason;
+            
+            switch(reason) {
+                case REASON_DEFAULT_RST:    return "POWER_ON";
+                case REASON_WDT_RST:        return "WATCHDOG_CRASH";
+                case REASON_EXCEPTION_RST:  return "EXCEPTION_CRASH";
+                case REASON_SOFT_WDT_RST:   return "SOFT_WDT_CRASH";
+                case REASON_SOFT_RESTART:   return "SOFT_RESTART";
+                case REASON_EXT_SYS_RST:    return "EXT_RESET";
+                default:                    return "UNKNOWN";
+            }
+            
+        #elif defined(ESP32)
+            esp_reset_reason_t reason = esp_reset_reason();
+            
+            switch(reason) {
+                case ESP_RST_POWERON:       return "POWER_ON";
+                case ESP_RST_EXT:           return "EXT_RESET";
+                case ESP_RST_SW:            return "SOFT_RESTART";
+                case ESP_RST_PANIC:         return "PANIC_CRASH";
+                case ESP_RST_INT_WDT:       return "INT_WDT_CRASH";
+                case ESP_RST_TASK_WDT:      return "TASK_WDT_CRASH";
+                case ESP_RST_WDT:           return "WDT_CRASH";
+                case ESP_RST_DEEPSLEEP:     return "DEEP_SLEEP_WAKE";
+                default:                    return "UNKNOWN";
+            }
+        #else
+            return "UNKNOWN_PLATFORM";
+        #endif
     }
-    #endif
+    
   #endif
 #endif
 
@@ -376,8 +344,7 @@ void setup() {
   Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
   Serial.printf("Firmware ver. %s\n", VERSION);
   #if MQTT_PUBLISH_RESET_REASON == 1
-    getResetReason();
-    Serial.printf("Reset reason: %s\n", lastResetReason);
+    Serial.printf("Reset reason: %s\n", getResetReason());
   #endif
   
   Serial.println("===================\n");
@@ -508,10 +475,12 @@ void setup() {
         });
         #endif
         
+        #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
         mqttManager.onMaxOnTimeCommand([](uint32_t maxOnTime) { 
           config_setMaxOnTime(maxOnTime); 
         });
-        
+        #endif
+
         #if MQTT_RESET_ENABLED == 1
         mqttManager.onResetCommand([]() {
           #if LOG_MQTT == 1
@@ -564,6 +533,16 @@ void setup() {
       #endif
     #endif
 
+    #if WEB_ENABLED == 1 && (DEVICE_TYPE == 1 || DEVICE_TYPE == 3)
+      #ifndef TEST_DEVICE_WEB
+        #if DEVICE_TYPE == 1
+          web_registerActuators(&fan, nullptr);
+        #elif DEVICE_TYPE == 3
+          web_registerActuators(nullptr, &switchActuator);
+        #endif
+      #endif
+    #endif
+    
     // ========== WIFI ==========
     #if WIFI_ENABLED == 1
       #if DEBUG_WIFI_ENABLED == 1

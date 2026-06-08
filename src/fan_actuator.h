@@ -69,16 +69,18 @@ public:
      */
     bool getAdaptiveMode() const;
     
+    // Прокси-методы для доступа к таймерам базового класса
+    unsigned long getStartTime() const { return _base.getStartTime(); }
+    bool isDelayActive() const { return _base.isDelayActive(); }
+    unsigned long getDelayTimer() const { return _base.getDelayTimer(); }
+
     /**
      * @brief Включить поэтапное увеличение скорости (для туалета)
      * При срабатывании таймера отложенного включения
      */
     // void enableRampUp() { _rampUpActive = true; _lastRampUpTime = millis(); }
     
-    /**
-     * @brief Получить время последнего включения (для веб-интерфейса)
-     */
-    unsigned long getStartTime() const { return _base.getStartTime(); }
+    
     
     // Статические колбэки для ActuatorBase
     static void onSetPhysicalCallback(void* context, bool on);

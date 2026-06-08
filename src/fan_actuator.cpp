@@ -1,6 +1,7 @@
 #include "fan_actuator.h"
 #include "ansi.h"
 
+#if DEVICE_TYPE == 1
 static int percentToPWMValue(int percent) {
     if (percent <= 0) return 0;
     if (percent >= 100) return 255;
@@ -265,3 +266,4 @@ int FanActuator::calculateAdaptiveStep(float deltaTemp, float deltaHum, float hu
     step = step * mult;
     return constrain(step, 5, 60);
 }
+#endif

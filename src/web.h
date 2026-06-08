@@ -15,6 +15,9 @@
 
 extern WebServerClass server;
 
+class FanActuator;
+class SwitchActuator;
+
 /**
  * @brief Сгенерировать HTML-код страницы состояния
  * @return Строка с HTML
@@ -45,6 +48,12 @@ void web_sendStatusPage(int refreshInterval);
  * @brief Обработчик POST-запроса на сохранение конфигурации
  */
 void web_saveConfig();
+
+/**
+ * @brief Регистратор актуаторов в веб-модуле
+ */
+void web_registerActuators(FanActuator* fanPtr = nullptr, SwitchActuator* switchPtr = nullptr);
+
 
 /**
  * @brief Инициализация веб-сервера в режиме клиента WiFi

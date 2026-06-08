@@ -38,10 +38,13 @@ public:
      */
     bool getState() const;
     
-    /**
-     * @brief Получить время последнего включения (для веб-интерфейса)
-     */
+    // Прокси-методы для доступа к таймерам базового класса
     unsigned long getStartTime() const { return _base.getStartTime(); }
+    bool isDelayActive() const { return _base.isDelayActive(); }
+    unsigned long getDelayTimer() const { return _base.getDelayTimer(); }
+
+
+    
     
     // Статические колбэки
     static void onSetPhysicalCallback(void* context, bool on);

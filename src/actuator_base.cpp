@@ -1,6 +1,6 @@
 #include "actuator_base.h"
 #include "ansi.h"
-
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 ActuatorBase::ActuatorBase()
     : onSetPhysicalCallback(nullptr)
     , onForceStopCallback(nullptr)
@@ -132,3 +132,4 @@ bool ActuatorBase::delayTimer(bool start) {
         return false;
     }
 }
+#endif

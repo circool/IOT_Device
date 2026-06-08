@@ -69,7 +69,8 @@ inline void sendConfigPage(WebSendCallback send,
                             const String& currentMode,
                             const String& currentSsid,
                             const String& currentIp,
-                            int refreshSeconds = 0) {
+                            int refreshSeconds = 0,
+                            bool isApMode = false) {
     send(FPSTR(HTML_PAGE_START));
     
     if (refreshSeconds > 0) {
@@ -255,7 +256,9 @@ inline void sendConfigPage(WebSendCallback send,
     }
     #endif
     
-    send(F("<a href='/' class='link-btn'>Домой</a>"));
+    if (!isApMode) {
+        send(F("<a href='/' class='link-btn'>Домой</a>"));
+    }
     send(FPSTR(HTML_PAGE_END));
 }
 

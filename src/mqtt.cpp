@@ -73,6 +73,11 @@ void MQTTManager::setupTopics() {
 
     snprintf(_topics.reset, sizeof(_topics.reset), "%s/c/system/reset", prefix);
     
+    #if MQTT_PUBLISH_RSSI == 1
+    snprintf(_topics.rssi, sizeof(_topics.rssi), "%s/rssi", prefix);
+    #endif
+
+
     #if DEVICE_TYPE == 1
     snprintf(_topics.state, sizeof(_topics.state), "%s/fan/state", prefix);
     snprintf(_topics.control, sizeof(_topics.control), "%s/c/fan/state", prefix);
@@ -87,9 +92,6 @@ void MQTTManager::setupTopics() {
     snprintf(_topics.adaptiveMode, sizeof(_topics.adaptiveMode), "%s/fan/adaptiveMode", prefix);
     snprintf(_topics.adaptiveModeControl, sizeof(_topics.adaptiveModeControl), "%s/c/fan/adaptiveMode", prefix);
     
-    snprintf(_topics.temperature, sizeof(_topics.temperature), "%s/sensor/temperature", prefix);
-    snprintf(_topics.humidity, sizeof(_topics.humidity), "%s/sensor/humidity", prefix);
-    
     snprintf(_topics.lowTemp, sizeof(_topics.lowTemp), "%s/sensor/lowTemp", prefix);
     snprintf(_topics.highTemp, sizeof(_topics.highTemp), "%s/sensor/highTemp", prefix);
     snprintf(_topics.lowHum, sizeof(_topics.lowHum), "%s/sensor/lowHum", prefix);
@@ -99,10 +101,21 @@ void MQTTManager::setupTopics() {
     snprintf(_topics.lowHumControl, sizeof(_topics.lowHumControl), "%s/c/sensor/lowHum", prefix);
     snprintf(_topics.highHumControl, sizeof(_topics.highHumControl), "%s/c/sensor/highHum", prefix);
     #endif
-    
-    #if MQTT_PUBLISH_RSSI == 1
-    snprintf(_topics.rssi, sizeof(_topics.rssi), "%s/rssi", prefix);
+
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    snprintf(_topics.temperature, sizeof(_topics.temperature), "%s/sensor/temperature", prefix);
+    snprintf(_topics.humidity, sizeof(_topics.humidity), "%s/sensor/humidity", prefix);
     #endif
+
+    #if DEVICE_TYPE == 3
+    snprintf(_topics.state, sizeof(_topics.state), "%s/switch/state", prefix);
+    snprintf(_topics.control, sizeof(_topics.control), "%s/c/switch/state", prefix);
+    snprintf(_topics.delaySec, sizeof(_topics.delaySec), "%s/switch/delaySec", prefix);
+    snprintf(_topics.delaySecControl, sizeof(_topics.delaySecControl), "%s/c/switch/delaySec", prefix);
+    snprintf(_topics.maxOnTime, sizeof(_topics.maxOnTime), "%s/switch/maxOnTime", prefix);
+    snprintf(_topics.maxOnTimeControl, sizeof(_topics.maxOnTimeControl), "%s/c/switch/maxOnTime", prefix);
+    #endif
+    
 
 }
 
