@@ -183,5 +183,82 @@ private:
 };
 
 extern MQTTManager mqttManager;
+#else // MQTT_ENABLED == 0
+
+// ============================================================================
+// ЗАГЛУШКИ ДЛЯ РЕЖИМА БЕЗ MQTT
+// ============================================================================
+
+/**
+ * @brief Класс-заглушка для режима без MQTT
+ * Все методы пустые или возвращают значения по умолчанию
+ */
+class MQTTManager {
+public:
+    MQTTManager() {}
+    ~MQTTManager() {}
+    
+    bool begin(const char* broker, uint16_t port, const char* clientId,
+               const char* user = nullptr, const char* password = nullptr) {
+        (void)broker; (void)port; (void)clientId; (void)user; (void)password;
+        return false;
+    }
+    
+    void process() {}
+    bool isConnected() { return false; }
+    void disconnect() {}
+    
+    void publishOnline() {}
+    void publishState(bool on) { (void)on; }
+    void publishSpeed(int percent) { (void)percent; }
+    void publishDelaySec(int seconds) { (void)seconds; }
+    void publishMaxOnTime(uint32_t seconds) { (void)seconds; }
+    void publishSensorControlMode(bool enabled) { (void)enabled; }
+    
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    void publishSensor(float temp, float hum) { (void)temp; (void)hum; }
+    #endif
+    
+    #if DEVICE_TYPE == 1
+    void publishAdaptiveMode(bool enabled) { (void)enabled; }
+    void publishThresholds(float lowTemp, float highTemp, float lowHum, float highHum) {
+        (void)lowTemp; (void)highTemp; (void)lowHum; (void)highHum;
+    }
+    #endif
+    
+    #if MQTT_PUBLISH_RSSI == 1
+    void publishRSSI(int rssi) { (void)rssi; }
+    #endif
+    
+    #if MQTT_PUBLISH_VERSION == 1
+    void publishVersion(const char* version) { (void)version; }
+    #endif
+    
+    #if MQTT_PUBLISH_RESET_REASON == 1
+    void publishResetReason(const char* reason) { (void)reason; }
+    #endif
+    
+    // Колбэки — просто сохраняем, но никогда не вызываем
+    void onStateCommand(std::function<void(bool)> callback) { (void)callback; }
+    void onSpeedCommand(std::function<void(int)> callback) { (void)callback; }
+    void onDelaySecCommand(std::function<void(int)> callback) { (void)callback; }
+    void onMaxOnTimeCommand(std::function<void(uint32_t)> callback) { (void)callback; }
+    void onSensorControlModeCommand(std::function<void(bool)> callback) { (void)callback; }
+    
+    #if DEVICE_TYPE == 1
+    void onAdaptiveModeCommand(std::function<void(bool)> callback) { (void)callback; }
+    void onLowTempCommand(std::function<void(float)> callback) { (void)callback; }
+    void onHighTempCommand(std::function<void(float)> callback) { (void)callback; }
+    void onLowHumCommand(std::function<void(float)> callback) { (void)callback; }
+    void onHighHumCommand(std::function<void(float)> callback) { (void)callback; }
+    #endif
+    
+    #if MQTT_RESET_ENABLED == 1
+    void onResetCommand(std::function<void()> callback) { (void)callback; }
+    #endif
+};
+
+extern MQTTManager mqttManager;
+
 #endif // MQTT_ENABLED == 1
 #endif // MQTT_H
