@@ -385,11 +385,11 @@
    * Автоматически увеличивает скорость при росте температуры/влажности
    */
   #if PWM_ENABLED == 1
-    #ifndef APAPTIVE_ENABLED
-      #define APAPTIVE_ENABLED 1
+    #ifndef ADAPTIVE_ENABLED
+      #define AdAPTIVE_ENABLED 1
     #endif
 
-    #if APAPTIVE_ENABLED == 1
+    #if ADAPTIVE_ENABLED == 1
       /** @brief Порог изменения температуры для адаптации (°C) */
       #ifndef ADAPTIVE_EPSILON_TEMP
         #define ADAPTIVE_EPSILON_TEMP 0.5
