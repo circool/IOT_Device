@@ -15,6 +15,7 @@ enum LedMode {
     LED_MODE_EMERGENCY_STOP,    // Аварийное отключение: длинная — пауза — две коротких
 };
 
+#if STATUS_LED_PIN > 0
 /**
  * @brief Инициализация пина светодиода
  * Вызывается один раз в setup()
@@ -33,4 +34,9 @@ void led_update();
  */
 void led_setMode(LedMode mode);
 
+#else
+inline void led_init(){};
+inline void led_update(){};
+inline void led_setMode(LedMode mode){};
+#endif // STATUS_LED_PIN
 #endif // LED_H
