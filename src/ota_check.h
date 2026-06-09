@@ -1,8 +1,8 @@
-// ota_check.h
+
 #ifndef OTA_CHECK_H
 #define OTA_CHECK_H
-
-#include <Arduino.h>  // Уже даёт всё необходимое
+#if OTA_ENABLED == 1
+#include <Arduino.h>  
 
 // Флаг для принудительного отключения OTA при отладке
 #ifndef DEBUG_OTA
@@ -62,5 +62,5 @@ static inline bool isOtaAvailable() {
         return false;
     #endif
 }
-
+#endif // OTA_ENABLED == 1
 #endif // OTA_CHECK_H

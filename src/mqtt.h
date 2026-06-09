@@ -1,6 +1,6 @@
 #ifndef MQTT_H
 #define MQTT_H
-
+#if MQTT_ENABLED == 1
 #include <Arduino.h>
 #include <functional>
 #include <PubSubClient.h>
@@ -183,5 +183,5 @@ private:
 };
 
 extern MQTTManager mqttManager;
-
+#endif // MQTT_ENABLED == 1
 #endif // MQTT_H

@@ -4,7 +4,10 @@
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
 #include "config.h"
+
+#if MQTT_ENABLED == 1
 #include "mqtt.h"
+#endif
 
 // ========== СТАТИЧЕСКИЕ ПЕРЕМЕННЫЕ (СКРЫТЫЕ) ==========
 static float _currentTemp = 0;
