@@ -1,3 +1,4 @@
+#include <Arduino.h>
 #include "led.h"
 
 #if STATUS_LED_PIN > 0
@@ -225,6 +226,7 @@ void led_setMode(LedMode mode) {
                 case LED_MODE_SLOW_BLINK: modeName = "SLOW_BLINK (WiFi lost)"; break;
                 case LED_MODE_FAST_BLINK: modeName = "FAST_BLINK (MQTT lost)"; break;
                 case LED_MODE_AP_BLINK: modeName = "AP_BLINK (AP mode)"; break;
+                case LED_MODE_EMERGENCY_STOP: modeName = "LED_MODE_EMERGENCY_STOP (Emergency timer)"; break;
             }
             Serial.printf("[LED] Mode changed to: %s\n", modeName);
         #endif

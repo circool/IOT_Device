@@ -16,34 +16,23 @@
 
 // ========== СТАТИЧЕСКИЕ ПЕРЕМЕННЫЕ ==========
 static bool ota_available = false;
-static WebServer* ota_server = nullptr;
+static WebServerClass* ota_server = nullptr;
 
 // ========== РЕАЛИЗАЦИЯ ==========
-void ota_set_available(bool available) {
-    ota_available = available;
-    #if LOG_OTA == 1
-        Serial.printf("[OTA] Available: %s\n", available ? "YES" : "NO");
-    #endif
+void ota_init(WebServerClass* server) {  // ← уже правильно в вашем файле
+    if (!ota_available || !server) return;
+    ota_server = server;
+    ElegantOTA.begin(server);
 }
 
 bool ota_is_available() {
     return ota_available;
 }
 
-void ota_init(WebServer* server) {
-    if (!ota_available || !server) {
-        #if LOG_OTA == 1
-            if (!ota_available) Serial.println("[OTA] Not available (insufficient flash)");
-            if (!server) Serial.println("[OTA] Init failed: no server");
-        #endif
-        return;
-    }
-    
-    ota_server = server;
-    ElegantOTA.begin(server);
-    
+void ota_set_available(bool available) {
+    ota_available = available;
     #if LOG_OTA == 1
-        Serial.println("[OTA] Initialized");
+        Serial.printf("[OTA] Available: %s\n", available ? "YES" : "NO");
     #endif
 }
 

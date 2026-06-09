@@ -2,8 +2,7 @@
 #define OTA_H
 
 #include <Arduino.h>
-#include "wifi_manager.h"
-class WebServer;
+#include "web.h"  // ← для WebServerClass
 
 #if OTA_ENABLED == 1
 
@@ -11,7 +10,7 @@ class WebServer;
  * @brief Инициализация OTA
  * @param server Указатель на WebServer (инъекция зависимости)
  */
-void ota_init(WebServer* server);
+void ota_init(WebServerClass* server);
 
 /**
  * @brief Установить флаг доступности OTA
@@ -26,8 +25,8 @@ void ota_set_available(bool available);
 bool ota_is_available();
 
 #else
-// // Пустые заглушки
-inline void ota_init(WebServer* server) { (void)server; }
+// Пустые заглушки
+inline void ota_init(WebServerClass* server) { (void)server; }
 inline void ota_set_available(bool available) { (void)available; }
 inline bool ota_is_available() { return false; }
 #endif

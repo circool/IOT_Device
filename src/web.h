@@ -9,12 +9,15 @@
 // Абстракция для поддержки ESP8266WebServer и WebServer
 #if defined(ESP8266)
   #include <ESP8266WebServer.h>
-  #define WebServerClass ESP8266WebServer
+  typedef ESP8266WebServer WebServerClass;
 #elif defined(ESP32)
   #include <WebServer.h>
+  typedef WebServer WebServerClass;
 #endif
 
-typedef WebServer WebServerClass;
+extern WebServerClass server;
+
+
 
 class FanActuator;
 class SwitchActuator;
@@ -68,7 +71,7 @@ void web_initAP();
 void web_update();
 
 // Глобальный сервер (объявлен в main.cpp)
-extern WebServer server;
+extern WebServerClass server;
 
 #else 
   inline void web_init() {}

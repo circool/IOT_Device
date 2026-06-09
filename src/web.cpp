@@ -8,7 +8,7 @@
 #include "wifi_manager.h"
 #include "ota.h"
 
-extern WebServer server;
+// extern WebServer server;
 
 #if DEVICE_TYPE == 1
   #include "fan_actuator.h"
