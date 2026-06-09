@@ -2,6 +2,9 @@
 #include "config.h"
 #include "ota.h"
 #include "wifi_manager.h"
+#include "wdt_manager.h"
+#include "led.h"
+#include "ansi.h"
 
 #ifdef ESP32
   #include <WiFi.h>
@@ -9,8 +12,7 @@
   #include <ESP8266WiFi.h>
 #endif
 
-#include "led.h"
-#include "ansi.h"
+
 
 #if OTA_ENABLED ==1
 #include "ota_check.h"
@@ -38,9 +40,9 @@
   WebServerClass server(80);
 #endif
 
-#if defined(ESP32) && WDT_ENABLED == 1
-  #include <esp_task_wdt.h>  
-#endif
+
+
+
 
 // ======================== MQTT FUNCTIONS ========================
 #if MQTT_ENABLED == 1
@@ -85,33 +87,7 @@
   #endif
 #endif
 
-// ======================== WATCHDOG FUNCTIONS ========================
-#if WDT_ENABLED == 1
-void wdt_init() {  
-#if defined(ESP8266)
-  ESP.wdtEnable(WDT_TIMER_MS);
-  Serial.printf("[WDT] ESP8266 WDT enabled, timeout=%d ms\n", WDT_TIMER_MS);
-  
-#elif defined(ESP32)
-  esp_task_wdt_init(WDT_TIMER_MS / 1000, true);
-  esp_task_wdt_add(NULL);
-  Serial.printf("[WDT] ESP32 task WDT enabled, timeout=%d ms\n", WDT_TIMER_MS);
-#endif
-}
 
-void wdt_feed() {
-
-  #if defined(WDT_TEST)
-    return;
-  #endif
-
-  #if defined(ESP8266)
-    ESP.wdtFeed();
-  #elif defined(ESP32)
-    esp_task_wdt_reset();
-  #endif
-}
-#endif
 
 // ======================== HARDWARE RESET ========================
 void checkResetButton() {
@@ -240,10 +216,7 @@ void setup() {
     led_setMode(LED_MODE_SLOW_BLINK);
   #endif
 
-  #if WDT_ENABLED == 1
-    wdt_init();
-  #endif
-
+  wdt_init();
   checkResetButton();
   config_init();
 
@@ -255,10 +228,8 @@ void setup() {
     #endif
 #endif
 
-  #if DEBUG_WIFI_ENABLED == 1
-    #if defined(ESP32) && WDT_ENABLED == 1
-      esp_task_wdt_delete(NULL);
-    #endif
+  #if DEBUG_WIFI_ENABLED == 1 
+    wdt_stop();
     Serial.println("[WIFI] Scanning...");
     int n = WiFi.scanNetworks();
     for (int i = 0; i < n; i++) {
@@ -271,9 +242,8 @@ void setup() {
       }
     }
     WiFi.scanDelete();
-    #if defined(ESP32) && WDT_ENABLED == 1
-      esp_task_wdt_add(NULL);
-    #endif
+    Serial.println("[WIFI] Scanning complette, re-enabling Watch Dog Timer");
+    wdt_start();
   #endif
 
   #if DEBUG_ENABLED == 1
@@ -473,15 +443,12 @@ void loop() {
     device.loop();
   #else
   
-    #if WDT_ENABLED == 1
-      wdt_feed();
-    #endif
-
+    wdt_feed();
     checkResetButton();
 
-    #if STATUS_LED_PIN > 0
+    // #if STATUS_LED_PIN > 0
       led_update();
-    #endif
+    // #endif
 
     #if WEB_ENABLED == 1
       if (!config_isValid() || strlen(config_get()->wifiSsid) == 0) {
