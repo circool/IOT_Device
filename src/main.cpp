@@ -1,9 +1,19 @@
 #include <Arduino.h>
 #include "config.h"
 
+#ifdef ESP32
+  #include <WiFi.h>
+#elif defined(ESP8266)
+  #include <ESP8266WiFi.h>
+#endif
+
+
 #include "led.h"
 #include "ansi.h"
+
+#if OTA_ENABLED ==1
 #include "ota_check.h"
+#endif
 
 #ifdef ESP32
 #include <esp_chip_info.h>
@@ -22,11 +32,7 @@
 #endif
 
 #if WIFI_ENABLED == 1
-  #ifdef ESP32
-    #include <WiFi.h>
-  #elif defined(ESP8266)
-    #include <ESP8266WiFi.h>
-  #endif
+  
 
   unsigned long lastWiFiCheck = 0;        // Время в мсек, прошедшее с момента последней проверки доступности WiFi
   unsigned long wifiLostTime = 0;         // Время в мс, прошедшее с момента потери WiFi
@@ -402,7 +408,7 @@ void setup() {
     config_print();
   #endif
 
-  bool hasValidConfig = (config_isValid() && strlen(config_get()->wifiSsid) > 0);
+  bool hasValidConfig = config_isValid();
 
   if (hasValidConfig) {
     #if LOG_CONFIG == 1
@@ -440,10 +446,22 @@ void setup() {
         });
         
         mqttManager.onSensorControlModeCommand([](bool enabled) {
-          config_setSensorControlMode(enabled);
-          if (!enabled) {
-            fan.setAdaptiveMode(false);
-          }
+        
+        // Не включаем режим управления сенсором, если датчик не работает
+        if (enabled && !sensor_isOk()) {
+            #if LOG_MQTT == 1
+                Serial.println("[MQTT] Cannot enable sensor control mode - sensor not available");
+            #endif
+            
+            mqttManager.publishSensorControlMode(false);
+            return;
+        }
+        
+    
+        config_setSensorControlMode(enabled);
+            if (!enabled) {
+                fan.setAdaptiveMode(false);
+            }
         });
         
         mqttManager.onAdaptiveModeCommand([](bool enabled) {
