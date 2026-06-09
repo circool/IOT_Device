@@ -4,6 +4,8 @@
 #include <Arduino.h>
 #include "config.h"
 
+#if WEB_ENABLED == 1
+
 // Абстракция для поддержки ESP8266WebServer и WebServer
 #if defined(ESP8266)
   #include <ESP8266WebServer.h>
@@ -71,5 +73,11 @@ void web_initAP();
  * Вызывается в loop()
  */
 void web_update();
+
+#else 
+  inline void web_init() {}
+  inline void web_update() {}
+  inline void web_sendStatusPage(int) {}
+#endif // WEB_ENABLED
 
 #endif // WEB_H

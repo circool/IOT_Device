@@ -5,6 +5,13 @@
 #include "ansi.h"
 #include "config.h"
 
+#ifdef ESP32
+  #include <WiFi.h>
+#elif defined(ESP8266)
+  #include <ESP8266WiFi.h>
+#endif
+
+
 #if DEVICE_TYPE == 1
   #include "fan_actuator.h"
   // extern объявление убрано, теперь указатель передаётся через регистрацию
@@ -19,11 +26,7 @@
   #include "mqtt.h"
 #endif
 
-#ifdef ESP32
-  #include <WiFi.h>
-#elif defined(ESP8266)
-  #include <ESP8266WiFi.h>
-#endif
+
 
 #if OTA_ENABLED == 1
   #include <ElegantOTA.h>
@@ -53,20 +56,20 @@ void web_registerActuators(FanActuator* fanPtr, SwitchActuator* switchPtr) {
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАСЧЁТА ТАЙМЕРОВ ==========
 // >>> НАЧАЛО ИЗМЕНЕНИЙ
 static String formatRemainingTime(unsigned long remainingMs) {
-    if (remainingMs <= 0) return "0 сек";
+    if (remainingMs <= 0) return "0 sec";
     unsigned long remainingSec = remainingMs / 1000;
-    if (remainingSec < 60) return String(remainingSec) + " сек";
-    if (remainingSec < 3600) return String(remainingSec / 60) + " мин " + String(remainingSec % 60) + " сек";
-    return String(remainingSec / 3600) + " ч " + String((remainingSec % 3600) / 60) + " мин";
+    if (remainingSec < 60) return String(remainingSec) + " sec";
+    if (remainingSec < 3600) return String(remainingSec / 60) + " min " + String(remainingSec % 60) + " sec";
+    return String(remainingSec / 3600) + " ч " + String((remainingSec % 3600) / 60) + " min";
 }
 
 static String getCurrentModeText() {
     #if DEVICE_TYPE == 1
-        if (g_fanActuator == nullptr) return "Н/Д";
+        if (g_fanActuator == nullptr) return "NA";
         
         // 1. Приоритет: режим управления сенсором
         if (config_get()->sensorControlMode) {
-            return F("<span style='color:#4CAF50;'>СЕНСОРОМ</span>");
+            return F("<span style='color:#4CAF50;'>SENSOR</span>");
         }
         
         // 2. Таймер отложенного включения активен
@@ -74,14 +77,14 @@ static String getCurrentModeText() {
             unsigned long remaining = g_fanActuator->getDelayTimer() - millis();
             if (remaining > 0) {
                 char buf[64];
-                snprintf_P(buf, sizeof(buf), PSTR("<span style='color:#FFC107;'>ПО ТАЙМЕРУ: %s</span>"), formatRemainingTime(remaining).c_str());
+                snprintf_P(buf, sizeof(buf), PSTR("<span style='color:#FFC107;'>TIMER: %s</span>"), formatRemainingTime(remaining).c_str());
                 return String(buf);
             }
-            return F("<span style='color:#FFC107;'>ПО ТАЙМЕРУ</span>");
+            return F("<span style='color:#FFC107;'>TIMER</span>");
         }
         
         // 3. Ручной режим
-        return F("<span style='color:#f44336;'>РУЧНОЙ</span>");
+        return F("<span style='color:#f44336;'>MANUAL</span>");
         
     #elif DEVICE_TYPE == 3
         if (g_switchActuator == nullptr) return "Н/Д";
@@ -91,14 +94,14 @@ static String getCurrentModeText() {
             unsigned long remaining = g_switchActuator->getDelayTimer() - millis();
             if (remaining > 0) {
                 char buf[64];
-                snprintf_P(buf, sizeof(buf), PSTR("<span style='color:#FFC107;'>ПО ТАЙМЕРУ: %s</span>"), formatRemainingTime(remaining).c_str());
+                snprintf_P(buf, sizeof(buf), PSTR("<span style='color:#FFC107;'>TIMER: %s</span>"), formatRemainingTime(remaining).c_str());
                 return String(buf);
             }
-            return F("<span style='color:#FFC107;'>ПО ТАЙМЕРУ</span>");
+            return F("<span style='color:#FFC107;'>TIMER</span>");
         }
         
         // 2. Ручной режим
-        return F("<span style='color:#f44336;'>РУЧНОЙ</span>");
+        return F("<span style='color:#f44336;'>MANUAL</span>");
         
     #else
         return "";
@@ -127,16 +130,16 @@ static String getMaxOnTimeRemaining() {
         
         if (!isOn || startTime == 0) {
             // Показываем настроенное значение, даже если таймер не активен
-            return String(maxOnTime) + " сек (не активен)";
+            return String(maxOnTime) + " sec (not active)";
         }
         
         unsigned long elapsed = millis() - startTime;
-        if (elapsed >= maxOnTime * 1000UL) return "0 сек (сработает)";
+        if (elapsed >= maxOnTime * 1000UL) return "0 sec (сработает)";
         
         unsigned long remaining = (maxOnTime * 1000UL) - elapsed;
         return formatRemainingTime(remaining);
     #else
-        return "не применимо";
+        return "NA";
     #endif
 }
 static String getDelayTimerRemaining() {
@@ -159,18 +162,18 @@ static String getDelayTimerRemaining() {
         if (!delayActive) {
             uint16_t delaySec = config_get()->delaySeconds;
             if (delaySec > 0) {
-                return String(delaySec) + " сек (не активен)";
+                return String(delaySec) + " sec (inactive)";
             } else {
-                return "отключён (0 сек)";
+                return "disabled (0 sec)";
             }
         }
         
         
         unsigned long remaining = delayTimer - millis();
-        if (remaining <= 0) return "0 сек (включение)";
+        if (remaining <= 0) return "0 sec (will turn on)";
         return formatRemainingTime(remaining);
     #else
-        return "не применимо";
+        return "NA";
     #endif
 }
 // <<< КОНЕЦ ИЗМЕНЕНИЙ
@@ -206,11 +209,11 @@ String web_buildStatusHtml() {
     html += F(";'>");
     html += String(currentTemp, 1);
     html += F(" °C</div>");
-    html += F("<div class='sensor-label'>Температура");
+    html += F("<div class='sensor-label'>Temperature");
     #if DEVICE_TYPE == 1
-    html += F(" (выкл: ");
+    html += F(" (off: ");
     html += String(config_get()->lowTemp, 1);
-    html += F(" вкл: ");
+    html += F(" on: ");
     html += String(config_get()->highTemp, 1);
     html += F(")");
     #endif
@@ -227,11 +230,11 @@ String web_buildStatusHtml() {
     html += F(";'>");
     html += String(currentHum, 1);
     html += F(" %</div>");
-    html += F("<div class='sensor-label'>Влажность");
+    html += F("<div class='sensor-label'>Humidity");
     #if DEVICE_TYPE == 1
-    html += F(" (выкл: ");
+    html += F(" (off: ");
     html += String(config_get()->lowHum, 1);
-    html += F(" вкл: ");
+    html += F(" on: ");
     html += String(config_get()->highHum, 1);
     html += F(")");
     #endif
@@ -240,7 +243,7 @@ String web_buildStatusHtml() {
     html += F("</div>");
     
     if (!sensor_isOk() && strlen(sensor_getError()) > 0) {
-        html += F("<div class='sensor-error'><strong>Ошибка датчика</strong><br>");
+        html += F("<div class='sensor-error'><strong>Sensor error</strong><br>");
         html += sensor_getError();
         html += F("</div>");
     }
@@ -250,7 +253,7 @@ String web_buildStatusHtml() {
     // Блок отображения режима работы (для TYPE 1 и 3)
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     html += F("<div class='status-card' style='background:#f5f5f5; border:2px solid #ddd;'>");
-    html += F("<div style='font-size:1.5em;font-weight:bold;'>Режим: ");
+    html += F("<div style='font-size:1.5em;font-weight:bold;'>Mode: ");
     html += getCurrentModeText();
     html += F("</div></div>");
     #endif
@@ -259,16 +262,16 @@ String web_buildStatusHtml() {
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     #if DEVICE_TYPE == 1
     bool state = (g_fanActuator != nullptr) ? g_fanActuator->getState() : false;
-    const char* label = "Вентилятор";
+    const char* label = "Fan";
     const char* toggleUrl = "/fan/toggle";
     #else
     bool state = (g_switchActuator != nullptr) ? g_switchActuator->getState() : false;
-    const char* label = "Выключатель";
+    const char* label = "Switch";
     const char* toggleUrl = "/switch/toggle";
     #endif
     
     String stateColor = state ? "#f44336" : "#2196F3";
-    String stateText = state ? "ВКЛ" : "ВЫКЛ";
+    String stateText = state ? "ON" : "OFF";
     
     html += F("<a href='");
     html += toggleUrl;
@@ -290,46 +293,44 @@ String web_buildStatusHtml() {
     if (state && g_fanActuator != nullptr) {
         int currentSpeed = g_fanActuator->getSpeed();
         html += F("<div class='status-card' style='background:#2196F320; border:2px solid #2196F3;'>");
-        html += F("<div style='font-size:1.2em;font-weight:bold;'>Скорость: ");
+        html += F("<div style='font-size:1.2em;font-weight:bold;'>Speed: ");
         html += String(currentSpeed);
         html += F("%</div>");
         html += F("<div class='duty-bar'><div class='duty-fill' style='width:");
         html += String(currentSpeed);
         html += F("%;'></div></div>");
-        if (config_get()->speedPercent < 100) {
-            html += F("<div style='font-size:0.9em;color:#555;'>Тихий режим активен");
-            if (config_get()->adaptiveMode) html += F(" + адаптация");
+        if (currentSpeed < 100) {
+            html += F("<div style='font-size:0.9em;color:#555;'>Quiet mode active");
+            if (config_get()->adaptiveMode) html += F(" + adaptive");
             html += F("</div>");
         }
         html += F("</div>");
     }
     
-    // Старый блок режима убран, перемещён вверх
     #endif
     #endif
     
     // Информационная панель с таймерами
-    // >>> НАЧАЛО ИЗМЕНЕНИЙ
     html += F("<hr><div class='info'>");
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    html += F("Опрос датчика ");
+    html += F("Sensor polling ");
     html += String(config_get()->sensorInterval);
-    html += F(" сек<br>");
+    html += F(" sec<br>");
     #endif
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    html += F("Аварийное отключение: ");
+    html += F("Emergency off: ");
     html += getMaxOnTimeRemaining();
     html += F("<br>");
-    html += F("Таймер отложенного включения: ");
+    html += F("Delay timer: ");
     html += getDelayTimerRemaining();
     html += F("<br>");
     #endif
     
     #if MQTT_ENABLED == 1
     html += F("MQTT: ");
-    html += mqttManager.isConnected() ? F("подключен") : F("отключен");
+    html += mqttManager.isConnected() ? F("connected") : F("disconnected");
     html += F("<br>");
     #endif
     
@@ -345,7 +346,7 @@ String web_buildStatusHtml() {
     #if DEVICE_TYPE == 1
     if (!config_get()->sensorControlMode && sensor_isOk() && g_fanActuator != nullptr) {
         html += F("<div class='button-group' style='margin-top:10px;'>");
-        html += F("<a href='/fan/auto'><button>Режим управления сенсором</button></a>");
+        html += F("<a href='/fan/auto'><button>Sensor control mode</button></a>");
         html += F("</div>");
     }
     #endif
@@ -430,7 +431,7 @@ void web_sendStatusPage(int refreshInterval) {
 void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
     const Config* cfg = config_get();
     
-    String currentMode = apMode ? F("Точка доступа (AP)") : F("Клиент WiFi");
+    String currentMode = apMode ? F("Access Point") : F("Client WiFi");
     String currentSsid = apMode ? String(deviceId) : String(cfg->wifiSsid);
     String currentIp = apMode ? String(AP_IP_ADDRESS) : WiFi.localIP().toString();
     
@@ -448,68 +449,165 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
 }
 
 void web_saveConfig() {
+    // Выключаем LED перед критической операцией
+    #if STATUS_LED_PIN > 0
+        led_setMode(LED_MODE_OFF);
+        delay(50);
+    #endif
+
+    // === ВАЛИДАЦИЯ WiFi ===
     if (server.hasArg("wifiSsid")) {
-        config_setWifiSsid(server.arg("wifiSsid").c_str());
+        if (!config_setWifiSsid(server.arg("wifiSsid").c_str())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
 
     if (server.hasArg("wifiPassword")) {
         String pwd = server.arg("wifiPassword");
         if (pwd.length() > 0) {
-            config_setWifiPassword(pwd.c_str());
+            if (!config_setWifiPassword(pwd.c_str())) {
+                #if STATUS_LED_PIN > 0
+                    led_setMode(LED_MODE_AP_BLINK);
+                #endif
+                web_sendConfigPage(config_getLastError(), "");
+                return;
+            }
         }
     }
 
     #if MQTT_ENABLED == 1
     if (server.hasArg("mqttBroker")) {
-        config_setMqttBroker(server.arg("mqttBroker").c_str());
+        if (!config_setMqttBroker(server.arg("mqttBroker").c_str())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("mqttPort")) {
-        config_setMqttPort(server.arg("mqttPort").toInt());
+        if (!config_setMqttPort(server.arg("mqttPort").toInt())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("mqttUser")) {
-        config_setMqttUser(server.arg("mqttUser").c_str());
+        if (!config_setMqttUser(server.arg("mqttUser").c_str())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("mqttPassword")) {
         String pwd = server.arg("mqttPassword");
         if (pwd.length() > 0) {
-            config_setMqttPassword(pwd.c_str());
+            if (!config_setMqttPassword(pwd.c_str())) {
+                #if STATUS_LED_PIN > 0
+                    led_setMode(LED_MODE_AP_BLINK);
+                #endif
+                web_sendConfigPage(config_getLastError(), "");
+                return;
+            }
         }
     }
     if (server.hasArg("mqttClientId")) {
         String cid = server.arg("mqttClientId");
         if (cid.length() > 0 && cid.length() < sizeof(config_get()->mqttClientId)) {
-            config_setMqttClientId(cid.c_str());
+            if (!config_setMqttClientId(cid.c_str())) {
+                #if STATUS_LED_PIN > 0
+                    led_setMode(LED_MODE_AP_BLINK);
+                #endif
+                web_sendConfigPage(config_getLastError(), "");
+                return;
+            }
         }
     }
-    #endif
+    #endif // MQTT_ENABLED == 1
 
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     if (server.hasArg("sensorInterval")) {
-        config_setSensorInterval(server.arg("sensorInterval").toInt());
+        if (!config_setSensorInterval(server.arg("sensorInterval").toInt())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     #endif
     
     #if DEVICE_TYPE == 1
     if (server.hasArg("lowTemp")) {
-        config_setLowTemp(server.arg("lowTemp").toFloat());
+        if (!config_setLowTemp(server.arg("lowTemp").toFloat())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("highTemp")) {
-        config_setHighTemp(server.arg("highTemp").toFloat());
+        if (!config_setHighTemp(server.arg("highTemp").toFloat())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("lowHum")) {
-        config_setLowHum(server.arg("lowHum").toFloat());
+        if (!config_setLowHum(server.arg("lowHum").toFloat())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("highHum")) {
-        config_setHighHum(server.arg("highHum").toFloat());
+        if (!config_setHighHum(server.arg("highHum").toFloat())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("maxOnTime")) {
-        config_setMaxOnTime(server.arg("maxOnTime").toInt());
+        if (!config_setMaxOnTime(server.arg("maxOnTime").toInt())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("delaySeconds")) {
-        config_setDelaySeconds(server.arg("delaySeconds").toInt());
+        if (!config_setDelaySeconds(server.arg("delaySeconds").toInt())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("speedPercent")) {
-        config_setSpeedPercent(server.arg("speedPercent").toInt());
+        if (!config_setSpeedPercent(server.arg("speedPercent").toInt())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     
     config_setAdaptiveMode(server.hasArg("adaptiveMode"));
@@ -519,23 +617,35 @@ void web_saveConfig() {
     
     #if DEVICE_TYPE == 3
     if (server.hasArg("maxOnTime")) {
-        config_setMaxOnTime(server.arg("maxOnTime").toInt());
+        if (!config_setMaxOnTime(server.arg("maxOnTime").toInt())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     if (server.hasArg("delaySeconds")) {
-        config_setDelaySeconds(server.arg("delaySeconds").toInt());
+        if (!config_setDelaySeconds(server.arg("delaySeconds").toInt())) {
+            #if STATUS_LED_PIN > 0
+                led_setMode(LED_MODE_AP_BLINK);
+            #endif
+            web_sendConfigPage(config_getLastError(), "");
+            return;
+        }
     }
     config_setBootState(server.hasArg("bootState"));
     #endif
-    
-    if (!config_validate()) {
-        web_sendConfigPage(String(config_getLastError()), "");
-        return;
-    }
-    
+
+    // Запись в EEPROM
     if (!config_write()) {
+        #if STATUS_LED_PIN > 0
+            led_setMode(LED_MODE_AP_BLINK);
+        #endif
         web_sendConfigPage("Ошибка записи во Flash. Пожалуйста, попробуйте ещё раз.", "");
         return;
     }
+    
     #if LOG_WEB == 1
         Serial.println("[WEB] Configuration saved successfully, restarting...");
     #endif

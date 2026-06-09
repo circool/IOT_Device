@@ -47,7 +47,7 @@ const char* config_getLastError() {
 }
 
 // --- Сеттеры с валидацией ---
-
+#if WIFI_ENABLED == 1
 bool config_setWifiSsid(const char* ssid) {
     if (!ssid || strlen(ssid) == 0) {
         snprintf(_configLastError, sizeof(_configLastError), "WiFi SSID cannot be empty");
@@ -168,7 +168,7 @@ bool config_setMqttClientId(const char* clientId) {
     return true;
 }
 #endif // MQTT_ENABLED
-
+#endif // WIFI_ENABLED
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 bool config_setDelaySeconds(int seconds) {
     if (seconds < 0 || seconds > 86400) {
@@ -180,15 +180,7 @@ bool config_setDelaySeconds(int seconds) {
     return true;
 }
 
-bool config_setMaxOnTime(uint32_t seconds) {
-    if (seconds > 86400) {
-        snprintf(_configLastError, sizeof(_configLastError), 
-                 "MaxOnTime seconds must be 0-86400 (got %u)", seconds);
-        return false;
-    }
-    _config.maxOnTime = seconds;
-    return true;
-}
+
 
 bool config_setBootState(bool state) {
     _config.bootState = state;
@@ -210,9 +202,9 @@ bool config_setSensorInterval(uint16_t interval) {
 
 #if DEVICE_TYPE == 1
 bool config_setLowTemp(double temp) {
-    if (temp < -40 || temp > 85) {
+    if (temp < TEMP_MIN || temp > TEMP_MAX) {
         snprintf(_configLastError, sizeof(_configLastError), 
-                 "Low Temp must be -40..85°C (got %.1f)", temp);
+                 "Low Temp must be %.1f..%.1f°C (got %.1f)", TEMP_MIN, TEMP_MAX, temp);
         return false;
     }
     if (temp >= _config.highTemp && _config.highTemp != 0) {
@@ -225,9 +217,9 @@ bool config_setLowTemp(double temp) {
 }
 
 bool config_setHighTemp(double temp) {
-    if (temp < -40 || temp > 85) {
+    if (temp < TEMP_MIN || temp > TEMP_MAX) {
         snprintf(_configLastError, sizeof(_configLastError), 
-                 "High Temp must be -40..85°C (got %.1f)", temp);
+                 "High Temp must be %.1f..%.1f°C (got %.1f)", TEMP_MIN, TEMP_MAX, temp);
         return false;
     }
     if (temp <= _config.lowTemp && _config.lowTemp != 0) {
@@ -240,9 +232,9 @@ bool config_setHighTemp(double temp) {
 }
 
 bool config_setLowHum(double hum) {
-    if (hum < 0 || hum > 100) {
+    if (hum < HUM_MIN || hum > HUM_MAX) {
         snprintf(_configLastError, sizeof(_configLastError), 
-                 "Low Hum must be 0..100%% (got %.1f)", hum);
+                 "Low Hum must be %.1f..%.1f%% (got %.1f)", HUM_MIN, HUM_MAX, hum);
         return false;
     }
     if (hum >= _config.highHum && _config.highHum != 0) {
@@ -255,9 +247,9 @@ bool config_setLowHum(double hum) {
 }
 
 bool config_setHighHum(double hum) {
-    if (hum < 0 || hum > 100) {
+    if (hum < HUM_MIN || hum > HUM_MAX) {
         snprintf(_configLastError, sizeof(_configLastError), 
-                 "High Hum must be 0..100%% (got %.1f)", hum);
+                 "High Hum must be %.1f..%.1f%% (got %.1f)", HUM_MIN, HUM_MAX, hum);
         return false;
     }
     if (hum <= _config.lowHum && _config.lowHum != 0) {
@@ -268,6 +260,24 @@ bool config_setHighHum(double hum) {
     _config.highHum = hum;
     return true;
 }
+
+
+
+
+
+bool config_setMaxOnTime(uint32_t seconds) {
+    if (seconds > MAX_ON_TIME_MAX) {
+        snprintf(_configLastError, sizeof(_configLastError), 
+                 "MaxOnTime seconds must be %d-%d (got %u)", 
+                 MAX_ON_TIME_MIN, MAX_ON_TIME_MAX, seconds);
+        return false;
+    }
+    _config.maxOnTime = seconds;
+    return true;
+}
+
+
+
 
 bool config_setSensorControlMode(bool enabled) {
     // Дополнительная бизнес-логика
@@ -312,7 +322,7 @@ static void config_loadFromCredentials() {
     #if DEBUG_ENABLED == 1
       Serial.println("[CONFIG] Loading factory settings");
     #endif
-    
+    #if WIFI_ENABLED == 1
     if (strlen(SSID_NAME) > 0) {
       strncpy(_config.wifiSsid, SSID_NAME, sizeof(_config.wifiSsid) - 1);
       _config.wifiSsid[sizeof(_config.wifiSsid) - 1] = '\0';
@@ -349,8 +359,8 @@ static void config_loadFromCredentials() {
     } else {
       memset(_config.mqttPassword, 0, sizeof(_config.mqttPassword));
     }
-  #endif
-
+  #endif // MQTT_ENABLED
+  #endif // WIFI_ENABLED
   #else
     #if DEBUG_ENABLED == 1
       Serial.println("[CONFIG] No factory settings found, using empty defaults");
@@ -449,245 +459,200 @@ bool config_clear() {
   return ok;
 }
 
-bool config_validate() {
-  _configLastError[0] = '\0';
-  bool valid = true;
-  
-  // === СЕТЕВЫЕ НАСТРОЙКИ ===
-  #if MQTT_ENABLED == 1
-  if (_config.mqttPort < 1 || _config.mqttPort > 65535) {
-    snprintf(_configLastError, sizeof(_configLastError), "MQTT Port must be 1-65535");
-    valid = false;
-  }
-  #endif
-
-  if (strlen(_config.wifiSsid) == 0) {
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "WiFi SSID cannot be empty");
-    }
-    valid = false;
-  }
-  
-  #if MQTT_ENABLED == 1
-  if (strlen(_config.mqttBroker) == 0) {
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "MQTT Broker cannot be empty");
-    }
-    valid = false;
-  } 
-  
-  if (strlen(_config.mqttClientId) == 0) {
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "MQTT Client ID cannot be empty");
-    }
-    valid = false;
-  } else {
-    for (size_t i = 0; i < strlen(_config.mqttClientId); i++) {
-      char c = _config.mqttClientId[i];
-      if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || 
-            (c >= '0' && c <= '9') || c == '_' || c == '-')) {
-        snprintf(_configLastError, sizeof(_configLastError), 
-         "MQTT Client ID invalid char '%c' (use a-z, A-Z, 0-9, _, -)", c);
-        valid = false;
-        break;
-      }
-    }
-  }
-  #endif
-
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  if (_config.delaySeconds < 0 || _config.delaySeconds > 86400) {
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "Delay must be 0-86400 seconds");
-    }
-    valid = false;
-  }
-  
-  if (_config.maxOnTime < 0 || _config.maxOnTime > 86400) {
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "MaxOnTime must be 0-86400 seconds");
-    }
-    valid = false;
-  }
-  
-  #if DEVICE_TYPE == 1
-  if (_config.speedPercent > 100) {  
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "Speed percent must be 0-100");
-    }
-    valid = false;
-  }
-  
-  if (_config.adaptiveMode && !_config.sensorControlMode) {
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "Adaptive mode requires Sensor Control Mode ON");
-    }
-    valid = false;
-  }
-  
-  if (_config.adaptiveMode && _config.speedPercent == 0) {  
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "Adaptive mode requires speed percent > 0%%");
-    }
-    valid = false;
-  }
-  #endif
-  #endif
-  
-  #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  if (_config.sensorInterval < 1 || _config.sensorInterval > 3600) {
-    char buf[80];
-    snprintf(buf, sizeof(buf), "Sensor interval must be 1-3600 seconds, but = %d", _config.sensorInterval);
-    strncpy(_configLastError, buf, sizeof(_configLastError) - 1);
-    _configLastError[sizeof(_configLastError) - 1] = '\0';
-    valid = false;
-  }
-  #endif
-  
-  #if DEVICE_TYPE == 1
-  if (_config.lowTemp < -40 || _config.lowTemp > 85) {
-    char buf[80];
-    snprintf(buf, sizeof(buf), "Low Temp must be -40..85°C, but = %.1f", _config.lowTemp);
-    strncpy(_configLastError, buf, sizeof(_configLastError) - 1);
-    _configLastError[sizeof(_configLastError) - 1] = '\0';
-    valid = false;
-  }
-  if (_config.highTemp < -40 || _config.highTemp > 85) {
-    char buf[80];
-    snprintf(buf, sizeof(buf), "High Temp must be -40..85°C, but = %.1f", _config.highTemp);
-    strncpy(_configLastError, buf, sizeof(_configLastError) - 1);
-    _configLastError[sizeof(_configLastError) - 1] = '\0';
-    valid = false;
-  }
-  if (_config.lowTemp >= _config.highTemp) {
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "Low Temp must be < High Temp");
-    }
-    valid = false;
-  }
-  
-  if (_config.lowHum < 0 || _config.lowHum > 100) {
-    char buf[80];
-    snprintf(buf, sizeof(buf), "Low Hum must be 0..100%%, but = %.1f", _config.lowHum);
-    strncpy(_configLastError, buf, sizeof(_configLastError) - 1);
-    _configLastError[sizeof(_configLastError) - 1] = '\0';
-    valid = false;
-  }
-  if (_config.highHum < 0 || _config.highHum > 100) {
-    char buf[80];
-    snprintf(buf, sizeof(buf), "High Hum must be 0..100%%, but = %.1f", _config.highHum);
-    strncpy(_configLastError, buf, sizeof(_configLastError) - 1);
-    _configLastError[sizeof(_configLastError) - 1] = '\0';
-    valid = false;
-  }
-  if (_config.lowHum >= _config.highHum) {
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "Low Hum must be < High Hum");
-    }
-    valid = false;
-  }
-  
-  if (_config.sensorControlMode && _config.speedPercent == 0) {  
-    if (_configLastError[0] == '\0') {
-      snprintf(_configLastError, sizeof(_configLastError), "Sensor Control Mode requires speed percent > 0%%");
-    }
-    valid = false;
-  }
-  #endif
-  
-  #if DEBUG_ENABLED == 1
-    if (!valid) {
-      Serial.print(ANSI_BRIGHT_RED);
-      Serial.printf("[CONFIG] Validation failed: %s\n", _configLastError);
-      Serial.print(ANSI_RESET);
-    }
-  #endif
-  
-  return valid;
-}
-
 void config_read() {
-  #if DEBUG_ENABLED == 1
-    Serial.println("[CONFIG] Reading from EEPROM...");
-  #endif
-  
-  memset(&_config, 0, sizeof(Config));
-  
-  uint8_t* ptr = (uint8_t*)&_config;
-  for (size_t i = 0; i < sizeof(Config); i++) {
-    ptr[i] = EEPROM.read(i);
-  }
-  
-  #if DEBUG_ENABLED == 1
-    Serial.printf("[CONFIG] Read magic: 0x%04X (expected 0x%04X)\n", _config.magic, MAGIC_VALUE);
-    Serial.printf("[CONFIG] Read WiFi SSID: '%s'\n", _config.wifiSsid);
-    #if MQTT_ENABLED == 1
-      Serial.printf("[CONFIG] Read MQTT Broker: '%s'\n", _config.mqttBroker);
-      Serial.printf("[CONFIG] Read MQTT User: '%s'\n", _config.mqttUser);
-      Serial.printf("[CONFIG] Read MQTT Client ID: '%s'\n", _config.mqttClientId);
-    #endif
-    Serial.printf("[CONFIG] Read CRC from EEPROM: 0x%04X\n", _config.crc);
-  #endif
-  
-  bool eepromValid = false;
-  
-  if (_config.magic == MAGIC_VALUE) {
-    uint16_t savedCrc = _config.crc;
-    _config.crc = 0;
-    
-    uint16_t calcCrc = crc16((uint8_t*)&_config, sizeof(Config));
-    
     #if DEBUG_ENABLED == 1
-      Serial.printf("[CONFIG] Calculated CRC: 0x%04X\n", calcCrc);
+        Serial.println("[CONFIG] Reading from EEPROM...");
     #endif
+
+    // Читаем сырые данные во временную структуру
+    Config raw;
+    memset(&raw, 0, sizeof(Config));
     
-    if (calcCrc == savedCrc) {
-      _config.crc = savedCrc;
-      eepromValid = true;
-      #if DEBUG_ENABLED == 1
-        Serial.println("[CONFIG] CRC is VALID");
-      #endif
-    } else {  
-      #if DEBUG_ENABLED == 1
-        Serial.print(ANSI_BRIGHT_RED);    
-        Serial.printf("[CONFIG] CRC mismatch! EEPROM: 0x%04X, Calculated: 0x%04X\n", savedCrc, calcCrc);
-        Serial.print(ANSI_RESET);
-      #endif
+    uint8_t* ptr = (uint8_t*)&raw;
+    for (size_t i = 0; i < sizeof(Config); i++) {
+        ptr[i] = EEPROM.read(i);
     }
-  } else {
-      #if DEBUG_ENABLED == 1
-        Serial.print(ANSI_BRIGHT_RED);
-        Serial.println("[CONFIG] Magic mismatch! Config is INVALID");
-        Serial.print(ANSI_RESET);
-      #endif
-  }
-  
-  bool dataValid = config_validate();
-  
-  if (eepromValid && dataValid) {
-    _configValid = true;
+
     #if DEBUG_ENABLED == 1
-      Serial.println("[CONFIG] Config is VALID (EEPROM)");
+        Serial.printf("[CONFIG] Read magic: 0x%04X (expected 0x%04X)\n", raw.magic, MAGIC_VALUE);
+        Serial.printf("[CONFIG] Read CRC from EEPROM: 0x%04X\n", raw.crc);
     #endif
-  } else {
-    _configValid = false;
+
+    bool eepromValid = false;
+
+    if (raw.magic == MAGIC_VALUE) {
+        uint16_t savedCrc = raw.crc;
+        raw.crc = 0;
+        uint16_t calcCrc = crc16((uint8_t*)&raw, sizeof(Config));
+
+        #if DEBUG_ENABLED == 1
+            Serial.printf("[CONFIG] Calculated CRC: 0x%04X\n", calcCrc);
+        #endif
+
+        if (calcCrc == savedCrc) {
+            eepromValid = true;
+            #if DEBUG_ENABLED == 1
+                Serial.println("[CONFIG] CRC is VALID");
+            #endif
+        } else {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] CRC mismatch! EEPROM: 0x%04X, Calculated: 0x%04X\n", savedCrc, calcCrc);
+            #endif
+        }
+    } else {
+        #if DEBUG_ENABLED == 1
+            Serial.println("[CONFIG] Magic mismatch! Config is INVALID");
+        #endif
+    }
+
+    // Сбрасываем на defaults
     config_setDefaults();
-    #if DEBUG_ENABLED == 1
-      Serial.println("[CONFIG] Using defaults for setup mode");
-    #endif
-  }
-  
-  
+
+    if (eepromValid) {
+        // Применяем прочитанные значения через сеттеры
+        #if WIFI_ENABLED == 1
+        if (strlen(raw.wifiSsid) > 0) {
+            if (!config_setWifiSsid(raw.wifiSsid)) {
+                #if DEBUG_ENABLED == 1
+                    Serial.printf("[CONFIG] Failed to set WiFi SSID from EEPROM: %s\n", config_getLastError());
+                #endif
+            }
+        }
+        if (strlen(raw.wifiPassword) > 0) {
+            if (!config_setWifiPassword(raw.wifiPassword)) {
+                #if DEBUG_ENABLED == 1
+                    Serial.printf("[CONFIG] Failed to set WiFi password from EEPROM: %s\n", config_getLastError());
+                #endif
+            }
+        }
+
+        #if MQTT_ENABLED == 1
+        if (strlen(raw.mqttBroker) > 0) {
+            if (!config_setMqttBroker(raw.mqttBroker)) {
+                #if DEBUG_ENABLED == 1
+                    Serial.printf("[CONFIG] Failed to set MQTT broker from EEPROM: %s\n", config_getLastError());
+                #endif
+            }
+        }
+        if (!config_setMqttPort(raw.mqttPort)) {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] Failed to set MQTT port from EEPROM: %s\n", config_getLastError());
+            #endif
+        }
+        if (strlen(raw.mqttUser) > 0) {
+            if (!config_setMqttUser(raw.mqttUser)) {
+                #if DEBUG_ENABLED == 1
+                    Serial.printf("[CONFIG] Failed to set MQTT user from EEPROM: %s\n", config_getLastError());
+                #endif
+            }
+        }
+        if (strlen(raw.mqttPassword) > 0) {
+            if (!config_setMqttPassword(raw.mqttPassword)) {
+                #if DEBUG_ENABLED == 1
+                    Serial.printf("[CONFIG] Failed to set MQTT password from EEPROM: %s\n", config_getLastError());
+                #endif
+            }
+        }
+        if (strlen(raw.mqttClientId) > 0) {
+            if (!config_setMqttClientId(raw.mqttClientId)) {
+                #if DEBUG_ENABLED == 1
+                    Serial.printf("[CONFIG] Failed to set MQTT client ID from EEPROM: %s\n", config_getLastError());
+                #endif
+            }
+        }
+        #endif // MQTT_ENABLED
+        #endif // WIFI_ENABLED
+
+        #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+        if (!config_setSensorInterval(raw.sensorInterval)) {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] Failed to set sensor interval from EEPROM: %s\n", config_getLastError());
+            #endif
+        }
+        #endif
+
+        #if DEVICE_TYPE == 1
+        if (!config_setLowTemp(raw.lowTemp)) {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] Failed to set low temp from EEPROM: %s\n", config_getLastError());
+            #endif
+        }
+        if (!config_setHighTemp(raw.highTemp)) {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] Failed to set high temp from EEPROM: %s\n", config_getLastError());
+            #endif
+        }
+        if (!config_setLowHum(raw.lowHum)) {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] Failed to set low hum from EEPROM: %s\n", config_getLastError());
+            #endif
+        }
+        if (!config_setHighHum(raw.highHum)) {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] Failed to set high hum from EEPROM: %s\n", config_getLastError());
+            #endif
+        }
+        if (!config_setSpeedPercent(raw.speedPercent)) {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] Failed to set speed percent from EEPROM: %s\n", config_getLastError());
+            #endif
+        }
+        config_setAdaptiveMode(raw.adaptiveMode);
+        config_setSensorControlMode(raw.sensorControlMode);
+        #endif
+
+        #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+        if (!config_setDelaySeconds(raw.delaySeconds)) {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] Failed to set delay seconds from EEPROM: %s\n", config_getLastError());
+            #endif
+        }
+        if (!config_setMaxOnTime(raw.maxOnTime)) {
+            #if DEBUG_ENABLED == 1
+                Serial.printf("[CONFIG] Failed to set max on time from EEPROM: %s\n", config_getLastError());
+            #endif
+        }
+        config_setBootState(raw.bootState);
+        #endif
+
+        #if WIFI_ENABLED == 1
+            if (strlen(_config.wifiSsid) == 0) {
+                _configValid = false;
+                #if DEBUG_ENABLED == 1
+                    Serial.println("[CONFIG] Config has empty WiFi SSID — marking as INVALID");
+                #endif
+            } else {
+                _configValid = true;
+            }
+        #else
+            _configValid = true;
+        #endif
+
+        #if DEBUG_ENABLED == 1
+            if (_configValid) {
+                Serial.println("[CONFIG] Config loaded from EEPROM via setters");
+            } else {
+                Serial.println("[CONFIG] Config loaded but invalid (empty SSID)");
+            }
+        #endif
+    } else {
+        _configValid = false;
+        #if DEBUG_ENABLED == 1
+            Serial.println("[CONFIG] Using defaults (EEPROM invalid)");
+        #endif
+    }
 }
 
 bool config_write() {
   #if LOG_CONFIG == 1
     Serial.println(ANSI_BRIGHT_RED "[CONFIG] Writing to EEPROM..." ANSI_RESET);
+    #if WIFI_ENABLED == 1
     Serial.printf("[CONFIG] WiFi SSID: '%s'\n", _config.wifiSsid);
     #if MQTT_ENABLED == 1
     Serial.printf("[CONFIG] MQTT Broker: '%s:%d'\n", _config.mqttBroker, _config.mqttPort);
     Serial.printf("[CONFIG] MQTT Client ID: '%s'\n", _config.mqttClientId);
-    #endif
+    #endif // MQTT_ENABLED
+    #endif // WIFI_ENABLED
   #endif
   
   uint16_t oldCrc = _config.crc;
@@ -735,13 +700,15 @@ bool config_write() {
   uint16_t calcVerifyCrc = crc16((uint8_t*)&verify, sizeof(Config));
   
   #if DEBUG_ENABLED == 1
+    #if MQTT_ENABLED
     #if MQTT_ENABLED == 1
     Serial.printf("[CONFIG] Verify magic: 0x%04X, WiFi: '%s', ClientID: '%s', Calculated: 0x%04X\n", 
                   verify.magic, verify.wifiSsid, verify.mqttClientId, calcVerifyCrc);
     #else
     Serial.printf("[CONFIG] Verify magic: 0x%04X, WiFi: '%s', Calculated: 0x%04X\n", 
                   verify.magic, verify.wifiSsid, calcVerifyCrc);
-    #endif
+    #endif // MQTT_ENABLED
+    #endif // WIFI_ENABLED
   #endif
   
   if (verify.magic == _config.magic && calcVerifyCrc == _config.crc) {
@@ -818,14 +785,16 @@ Config config_getSaved() {
 void config_print() {
   #if LOG_CONFIG == 1
     Serial.println("=== Config ===");
+    #if WIFI_ENABLED == 1
     Serial.printf("WiFi SSID: '%s'\n", _config.wifiSsid);
     Serial.printf("WiFi Password: %s\n", _config.wifiPassword[0] ? "***" : "(empty)");
+
     #if MQTT_ENABLED == 1
-    Serial.printf("MQTT Broker: '%s:%d'\n", _config.mqttBroker, _config.mqttPort);
-    Serial.printf("MQTT User: '%s'\n", _config.mqttUser);
-    Serial.printf("MQTT Client ID: '%s'\n", _config.mqttClientId);
+      Serial.printf("MQTT Broker: '%s:%d'\n", _config.mqttBroker, _config.mqttPort);
+      Serial.printf("MQTT User: '%s'\n", _config.mqttUser);
+      Serial.printf("MQTT Client ID: '%s'\n", _config.mqttClientId);
     #endif
-  
+    #endif // WIFI_ENABLED == 1
     #if DEVICE_TYPE == 1
       Serial.printf("Temp range: %.1f - %.1f\n", _config.lowTemp, _config.highTemp);
       Serial.printf("Hum range: %.1f - %.1f\n", _config.lowHum, _config.highHum);
@@ -852,12 +821,13 @@ void config_print() {
   #endif //LOG_CONFIG == 1
   Serial.printf("CRC: 0x%04X\n", _config.crc);
   Serial.printf("Config valid: %s\n", _configValid ? "YES" : "NO");
-  
+  #if WIFI_ENABLED == 1
   if (!_configValid || strlen(_config.wifiSsid) == 0) {
     Serial.println("Mode: SETUP (AP will be started)");
   } else {
     Serial.println("Mode: NORMAL");
   }
+  #endif
   
   if (!_configValid && HAS_CREDENTIALS) {
     Serial.print(ANSI_BRIGHT_RED);

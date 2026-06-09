@@ -143,8 +143,7 @@
 #endif
 
 
-#if WDT_ENABLED == 1
-  
+#if WDT_ENABLED == 1 
   #ifndef WDT_TIMER_MS
     #define WDT_TIMER_MS 5000               // Таймаут WDT в миллисекундах
   #endif
@@ -401,6 +400,56 @@
   #define WIFI_CHECK_INTERVAL_MS 10000
 #endif
 
+// ======================== ДИАПАЗОНЫ ДЛЯ ВАЛИДАЦИИ ========================
+#ifndef TEMP_MIN
+  #define TEMP_MIN -40.0
+#endif
+
+#ifndef TEMP_MAX
+  #define TEMP_MAX 85.0
+#endif
+
+#ifndef HUM_MIN
+  #define HUM_MIN 0.0
+#endif
+
+#ifndef HUM_MAX
+  #define HUM_MAX 100.0
+#endif
+
+#ifndef SENSOR_INTERVAL_MIN
+  #define SENSOR_INTERVAL_MIN 1
+#endif
+
+#ifndef SENSOR_INTERVAL_MAX
+  #define SENSOR_INTERVAL_MAX 3600
+#endif
+
+#ifndef DELAY_SECONDS_MIN
+  #define DELAY_SECONDS_MIN 0
+#endif
+
+#ifndef DELAY_SECONDS_MAX
+  #define DELAY_SECONDS_MAX 86400
+#endif
+
+#ifndef MAX_ON_TIME_MIN
+  #define MAX_ON_TIME_MIN 0
+#endif
+
+#ifndef MAX_ON_TIME_MAX
+  #define MAX_ON_TIME_MAX 86400
+#endif
+
+#ifndef SPEED_PERCENT_MIN
+  #define SPEED_PERCENT_MIN 0
+#endif
+
+#ifndef SPEED_PERCENT_MAX
+  #define SPEED_PERCENT_MAX 100
+#endif
+
+
 // ======================== ПОРОГИ ПО УМОЛЧАНИЮ ========================
 #if DEVICE_TYPE == 1
   #ifndef DEFAULT_LOW_TEMP
@@ -614,11 +663,7 @@ void config_setDefaults();
  */
 bool config_clear();
 
-/**
- * @brief Проверка всех параметров на валидность
- * @return true — конфигурация корректна
- */
-bool config_validate();  
+
 
 /**
  * @brief Получить конфигурацию, сохранённую в EEPROM (без загрузки в рабочую)

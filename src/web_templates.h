@@ -3,6 +3,10 @@
 
 #include <Arduino.h>
 #include "config.h"
+
+
+#if WEB_ENABLED == 1
+
 #include <functional>
 
 /**
@@ -58,8 +62,6 @@ const char HTML_PAGE_END[] PROGMEM = R"rawliteral(
 </div></body></html>
 )rawliteral";
 
-// ========== УНИФИЦИРОВАННАЯ ФУНКЦИЯ РЕНДЕРИНГА (ДЛЯ ОБЕИХ ПЛАТФОРМ) ==========
-
 using WebSendCallback = std::function<void(const String&)>;
 
 inline void sendConfigPage(WebSendCallback send, 
@@ -92,43 +94,43 @@ inline void sendConfigPage(WebSendCallback send,
     send(FPSTR(HTML_STYLE));
     send(F("</head><body><div class='container'>"));
     
-    send(F("<h1>Настройка устройства "));
+    send(F("<h1>Setting "));
     send(deviceId);
     send(F(" v. "));
     send(VERSION);
     send(F("</h1>"));
     
-    send(F("<h3>Текущее состояние</h3><div class='info'>"));
-    send(F("Режим: <strong>")); send(currentMode); send(F("</strong><br>"));
+    send(F("<h3>State</h3><div class='info'>"));
+    send(F("Mode: <strong>")); send(currentMode); send(F("</strong><br>"));
     send(F("SSID: <strong>")); send(currentSsid); send(F("</strong><br>"));
-    send(F("IP адрес: <strong>")); send(currentIp); send(F("</strong><br>"));
+    send(F("IP: <strong>")); send(currentIp); send(F("</strong><br>"));
     send(F("</div>"));
     
     if (errorMsg.length() > 0) {
-        send(F("<div class='error'><strong>Ошибка:</strong> "));
+        send(F("<div class='error'><strong>Error:</strong> "));
         send(errorMsg);
         send(F("</div>"));
     }
     
     if (successMsg.length() > 0) {
-        send(F("<div class='success'><strong>✓ Настройки сохранены!</strong> "));
+        send(F("<div class='success'><strong>Config saved!</strong> "));
         send(successMsg);
         send(F("</div>"));
     }
     
     send(F("<form method='POST' action='/save'>"));
-    send(F("<h3>Настройки сети</h3>"));
+    send(F("<h3>WiFi setup</h3>"));
     send(F("<label>WiFi SSID:</label>"));
     send(F("<input type='text' name='wifiSsid' required value='"));
     send(savedConfig.wifiSsid);
     send(F("'>"));
     
     send(F("<label>WiFi Password:</label>"));
-    send(F("<input type='password' name='wifiPassword' placeholder='(не показан)'>"));
-    send(F("<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль</div>"));
+    send(F("<input type='password' name='wifiPassword' placeholder='(hidden)'>"));
+    send(F("<div class='password-hint'>Leave empty to keep current password</div>"));
     
     #if MQTT_ENABLED == 1
-    send(F("<h3>MQTT настройки</h3>"));
+    send(F("<h3>MQTT setup</h3>"));
     send(F("<div class='row'><div><label>MQTT Broker:</label>"));
     send(F("<input type='text' name='mqttBroker' required value='"));
     send(savedConfig.mqttBroker);
@@ -145,8 +147,8 @@ inline void sendConfigPage(WebSendCallback send,
     send(F("'></div>"));
     
     send(F("<div><label>MQTT Password:</label>"));
-    send(F("<input type='password' name='mqttPassword' placeholder='(не показан)'></div></div>"));
-    send(F("<div class='password-hint'>Оставьте пустым, чтобы сохранить текущий пароль</div>"));
+    send(F("<input type='password' name='mqttPassword' placeholder='(hidden)'></div></div>"));
+    send(F("<div class='password-hint'>Leave empty to keep current password</div>"));
     
     send(F("<label>MQTT Client ID:</label>"));
     send(F("<input type='text' name='mqttClientId' required value='"));
@@ -155,111 +157,151 @@ inline void sendConfigPage(WebSendCallback send,
     #endif
     
     #if DEVICE_TYPE == 1
-    send(F("<h3>Настройки датчиков</h3>"));
+    send(F("<h3>Sensor</h3>"));
     
     send(F("<div class='row'><div><label>Low Temp (°C):</label>"));
-    send(F("<input type='number' step='0.1' name='lowTemp' required value='"));
+    send(F("<input type='number' step='0.1' min='"));
+    send(String(TEMP_MIN));
+    send(F("' max='"));
+    send(String(TEMP_MAX));
+    send(F("' name='lowTemp' required value='"));
     send(String(savedConfig.lowTemp));
     send(F("'></div>"));
     
     send(F("<div><label>High Temp (°C):</label>"));
-    send(F("<input type='number' step='0.1' name='highTemp' required value='"));
+    send(F("<input type='number' step='0.1' min='"));
+    send(String(TEMP_MIN));
+    send(F("' max='"));
+    send(String(TEMP_MAX));
+    send(F("' name='highTemp' required value='"));
     send(String(savedConfig.highTemp));
     send(F("'></div></div>"));
     
     send(F("<div class='row'><div><label>Low Hum (%):</label>"));
-    send(F("<input type='number' step='0.1' name='lowHum' required value='"));
+    send(F("<input type='number' step='0.1' min='"));
+    send(String(HUM_MIN));
+    send(F("' max='"));
+    send(String(HUM_MAX));
+    send(F("' name='lowHum' required value='"));
     send(String(savedConfig.lowHum));
     send(F("'></div>"));
     
     send(F("<div><label>High Hum (%):</label>"));
-    send(F("<input type='number' step='0.1' name='highHum' required value='"));
+    send(F("<input type='number' step='0.1' min='"));
+    send(String(HUM_MIN));
+    send(F("' max='"));
+    send(String(HUM_MAX));
+    send(F("' name='highHum' required value='"));
     send(String(savedConfig.highHum));
     send(F("'></div></div>"));
     
-    send(F("<div class='row'><div><label>Интервал опроса датчика (сек)</label>"));
-    send(F("<input type='number' name='sensorInterval' required value='"));
+    send(F("<div class='row'><div><label>Sensor polling interval (sec)</label>"));
+    send(F("<input type='number' min='"));
+    send(String(SENSOR_INTERVAL_MIN));
+    send(F("' max='"));
+    send(String(SENSOR_INTERVAL_MAX));
+    send(F("' name='sensorInterval' required value='"));
     send(String(savedConfig.sensorInterval));
     send(F("'></div>"));
     
-    send(F("<div><label>Аварийное отключение через </label>"));
-    send(F("<input type='number' name='maxOnTime' min='0' required value='"));
+    send(F("<div><label>Emergency off after </label>"));
+    send(F("<input type='number' min='"));
+    send(String(MAX_ON_TIME_MIN));
+    send(F("' max='"));
+    send(String(MAX_ON_TIME_MAX));
+    send(F("' name='maxOnTime' required value='"));
     send(String(savedConfig.maxOnTime));
     send(F("'></div></div>"));
     
-    send(F("<h3>Управление</h3>"));
-    send(F("<label>Принудительно включить через </label>"));
-    send(F("<input type='number' name='delaySeconds' required value='"));
+    send(F("<h3>Control</h3>"));
+    send(F("<label>Tun on after </label>"));
+    send(F("<input type='number' min='"));
+    send(String(DELAY_SECONDS_MIN));
+    send(F("' max='"));
+    send(String(DELAY_SECONDS_MAX));
+    send(F("' name='delaySeconds' required value='"));
     send(String(savedConfig.delaySeconds));
-    send(F("'> сек"));
+    send(F("'> sec"));
     
-    send(F("<h3>Тихий режим (ШИМ)</h3>"));
-    send(F("<label>Скорость (0-100%):</label>"));
-    send(F("<input type='number' name='speedPercent' min='0' max='100' required value='"));
+    send(F("<h3>Slow mode</h3>"));
+    send(F("<label>Speed (0-100%):</label>"));
+    send(F("<input type='number' min='0' max='100' name='speedPercent' required value='"));
     send(String(savedConfig.speedPercent));
     send(F("'>"));
-    send(F("<div class='note'>0% - выключено, 100% - полная мощность (тихий режим выключен).<br>При значении ниже 100% вентилятор работает тише.</div>"));
+    send(F("<div class='note'>0% - off, 100% - maximal speed (slow mode off).<br>Values below 100% reduce fan noise.</div>"));
     
-    send(F("<h3>Адаптивный тихий режим</h3>"));
+    send(F("<h3>Smart slow mode</h3>"));
     send(F("<label><input type='checkbox' name='adaptiveMode' value='1'"));
     if (savedConfig.adaptiveMode) send(F(" checked"));
-    send(F("> Включить адаптацию</label>"));
-    send(F("<div class='note'>Адаптивный режим автоматически регулирует скорость для поддержания температуры и влажности на уровне, зафиксированном при включении вентилятора.</div>"));
+    send(F("> Turn smart on</label>"));
+    send(F("<div class='note'>Adaptive mode automatically adjusts speed to maintain temperature and humidity levels measured at fan startup.</div>"));
     
-    send(F("<h3>Поведение при старте</h3>"));
+    send(F("<h3>Startup behavior</h3>"));
     send(F("<label><input type='checkbox' name='bootState' value='1'"));
     if (savedConfig.bootState) send(F(" checked"));
-    send(F("> Включать при старте</label>"));
-    send(F("<div class='note'>При включенной опции вентилятор будет включен сразу после подачи питания.</div>"));
+    send(F("> Turn on at startup</label>"));
+    send(F("<div class='note'>When enabled, the switch will turn on immediately after power is applied.</div>"));
     
-    send(F("<h3>Режимы работы</h3>"));
+    send(F("<h3>Mode</h3>"));
     send(F("<label><input type='checkbox' name='sensorControlMode' value='1'"));
     if (savedConfig.sensorControlMode) send(F(" checked"));
-    send(F("> Режим управления сенсором</label>"));
-    send(F("<div class='note'>При включённом режиме вентилятор управляется по показаниям датчиков температуры и влажности. При выключении — только вручную.</div>"));
+    send(F("> Sensor control</label>"));
+    send(F("<div class='note'>When enabled, the fan is controlled by temperature and humidity sensors. When disabled, only manual control works.</div>"));
     
     #elif DEVICE_TYPE == 2
-    send(F("<h3>Настройки датчиков</h3>"));
-    send(F("<label>Интервал опроса датчика (сек)</label>"));
-    send(F("<input type='number' name='sensorInterval' required value='"));
+    send(F("<h3>Sensor</h3>"));
+    send(F("<label>Reading interval (sec)</label>"));
+    send(F("<input type='number' min='"));
+    send(String(SENSOR_INTERVAL_MIN));
+    send(F("' max='"));
+    send(String(SENSOR_INTERVAL_MAX));
+    send(F("' name='sensorInterval' required value='"));
     send(String(savedConfig.sensorInterval));
     send(F("'>"));
     
     #elif DEVICE_TYPE == 3
-    send(F("<h3>Управление</h3>"));
-    send(F("<label>Принудительно включить через </label>"));
-    send(F("<input type='number' name='delaySeconds' required value='"));
+    send(F("<h3>Control</h3>"));
+    send(F("<label>Turn on after </label>"));
+    send(F("<input type='number' min='"));
+    send(String(DELAY_SECONDS_MIN));
+    send(F("' max='"));
+    send(String(DELAY_SECONDS_MAX));
+    send(F("' name='delaySeconds' required value='"));
     send(String(savedConfig.delaySeconds));
-    send(F("'> сек<br>"));
+    send(F("'> sec<br>"));
     
-    send(F("<label>Аварийное отключение через </label>"));
-    send(F("<input type='number' name='maxOnTime' min='0' required value='"));
+    send(F("<label>Emergency timer </label>"));
+    send(F("<input type='number' min='"));
+    send(String(MAX_ON_TIME_MIN));
+    send(F("' max='"));
+    send(String(MAX_ON_TIME_MAX));
+    send(F("' name='maxOnTime' required value='"));
     send(String(savedConfig.maxOnTime));
-    send(F("'> сек"));
+    send(F("'> sec"));
     
-    send(F("<h3>Поведение при старте</h3>"));
+    send(F("<h3>Turn on at startup</h3>"));
     send(F("<label><input type='checkbox' name='bootState' value='1'"));
     if (savedConfig.bootState) send(F(" checked"));
-    send(F("> Включать при старте</label>"));
-    send(F("<div class='note'>При включенной опции выключатель будет включен сразу после подачи питания.</div>"));
+    send(F("> Turn on at startup</label>"));
+    send(F("<div class='note'>When enabled, the switch will turn on immediately after power is applied.</div>"));
     #endif
     
-    send(F("<label><input type='checkbox' name='confirmSave' required> Подтвердить сохранение</label>"));
-    send(F("<input type='submit' value='Сохранить и перезагрузить'>"));
+    send(F("<label><input type='checkbox' name='confirmSave' required> Confirm saving</label>"));
+    send(F("<input type='submit' value='Save and reboot'>"));
     send(F("</form>"));
     
     #if OTA_ENABLED == 1
     if (web_isOtaAvailable()) {
-        send(F("<a href='/update' class='link-btn'>Обновить прошивку (OTA)</a>"));
+        send(F("<a href='/update' class='link-btn'>Upgrade firmware (OTA)</a>"));
     } else {
-        send(F("<div class='warning'>OTA недоступно: недостаточно Flash памяти (требуется 2MB)</div>"));
+        send(F("<div class='warning'>OTA unavailable: insufficient Flash memory (2MB required)</div>"));
     }
     #endif
     
     if (!isApMode) {
-        send(F("<a href='/' class='link-btn'>Домой</a>"));
+        send(F("<a href='/' class='link-btn'>Home</a>"));
     }
     send(FPSTR(HTML_PAGE_END));
 }
-
+#endif // WEB_ENABLED
 #endif // WEB_TEMPLATES_H
