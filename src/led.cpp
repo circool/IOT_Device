@@ -145,6 +145,61 @@ void led_update() {
                 }
             }
             break;
+            
+        case LED_MODE_EMERGENCY_STOP:
+            // Паттерн: длинная вспышка (500ms) -> пауза (300ms) -> короткая (100ms) -> пауза (100ms) -> короткая (100ms) -> пауза (700ms)
+            if (blinkStep == 0) {
+                // Длинная вспышка
+                if (now - lastBlinkTime >= 500) {
+                    lastBlinkTime = now;
+                    blinkStep = 1;
+                    shouldBeOn = false;
+                } else {
+                    shouldBeOn = true;
+                }
+            }
+            else if (blinkStep == 1) {
+                // Пауза после длинной вспышки
+                if (now - lastBlinkTime >= 300) {
+                    lastBlinkTime = now;
+                    blinkStep = 2;
+                    shouldBeOn = true;
+                } else {
+                    shouldBeOn = false;
+                }
+            }
+            else if (blinkStep == 2) {
+                // Первая короткая вспышка
+                if (now - lastBlinkTime >= 100) {
+                    lastBlinkTime = now;
+                    blinkStep = 3;
+                    shouldBeOn = false;
+                } else {
+                    shouldBeOn = true;
+                }
+            }
+            else if (blinkStep == 3) {
+                // Пауза между короткими
+                if (now - lastBlinkTime >= 100) {
+                    lastBlinkTime = now;
+                    blinkStep = 4;
+                    shouldBeOn = true;
+                } else {
+                    shouldBeOn = false;
+                }
+            }
+            else if (blinkStep == 4) {
+                // Вторая короткая вспышка
+                if (now - lastBlinkTime >= 100) {
+                    lastBlinkTime = now;
+                    blinkStep = 0;  // цикл повторяется
+                    shouldBeOn = false;
+                } else {
+                    shouldBeOn = true;
+                }
+            }
+            break;
+            
     }
     
     if (shouldBeOn != ledState) {
