@@ -7,11 +7,12 @@
  * @brief Режимы работы светодиода
  */
 enum LedMode {
-    LED_MODE_OFF,           // Постоянно выключен
-    LED_MODE_ON,            // Постоянно включён (всё OK)
-    LED_MODE_SLOW_BLINK,    // Медленное мигание (нет WiFi)
-    LED_MODE_FAST_BLINK,    // Частое мигание (нет MQTT)
-    LED_MODE_AP_BLINK       // Тройные вспышки (режим AP)
+    LED_MODE_OFF,               // Постоянно выключен
+    LED_MODE_ON,                // Постоянно включён (всё OK)
+    LED_MODE_SLOW_BLINK,        // Медленное мигание (нет WiFi)
+    LED_MODE_FAST_BLINK,        // Частое мигание (нет MQTT)
+    LED_MODE_AP_BLINK,          // Тройные вспышки (режим AP)
+    LED_MODE_EMERGENCY_STOP,    // Аварийное отключение: длинная — пауза — две коротких
 };
 
 /**
