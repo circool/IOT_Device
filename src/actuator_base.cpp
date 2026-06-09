@@ -97,6 +97,9 @@ void ActuatorBase::forceStop() {
         Serial.println("[ACTUATOR] Force stop!");
     #endif
     set(false, true);
+    #if STATUS_LED_PIN > 0
+        led_setMode(LED_MODE_EMERGENCY_STOP);
+    #endif
     if (onForceStopCallback) onForceStopCallback(callbackContext);
 }
 
