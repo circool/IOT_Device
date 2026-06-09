@@ -386,7 +386,7 @@
    */
   #if PWM_ENABLED == 1
     #ifndef ADAPTIVE_ENABLED
-      #define AdAPTIVE_ENABLED 1
+      #define ADAPTIVE_ENABLED 1
     #endif
 
     #if ADAPTIVE_ENABLED == 1
