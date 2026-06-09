@@ -1,6 +1,7 @@
 #include "config.h"
 #include "led.h"
 #include "ansi.h"
+#include "wifi_manager.h"
 
 #if MQTT_ENABLED == 1
 #include "mqtt.h"

@@ -3,7 +3,7 @@
 
 #include <Arduino.h>
 #include "config.h"
-
+#include "ota.h"
 
 #if WEB_ENABLED == 1
 
@@ -16,9 +16,7 @@
  */
 
 
-#if OTA_ENABLED == 1
-extern bool web_isOtaAvailable();
-#endif
+
 
 // ========== ОБЩИЙ ШАБЛОН СТРАНИЦЫ (НАЧАЛО, БЕЗ МАРКЕРОВ) ==========
 const char HTML_PAGE_START[] PROGMEM = R"rawliteral(
@@ -291,7 +289,7 @@ inline void sendConfigPage(WebSendCallback send,
     send(F("</form>"));
     
     #if OTA_ENABLED == 1
-    if (web_isOtaAvailable()) {
+    if (ota_is_available()) {
         send(F("<a href='/update' class='link-btn'>Upgrade firmware (OTA)</a>"));
     } else {
         send(F("<div class='warning'>OTA unavailable: insufficient Flash memory (2MB required)</div>"));

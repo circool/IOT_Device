@@ -99,14 +99,7 @@
     #define OTA_ENABLED 1
   #endif
 
-  #if OTA_ENABLED == 1
-    #if defined(ESP32)
-        #include <ElegantOTA.h>
-    #elif defined(ESP8266)
-        #include <ElegantOTA.h>
-    #endif
-  #endif
-
+  
 #else
   #define WEB_ENABLED 0
   #define MQTT_ENABLED 0

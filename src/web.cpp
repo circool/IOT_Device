@@ -1,49 +1,28 @@
+// ===== ФАЙЛ: web.cpp (ПОЛНОСТЬЮ, ИСПРАВЛЕННЫЙ) =====
 #include "web.h"
 #include "web_templates.h"
 #include "sensor.h"
 #include "led.h"
 #include "ansi.h"
 #include "config.h"
+#include "wifi_manager.h"
+#include "ota.h"
 
-#ifdef ESP32
-  #include <WiFi.h>
-#elif defined(ESP8266)
-  #include <ESP8266WiFi.h>
-#endif
-
+extern WebServer server;
 
 #if DEVICE_TYPE == 1
   #include "fan_actuator.h"
-  // extern объявление убрано, теперь указатель передаётся через регистрацию
 #endif
 
 #if DEVICE_TYPE == 3
   #include "switch_actuator.h"
-  // extern объявление убрано, теперь указатель передаётся через регистрацию
 #endif
 
 #if MQTT_ENABLED == 1
   #include "mqtt.h"
 #endif
 
-
-
-#if OTA_ENABLED == 1
-  #include <ElegantOTA.h>
-
-  static bool otaAvailable = false;
-
-  void web_setOtaAvailable(bool available) {
-      otaAvailable = available;
-  }
-
-  bool web_isOtaAvailable() {
-    return otaAvailable;
-  }
-#endif
-
 // ========== ГЛОБАЛЬНЫЕ УКАЗАТЕЛИ НА АКТУАТОРЫ ==========
-// >>> НАЧАЛО ИЗМЕНЕНИЙ
 static FanActuator* g_fanActuator = nullptr;
 static SwitchActuator* g_switchActuator = nullptr;
 
@@ -51,10 +30,8 @@ void web_registerActuators(FanActuator* fanPtr, SwitchActuator* switchPtr) {
     g_fanActuator = fanPtr;
     g_switchActuator = switchPtr;
 }
-// <<< КОНЕЦ ИЗМЕНЕНИЙ
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ РАСЧЁТА ТАЙМЕРОВ ==========
-// >>> НАЧАЛО ИЗМЕНЕНИЙ
 static String formatRemainingTime(unsigned long remainingMs) {
     if (remainingMs <= 0) return "0 sec";
     unsigned long remainingSec = remainingMs / 1000;
@@ -67,12 +44,10 @@ static String getCurrentModeText() {
     #if DEVICE_TYPE == 1
         if (g_fanActuator == nullptr) return "NA";
         
-        // 1. Приоритет: режим управления сенсором
         if (config_get()->sensorControlMode) {
             return F("<span style='color:#4CAF50;'>SENSOR</span>");
         }
         
-        // 2. Таймер отложенного включения активен
         if (g_fanActuator->isDelayActive()) {
             unsigned long remaining = g_fanActuator->getDelayTimer() - millis();
             if (remaining > 0) {
@@ -83,13 +58,11 @@ static String getCurrentModeText() {
             return F("<span style='color:#FFC107;'>TIMER</span>");
         }
         
-        // 3. Ручной режим
         return F("<span style='color:#f44336;'>MANUAL</span>");
         
     #elif DEVICE_TYPE == 3
         if (g_switchActuator == nullptr) return "Н/Д";
         
-        // 1. Таймер отложенного включения активен
         if (g_switchActuator->isDelayActive()) {
             unsigned long remaining = g_switchActuator->getDelayTimer() - millis();
             if (remaining > 0) {
@@ -100,7 +73,6 @@ static String getCurrentModeText() {
             return F("<span style='color:#FFC107;'>TIMER</span>");
         }
         
-        // 2. Ручной режим
         return F("<span style='color:#f44336;'>MANUAL</span>");
         
     #else
@@ -129,7 +101,6 @@ static String getMaxOnTimeRemaining() {
         #endif
         
         if (!isOn || startTime == 0) {
-            // Показываем настроенное значение, даже если таймер не активен
             return String(maxOnTime) + " sec (not active)";
         }
         
@@ -142,6 +113,7 @@ static String getMaxOnTimeRemaining() {
         return "NA";
     #endif
 }
+
 static String getDelayTimerRemaining() {
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
         bool delayActive = false;
@@ -168,7 +140,6 @@ static String getDelayTimerRemaining() {
             }
         }
         
-        
         unsigned long remaining = delayTimer - millis();
         if (remaining <= 0) return "0 sec (will turn on)";
         return formatRemainingTime(remaining);
@@ -176,7 +147,6 @@ static String getDelayTimerRemaining() {
         return "NA";
     #endif
 }
-// <<< КОНЕЦ ИЗМЕНЕНИЙ
 
 // ========== ФОРМИРОВАНИЕ СТАТУСА ДЛЯ СТРАНИЦЫ СОСТОЯНИЯ ==========
 String web_buildStatusHtml() {
@@ -198,7 +168,6 @@ String web_buildStatusHtml() {
     String humColor = "#2196F3";
     #endif
     
-    // Температура
     html += F("<div class='sensor-card' style='background:");
     html += tempColor;
     html += F("20; border:2px solid ");
@@ -219,7 +188,6 @@ String web_buildStatusHtml() {
     #endif
     html += F("</div></div>");
     
-    // Влажность
     html += F("<div class='sensor-card' style='background:");
     html += humColor;
     html += F("20; border:2px solid ");
@@ -249,15 +217,12 @@ String web_buildStatusHtml() {
     }
     #endif
     
-    // >>> НАЧАЛО ИЗМЕНЕНИЙ
-    // Блок отображения режима работы (для TYPE 1 и 3)
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     html += F("<div class='status-card' style='background:#f5f5f5; border:2px solid #ddd;'>");
     html += F("<div style='font-size:1.5em;font-weight:bold;'>Mode: ");
     html += getCurrentModeText();
     html += F("</div></div>");
     #endif
-    // <<< КОНЕЦ ИЗМЕНЕНИЙ
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     #if DEVICE_TYPE == 1
@@ -306,11 +271,9 @@ String web_buildStatusHtml() {
         }
         html += F("</div>");
     }
-    
     #endif
     #endif
     
-    // Информационная панель с таймерами
     html += F("<hr><div class='info'>");
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
@@ -336,12 +299,11 @@ String web_buildStatusHtml() {
     
     #if WEB_SHOW_RSSI == 1
     html += F("RSSI: ");
-    html += String(WiFi.RSSI());
+    html += String(wifi_get_rssi());
     html += F(" dBm<br>");
     #endif
     
     html += F("</div>");
-    // <<< КОНЕЦ ИЗМЕНЕНИЙ
     
     #if DEVICE_TYPE == 1
     if (!config_get()->sensorControlMode && sensor_isOk() && g_fanActuator != nullptr) {
@@ -388,7 +350,7 @@ void handleToggle() {
 }
 #endif
 
-// ========== УНИФИЦИРОВАННАЯ РЕАЛИЗАЦИЯ (ДЛЯ ESP32 И ESP8266) ==========
+// ========== УНИФИЦИРОВАННАЯ РЕАЛИЗАЦИЯ ==========
 
 void web_sendStatusPage(int refreshInterval) {
     String statusHtml = web_buildStatusHtml();
@@ -433,7 +395,7 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
     
     String currentMode = apMode ? F("Access Point") : F("Client WiFi");
     String currentSsid = apMode ? String(deviceId) : String(cfg->wifiSsid);
-    String currentIp = apMode ? String(AP_IP_ADDRESS) : WiFi.localIP().toString();
+    String currentIp = apMode ? String(AP_IP_ADDRESS) : wifi_get_local_ip();
     
     int refreshSeconds = (successMsg.length() > 0) ? 5 : 0;
     
@@ -444,18 +406,15 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
         server.sendContent(chunk);
     };
     
-    // Передаём флаг apMode в функцию рендеринга
     sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid, currentIp, refreshSeconds, apMode);
 }
 
 void web_saveConfig() {
-    // Выключаем LED перед критической операцией
     #if STATUS_LED_PIN > 0
         led_setMode(LED_MODE_OFF);
         delay(50);
     #endif
 
-    // === ВАЛИДАЦИЯ WiFi ===
     if (server.hasArg("wifiSsid")) {
         if (!config_setWifiSsid(server.arg("wifiSsid").c_str())) {
             #if STATUS_LED_PIN > 0
@@ -531,7 +490,7 @@ void web_saveConfig() {
             }
         }
     }
-    #endif // MQTT_ENABLED == 1
+    #endif
 
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     if (server.hasArg("sensorInterval")) {
@@ -637,7 +596,6 @@ void web_saveConfig() {
     config_setBootState(server.hasArg("bootState"));
     #endif
 
-    // Запись в EEPROM
     if (!config_write()) {
         #if STATUS_LED_PIN > 0
             led_setMode(LED_MODE_AP_BLINK);
@@ -733,9 +691,7 @@ void web_init() {
     #endif
     
     #if OTA_ENABLED == 1
-    if (web_isOtaAvailable()) {
-        ElegantOTA.begin(&server);
-    }
+    ota_init(&server);
     #endif
     
     server.begin();
@@ -751,37 +707,30 @@ void web_initAP() {
     apMode = true;
 
     #if STATUS_LED_PIN > 0
-      led_setMode(LED_MODE_AP_BLINK);  
+        led_setMode(LED_MODE_AP_BLINK);  
     #endif
 
-    WiFi.mode(WIFI_AP);
-  
-    #ifdef ESP8266
-      IPAddress apIP;
-      apIP.fromString(AP_IP_ADDRESS);
-      WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-      WiFi.softAP(deviceId);     
-    #elif defined(ESP32)    
-      WiFi.softAP(deviceId);      
-    #endif
+    wifi_start_ap(deviceId);
     
     server.on("/", [](){ web_sendConfigPage("", ""); });
     server.on("/save", web_saveConfig);
     server.on("/favicon.ico", [](){ server.send(404); });
 
     #if OTA_ENABLED == 1
-    if (web_isOtaAvailable()) {
-        ElegantOTA.begin(&server);
+    if (ota_is_available()) {
+        ota_init(&server);
     }
     #endif
+    
     #if LOG_WEB == 1
     Serial.printf("[WEB] Web server started in AP mode: SSID %s%s%s, IP %s%s%s\n", 
                   ANSI_BOLD , deviceId, ANSI_RESET,
                   ANSI_BOLD ANSI_MAGENTA, AP_IP_ADDRESS, ANSI_RESET);
     #endif
+    
     server.begin();
 }
 
 void web_update() {
-    server.handleClient();   
+    server.handleClient();
 }

@@ -1,12 +1,13 @@
 #include <Arduino.h>
 #include "config.h"
+#include "ota.h"
+#include "wifi_manager.h"
 
 #ifdef ESP32
   #include <WiFi.h>
 #elif defined(ESP8266)
   #include <ESP8266WiFi.h>
 #endif
-
 
 #include "led.h"
 #include "ansi.h"
@@ -31,14 +32,6 @@
   #include "switch_actuator.h"
 #endif
 
-#if WIFI_ENABLED == 1
-  
-
-  unsigned long lastWiFiCheck = 0;        // Время в мсек, прошедшее с момента последней проверки доступности WiFi
-  unsigned long wifiLostTime = 0;         // Время в мс, прошедшее с момента потери WiFi
-  bool wifiConnecting = false;            // Состояние подключения в WiFi (true - выполняется подключение)
-  unsigned long wifiConnectStartTime = 0; // Время в мсек, прошедшее с момента подключения к WiFi
-#endif
 
 #if WEB_ENABLED == 1
   #include "web.h"
@@ -174,125 +167,6 @@ void checkResetButton() {
   SwitchActuator switchActuator;
 #endif
 
-#if WIFI_ENABLED == 1
-// ======================== WIFI ========================
-#ifndef DEBUG_WIFI_ENABLED
-  #define DEBUG_WIFI_ENABLED 0
-#endif
-
-void wifi_beginAsync() {
-  #if STATUS_LED_PIN > 0
-    led_setMode(LED_MODE_SLOW_BLINK);
-  #endif
-  
-  if (strlen(config_get()->wifiSsid) == 0) {
-    #if LOG_WIFI == 1
-      Serial.println("[WIFI] No SSID configured");
-    #endif
-    return;
-  }
-  
-  if (WiFi.status() == WL_CONNECTED) return;
-  if (wifiConnecting) return;
-  
-  #if LOG_WIFI == 1
-    Serial.printf("[WIFI] Starting async connection to %s\n", config_get()->wifiSsid);
-  #endif
-  
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(config_get()->wifiSsid, config_get()->wifiPassword);
-  wifiConnecting = true;
-  wifiConnectStartTime = millis();
-  wifiLostTime = 0;
-}
-
-void wifi_checkAsync() {
-  if (!wifiConnecting) return;
-  
-  wl_status_t status = WiFi.status();
-  
-  if (status == WL_CONNECTED) {
-    wifiConnecting = false;
-    wifiLostTime = 0;
-    
-    #if LOG_WIFI == 1
-      Serial.printf(ANSI_BRIGHT_MAGENTA "[WIFI] Connected! IP: " ANSI_BOLD "%s" ANSI_RESET "\n", WiFi.localIP().toString().c_str());
-    #endif
-    
-    #if STATUS_LED_PIN > 0
-      #if MQTT_ENABLED == 1
-        led_setMode(LED_MODE_FAST_BLINK);
-      #else
-        led_setMode(LED_MODE_ON);
-      #endif
-    #endif
-
-    if (apMode) {
-      WiFi.softAPdisconnect(true);
-      apMode = false;
-    }
-    
-  } else if (millis() - wifiConnectStartTime > WIFI_CONNECT_TIMEOUT_MS) {
-    #if LOG_WIFI == 1
-      Serial.print(ANSI_BRIGHT_RED);
-      Serial.println("[WIFI] Connection timeout!");
-      Serial.print(ANSI_RESET);
-    #endif
-    wifiConnecting = false;
-    WiFi.disconnect();
-
-    #if STATUS_LED_PIN > 0
-      led_setMode(LED_MODE_SLOW_BLINK);
-    #endif
-  }
-}
-
-void checkWiFiFallbackToAP() {
-  if (strlen(config_get()->wifiSsid) == 0) return;
-  if (apMode) return;
-  
-  IPAddress ip = WiFi.localIP();
-  bool hasValidIp = (ip != IPAddress(0,0,0,0));
-  bool isConnected = (WiFi.status() == WL_CONNECTED && hasValidIp);
-  
-  if (isConnected) {
-    wifiLostTime = 0;
-    return;
-  }
-  
-  if (!isConnected && !wifiConnecting) {
-    if (wifiLostTime == 0) {
-      wifiLostTime = millis();
-      #if LOG_WIFI == 1
-        Serial.print(ANSI_BRIGHT_RED);
-        Serial.println("[WIFI] WiFi lost, starting fallback timer");
-        Serial.print(ANSI_RESET);
-      #endif
-      
-      #if STATUS_LED_PIN > 0
-        led_setMode(LED_MODE_SLOW_BLINK);
-      #endif
-      
-    } else if (millis() - wifiLostTime > AP_FALLBACK_TIMEOUT_MS) {
-      #if LOG_WIFI == 1
-        Serial.print(ANSI_BRIGHT_MAGENTA);
-        Serial.printf("[WIFI] WiFi lost for %d ms, switching to AP mode\n", AP_FALLBACK_TIMEOUT_MS);
-        Serial.print(ANSI_RESET);
-      #endif
-      
-      WiFi.disconnect(true);
-      WiFi.mode(WIFI_OFF);
-      delay(100);
-      
-      web_initAP();
-      wifiLostTime = 0;
-    }
-  } else if (!isConnected && wifiConnecting) {
-    wifiLostTime = millis();
-  }
-}
-#endif
-
 // ======================== SETUP ========================
 void setup() {
   Serial.begin(115200);
@@ -375,13 +249,11 @@ void setup() {
 
   #if OTA_ENABLED == 1
     bool otaCapable = isOtaAvailable();
-    #if WEB_ENABLED == 1
-      web_setOtaAvailable(otaCapable);
-    #endif
+    ota_set_available(otaCapable);  // Вместо web_setOtaAvailable
     #if LOG_OTA == 1
-      Serial.printf("[OTA] Available: %s\n", otaCapable ? "YES" : "NO");
+        Serial.printf("[OTA] Available: %s\n", otaCapable ? "YES" : "NO");
     #endif
-  #endif
+#endif
 
   #if DEBUG_WIFI_ENABLED == 1
     #if defined(ESP32) && WDT_ENABLED == 1
@@ -562,20 +434,18 @@ void setup() {
     #endif
     
     // ========== WIFI ==========
-    #if WIFI_ENABLED == 1
-      #if DEBUG_WIFI_ENABLED == 1
-        #ifdef ESP8266
-          WiFi.setSleepMode(WIFI_NONE_SLEEP);
-          WiFi.setPhyMode(WIFI_PHY_MODE_11G);
-          delay(100);
-        #elif defined(ESP32)
-          WiFi.setSleep(false);
-          delay(100);
-        #endif
+    #if DEBUG_WIFI_ENABLED == 1
+      #ifdef ESP8266
+        WiFi.setSleepMode(WIFI_NONE_SLEEP);
+        WiFi.setPhyMode(WIFI_PHY_MODE_11G);
+        delay(100);
+      #elif defined(ESP32)
+        WiFi.setSleep(false);
+        delay(100);
       #endif
-      #ifndef TEST_DEVICE_WIFI
-        wifi_beginAsync();
-      #endif
+    #endif
+    #ifndef TEST_DEVICE_WIFI
+      wifi_begin();
     #endif
 
     // ========== WEB ==========
@@ -665,22 +535,15 @@ void loop() {
     #endif
 
     // ========== WIFI ==========
-    #if WIFI_ENABLED == 1
-      #ifndef TEST_DEVICE_WIFI
-        wifi_checkAsync();
-      #endif
-    #endif
-
-    #if AP_ENABLED == 1
-      #ifndef TEST_DEVICE_WIFI
-        checkWiFiFallbackToAP();
-      #endif
+    #ifndef TEST_DEVICE_WIFI
+      wifi_check();
+      wifi_fallback_to_ap();
     #endif
 
     // ========== MQTT ==========
     #if MQTT_ENABLED == 1
       #ifndef TEST_DEVICE_MQTT
-        if (WiFi.status() == WL_CONNECTED) {
+        if (wifi_is_connected()) {
           mqttManager.process();
           
           // ========== ОТСЛЕЖИВАНИЕ ИЗМЕНЕНИЙ ДЛЯ ПУБЛИКАЦИИ В MQTT ==========
@@ -827,7 +690,7 @@ void loop() {
             if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
               mqttManager.publishOnline();
               #if MQTT_PUBLISH_RSSI == 1
-              mqttManager.publishRSSI(WiFi.RSSI());
+              mqttManager.publishRSSI(wifi_get_rssi());
               #endif
               lastHeartbeat = millis();
             }

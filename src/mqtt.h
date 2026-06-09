@@ -1,16 +1,16 @@
 #ifndef MQTT_H
 #define MQTT_H
-#if MQTT_ENABLED == 1
 #include <Arduino.h>
+#include "config.h"
+#include "wifi_manager.h"
+
+#if MQTT_ENABLED == 1
+
+
 #include <functional>
 #include <PubSubClient.h>
-#include "config.h"
 
-#ifdef ESP32
-  #include <WiFi.h>
-#elif defined(ESP8266)
-  #include <ESP8266WiFi.h>
-#endif
+
 
 /**
  * @brief Менеджер MQTT-соединения

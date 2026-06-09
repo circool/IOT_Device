@@ -12,10 +12,9 @@
   #define WebServerClass ESP8266WebServer
 #elif defined(ESP32)
   #include <WebServer.h>
-  #define WebServerClass WebServer
 #endif
 
-extern WebServerClass server;
+typedef WebServer WebServerClass;
 
 class FanActuator;
 class SwitchActuator;
@@ -25,11 +24,6 @@ class SwitchActuator;
  * @return Строка с HTML
  */
 String web_buildStatusHtml();
-
-#if OTA_ENABLED == 1
-void web_setOtaAvailable(bool available);
-bool web_isOtaAvailable();
-#endif
 
 /**
  * @brief Отправить страницу настроек (HTTP)
@@ -56,7 +50,6 @@ void web_saveConfig();
  */
 void web_registerActuators(FanActuator* fanPtr = nullptr, SwitchActuator* switchPtr = nullptr);
 
-
 /**
  * @brief Инициализация веб-сервера в режиме клиента WiFi
  */
@@ -73,6 +66,9 @@ void web_initAP();
  * Вызывается в loop()
  */
 void web_update();
+
+// Глобальный сервер (объявлен в main.cpp)
+extern WebServer server;
 
 #else 
   inline void web_init() {}
