@@ -17,8 +17,6 @@
 
 extern WebServerClass server;
 
-
-
 class FanActuator;
 class SwitchActuator;
 

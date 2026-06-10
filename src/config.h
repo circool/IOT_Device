@@ -194,11 +194,14 @@
   #ifndef LOOP_WATCHDOG_MULTIPLIER
     #define LOOP_WATCHDOG_MULTIPLIER 3
   #endif
+
 #else
+
   /** @brief Софт-WDT (заглушка, не реализован) */
   #ifndef SOFT_WDT_ENABLED
     #define SOFT_WDT_ENABLED 1
   #endif
+  
 #endif
 
 // ============================================================================

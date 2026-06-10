@@ -203,6 +203,8 @@ void setup() {
     Serial.printf("Reset reason: %s\n", getResetReason());
   #endif
   
+  
+
   Serial.println("===================\n");
 #endif
   
@@ -223,9 +225,6 @@ void setup() {
   #if OTA_ENABLED == 1
     bool otaCapable = isOtaAvailable();
     ota_set_available(otaCapable);  // Вместо web_setOtaAvailable
-    #if LOG_OTA == 1
-        Serial.printf("[OTA] Available: %s\n", otaCapable ? "YES" : "NO");
-    #endif
 #endif
 
   #if DEBUG_WIFI_ENABLED == 1 
@@ -259,7 +258,7 @@ void setup() {
 
     // ========== MQTT ИНИЦИАЛИЗАЦИЯ ==========
     #if MQTT_ENABLED == 1
-      #ifndef TEST_DEVICE_MQTT
+      #ifndef TEST_DISABLE_MQTT
         mqttManager.begin(config_get()->mqttBroker, 
                           config_get()->mqttPort, 
                           config_get()->mqttClientId,
@@ -357,7 +356,7 @@ void setup() {
 
     // ========== ДАТЧИК ==========
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-      #ifndef TEST_DEVICE_SENSOR
+      #ifndef TEST_DISABLE_SENSOR
         sensor_init();
         #if DEVICE_TYPE == 1
           if (!sensor_isOk() && (
@@ -380,7 +379,7 @@ void setup() {
 
     // ========== ВЕНТИЛЯТОР ==========
     #if DEVICE_TYPE == 1
-      #ifndef TEST_DEVICE_FAN
+      #ifndef TEST_DISABLE_FAN
         fan.init(SWITCH_PIN, RELAY_ON_LEVEL, config_get()->bootState, config_get()->speedPercent);
         fan.setAdaptiveMode(config_get()->adaptiveMode);
       #endif
@@ -388,13 +387,13 @@ void setup() {
 
     // ========== ВЫКЛЮЧАТЕЛЬ ==========
     #if DEVICE_TYPE == 3
-      #ifndef TEST_DEVICE_SWITCH
+      #ifndef TEST_DISABLE_SWITCH
         switchActuator.init(SWITCH_PIN, RELAY_ON_LEVEL, config_get()->bootState);
       #endif
     #endif
 
     #if WEB_ENABLED == 1 && (DEVICE_TYPE == 1 || DEVICE_TYPE == 3)
-      #ifndef TEST_DEVICE_WEB
+      #ifndef TEST_DISABLE_WEB
         #if DEVICE_TYPE == 1
           web_registerActuators(&fan, nullptr);
         #elif DEVICE_TYPE == 3
@@ -414,13 +413,13 @@ void setup() {
         delay(100);
       #endif
     #endif
-    #ifndef TEST_DEVICE_WIFI
+    #ifndef TEST_DISABLE_WIFI
       wifi_begin();
     #endif
 
     // ========== WEB ==========
     #if WEB_ENABLED == 1
-      #ifndef TEST_DEVICE_WEB
+      #ifndef TEST_DISABLE_WEB
         web_init();
       #endif
     #endif
@@ -430,7 +429,7 @@ void setup() {
       Serial.println("[CONFIG] Configuration mode - starting AP for setup");
     #endif
     #if AP_ENABLED == 1
-      #ifndef TEST_DEVICE_WIFI
+      #ifndef TEST_DISABLE_WIFI
         web_initAP();
       #endif
     #endif
@@ -445,43 +444,40 @@ void loop() {
   
     wdt_feed();
     checkResetButton();
-
-    // #if STATUS_LED_PIN > 0
-      led_update();
-    // #endif
+    led_update();
 
     #if WEB_ENABLED == 1
-      if (!config_isValid() || strlen(config_get()->wifiSsid) == 0) {
-        web_update();
-        delay(100);
-        return;
-      }
+    if (!config_isValid() || strlen(config_get()->wifiSsid) == 0) {
+      web_update();
+      delay(100);
+      return;
+    }
     #endif
 
     // ========== ДАТЧИК ==========
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-      #ifndef TEST_DEVICE_SENSOR
+      #ifndef TEST_DISABLE_SENSOR
         bool sensorDataChanged = sensor_update();
         #if DEVICE_TYPE == 1
-          if (config_get()->sensorControlMode && sensor_isOk() && sensorDataChanged) {
-            float temp = sensor_getTemperature();
-            float hum = sensor_getHumidity();
-            
-            bool shouldBeOn = (temp >= config_get()->highTemp || hum >= config_get()->highHum);
-            bool shouldBeOff = (temp <= config_get()->lowTemp && hum <= config_get()->lowHum);
-            
-            if (shouldBeOn && !fan.getState()) {
-              fan.set(true, false);
-              #if LOG_SENSOR == 1
-                Serial.printf("[SENSOR] Auto ON: T=%.1f°C H=%.1f%%\n", temp, hum);
-              #endif
-            } else if (shouldBeOff && fan.getState()) {
-              fan.set(false, false);
-              #if LOG_SENSOR == 1
-                Serial.printf("[SENSOR] Auto OFF: T=%.1f°C H=%.1f%%\n", temp, hum);
-              #endif
-            }
+        if (config_get()->sensorControlMode && sensor_isOk() && sensorDataChanged) {
+          float temp = sensor_getTemperature();
+          float hum = sensor_getHumidity();
+          
+          bool shouldBeOn = (temp >= config_get()->highTemp || hum >= config_get()->highHum);
+          bool shouldBeOff = (temp <= config_get()->lowTemp && hum <= config_get()->lowHum);
+          
+          if (shouldBeOn && !fan.getState()) {
+            fan.set(true, false);
+            #if LOG_SENSOR == 1
+              Serial.printf("[SENSOR] Auto ON: T=%.1f°C H=%.1f%%\n", temp, hum);
+            #endif
+          } else if (shouldBeOff && fan.getState()) {
+            fan.set(false, false);
+            #if LOG_SENSOR == 1
+              Serial.printf("[SENSOR] Auto OFF: T=%.1f°C H=%.1f%%\n", temp, hum);
+            #endif
           }
+        }
         #endif
       #endif
 
@@ -489,27 +485,27 @@ void loop() {
 
     // ========== ВЕНТИЛЯТОР ==========
     #if DEVICE_TYPE == 1
-      #ifndef TEST_DEVICE_FAN
+      #ifndef TEST_DISABLE_FAN
         fan.update();
       #endif
     #endif
 
     // ========== ВЫКЛЮЧАТЕЛЬ ==========
     #if DEVICE_TYPE == 3
-      #ifndef TEST_DEVICE_SWITCH
+      #ifndef TEST_DISABLE_SWITCH
         switchActuator.update();
       #endif
     #endif
 
     // ========== WIFI ==========
-    #ifndef TEST_DEVICE_WIFI
+    #ifndef TEST_DISABLE_WIFI
       wifi_check();
       wifi_fallback_to_ap();
     #endif
 
     // ========== MQTT ==========
     #if MQTT_ENABLED == 1
-      #ifndef TEST_DEVICE_MQTT
+      #ifndef TEST_DISABLE_MQTT
         if (wifi_is_connected()) {
           mqttManager.process();
           
@@ -685,7 +681,7 @@ void loop() {
 
     // ========== WEB ==========
     #if WEB_ENABLED == 1
-      #ifndef TEST_DEVICE_WEB
+      #ifndef TEST_DISABLE_WEB
         web_update();
       #endif
     #endif

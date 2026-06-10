@@ -202,7 +202,9 @@ void MQTTManager::reconnect() {
         #if LOG_MQTT == 1
         static bool failLogged = false;
         if (!failLogged) {
+            Serial.print(ANSI_BRIGHT_RED);
             Serial.printf("[MQTT] Failed to connect, state=%d\n", _mqttClient.state());
+            Serial.print(ANSI_RESET);
             failLogged = true;
         }
         #endif
@@ -421,6 +423,7 @@ void MQTTManager::publishThresholds(float lowTemp, float highTemp, float lowHum,
     _mqttClient.publish(_topics.lowHum, buf);
     snprintf(buf, sizeof(buf), "%.1f", highHum);
     _mqttClient.publish(_topics.highHum, buf);
+    
     #if LOG_MQTT == 1
     Serial.println("[MQTT] Thresholds published");
     #endif

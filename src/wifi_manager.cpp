@@ -100,7 +100,7 @@ void wifi_fallback_to_ap() {
         if (wifi_lost_time == 0) {
             wifi_lost_time = millis();
             #if LOG_WIFI == 1
-                Serial.print(ANSI_BRIGHT_RED);
+                Serial.print(ANSI_BRIGHT_RED ANSI_BOLD);
                 Serial.println("[WIFI] WiFi lost, starting fallback timer");
                 Serial.print(ANSI_RESET);
             #endif
@@ -111,7 +111,7 @@ void wifi_fallback_to_ap() {
             
         } else if (millis() - wifi_lost_time > AP_FALLBACK_TIMEOUT_MS) {
             #if LOG_WIFI == 1
-                Serial.print(ANSI_BRIGHT_MAGENTA);
+                Serial.print(ANSI_BRIGHT_MAGENTA ANSI_BOLD);
                 Serial.printf("[WIFI] WiFi lost for %d ms, switching to AP mode\n", AP_FALLBACK_TIMEOUT_MS);
                 Serial.print(ANSI_RESET);
             #endif

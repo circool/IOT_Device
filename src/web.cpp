@@ -350,14 +350,57 @@ void handleToggle() {
 }
 #endif
 
-// ========== УНИФИЦИРОВАННАЯ РЕАЛИЗАЦИЯ ==========
-
-void web_sendStatusPage(int refreshInterval) {
+void web_sendStatusPage(int refreshInterval) {   
     String statusHtml = web_buildStatusHtml();
-    
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "text/html", "");
+    #if defined(ESP32)
+    // ========== БУФЕРИЗИРОВАННАЯ ВЕРСИЯ ДЛЯ ESP32 ==========
+    String buffer;
+    buffer.reserve(1024);
     
+    auto flush = [&]() {
+        if (buffer.length() > 0) {
+            server.sendContent(buffer);
+            buffer = "";
+        }
+    };
+    
+    auto send = [&](const String& chunk) {
+        if (buffer.length() + chunk.length() > 1024) {
+            flush();
+        }
+        buffer += chunk;
+    };
+    
+    send(FPSTR(HTML_PAGE_START));
+    
+    if (refreshInterval > 0) {
+        char refresh[64];
+        snprintf_P(refresh, sizeof(refresh), PSTR("<meta http-equiv='refresh' content='%d'>"), refreshInterval);
+        send(refresh);
+    } else {
+        send(F("{META_REFRESH}"));
+    }
+    
+    send(F("<title>"));
+    send(deviceId);
+    send(F("</title>"));
+    send(FPSTR(HTML_STYLE));
+    send(F("</head><body><div class='container'>"));
+    send(F("<h1>"));
+    send(deviceId);
+    send(F(" VERSION "));
+    send(VERSION);
+    send(F("</h1>"));
+    send(statusHtml);
+    send(F("<div class='button-group'><a href='/config'><button>Настройки</button></a></div>"));
+    send(FPSTR(HTML_PAGE_END));
+    
+    flush();
+    
+    #else
+    // ========== ВЕРСИЯ без буферизации для 8288==========
     auto send = [&](const String& chunk) {
         server.sendContent(chunk);
     };
@@ -382,31 +425,52 @@ void web_sendStatusPage(int refreshInterval) {
     send(F(" VERSION "));
     send(VERSION);
     send(F("</h1>"));
-    
     send(statusHtml);
-    
     send(F("<div class='button-group'><a href='/config'><button>Настройки</button></a></div>"));
-    
     send(FPSTR(HTML_PAGE_END));
+    #endif
 }
 
 void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
-    const Config* cfg = config_get();
-    
+      
+    const Config* cfg = config_get();   
     String currentMode = apMode ? F("Access Point") : F("Client WiFi");
     String currentSsid = apMode ? String(deviceId) : String(cfg->wifiSsid);
-    String currentIp = apMode ? String(AP_IP_ADDRESS) : wifi_get_local_ip();
-    
-    int refreshSeconds = (successMsg.length() > 0) ? 5 : 0;
-    
+    String currentIp = apMode ? String(AP_IP_ADDRESS) : wifi_get_local_ip();  
+    int refreshSeconds = (successMsg.length() > 0) ? 5 : 0;  
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "text/html", "");
     
+    #if defined(ESP32)
+    // ========== БУФЕРИЗИРОВАННАЯ ВЕРСИЯ для ESP32==========
+    String buffer;
+    buffer.reserve(1024);
+    
+    auto flush = [&]() {
+        if (buffer.length() > 0) {           
+            server.sendContent(buffer);
+            buffer = "";
+        }
+    };
+    
+    auto send = [&](const String& chunk) {
+        if (buffer.length() + chunk.length() > 1024) {
+            flush();
+        }
+        buffer += chunk;
+    };
+    
+    sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid, currentIp, refreshSeconds, apMode);
+    flush();
+    
+    #else
+    // ========== ВЕРСИЯ без буферизации для 8266==========
     auto send = [&](const String& chunk) {
         server.sendContent(chunk);
     };
     
     sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid, currentIp, refreshSeconds, apMode);
+    #endif
 }
 
 void web_saveConfig() {
@@ -642,10 +706,20 @@ void web_init() {
     
     #if WEB_STATUS_ENABLED == 1
     server.on("/", [refreshInterval](){ 
-        #if LOG_WEB == 1
-            Serial.println("[WEB] GET / - serving status page");
+        #ifdef ESP32
+            server.client().setNoDelay(true);
         #endif
-        web_sendStatusPage(refreshInterval); 
+        if (apMode) {
+            web_sendConfigPage("", "");
+            #if LOG_WEB == 1
+            Serial.println(ANSI_BOLD ANSI_BRIGHT_MAGENTA "[WEB] GET / - show config page" ANSI_RESET);
+            #endif    
+        } else {
+            #if LOG_WEB == 1
+                Serial.println("[WEB] GET / - serving status page");
+            #endif
+            web_sendStatusPage(refreshInterval); 
+        }
     });
     #else
     server.on("/", [](){ 
@@ -670,7 +744,9 @@ void web_init() {
         web_saveConfig();
     });
 
-    server.on("/favicon.ico", [](){ server.send(404); });
+    server.on("/favicon.ico", [](){ 
+        server.send(404); 
+    });
     
     #if WEB_RESET_ENABLED == 1
     server.on("/resetall", [](){
@@ -681,13 +757,24 @@ void web_init() {
     });
     #endif
     
-    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    
     #if DEVICE_TYPE == 1
-    server.on("/fan/toggle", [](){ handleToggle(); server.sendHeader("Location", "/", true); server.send(302, "text/plain", ""); });
-    server.on("/fan/auto", [](){ handleSensorControlMode(); server.sendHeader("Location", "/", true); server.send(302, "text/plain", ""); });
+    server.on("/fan/toggle", [](){ 
+        handleToggle(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+    });
+    server.on("/fan/auto", [](){ 
+        handleSensorControlMode(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+    });
     #elif DEVICE_TYPE == 3
-    server.on("/switch/toggle", [](){ handleToggle(); server.sendHeader("Location", "/", true); server.send(302, "text/plain", ""); });
-    #endif
+    server.on("/switch/toggle", [](){ 
+        handleToggle(); 
+        server.sendHeader("Location", "/", true); 
+        server.send(302, "text/plain", ""); 
+    });
     #endif
     
     #if OTA_ENABLED == 1
@@ -724,7 +811,7 @@ void web_initAP() {
     
     #if LOG_WEB == 1
     Serial.printf("[WEB] Web server started in AP mode: SSID %s%s%s, IP %s%s%s\n", 
-                  ANSI_BOLD , deviceId, ANSI_RESET,
+                  ANSI_BOLD ANSI_MAGENTA, deviceId, ANSI_RESET,
                   ANSI_BOLD ANSI_MAGENTA, AP_IP_ADDRESS, ANSI_RESET);
     #endif
     
