@@ -266,11 +266,11 @@ void setup() {
     // ========== MQTT ИНИЦИАЛИЗАЦИЯ ==========
     #if MQTT_ENABLED == 1
     mqttManager.begin(g_mqttClient, 
-                  config_get()->mqttBroker, 
-                  config_get()->mqttPort, 
-                  config_get()->mqttClientId,
-                  config_get()->mqttUser, 
-                  config_get()->mqttPassword);
+      config_get()->mqttBroker, 
+      config_get()->mqttPort, 
+      config_get()->mqttClientId,
+      config_get()->mqttUser, 
+      config_get()->mqttPassword);
         
     // Регистрация колбэков
     #if DEVICE_TYPE == 1
