@@ -1,5 +1,6 @@
 #include "actuator_base.h"
 #include "ansi.h"
+#include "logger.h"
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 ActuatorBase::ActuatorBase()
     : onSetPhysicalCallback(nullptr)
@@ -33,10 +34,8 @@ void ActuatorBase::init(uint8_t pin, uint8_t relayOnLevel, bool bootState) {
         _startTime = 0;
     }
     
-    #if LOG_ACTUATOR == 1
-        Serial.printf("[ACTUATOR] Init: pin=%d, state=%s, bootState=%s\n", 
+    LOG_INFO(CAT_ACTUATOR, "Init: pin=%d, state=%s, bootState=%s", 
                       _pin, _state ? "ON" : "OFF", bootState ? "ON" : "OFF");
-    #endif
 }
 
 void ActuatorBase::set(bool on, bool manual) {
@@ -48,9 +47,7 @@ void ActuatorBase::set(bool on, bool manual) {
         
         if (_delayActive) {
             _delayActive = false;
-            #if LOG_ACTUATOR == 1
-                Serial.println("[ACTUATOR] Manual - delay cancelled");
-            #endif
+            LOG_INFO(CAT_ACTUATOR, "Manual - delay cancelled");
         }
     }
        
@@ -64,14 +61,10 @@ void ActuatorBase::set(bool on, bool manual) {
     
     if (_state) {
         _startTime = millis();
-        #if LOG_ACTUATOR == 1
-            Serial.println("[ACTUATOR] ON");
-        #endif
+        LOG_INFO(CAT_ACTUATOR, "ON");
     } else {
         _startTime = 0;
-        #if LOG_ACTUATOR == 1
-            Serial.println("[ACTUATOR] OFF");
-        #endif
+        LOG_INFO(CAT_ACTUATOR, "OFF");
     }
 }
 
@@ -93,9 +86,7 @@ void ActuatorBase::update() {
 }
 
 void ActuatorBase::forceStop() {
-    #if LOG_ACTUATOR == 1
-        Serial.println("[ACTUATOR] Force stop!");
-    #endif
+    LOG_INFO(CAT_ACTUATOR, "Force stop!");
     set(false, true);
     #if STATUS_LED_PIN > 0
         led_setMode(LED_MODE_EMERGENCY_STOP);
@@ -119,17 +110,13 @@ bool ActuatorBase::delayTimer(bool start) {
         if (delaySec > 0 && !_delayActive && !_state) {
             _delayActive = true;
             _delayTimer = millis() + delaySec * 1000UL;
-            #if LOG_ACTUATOR == 1
-                Serial.printf("[ACTUATOR] Delay start: %d sec\n", delaySec);
-            #endif
+            LOG_INFO(CAT_ACTUATOR, "Delay start: %d sec", delaySec);
         }
         return false;
     } else {
         if (_delayActive && millis() >= _delayTimer) {
             _delayActive = false;
-            #if LOG_ACTUATOR == 1
-                Serial.println("[ACTUATOR] Delay expired");
-            #endif
+            LOG_INFO(CAT_ACTUATOR, "Delay expired");
             return true;
         }
         return false;

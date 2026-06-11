@@ -1,5 +1,6 @@
 #include "sensor.h"
 #include "ansi.h"
+#include "logger.h"
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
@@ -42,9 +43,7 @@ void sensor_init() {
     _sensorOk = _aht.begin();
     if (_sensorOk) {
         strcpy(_sensorError, "Waiting for first valid reading");
-        #if LOG_SENSOR == 1
-          Serial.println("[SENSOR] AHT10 found, waiting for first valid reading...");
-        #endif
+        LOG_DEBUG(CAT_SENSOR, "AHT10 found, waiting for first valid reading...");
         sensors_event_t humidity, temperature;
         if (_aht.getEvent(&humidity, &temperature)) {
           _currentTemp = temperature.temperature;
@@ -52,17 +51,11 @@ void sensor_init() {
           _sensorError[0] = '\0';
           _lastSensorRead = millis();
           
-          #if LOG_SENSOR == 1
-          Serial.printf("[SENSOR] First reading: T=%.2f°C, H=%.2f%%\n", _currentTemp, _currentHum);
-          #endif
+          LOG_INFO(CAT_SENSOR, "First reading: T=%.2f°C, H=%.2f%%", _currentTemp, _currentHum);
         }
     } else {
         strcpy(_sensorError, "AHT10 not found");
-        #if DEBUG_ENABLED == 1
-        Serial.print(ANSI_BRIGHT_RED);
-        Serial.println("[SENSOR] AHT10 not found! Sensor will be disabled.");
-        Serial.print(ANSI_RESET);
-        #endif
+        LOG_ERROR(CAT_SENSOR, "AHT10 not found! Sensor will be disabled.");
     }
     
   #elif SENSOR_TYPE == 2    
@@ -70,9 +63,8 @@ void sensor_init() {
     delay(2000);
     _sensorOk = false;
     strcpy(_sensorError, "Waiting for first valid reading");
-    #if LOG_SENSOR == 1
-      Serial.println("[SENSOR] DHT initialized, waiting for first valid reading...");
-    #endif
+    LOG_INFO(CAT_SENSOR, "DHT initialized, waiting for first valid reading...");
+
   #endif
   
   _humRate = 0;
@@ -104,11 +96,7 @@ bool sensor_update() {
     } else {
       _sensorOk = false;
       strcpy(_sensorError, "AHT10 I2C read failed");
-      #if DEBUG_ENABLED == 1
-      Serial.print(ANSI_BRIGHT_RED);
-      Serial.println("[SENSOR] AHT10 read error!");
-      Serial.print(ANSI_RESET);
-      #endif
+      LOG_ERROR(CAT_SENSOR, "AHT10 read error!");
     }
   #elif SENSOR_TYPE == 2
     float t = _dht.readTemperature();
@@ -120,11 +108,7 @@ bool sensor_update() {
     } else {
       _sensorOk = false;
       strcpy(_sensorError, "DHT read failed (NaN)");
-      #if DEBUG_ENABLED == 1
-      Serial.print(ANSI_BRIGHT_RED);
-      Serial.println("[SENSOR] DHT read error!");
-      Serial.print(ANSI_RESET);
-      #endif
+      LOG_ERROR(CAT_SENSOR, "DHT read error!");
     }
   #endif
   
@@ -153,10 +137,7 @@ bool sensor_update() {
       _sensorOk = true;
       _sensorError[0] = '\0';
       
-      #if LOG_SENSOR == 1
-        Serial.printf("[SENSOR] T=%.2f°C, H=%.2f%% (rate=%.2f%%/s)\n", 
-                      _currentTemp, _currentHum, _humRate);
-      #endif
+      LOG_DEBUG(CAT_SENSOR, "T=%.2f°C, H=%.2f%% (rate=%.2f%%/s)", _currentTemp, _currentHum, _humRate);
       
       return changed;
     } else {
@@ -164,9 +145,7 @@ bool sensor_update() {
       snprintf(_sensorError, sizeof(_sensorError), "Out of range (T=%.1f H=%.1f)", temp, hum);
       _humRate = 0;
       
-      #if LOG_SENSOR == 1
-        Serial.printf("[SENSOR] %s\n", _sensorError);
-      #endif
+      LOG_ERROR(CAT_SENSOR, "%s", _sensorError);
       return false;
     }
   } else {

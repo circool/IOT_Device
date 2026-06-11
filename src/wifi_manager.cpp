@@ -1,7 +1,7 @@
 #include "wifi_manager.h"
 #include "config.h"
 #include "led.h"
-#include "ansi.h"
+#include "logger.h"
 #include "web.h"
 
 #if WIFI_ENABLED == 1
@@ -19,18 +19,16 @@ void wifi_begin() {
     #endif
     
     if (strlen(config_get()->wifiSsid) == 0) {
-        #if LOG_WIFI == 1
-            Serial.println("[WIFI] No SSID configured");
-        #endif
+        LOG_INFO(CAT_WIFI, "No SSID configured");
+
         return;
     }
     
     if (WiFi.status() == WL_CONNECTED) return;
     if (wifi_is_connecting) return;
     
-    #if LOG_WIFI == 1
-        Serial.printf("[WIFI] Starting async connection to %s\n", config_get()->wifiSsid);
-    #endif
+    LOG_INFO(CAT_WIFI, "Starting async connection to %s", config_get()->wifiSsid);
+
     
     WiFi.mode(WIFI_STA);
     WiFi.begin(config_get()->wifiSsid, config_get()->wifiPassword);
@@ -48,10 +46,8 @@ void wifi_check() {
         wifi_is_connecting = false;
         wifi_lost_time = 0;
         
-        #if LOG_WIFI == 1
-            Serial.printf(ANSI_BRIGHT_MAGENTA "[WIFI] Connected! IP: " ANSI_BOLD "%s" ANSI_RESET "\n", 
-                          WiFi.localIP().toString().c_str());
-        #endif
+        LOG_INFO(CAT_WIFI, "Connected! IP: %s", WiFi.localIP().toString().c_str());
+
         
         #if STATUS_LED_PIN > 0
             #if MQTT_ENABLED == 1
@@ -69,11 +65,7 @@ void wifi_check() {
         #endif
         
     } else if (millis() - wifi_connect_start_time > WIFI_CONNECT_TIMEOUT_MS) {
-        #if LOG_WIFI == 1
-            Serial.print(ANSI_BRIGHT_RED);
-            Serial.println("[WIFI] Connection timeout!");
-            Serial.print(ANSI_RESET);
-        #endif
+        LOG_INFO(CAT_WIFI, "Connection timeout!");
         wifi_is_connecting = false;
         WiFi.disconnect();
 
@@ -99,22 +91,16 @@ void wifi_fallback_to_ap() {
     if (!isConnected && !wifi_is_connecting) {
         if (wifi_lost_time == 0) {
             wifi_lost_time = millis();
-            #if LOG_WIFI == 1
-                Serial.print(ANSI_BRIGHT_RED ANSI_BOLD);
-                Serial.println("[WIFI] WiFi lost, starting fallback timer");
-                Serial.print(ANSI_RESET);
-            #endif
+            LOG_INFO(CAT_WIFI, "WiFi lost, starting fallback timer");
+
             
             #if STATUS_LED_PIN > 0
                 led_setMode(LED_MODE_SLOW_BLINK);
             #endif
             
         } else if (millis() - wifi_lost_time > AP_FALLBACK_TIMEOUT_MS) {
-            #if LOG_WIFI == 1
-                Serial.print(ANSI_BRIGHT_MAGENTA ANSI_BOLD);
-                Serial.printf("[WIFI] WiFi lost for %d ms, switching to AP mode\n", AP_FALLBACK_TIMEOUT_MS);
-                Serial.print(ANSI_RESET);
-            #endif
+            LOG_INFO(CAT_WIFI, "WiFi lost for %d ms, switching to AP mode", AP_FALLBACK_TIMEOUT_MS);
+
             
             WiFi.disconnect(true);
             WiFi.mode(WIFI_OFF);

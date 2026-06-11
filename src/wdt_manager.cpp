@@ -1,5 +1,6 @@
 #include "wdt_manager.h"
 #include "config.h"
+#include "logger.h"
 
 #include <Arduino.h>  // ← для Serial, millis и т.д.
 
@@ -22,12 +23,12 @@ void wdt_init() {
 
 #if defined(ESP8266)
     ESP.wdtEnable(WDT_TIMER_MS);
-    Serial.printf("[WDT] ESP8266 WDT enabled, timeout=%d ms\n", WDT_TIMER_MS);
+    LOG_DEBUG(CAT_WDT, "ESP8266 WDT enabled, timeout=%d ms", WDT_TIMER_MS);
     
 #elif defined(ESP32)
     esp_task_wdt_init(WDT_TIMER_MS / 1000, true);
     esp_task_wdt_add(NULL);
-    Serial.printf("[WDT] ESP32 task WDT enabled, timeout=%d ms\n", WDT_TIMER_MS);
+    LOG_DEBUG(CAT_WDT, "ESP32 task WDT enabled, timeout=%d ms", WDT_TIMER_MS);
 #endif
     
     wdt_initialized = true;
@@ -52,6 +53,7 @@ void wdt_feed() {
 }
 
 void wdt_stop() {
+
 #if WDT_ENABLED == 0
     return;
 #endif
@@ -60,20 +62,14 @@ void wdt_stop() {
 
 #if defined(ESP8266)
     // Встроенный макрос ESP8266 (объявлен в Arduino.h)
-    wdt_disable();
-    wdt_stopped = true;
-    #if LOG_WDT == 1
-        Serial.println("[WDT] Stopped");
-    #endif
-    
+    wdt_disable();   
 #elif defined(ESP32)
     if (!wdt_initialized) return;
-    esp_task_wdt_delete(NULL);
-    wdt_stopped = true;
-    #if LOG_WDT == 1
-        Serial.println("[WDT] Stopped");
-    #endif
+    esp_task_wdt_delete(NULL);   
 #endif
+
+wdt_stopped = true;
+LOG_INFO(CAT_WDT, "Stopped");
 }
 
 void wdt_start() {
@@ -85,18 +81,12 @@ void wdt_start() {
 
 #if defined(ESP8266)
     // Встроенный макрос ESP8266, время в секундах
-    wdt_enable(WDT_TIMER_MS / 1000);
-    wdt_stopped = false;
-    #if LOG_WDT == 1
-        Serial.println("[WDT] Started");
-    #endif
-    
+    wdt_enable(WDT_TIMER_MS / 1000);   
 #elif defined(ESP32)
     if (!wdt_initialized) return;
-    esp_task_wdt_add(NULL);
-    wdt_stopped = false;
-    #if LOG_WDT == 1
-        Serial.println("[WDT] Started");
-    #endif
+    esp_task_wdt_add(NULL);   
 #endif
+    wdt_stopped = false;
+    LOG_INFO(CAT_WDT, "Started");
+
 }

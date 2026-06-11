@@ -1,6 +1,7 @@
 #include "config.h"
 #include "led.h"
 #include "ansi.h"
+#include "logger.h"
 #include "wifi_manager.h"
 
 #if MQTT_ENABLED == 1
@@ -24,9 +25,7 @@ MQTTManager::~MQTTManager() {
 bool MQTTManager::begin(const char* broker, uint16_t port, const char* clientId,
                         const char* user, const char* password) {
     if (strlen(broker) == 0) {
-        #if DEBUG_ENABLED == 1
-        Serial.println("[MQTT] No broker configured");
-        #endif
+        LOG_INFO(CAT_MQTT, "No broker configured");
         return false;
     }
     
@@ -56,9 +55,8 @@ bool MQTTManager::begin(const char* broker, uint16_t port, const char* clientId,
     
     _initialized = true;
     
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Initialized for %s with keepalive = %d sec\n", _clientId, MQTT_KEEPALIVE_SEC);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Initialized for %s with keepalive = %d sec", _clientId, MQTT_KEEPALIVE_SEC);
+
     
     return true;
 }
@@ -155,14 +153,10 @@ void MQTTManager::reconnect() {
     static bool lostLogged = false;
     if (!wasConnectedBefore) {
         // Первое подключение в жизни устройства
-        #if LOG_MQTT == 1
-        Serial.println("[MQTT] Connecting to broker...");
-        #endif
+        LOG_INFO(CAT_MQTT, "Connecting to broker...");
     } else if (!lostLogged) {
         // Были подключены, но потеряли связь
-        #if LOG_MQTT == 1
-        Serial.println("[MQTT] Connection lost, attempting to reconnect...");
-        #endif
+        LOG_INFO(CAT_MQTT, "Connection lost, attempting to reconnect...");
         lostLogged = true;
     }
     
@@ -170,10 +164,8 @@ void MQTTManager::reconnect() {
     led_setMode(LED_MODE_FAST_BLINK);
     #endif
     
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Connecting to broker as %s\n", _clientId);
-    #endif
-    
+    LOG_DEBUG(CAT_MQTT, "Connecting to broker as %s", _clientId);
+
     bool connected;
     if (strlen(_user) > 0) {
         connected = _mqttClient.connect(_clientId, _user, _password,
@@ -183,9 +175,7 @@ void MQTTManager::reconnect() {
     }
     
     if (connected) {
-        #if LOG_MQTT == 1
-        Serial.printf("[MQTT] Connected! Broker: %s\n", _broker);
-        #endif
+        LOG_INFO(CAT_MQTT, "Connected! Broker: %s", _broker);
         
         wasConnectedBefore = true;
         
@@ -199,15 +189,12 @@ void MQTTManager::reconnect() {
         subscribe();
     
     } else {
-        #if LOG_MQTT == 1
+        
         static bool failLogged = false;
         if (!failLogged) {
-            Serial.print(ANSI_BRIGHT_RED);
-            Serial.printf("[MQTT] Failed to connect, state=%d\n", _mqttClient.state());
-            Serial.print(ANSI_RESET);
+            LOG_ERROR(CAT_MQTT, "Failed to connect, state=%d", _mqttClient.state());
             failLogged = true;
         }
-        #endif
     }
 }
 
@@ -232,9 +219,8 @@ void MQTTManager::subscribe() {
     _mqttClient.subscribe(_topics.highHumControl);
     #endif
     
-    #if LOG_MQTT == 1
-    Serial.println("[MQTT] Subscribed to control topics");
-    #endif
+    LOG_INFO(CAT_MQTT, "Subscribed to control topics");
+
 }
 
 void MQTTManager::staticCallback(char* topic, byte* payload, unsigned int length) {
@@ -249,9 +235,7 @@ void MQTTManager::callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void MQTTManager::handleCommand(const char* topic, const String& payload) {
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Command received: %s = %s\n", topic, payload.c_str());
-    #endif
+    LOG_INFO(CAT_MQTT, "Command received: %s = %s", topic, payload.c_str());
     
     #if MQTT_RESET_ENABLED == 1
     if (strcmp(topic, _topics.reset) == 0) {
@@ -338,17 +322,14 @@ void MQTTManager::handleCommand(const char* topic, const String& payload) {
 void MQTTManager::publishOnline() {
     if (!isConnected()) return;
     _mqttClient.publish(_topics.online, "Online", true);
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Online published to: %s\n", _topics.online);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Online published to: %s", _topics.online);
+
 }
 
 void MQTTManager::publishState(bool on) {
     if (!isConnected()) return;
     _mqttClient.publish(_topics.state, on ? "ON" : "OFF");
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] State published: %s -> %s\n", on ? "ON" : "OFF", _topics.state);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "State published: %s -> %s", on ? "ON" : "OFF", _topics.state);
 }
 
 void MQTTManager::publishSpeed(int percent) {
@@ -356,9 +337,7 @@ void MQTTManager::publishSpeed(int percent) {
     char buf[8];
     snprintf(buf, sizeof(buf), "%d", percent);
     _mqttClient.publish(_topics.speed, buf);
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Speed published: %d%% -> %s\n", percent, _topics.speed);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Speed published: %d%% -> %s", percent, _topics.speed);
 }
 
 void MQTTManager::publishDelaySec(int seconds) {
@@ -366,9 +345,7 @@ void MQTTManager::publishDelaySec(int seconds) {
     char buf[16];
     snprintf(buf, sizeof(buf), "%d", seconds);
     _mqttClient.publish(_topics.delaySec, buf);
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Delay seconds published: %d -> %s\n", seconds, _topics.delaySec);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Delay seconds published: %d -> %s", seconds, _topics.delaySec);
 }
 
 void MQTTManager::publishMaxOnTime(uint32_t seconds) {
@@ -376,17 +353,13 @@ void MQTTManager::publishMaxOnTime(uint32_t seconds) {
     char buf[16];
     snprintf(buf, sizeof(buf), "%u", seconds);
     _mqttClient.publish(_topics.maxOnTime, buf);
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Max on time published: %u -> %s\n", seconds, _topics.maxOnTime);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Max on time published: %u -> %s", seconds, _topics.maxOnTime);
 }
 
 void MQTTManager::publishSensorControlMode(bool enabled) {
     if (!isConnected()) return;
     _mqttClient.publish(_topics.sensorControlMode, enabled ? "1" : "0");
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Sensor control mode published: %s -> %s\n", enabled ? "ON" : "OFF", _topics.sensorControlMode);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Sensor control mode published: %s -> %s", enabled ? "ON" : "OFF", _topics.sensorControlMode);
 }
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
@@ -397,9 +370,7 @@ void MQTTManager::publishSensor(float temp, float hum) {
     snprintf(humBuf, sizeof(humBuf), "%.2f", hum);
     _mqttClient.publish(_topics.temperature, tempBuf);
     _mqttClient.publish(_topics.humidity, humBuf);
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Sensor published: T=%.2f°C, H=%.2f%%\n", temp, hum);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Sensor published: T=%.2f°C, H=%.2f%%", temp, hum);
 }
 #endif
 
@@ -407,9 +378,7 @@ void MQTTManager::publishSensor(float temp, float hum) {
 void MQTTManager::publishAdaptiveMode(bool enabled) {
     if (!isConnected()) return;
     _mqttClient.publish(_topics.adaptiveMode, enabled ? "1" : "0");
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Adaptive mode published: %s -> %s\n", enabled ? "ON" : "OFF", _topics.adaptiveMode);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Adaptive mode published: %s -> %s", enabled ? "ON" : "OFF", _topics.adaptiveMode);
 }
 
 void MQTTManager::publishThresholds(float lowTemp, float highTemp, float lowHum, float highHum) {
@@ -424,9 +393,7 @@ void MQTTManager::publishThresholds(float lowTemp, float highTemp, float lowHum,
     snprintf(buf, sizeof(buf), "%.1f", highHum);
     _mqttClient.publish(_topics.highHum, buf);
     
-    #if LOG_MQTT == 1
-    Serial.println("[MQTT] Thresholds published");
-    #endif
+    LOG_INFO(CAT_MQTT, "Thresholds published");
 }
 #endif
 
@@ -436,9 +403,7 @@ void MQTTManager::publishRSSI(int rssi) {
     char buffer[8];
     snprintf(buffer, sizeof(buffer), "%d", rssi);
     _mqttClient.publish(_topics.rssi, buffer);
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] WiFi RSSI published: %d dBm -> %s\n", rssi, _topics.rssi);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "WiFi RSSI published: %d dBm -> %s", rssi, _topics.rssi);
 }
 #endif
 
@@ -446,9 +411,8 @@ void MQTTManager::publishRSSI(int rssi) {
 void MQTTManager::publishVersion(const char* version) {
     if (!isConnected()) return;
     _mqttClient.publish(_topics.version, version, true);  // retain = true
-    #if LOG_MQTT == 1
-        Serial.printf("[MQTT] Version published: %s -> %s\n", version, _topics.version);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Version published: %s -> %s", version, _topics.version);
+
 }
 #endif
 
@@ -458,9 +422,7 @@ void MQTTManager::publishResetReason(const char* reason) {
     
     #ifdef MQTT_IGNORE_PUBLISH_NORMAL_RESET_REASONS
     if (strcmp(reason, "POWER_ON") == 0 || strcmp(reason, "SOFT_RESTART") == 0) {
-        #if LOG_MQTT == 1
-        Serial.printf("[MQTT] Skipping publish reset reason: %s\n", reason);
-        #endif
+        LOG_INFO(CAT_MQTT, "Skipping publish reset reason: %s", reason);
         return;
     }
     #endif
@@ -468,9 +430,7 @@ void MQTTManager::publishResetReason(const char* reason) {
     char topic[64];
     snprintf(topic, sizeof(topic), "%s/last_reset", _clientId);
     _mqttClient.publish(topic, reason, true);
-    #if LOG_MQTT == 1
-    Serial.printf("[MQTT] Reset reason published: %s -> %s\n", reason, topic);
-    #endif
+    LOG_DEBUG(CAT_MQTT, "Reset reason published: %s -> %s", reason, topic);
 }
 #endif
 

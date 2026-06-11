@@ -1,6 +1,7 @@
 #include "ota.h"
 #include "config.h"
 #include "ansi.h"
+#include "logger.h"
 #include "wifi_manager.h"
 
 #if OTA_ENABLED == 1
@@ -31,9 +32,8 @@ bool ota_is_available() {
 
 void ota_set_available(bool available) {
     ota_available = available;
-    #if LOG_OTA == 1
-        Serial.printf("[OTA] Available: %s\n", available ? "YES" : "NO");
-    #endif
+    LOG_INFO(CAT_OTA, "Available: %s", available ? "YES" : "NO");
+
 }
 
 #endif // OTA_ENABLED == 1

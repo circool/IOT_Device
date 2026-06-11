@@ -3,7 +3,7 @@
 #include "web_templates.h"
 #include "sensor.h"
 #include "led.h"
-#include "ansi.h"
+#include "logger.h"
 #include "config.h"
 #include "wifi_manager.h"
 #include "ota.h"
@@ -323,9 +323,7 @@ String web_buildStatusHtml() {
 
 #if DEVICE_TYPE == 1
 void handleToggle() {
-    #if LOG_WEB == 1
-        Serial.println("[WEB] Toggle button pressed - toggling fan");
-    #endif
+    LOG_INFO(CAT_WEB, "Toggle button pressed - toggling fan");
     if (g_fanActuator != nullptr) {
         g_fanActuator->set(!g_fanActuator->getState(), true);
     }
@@ -333,9 +331,7 @@ void handleToggle() {
 
 void handleSensorControlMode() {
     config_setSensorControlMode(true);
-    #if LOG_WEB == 1
-        Serial.println("[WEB] Sensor control mode button pressed - enabling AUTO mode");
-    #endif
+    LOG_INFO(CAT_WEB, "Sensor control mode button pressed - enabling AUTO mode");
     if (g_fanActuator != nullptr) {
         g_fanActuator->setAdaptiveMode(false);
     }
@@ -344,9 +340,8 @@ void handleSensorControlMode() {
 
 #if DEVICE_TYPE == 3
 void handleToggle() {
-    #if LOG_WEB == 1
-        Serial.println("[WEB] Toggle button pressed - toggling switch");
-    #endif
+    LOG_INFO(CAT_WEB, "Toggle button pressed - toggling switch");
+
     if (g_switchActuator != nullptr) {
         g_switchActuator->set(!g_switchActuator->getState(), true);
     }
@@ -671,9 +666,8 @@ void web_saveConfig() {
         return;
     }
     
-    #if LOG_WEB == 1
-        Serial.println("[WEB] Configuration saved successfully, restarting...");
-    #endif
+    LOG_INFO(CAT_WEB, "Configuration saved successfully, restarting...");
+
 
     String html = R"rawliteral(
 <!DOCTYPE html>
@@ -714,36 +708,27 @@ void web_init() {
         #endif
         if (apMode) {
             web_sendConfigPage("", "");
-            #if LOG_WEB == 1
-            Serial.println(ANSI_BOLD ANSI_BRIGHT_MAGENTA "[WEB] GET / - show config page" ANSI_RESET);
-            #endif    
+            LOG_INFO(CAT_WEB, "GET / - show config page"); 
         } else {
-            #if LOG_WEB == 1
-                Serial.println("[WEB] GET / - serving status page");
-            #endif
+            LOG_INFO(CAT_WEB, "GET / - serving status page");
             web_sendStatusPage(refreshInterval); 
         }
     });
     #else
     server.on("/", [](){ 
-        #if LOG_WEB == 1
-            Serial.println("[WEB] GET / - redirect to config");
-        #endif
+        LOG_INFO(CAT_WEB, "GET / - redirect to config");
         server.sendHeader("Location", "/config", true); 
         server.send(302, "text/plain", ""); 
     });
     #endif
     
     server.on("/config", [](){ 
-        #if LOG_WEB == 1
-            Serial.println("[WEB] GET /config - serving config page");
-        #endif
+        LOG_INFO(CAT_WEB, "GET /config - serving config page");
+
         web_sendConfigPage("", ""); 
     });
     server.on("/save", [](){
-        #if LOG_WEB == 1
-            Serial.println("[WEB] POST /save - saving configuration");
-        #endif
+        LOG_INFO(CAT_WEB, "POST /save - saving configuration");
         web_saveConfig();
     });
 
@@ -786,9 +771,9 @@ void web_init() {
     
     server.begin();
     
-    #if LOG_WEB == 1
-    Serial.println("[WEB] Web server started");
-    #endif
+    
+    LOG_INFO(CAT_WEB, "Web server started");
+
 }
 
 void web_initAP() {
@@ -812,11 +797,7 @@ void web_initAP() {
     }
     #endif
     
-    #if LOG_WEB == 1
-    Serial.printf("[WEB] Web server started in AP mode: SSID %s%s%s, IP %s%s%s\n", 
-                  ANSI_BOLD ANSI_MAGENTA, deviceId, ANSI_RESET,
-                  ANSI_BOLD ANSI_MAGENTA, AP_IP_ADDRESS, ANSI_RESET);
-    #endif
+    LOG_INFO(CAT_WEB, "Web server started in AP mode: SSID %ss, IP %s",  deviceId, AP_IP_ADDRESS);
     
     server.begin();
 }

@@ -1,5 +1,6 @@
 #include "switch_actuator.h"
 #include "ansi.h"
+#include "logger.h"
 
 SwitchActuator::SwitchActuator()
     : _pin(0), _relayOnLevel(LOW) {
@@ -34,7 +35,6 @@ void SwitchActuator::onSetPhysicalCallback(void* context, bool on) {
 }
 
 void SwitchActuator::onForceStopCallback(void* context) {
-    #if LOG_SWITCH == 1
-        Serial.println("[SWITCH] Force stop due to maxOnTime");
-    #endif
+    LOG_INFO(CAT_ACTUATOR, "Force stop due to maxOnTime");
+    // TODO: что теперь с реле?
 }

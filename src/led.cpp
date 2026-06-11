@@ -1,6 +1,6 @@
 #include <Arduino.h>
 #include "led.h"
-
+#include "logger.h"
 #if STATUS_LED_PIN > 0
 
 #ifndef LED_INVERTED
@@ -24,9 +24,7 @@ void led_init() {
     #else
         digitalWrite(STATUS_LED_PIN, LOW);
     #endif
-    #if LOG_LED == 1
-        Serial.printf("[LED] Initialized on pin %d (inverted=%d)\n", STATUS_LED_PIN, LED_INVERTED);
-    #endif
+    LOG_INFO(CAT_LED, "Initialized on pin %d (inverted=%d)", STATUS_LED_PIN, LED_INVERTED);
 }
 
 void led_update() {
@@ -218,18 +216,18 @@ void led_setMode(LedMode mode) {
         currentLedMode = mode;
         blinkStep = 0;
         lastBlinkTime = millis();  // Сбрасываем таймер при смене режима
-        #if LOG_LED == 1
-            const char* modeName = "UNKNOWN";
-            switch (mode) {
-                case LED_MODE_OFF: modeName = "OFF"; break;
-                case LED_MODE_ON: modeName = "ON"; break;
-                case LED_MODE_SLOW_BLINK: modeName = "SLOW_BLINK (WiFi lost)"; break;
-                case LED_MODE_FAST_BLINK: modeName = "FAST_BLINK (MQTT lost)"; break;
-                case LED_MODE_AP_BLINK: modeName = "AP_BLINK (AP mode)"; break;
-                case LED_MODE_EMERGENCY_STOP: modeName = "LED_MODE_EMERGENCY_STOP (Emergency timer)"; break;
-            }
-            Serial.printf("[LED] Mode changed to: %s\n", modeName);
-        #endif
+
+        const char* modeName = "UNKNOWN";
+        switch (mode) {
+            case LED_MODE_OFF: modeName = "OFF"; break;
+            case LED_MODE_ON: modeName = "ON"; break;
+            case LED_MODE_SLOW_BLINK: modeName = "SLOW_BLINK (WiFi lost)"; break;
+            case LED_MODE_FAST_BLINK: modeName = "FAST_BLINK (MQTT lost)"; break;
+            case LED_MODE_AP_BLINK: modeName = "AP_BLINK (AP mode)"; break;
+            case LED_MODE_EMERGENCY_STOP: modeName = "LED_MODE_EMERGENCY_STOP (Emergency timer)"; break;
+        }
+        LOG_INFO(CAT_LED, "Mode changed to: %s", modeName);
+
     }
 }
 

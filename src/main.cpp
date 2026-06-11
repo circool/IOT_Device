@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include "config.h"
+#include "logger.h"
 #include "ota.h"
 #include "wifi_manager.h"
 #include "wdt_manager.h"
@@ -87,44 +88,32 @@ void checkResetButton() {
   delay(50);
   
   if (digitalRead(RESET_PIN) == LOW) {
-    #if DEBUG_ENABLED == 1
-      Serial.println("\n[MAIN] Reset button pressed...");
-      Serial.println("[MAIN] Hold for 3 seconds to confirm reset...");
-    #endif
+    LOG_INFO(CAT_MAIN, "Reset button pressed...");
+    LOG_INFO(CAT_MAIN, "Hold for 3 seconds to confirm reset...");
     unsigned long pressStart = millis();
     
     while (digitalRead(RESET_PIN) == LOW) {
       if (millis() - pressStart >= 3000) {
-        #if DEBUG_ENABLED == 1
-          Serial.println("[MAIN] Reset confirmed! Waiting for button release...");
-        #endif
-
+        LOG_INFO(CAT_MAIN, "Reset confirmed! Waiting for button release...");
         while (digitalRead(RESET_PIN) == LOW) {
           delay(10);
         }
         
-        #if LOG_CONFIG == 1
-          Serial.println("[CONFIG] Clearing configuration...");
-        #endif
+        LOG_INFO(CAT_CONFIG, "Clearing configuration...");
+
 
         if (config_clear()) {
-          #if LOG_CONFIG == 1
-            Serial.println("[CONFIG] Configuration cleared. Restarting...");
-          #endif
+          LOG_INFO(CAT_CONFIG, "Configuration cleared. Restarting...");
           delay(1000);
           ESP.restart();  
         } else {
-          #if LOG_CONFIG == 1
-            Serial.println("[CONFIG] Clear failed — not restarting");
-          #endif
+          LOG_ERROR(CAT_CONFIG, "Clear failed — not restarting");
         }
         return;
       }
       delay(10);
     }
-    #if DEBUG_ENABLED == 1
-      Serial.println("[MAIN] Button released too early — reset cancelled");
-    #endif
+    LOG_INFO(CAT_MAIN, "Button released too early — reset cancelled");
   }
 }
 
@@ -137,72 +126,80 @@ void checkResetButton() {
 
 // ======================== SETUP ========================
 void setup() {
-  Serial.begin(115200);
+
+  Logger::getInstance().begin(
+        (LogLevel)LOG_LEVEL,
+        LOG_CATEGORIES,
+        LOG_USE_COLOR
+    );
+  LOG_INFO(CAT_MAIN, "=== SYSTEM START ===");
+
   delay(1000);
+
 
   #if DEBUG_ENABLED == 1
   delay(2000);
-  Serial.println("\n\n\n=== SYSTEM INFO ===");
+  LOG_DEBUG(CAT_MAIN, "=== SYSTEM INFO ===");
   
   #ifdef ESP32
-    Serial.println("Platform: ESP32");
+     LOG_DEBUG(CAT_MAIN, "Platform: ESP32");
     esp_chip_info_t chip_info;
     esp_chip_info(&chip_info);
-    Serial.printf("Chip model: ESP32-%d\n", chip_info.model);
-    Serial.printf("Chip revision: %d\n", chip_info.revision);
-    Serial.printf("Cores: %d\n", chip_info.cores);
-    Serial.printf("CPU frequency: %d MHz\n", getCpuFrequencyMhz());
-    Serial.printf("Chip ID: %08X\n", (uint32_t)ESP.getEfuseMac());
+     LOG_DEBUG(CAT_MAIN, "Chip model: ESP32-%d", chip_info.model);
+     LOG_DEBUG(CAT_MAIN, "Chip revision: %d", chip_info.revision);
+     LOG_DEBUG(CAT_MAIN, "Cores: %d", chip_info.cores);
+     LOG_DEBUG(CAT_MAIN, "CPU frequency: %d MHz", getCpuFrequencyMhz());
+     LOG_DEBUG(CAT_MAIN, "Chip ID: %08X", (uint32_t)ESP.getEfuseMac());
     uint32_t flashSize = ESP.getFlashChipSize();
-    Serial.printf("Flash chip size: %u bytes (%u MB)\n", flashSize, flashSize / (1024 * 1024));
-    Serial.printf("Flash chip speed: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
-    Serial.printf("Flash chip mode: %d\n", ESP.getFlashChipMode());
+     LOG_DEBUG(CAT_MAIN, "Flash chip size: %u bytes (%u MB)", flashSize, flashSize / (1024 * 1024));
+     LOG_DEBUG(CAT_MAIN, "Flash chip speed: %d MHz", ESP.getFlashChipSpeed() / 1000000);
+     LOG_DEBUG(CAT_MAIN, "Flash chip mode: %d", ESP.getFlashChipMode());
     #ifdef CONFIG_SPIRAM_SUPPORT
-      Serial.printf("PSRAM size: %u bytes\n", ESP.getPsramSize());
-      Serial.printf("Free PSRAM: %u bytes\n", ESP.getFreePsram());
+       LOG_DEBUG(CAT_MAIN, "PSRAM size: %u bytes", ESP.getPsramSize());
+       LOG_DEBUG(CAT_MAIN, "Free PSRAM: %u bytes", ESP.getFreePsram());
     #else
-      Serial.println("PSRAM: not supported/enabled");
+       LOG_DEBUG(CAT_MAIN, "PSRAM: not supported/enabled");
     #endif
 
-    Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
-    Serial.printf("Minimum free heap: %u bytes\n", ESP.getMinFreeHeap());
-    Serial.printf("Maximum allocatable heap: %u bytes\n", ESP.getMaxAllocHeap());
-    Serial.printf("ESP-IDF version: %s\n", esp_get_idf_version());
+     LOG_DEBUG(CAT_MAIN, "Free heap: %u bytes", ESP.getFreeHeap());
+     LOG_DEBUG(CAT_MAIN, "Minimum free heap: %u bytes", ESP.getMinFreeHeap());
+     LOG_DEBUG(CAT_MAIN, "Maximum allocatable heap: %u bytes", ESP.getMaxAllocHeap());
+     LOG_DEBUG(CAT_MAIN, "ESP-IDF version: %s", esp_get_idf_version());
 
   #elif defined(ESP8266)
-    Serial.println("Platform: ESP8266");
-    Serial.printf("Chip ID: %08X\n", ESP.getChipId());
-    Serial.printf("Core version: %s\n", ESP.getCoreVersion().c_str());
-    Serial.printf("CPU frequency: %d MHz\n", ESP.getCpuFreqMHz());
-    Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
+     LOG_DEBUG(CAT_MAIN, "Platform: ESP8266");
+     LOG_DEBUG(CAT_MAIN, "Chip ID: %08X", ESP.getChipId());
+     LOG_DEBUG(CAT_MAIN, "Core version: %s", ESP.getCoreVersion().c_str());
+     LOG_DEBUG(CAT_MAIN, "CPU frequency: %d MHz", ESP.getCpuFreqMHz());
+     LOG_DEBUG(CAT_MAIN, "Free heap: %u bytes", ESP.getFreeHeap());
     uint32_t flashSize = ESP.getFlashChipSize();
-    Serial.printf("Flash chip size: %u bytes (%u MB)\n", flashSize, flashSize / (1024 * 1024));
+     LOG_DEBUG(CAT_MAIN, "Flash chip size: %u bytes (%u MB)", flashSize, flashSize / (1024 * 1024));
     uint32_t realFlashSize = ESP.getFlashChipRealSize();
     if (realFlashSize > 0 && realFlashSize != flashSize) {
-      Serial.printf("\033[31mReal flash chip size: %u bytes (%u MB)\033[0m\n", realFlashSize, realFlashSize / (1024 * 1024));
+       LOG_DEBUG(CAT_MAIN, "Real flash chip size: %u bytes (%u MB)", realFlashSize, realFlashSize / (1024 * 1024));
     }
-    Serial.printf("\nFlash chip speed: %d MHz\n", ESP.getFlashChipSpeed() / 1000000);
-    Serial.printf("Flash chip mode: %d (0=QIO, 1=QOUT, 2=DIO, 3=DOUT)\n", ESP.getFlashChipMode());
-    Serial.printf("SDK version: %s\n", system_get_sdk_version());
+     LOG_DEBUG(CAT_MAIN, "Flash chip speed: %d MHz", ESP.getFlashChipSpeed() / 1000000);
+     LOG_DEBUG(CAT_MAIN, "Flash chip mode: %d (0=QIO, 1=QOUT, 2=DIO, 3=DOUT)", ESP.getFlashChipMode());
+     LOG_DEBUG(CAT_MAIN, "SDK version: %s", system_get_sdk_version());
   #endif
   
-  Serial.println("===================\n");
-  Serial.printf("Sketch size: %u bytes\n", ESP.getSketchSize());
-  Serial.printf("Free sketch space: %u bytes\n", ESP.getFreeSketchSpace());
-  Serial.printf("Free heap: %u bytes\n", ESP.getFreeHeap());
-  Serial.printf("Firmware ver. %s\n", VERSION);
+   LOG_DEBUG(CAT_MAIN, "===================");
+   LOG_DEBUG(CAT_MAIN, "Sketch size: %u bytes", ESP.getSketchSize());
+   LOG_DEBUG(CAT_MAIN, "Free sketch space: %u bytes", ESP.getFreeSketchSpace());
+   LOG_DEBUG(CAT_MAIN, "Free heap: %u bytes", ESP.getFreeHeap());
+   LOG_DEBUG(CAT_MAIN, "Firmware ver. %s", VERSION);
   #if MQTT_PUBLISH_RESET_REASON == 1
-    Serial.printf("Reset reason: %s\n", getResetReason());
+     LOG_DEBUG(CAT_MAIN, "Reset reason: %s", getResetReason());
   #endif
   
   
 
-  Serial.println("===================\n");
+   LOG_DEBUG(CAT_MAIN, "===================");
 #endif
   
-  Serial.println("\n==========================================");
-  Serial.printf("Device starting with %s mode\n", DEVICE_PREFIX);
-  Serial.println("==========================================");
+   LOG_INFO(CAT_MAIN, "==========================================");
+   LOG_INFO(CAT_MAIN, "Device starting with %s mode", DEVICE_PREFIX);
+   LOG_INFO(CAT_MAIN, "==========================================");
   
   // ========== ИНИЦИАЛИЗАЦИЯ ПОДСИСТЕМ ==========
   #if STATUS_LED_PIN > 0
@@ -217,23 +214,23 @@ void setup() {
   #if OTA_ENABLED == 1
     bool otaCapable = isOtaAvailable();
     ota_set_available(otaCapable);  // Вместо web_setOtaAvailable
-#endif
+  #endif
 
   #if DEBUG_WIFI_ENABLED == 1 
     wdt_stop();
-    Serial.println("[WIFI] Scanning...");
+     LOG_INFO(CAT_WIFI, "Scanning...");
     int n = WiFi.scanNetworks();
     for (int i = 0; i < n; i++) {
       String ssid = WiFi.SSID(i);
       bool isTarget = (ssid == config_get()->wifiSsid);
       if (isTarget) {
-        Serial.printf("[WIFI] %s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET "\n", ssid.c_str(), WiFi.RSSI(i));
+         LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET "", ssid.c_str(), WiFi.RSSI(i));
       } else {
-        Serial.printf("[WIFI] %s (RSSI: %d)\n", ssid.c_str(), WiFi.RSSI(i));
+        LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d)", ssid.c_str(), WiFi.RSSI(i));
       }
     }
     WiFi.scanDelete();
-    Serial.println("[WIFI] Scanning complette, re-enabling Watch Dog Timer");
+    LOG_INFO(CAT_WIFI, "Scanning complete, re-enabling Watch Dog Timer");
     wdt_start();
   #endif
 
@@ -245,7 +242,7 @@ void setup() {
 
   if (hasValidConfig) {
     #if LOG_CONFIG == 1
-      Serial.println("[CONFIG] Normal mode - starting with saved config");
+      LOG_INFO(CAT_CONFIG, "Normal mode - starting with saved config");
     #endif
 
     // ========== MQTT ИНИЦИАЛИЗАЦИЯ ==========
@@ -282,10 +279,7 @@ void setup() {
         
         // Не включаем режим управления сенсором, если датчик не работает
         if (enabled && !sensor_isOk()) {
-            #if LOG_MQTT == 1
-                Serial.println("[MQTT] Cannot enable sensor control mode - sensor not available");
-            #endif
-            
+            LOG_WARN(CAT_MQTT, "Cannot enable sensor control mode - sensor not available");           
             mqttManager.publishSensorControlMode(false);
             return;
         }
@@ -299,9 +293,7 @@ void setup() {
         
         mqttManager.onAdaptiveModeCommand([](bool enabled) {
           if (enabled && !config_get()->sensorControlMode) {
-            #if DEBUG_ENABLED == 1
-              Serial.println("[MQTT] Cannot enable adaptive mode - sensor control mode is OFF");
-            #endif
+            LOG_WARN(CAT_MQTT, "Cannot enable adaptive mode - sensor control mode is OFF");
             return;
           }
           config_setAdaptiveMode(enabled);
@@ -334,9 +326,7 @@ void setup() {
 
         #if MQTT_RESET_ENABLED == 1
         mqttManager.onResetCommand([]() {
-          #if LOG_MQTT == 1
-            Serial.println("[MQTT] Resetting due MQTT RESET");
-          #endif
+          LOG_INFO(CAT_MQTT, "Resetting due MQTT RESET");
           mqttManager.disconnect();
           config_clear();
           delay(1000);
@@ -361,9 +351,7 @@ void setup() {
             config_setSensorControlMode(false);
             config_setAdaptiveMode(false);
             fan.setAdaptiveMode(false);
-            #if DEBUG_ENABLED == 1
-              Serial.println("[SENSOR] Not found - switching to MANUAL mode");
-            #endif
+            LOG_WARN(CAT_SENSOR, "Not found - switching to MANUAL mode");
           }
         #endif
       #endif
@@ -417,9 +405,7 @@ void setup() {
     #endif
 
   } else {
-    #if LOG_CONFIG == 1
-      Serial.println("[CONFIG] Configuration mode - starting AP for setup");
-    #endif
+    LOG_INFO(CAT_CONFIG, "Configuration mode - starting AP for setup");
     #if AP_ENABLED == 1
       #ifndef TEST_DISABLE_WIFI
         web_initAP();
@@ -460,14 +446,10 @@ void loop() {
           
           if (shouldBeOn && !fan.getState()) {
             fan.set(true, false);
-            #if LOG_SENSOR == 1
-              Serial.printf("[SENSOR] Auto ON: T=%.1f°C H=%.1f%%\n", temp, hum);
-            #endif
+            LOG_INFO(CAT_SENSOR, "Auto ON: T=%.1f°C H=%.1f%%", temp, hum);
           } else if (shouldBeOff && fan.getState()) {
             fan.set(false, false);
-            #if LOG_SENSOR == 1
-              Serial.printf("[SENSOR] Auto OFF: T=%.1f°C H=%.1f%%\n", temp, hum);
-            #endif
+            LOG_INFO(CAT_SENSOR, "Auto OFF: T=%.1f°C H=%.1f%%", temp, hum);
           }
         }
         #endif
@@ -636,9 +618,7 @@ void loop() {
               #endif
 
               initialConfigPublished = true;
-              #if LOG_MQTT == 1
-              Serial.println("[MQTT] Initial config published");
-              #endif
+              LOG_INFO(CAT_MQTT, "Initial config published");
             }
             
             // Heartbeat

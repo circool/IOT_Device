@@ -1,5 +1,5 @@
 #include "fan_actuator.h"
-#include "ansi.h"
+#include "logger.h"
 
 #if DEVICE_TYPE == 1
 static int percentToPWMValue(int percent) {
@@ -53,9 +53,7 @@ void FanActuator::update() {
                 _base.set(false, false);
                 applySpeed(0);
                 _startingPulseActive = false;
-                #if LOG_FAN == 1
-                    Serial.println("[FAN] Start pulse done, speed 0% -> OFF");
-                #endif
+                LOG_DEBUG(CAT_FAN, "Start pulse done, speed 0% -> OFF");
             } else {
                 applySpeed(_currentSpeed);
                 _startingPulseActive = false;
@@ -65,9 +63,7 @@ void FanActuator::update() {
                     _baseHum = sensor_getHumidity();
                     _lastAdaptiveCheck = millis();
                 }
-                #if LOG_FAN == 1
-                    Serial.printf("[FAN] Start pulse done, speed=%d%%\n", _currentSpeed);
-                #endif
+                LOG_DEBUG(CAT_FAN, "Start pulse done, speed=%d%%", _currentSpeed);
             }
         }
         return;
@@ -100,9 +96,7 @@ void FanActuator::setSpeed(int percent, bool manual) {
         applySpeed(percent);
     }
     
-    #if LOG_FAN == 1
-        Serial.printf("[FAN] Speed set to %d%%\n", percent);
-    #endif
+    LOG_DEBUG(CAT_FAN, "Speed set to %d%%", percent);
 }
 
 int FanActuator::getSpeed() const {
@@ -147,9 +141,7 @@ void FanActuator::onSetPhysicalCallback(void* context, bool on) {
         self->_startingPulseActive = false;
         // ВОССТАНОВЛЕНИЕ СКОРОСТИ ИЗ КОНФИГА
         self->_currentSpeed = config_get()->speedPercent;
-        #if LOG_FAN == 1
-            Serial.printf("[FAN] OFF - restored speed to %d%%\n", self->_currentSpeed);
-        #endif
+        LOG_INFO(CAT_FAN, "OFF - restored speed to %d%%", self->_currentSpeed);
     }
 }
 
@@ -170,18 +162,14 @@ void FanActuator::onManualCommandCallback(void* context) {
     // Временно отключаем таймер до перезагрузки (для TYPE 1 и TYPE 3)
     if (config_get()->delaySeconds != 0) {
         config_setDelaySeconds(0);
-        #if LOG_ACTUATOR == 1
-            Serial.println("[ACTUATOR] Manual command - delaySeconds temporarily disabled");
-        #endif
+        LOG_INFO(CAT_FAN, "Manual command - delaySeconds temporarily disabled");
     }
 
     #if DEVICE_TYPE == 1
     // Переход в ручной режим при любой ручной команде
     if (config_get()->sensorControlMode) {
         config_setSensorControlMode(false);
-        #if LOG_FAN == 1
-            Serial.println("[FAN] Manual command - switching to MANUAL mode");
-        #endif
+        LOG_INFO(CAT_FAN, "Manual command - switching to MANUAL mode");
     }
     #endif
 

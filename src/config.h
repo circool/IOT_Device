@@ -296,59 +296,71 @@
 // ОТЛАДКА И ЛОГИРОВАНИЕ
 // ============================================================================
 
-/** @brief Включить отладочный режим (все LOG_* = 1) */
-#ifndef DEBUG_ENABLED
-  #define DEBUG_ENABLED 0
+#ifndef LOG_LEVEL
+  #define LOG_LEVEL 3  // 0=ERROR, 1=WARN, 2=INFO, 3=DEBUG
 #endif
 
-// Логирование по модулям (при DEBUG_ENABLED=1 включаются автоматически)
-#if DEBUG_ENABLED == 1
-  #ifndef LOG_SENSOR
-    #define LOG_SENSOR 1
-  #endif
-  #ifndef LOG_ACTUATOR
-    #define LOG_ACTUATOR 1
-  #endif
-  #ifndef LOG_CONFIG
-    #define LOG_CONFIG 1
-  #endif
-  #ifndef LOG_FAN
-    #define LOG_FAN 1
-  #endif
-  #ifndef LOG_SWITCH
-    #define LOG_SWITCH 1
-  #endif
-  #ifndef LOG_MQTT
-    #define LOG_MQTT 1
-  #endif
-  #ifndef LOG_WIFI
-    #define LOG_WIFI 1
-  #endif
-  #ifndef LOG_WEB
-    #define LOG_WEB 1
-  #endif
-  #ifndef LOG_AP
-    #define LOG_AP 1
-  #endif
-  #ifndef LOG_OTA
-    #define LOG_OTA 1
-  #endif
-  #ifndef LOG_LED
-    #define LOG_LED 1
-  #endif
-#else
-  #define LOG_SENSOR 0
-  #define LOG_CONFIG 0
-  #define LOG_FAN 0
-  #define LOG_ACTUATOR 0
-  #define LOG_SWITCH 0
-  #define LOG_MQTT 0
-  #define LOG_WIFI 0
-  #define LOG_WEB 0
-  #define LOG_AP 0
-  #define LOG_OTA 0
-  #define LOG_LED 0
+#ifndef LOG_CATEGORIES
+  #define LOG_CATEGORIES 0xFFFF  // Все категории
 #endif
+
+#ifndef LOG_USE_COLOR
+  #define LOG_USE_COLOR 1
+#endif
+
+// /** @brief Включить отладочный режим (все LOG_* = 1) */
+// #ifndef DEBUG_ENABLED
+//   #define DEBUG_ENABLED 0
+// #endif
+
+// // Логирование по модулям (при DEBUG_ENABLED=1 включаются автоматически)
+// #if DEBUG_ENABLED == 1
+//   #ifndef LOG_SENSOR
+//     #define LOG_SENSOR 1
+//   #endif
+//   #ifndef LOG_ACTUATOR
+//     #define LOG_ACTUATOR 1
+//   #endif
+//   #ifndef LOG_CONFIG
+//     #define LOG_CONFIG 1
+//   #endif
+//   #ifndef LOG_FAN
+//     #define LOG_FAN 1
+//   #endif
+//   #ifndef LOG_SWITCH
+//     #define LOG_SWITCH 1
+//   #endif
+//   #ifndef LOG_MQTT
+//     #define LOG_MQTT 1
+//   #endif
+//   #ifndef LOG_WIFI
+//     #define LOG_WIFI 1
+//   #endif
+//   #ifndef LOG_WEB
+//     #define LOG_WEB 1
+//   #endif
+//   #ifndef LOG_AP
+//     #define LOG_AP 1
+//   #endif
+//   #ifndef LOG_OTA
+//     #define LOG_OTA 1
+//   #endif
+//   #ifndef LOG_LED
+//     #define LOG_LED 1
+//   #endif
+// #else
+//   #define LOG_SENSOR 0
+//   #define LOG_CONFIG 0
+//   #define LOG_FAN 0
+//   #define LOG_ACTUATOR 0
+//   #define LOG_SWITCH 0
+//   #define LOG_MQTT 0
+//   #define LOG_WIFI 0
+//   #define LOG_WEB 0
+//   #define LOG_AP 0
+//   #define LOG_OTA 0
+//   #define LOG_LED 0
+// #endif
 
 // ============================================================================
 // ШИМ (PWM) — для TYPE 1
