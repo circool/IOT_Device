@@ -121,6 +121,11 @@
 
 #if WIFI_ENABLED == 1
 
+  #ifndef SCANING_WIFI_ENABLED
+  #define SCANING_WIFI_ENABLED 0
+  #endif
+
+
   /** @brief Мощность WiFi передатчика (0.0 – 20.5 dBm) */
   #ifndef WIFI_OUTPUT_POWER
     #define WIFI_OUTPUT_POWER 15.0
