@@ -2,14 +2,13 @@
 #define MQTT_H
 #include <Arduino.h>
 #include "config.h"
-#include "wifi_manager.h"
 
 #if MQTT_ENABLED == 1
 
 
 #include <functional>
 #include <PubSubClient.h>
-
+class Client;
 
 
 /**
@@ -34,7 +33,7 @@ public:
      * @param password Пароль (опционально)
      * @return true — успешно, false — ошибка (нет брокера)
      */
-    bool begin(const char* broker, uint16_t port, const char* clientId,
+    bool begin(Client& client, const char* broker, uint16_t port, const char* clientId,
                const char* user = nullptr, const char* password = nullptr);
     
     /**
@@ -110,7 +109,6 @@ private:
     static void staticCallback(char* topic, byte* payload, unsigned int length);
     void handleCommand(const char* topic, const String& payload);
     
-    WiFiClient _wifiClient;
     PubSubClient _mqttClient;
     
     // Хранение топиков (pre-allocated, не String)
@@ -198,9 +196,7 @@ public:
     MQTTManager() {}
     ~MQTTManager() {}
     
-    bool begin(const char* broker, uint16_t port, const char* clientId,
-               const char* user = nullptr, const char* password = nullptr) {
-        (void)broker; (void)port; (void)clientId; (void)user; (void)password;
+    bool begin(T&, const char*, uint16_t, const char*, const char* = nullptr, const char* = nullptr) {
         return false;
     }
     

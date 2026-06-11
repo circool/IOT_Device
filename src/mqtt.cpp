@@ -1,13 +1,14 @@
 #include "config.h"
-#include "led.h"
+// #include "led.h"
 #include "logger.h"
-#include "wifi_manager.h"
+
 
 #if MQTT_ENABLED == 1
+#include <PubSubClient.h>
 #include "mqtt.h"
 
 MQTTManager::MQTTManager() 
-    : _mqttClient(_wifiClient)
+    : _mqttClient()  // ← больше не передаём _wifiClient
     , _initialized(false)
     , _lastReconnectAttempt(0)
     , _port(1883) {
@@ -21,43 +22,41 @@ MQTTManager::~MQTTManager() {
     disconnect();
 }
 
-bool MQTTManager::begin(const char* broker, uint16_t port, const char* clientId,
+bool MQTTManager::begin(Client& client, const char* broker, uint16_t port, const char* clientId,
                         const char* user, const char* password) {
-    if (strlen(broker) == 0) {
-        LOG_INFO(CAT_MQTT, "No broker configured");
-        return false;
-    }
+  if (strlen(broker) == 0) {
+  LOG_INFO(CAT_MQTT, "No broker configured");
+  return false;
+  }
     
-    strncpy(_clientId, clientId, sizeof(_clientId) - 1);
-    _clientId[sizeof(_clientId) - 1] = '\0';
+  strncpy(_clientId, clientId, sizeof(_clientId) - 1);
+  _clientId[sizeof(_clientId) - 1] = '\0';
+  
+  // Сохраняем для reconnect
+  strncpy(_broker, broker, sizeof(_broker) - 1);
+  _broker[sizeof(_broker) - 1] = '\0';
+  _port = port;
     
-    // Сохраняем для reconnect
-    strncpy(_broker, broker, sizeof(_broker) - 1);
-    _broker[sizeof(_broker) - 1] = '\0';
-    _port = port;
-    
-    if (user) {
-        strncpy(_user, user, sizeof(_user) - 1);
-        _user[sizeof(_user) - 1] = '\0';
-    }
-    if (password) {
-        strncpy(_password, password, sizeof(_password) - 1);
-        _password[sizeof(_password) - 1] = '\0';
-    }
-    
-    setupTopics();
-    
-    _mqttClient.setServer(broker, port);
-    _mqttClient.setCallback(staticCallback);
-    _mqttClient.setKeepAlive(MQTT_KEEPALIVE_SEC);
-    _mqttClient.setBufferSize(512);
-    
-    _initialized = true;
-    
-    LOG_DEBUG(CAT_MQTT, "Initialized for %s with keepalive = %d sec", _clientId, MQTT_KEEPALIVE_SEC);
+  if (user) {
+      strncpy(_user, user, sizeof(_user) - 1);
+      _user[sizeof(_user) - 1] = '\0';
+  }
+  if (password) {
+      strncpy(_password, password, sizeof(_password) - 1);
+      _password[sizeof(_password) - 1] = '\0';
+  }
+  
+  setupTopics();
+  _mqttClient.setClient(client);
+  _mqttClient.setServer(broker, port);
+  _mqttClient.setCallback(staticCallback);
+  _mqttClient.setKeepAlive(MQTT_KEEPALIVE_SEC);
+  _mqttClient.setBufferSize(512);
+  _initialized = true;
+  
+  LOG_DEBUG(CAT_MQTT, "Initialized for %s with keepalive = %d sec", _clientId, MQTT_KEEPALIVE_SEC);
 
-    
-    return true;
+  return true;
 }
 
 void MQTTManager::setupTopics() {
@@ -159,9 +158,9 @@ void MQTTManager::reconnect() {
         lostLogged = true;
     }
     
-    #if STATUS_LED_PIN > 0
-    led_setMode(LED_MODE_FAST_BLINK);
-    #endif
+    // #if STATUS_LED_PIN > 0
+    // led_setMode(LED_MODE_MORZE_I);
+    // #endif
     
     LOG_DEBUG(CAT_MQTT, "Connecting to broker as %s", _clientId);
 
@@ -176,13 +175,12 @@ void MQTTManager::reconnect() {
     if (connected) {
         LOG_INFO(CAT_MQTT, "Connected! Broker: %s", _broker);
         
-        wasConnectedBefore = true;
-        
+        wasConnectedBefore = true;       
         lostLogged = false;
         
-        #if STATUS_LED_PIN > 0
-        led_setMode(LED_MODE_ON);
-        #endif
+        // #if STATUS_LED_PIN > 0
+        // led_setMode(LED_MODE_ON);
+        // #endif
         
         publishOnline();
         subscribe();

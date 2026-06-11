@@ -13,6 +13,9 @@
   #include <ESP8266WiFi.h>
 #endif
 
+static WiFiClient g_mqttClient;
+
+
 #if OTA_ENABLED ==1
 #include "ota_check.h"
 #endif
@@ -39,42 +42,43 @@
 
 // ======================== MQTT FUNCTIONS ========================
 #if MQTT_ENABLED == 1
+  
   #include "mqtt.h"
   unsigned long lastMQTTAttempt = 0;
-
+  
   #if MQTT_PUBLISH_RESET_REASON == 1
     const char* getResetReason() {
-        #ifdef ESP8266
-            struct rst_info *resetInfo = system_get_rst_info();
-            uint8_t reason = resetInfo->reason;
-            
-            switch(reason) {
-                case REASON_DEFAULT_RST:    return "POWER_ON";
-                case REASON_WDT_RST:        return "WATCHDOG_CRASH";
-                case REASON_EXCEPTION_RST:  return "EXCEPTION_CRASH";
-                case REASON_SOFT_WDT_RST:   return "SOFT_WDT_CRASH";
-                case REASON_SOFT_RESTART:   return "SOFT_RESTART";
-                case REASON_EXT_SYS_RST:    return "EXT_RESET";
-                default:                    return "UNKNOWN";
-            }
-            
-        #elif defined(ESP32)
-            esp_reset_reason_t reason = esp_reset_reason();
-            
-            switch(reason) {
-                case ESP_RST_POWERON:       return "POWER_ON";
-                case ESP_RST_EXT:           return "EXT_RESET";
-                case ESP_RST_SW:            return "SOFT_RESTART";
-                case ESP_RST_PANIC:         return "PANIC_CRASH";
-                case ESP_RST_INT_WDT:       return "INT_WDT_CRASH";
-                case ESP_RST_TASK_WDT:      return "TASK_WDT_CRASH";
-                case ESP_RST_WDT:           return "WDT_CRASH";
-                case ESP_RST_DEEPSLEEP:     return "DEEP_SLEEP_WAKE";
-                default:                    return "UNKNOWN";
-            }
-        #else
-            return "UNKNOWN_PLATFORM";
-        #endif
+    #ifdef ESP8266
+    struct rst_info *resetInfo = system_get_rst_info();
+    uint8_t reason = resetInfo->reason;
+    
+    switch(reason) {
+      case REASON_DEFAULT_RST:    return "POWER_ON";
+      case REASON_WDT_RST:        return "WATCHDOG_CRASH";
+      case REASON_EXCEPTION_RST:  return "EXCEPTION_CRASH";
+      case REASON_SOFT_WDT_RST:   return "SOFT_WDT_CRASH";
+      case REASON_SOFT_RESTART:   return "SOFT_RESTART";
+      case REASON_EXT_SYS_RST:    return "EXT_RESET";
+      default:                    return "UNKNOWN";
+    }
+        
+    #elif defined(ESP32)
+    esp_reset_reason_t reason = esp_reset_reason();
+    
+    switch(reason) {
+      case ESP_RST_POWERON:       return "POWER_ON";
+      case ESP_RST_EXT:           return "EXT_RESET";
+      case ESP_RST_SW:            return "SOFT_RESTART";
+      case ESP_RST_PANIC:         return "PANIC_CRASH";
+      case ESP_RST_INT_WDT:       return "INT_WDT_CRASH";
+      case ESP_RST_TASK_WDT:      return "TASK_WDT_CRASH";
+      case ESP_RST_WDT:           return "WDT_CRASH";
+      case ESP_RST_DEEPSLEEP:     return "DEEP_SLEEP_WAKE";
+      default:                    return "UNKNOWN";
+    }
+    #else
+        return "UNKNOWN_PLATFORM";
+    #endif
     }
     
   #endif
@@ -82,38 +86,57 @@
 
 
 
-// ======================== HARDWARE RESET ========================
 void checkResetButton() {
   pinMode(RESET_PIN, INPUT_PULLUP);
-  delay(50);
-  
+  delay(50);    
   if (digitalRead(RESET_PIN) == LOW) {
-    LOG_INFO(CAT_MAIN, "Reset button pressed...");
-    LOG_INFO(CAT_MAIN, "Hold for 3 seconds to confirm reset...");
+    LOG_INFO(CAT_MAIN, "Reset button pressed...");      
+    #if STATUS_LED_PIN > 0
+        LedMode prevMode = led_getMode();
+    #endif      
     unsigned long pressStart = millis();
-    
+    wdt_stop();     
     while (digitalRead(RESET_PIN) == LOW) {
-      if (millis() - pressStart >= 3000) {
-        LOG_INFO(CAT_MAIN, "Reset confirmed! Waiting for button release...");
-        while (digitalRead(RESET_PIN) == LOW) {
-          delay(10);
-        }
+      unsigned long pressedMs = millis() - pressStart;       
+      #if STATUS_LED_PIN > 0
+      // Меняем режим в зависимости от времени удержания
+      if (pressedMs < 1000) {
+          led_setMode(LED_MODE_MORZE_E);  // 0-1 сек: одиночные
+      } else if (pressedMs < 2000) {
+          led_setMode(LED_MODE_MORZE_I);  // 1-2 сек: двойные
+      } else {
+          led_setMode(LED_MODE_MORZE_S);    // 2-3 сек: тройные
+      }
+      led_update();
+      #endif
         
-        LOG_INFO(CAT_CONFIG, "Clearing configuration...");
-
-
+      if (pressedMs >= 3000) {
+        LOG_INFO(CAT_MAIN, "Auto-reset triggered!");
+        
+        #if STATUS_LED_PIN > 0
+          led_setMode(LED_MODE_OFF);
+          led_update();
+        #endif
+          
         if (config_clear()) {
-          LOG_INFO(CAT_CONFIG, "Configuration cleared. Restarting...");
-          delay(1000);
-          ESP.restart();  
-        } else {
-          LOG_ERROR(CAT_CONFIG, "Clear failed — not restarting");
+          LOG_INFO(CAT_CONFIG, "Config cleared, restarting...");
+          delay(500);
+          ESP.restart();
         }
         return;
       }
+      
       delay(10);
+      wdt_feed();
     }
-    LOG_INFO(CAT_MAIN, "Button released too early — reset cancelled");
+    
+    // Отмена сброса
+    LOG_INFO(CAT_MAIN, "Reset cancelled (released after %d ms)", millis() - pressStart);
+    wdt_start();
+    
+    #if STATUS_LED_PIN > 0
+        led_setMode(prevMode);
+    #endif
   }
 }
 
@@ -132,7 +155,7 @@ void setup() {
         LOG_CATEGORIES,
         LOG_USE_COLOR
     );
-  LOG_INFO(CAT_MAIN, "=== SYSTEM START ===");
+  LOG_INFO(CAT_MAIN, "SYSTEM START");
 
   delay(1000);
 
@@ -183,7 +206,7 @@ void setup() {
      LOG_DEBUG(CAT_MAIN, "SDK version: %s", system_get_sdk_version());
   #endif
   
-   LOG_DEBUG(CAT_MAIN, "===================");
+   LOG_INFO(CAT_MAIN, "==========================================");
    LOG_DEBUG(CAT_MAIN, "Sketch size: %u bytes", ESP.getSketchSize());
    LOG_DEBUG(CAT_MAIN, "Free sketch space: %u bytes", ESP.getFreeSketchSpace());
    LOG_DEBUG(CAT_MAIN, "Free heap: %u bytes", ESP.getFreeHeap());
@@ -191,20 +214,15 @@ void setup() {
   #if MQTT_PUBLISH_RESET_REASON == 1
      LOG_DEBUG(CAT_MAIN, "Reset reason: %s", getResetReason());
   #endif
-  
-  
-
-   LOG_DEBUG(CAT_MAIN, "===================");
 #endif
   
    LOG_INFO(CAT_MAIN, "==========================================");
    LOG_INFO(CAT_MAIN, "Device starting with %s mode", DEVICE_PREFIX);
-   LOG_INFO(CAT_MAIN, "==========================================");
   
   // ========== ИНИЦИАЛИЗАЦИЯ ПОДСИСТЕМ ==========
   #if STATUS_LED_PIN > 0
     led_init();
-    led_setMode(LED_MODE_SLOW_BLINK);
+    led_setMode(LED_MODE_MORZE_E);
   #endif
 
   wdt_init();
@@ -216,7 +234,7 @@ void setup() {
     ota_set_available(otaCapable);  // Вместо web_setOtaAvailable
   #endif
 
-  #if DEBUG_WIFI_ENABLED == 1 
+  #if SCANING_WIFI_ENABLED == 1 
     wdt_stop();
      LOG_INFO(CAT_WIFI, "Scanning WiFi APs ...");
     int n = WiFi.scanNetworks();
@@ -247,18 +265,18 @@ void setup() {
 
     // ========== MQTT ИНИЦИАЛИЗАЦИЯ ==========
     #if MQTT_ENABLED == 1
-
-        mqttManager.begin(config_get()->mqttBroker, 
-                          config_get()->mqttPort, 
-                          config_get()->mqttClientId,
-                          config_get()->mqttUser, 
-                          config_get()->mqttPassword);
+    mqttManager.begin(g_mqttClient, 
+                  config_get()->mqttBroker, 
+                  config_get()->mqttPort, 
+                  config_get()->mqttClientId,
+                  config_get()->mqttUser, 
+                  config_get()->mqttPassword);
         
-        // Регистрация колбэков
-        #if DEVICE_TYPE == 1
-        mqttManager.onStateCommand([](bool state) { 
-          fan.set(state, true);
-        });
+    // Регистрация колбэков
+    #if DEVICE_TYPE == 1
+    mqttManager.onStateCommand([](bool state) { 
+      fan.set(state, true);
+    });
         
         mqttManager.onSpeedCommand([](int speed) {
           if (config_get()->adaptiveMode) {
@@ -382,7 +400,7 @@ void setup() {
     #endif
     
     // ========== WIFI ==========
-    #if DEBUG_WIFI_ENABLED == 1
+    #if SCANING_WIFI_ENABLED == 1
       #ifdef ESP8266
         WiFi.setSleepMode(WIFI_NONE_SLEEP);
         WiFi.setPhyMode(WIFI_PHY_MODE_11G);
@@ -473,7 +491,6 @@ void loop() {
     // ========== WIFI ==========
     #ifndef TEST_DISABLE_WIFI
       wifi_check();
-      wifi_fallback_to_ap();
     #endif
 
     // ========== MQTT ==========
@@ -636,7 +653,7 @@ void loop() {
           // Индикация LED по статусу MQTT
           #if STATUS_LED_PIN > 0
             if (!mqttManager.isConnected()) {
-              led_setMode(LED_MODE_FAST_BLINK);
+              led_setMode(LED_MODE_MORZE_I);
             } else {
               led_setMode(LED_MODE_ON);
             }
@@ -644,7 +661,7 @@ void loop() {
           
         } else {
           #if STATUS_LED_PIN > 0
-            led_setMode(LED_MODE_SLOW_BLINK);
+            // led_setMode(LED_MODE_MORZE_E);
           #endif
         }
       #endif
