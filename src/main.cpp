@@ -218,7 +218,7 @@ void setup() {
 
   #if DEBUG_WIFI_ENABLED == 1 
     wdt_stop();
-     LOG_INFO(CAT_WIFI, "Scanning...");
+     LOG_INFO(CAT_WIFI, "Scanning WiFi APs ...");
     int n = WiFi.scanNetworks();
     for (int i = 0; i < n; i++) {
       String ssid = WiFi.SSID(i);
@@ -247,7 +247,7 @@ void setup() {
 
     // ========== MQTT ИНИЦИАЛИЗАЦИЯ ==========
     #if MQTT_ENABLED == 1
-      #ifndef TEST_DISABLE_MQTT
+
         mqttManager.begin(config_get()->mqttBroker, 
                           config_get()->mqttPort, 
                           config_get()->mqttClientId,
@@ -333,7 +333,6 @@ void setup() {
           ESP.restart();
         });
         #endif
-      #endif
     #endif
 
     // ========== ДАТЧИК ==========
