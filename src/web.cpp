@@ -9,6 +9,9 @@
 #include "ota.h"
 
 // extern WebServer server;
+#if WEB_ENABLED == 1
+  WebServerClass server(80);
+#endif
 
 #if DEVICE_TYPE == 1
   #include "fan_actuator.h"

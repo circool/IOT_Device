@@ -12,8 +12,6 @@
   #include <ESP8266WiFi.h>
 #endif
 
-
-
 #if OTA_ENABLED ==1
 #include "ota_check.h"
 #endif
@@ -34,15 +32,9 @@
   #include "switch_actuator.h"
 #endif
 
-
 #if WEB_ENABLED == 1
   #include "web.h"
-  WebServerClass server(80);
 #endif
-
-
-
-
 
 // ======================== MQTT FUNCTIONS ========================
 #if MQTT_ENABLED == 1
