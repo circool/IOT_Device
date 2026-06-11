@@ -3,40 +3,25 @@
 
 #include "config.h"
 
-/**
- * @brief Режимы работы светодиода
- */
 enum LedMode {
     LED_MODE_OFF,               // Постоянно выключен
-    LED_MODE_ON,                // Постоянно включён (всё OK)
-    LED_MODE_SLOW_BLINK,        // Медленное мигание (нет WiFi)
-    LED_MODE_FAST_BLINK,        // Частое мигание (нет MQTT)
-    LED_MODE_AP_BLINK,          // Тройные вспышки (режим AP)
-    LED_MODE_EMERGENCY_STOP,    // Аварийное отключение: длинная — пауза — две коротких
+    LED_MODE_ON,                // Постоянно включён
+    LED_MODE_MORZE_E,           // 1 точка/сек: █_______ (нет WiFi / 0-1 сек сброса)
+    LED_MODE_MORZE_I,           // 2 точки/сек: █_█_____ (нет MQTT / 1-2 сек сброса)
+    LED_MODE_MORZE_S,           // 3 точки/сек: █_█_█___ (AP mode / 2-3 сек сброса)
+    LED_MODE_MORZE_D,           // ███_█_█_ (аварийное отключение)
 };
 
 #if STATUS_LED_PIN > 0
-/**
- * @brief Инициализация пина светодиода
- * Вызывается один раз в setup()
- */
 void led_init();
-
-/**
- * @brief Периодическое обновление состояния светодиода
- * Вызывается в loop()
- */
 void led_update();
-
-/**
- * @brief Установить режим работы светодиода
- * @param mode Режим из перечисления LedMode
- */
 void led_setMode(LedMode mode);
-
+LedMode led_getMode();
 #else
-inline void led_init(){};
-inline void led_update(){};
-inline void led_setMode(LedMode mode){};
-#endif // STATUS_LED_PIN
-#endif // LED_H
+inline void led_init() {}
+inline void led_update() {}
+inline void led_setMode(LedMode mode) {}
+inline LedMode led_getMode() { return LED_MODE_OFF; }
+#endif
+
+#endif
