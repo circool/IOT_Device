@@ -42,10 +42,9 @@ public:
     unsigned long getStartTime() const { return _base.getStartTime(); }
     bool isDelayActive() const { return _base.isDelayActive(); }
     unsigned long getDelayTimer() const { return _base.getDelayTimer(); }
+    bool isEmergencyStop() const { return _base.isEmergencyStop(); }
+    void clearEmergencyStop() { _base.clearEmergencyStop(); }
 
-
-    
-    
     // Статические колбэки
     static void onSetPhysicalCallback(void* context, bool on);
     static void onForceStopCallback(void* context);

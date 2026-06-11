@@ -154,7 +154,7 @@ void FanActuator::onForceStopCallback(void* context) {
     self->_adaptiveActive = false;
 }
 
-// НОВЫЙ КОЛБЭК
+
 void FanActuator::onManualCommandCallback(void* context) {
     FanActuator* self = (FanActuator*)context;
     if (!self) return;

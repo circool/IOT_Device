@@ -3,7 +3,8 @@
 
 #include <Arduino.h>
 #include "config.h"
-#include "led.h"
+
+
 /**
  * @brief Базовый класс для управления исполнительным механизмом (вентилятор/выключатель)
  * 
@@ -62,6 +63,9 @@ public:
     void (*onManualCommandCallback)(void*);      // ВЫЗОВ ПРИ РУЧНОЙ КОМАНДЕ (manual=true)
     void* callbackContext;                       // Контекст (this для производного класса)
 
+    bool isEmergencyStop() const { return _emergencyStop; }
+    void clearEmergencyStop() { _emergencyStop = false; }
+
 protected:
     void checkMaxOnTime();      // Проверка превышения максимального времени работы
     bool delayTimer(bool start); // Управление таймером отложенного включения
@@ -72,6 +76,7 @@ protected:
     unsigned long _startTime;   // Время последнего включения (для maxOnTime)
     bool _delayActive;          // Активен ли таймер отложенного включения
     unsigned long _delayTimer;  // Время срабатывания таймера (millis)
+    bool _emergencyStop = false;
 };
 
 #endif

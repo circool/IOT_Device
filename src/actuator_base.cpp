@@ -1,5 +1,6 @@
 #include "actuator_base.h"
 #include "logger.h"
+
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 ActuatorBase::ActuatorBase()
     : onSetPhysicalCallback(nullptr)
@@ -11,7 +12,8 @@ ActuatorBase::ActuatorBase()
     , _state(false)
     , _startTime(0)
     , _delayActive(false)
-    , _delayTimer(0) {
+    , _delayTimer(0)
+    , _emergencyStop(false) {
 }
 
 void ActuatorBase::init(uint8_t pin, uint8_t relayOnLevel, bool bootState) {
@@ -22,6 +24,7 @@ void ActuatorBase::init(uint8_t pin, uint8_t relayOnLevel, bool bootState) {
     _delayActive = false;
     _delayTimer = 0;
     _startTime = 0;
+    _emergencyStop = false;
     
     if (bootState) {
         if (onSetPhysicalCallback) onSetPhysicalCallback(callbackContext, true);
@@ -59,6 +62,10 @@ void ActuatorBase::set(bool on, bool manual) {
     }
     
     if (_state) {
+        _emergencyStop = false;
+    }
+
+    if (_state) {
         _startTime = millis();
         LOG_INFO(CAT_ACTUATOR, "ON");
     } else {
@@ -87,9 +94,7 @@ void ActuatorBase::update() {
 void ActuatorBase::forceStop() {
     LOG_INFO(CAT_ACTUATOR, "Force stop!");
     set(false, true);
-    #if STATUS_LED_PIN > 0
-        led_setMode(LED_MODE_EMERGENCY_STOP);
-    #endif
+    _emergencyStop = true;
     if (onForceStopCallback) onForceStopCallback(callbackContext);
 }
 

@@ -433,10 +433,7 @@ void setup() {
 
 // ======================== LOOP ========================
 void loop() {
-  #if USE_DEVICE_CLASS == 1
-    device.loop();
-  #else
-  
+   
     wdt_feed();
     checkResetButton();
     led_update();
@@ -490,7 +487,7 @@ void loop() {
 
     // ========== WIFI ==========
     #ifndef TEST_DISABLE_WIFI
-      wifi_check();
+      wifi_monitor();
     #endif
 
     // ========== MQTT ==========
@@ -660,9 +657,9 @@ void loop() {
           #endif
           
         } else {
-          #if STATUS_LED_PIN > 0
-            // led_setMode(LED_MODE_MORZE_E);
-          #endif
+          // #if STATUS_LED_PIN > 0
+          //   // led_setMode(LED_MODE_MORZE_E);
+          // #endif
         }
       #endif
     #endif
@@ -673,5 +670,37 @@ void loop() {
         web_update();
       #endif
     #endif
-  #endif
+
+    #if STATUS_LED_PIN > 0
+    LedMode newMode = LED_MODE_ON;
+
+    // Приоритет: авария > нет WiFi > нет MQTT > AP режим > всё хорошо
+
+    // Проверка аварийного отключения с учётом типа устройства
+    #if DEVICE_TYPE == 1
+    if (fan.isEmergencyStop()) {
+        newMode = LED_MODE_MORZE_D;
+    } else 
+    #elif DEVICE_TYPE == 3
+    if (switchActuator.isEmergencyStop()) {
+        newMode = LED_MODE_MORZE_D;
+    } else 
+    #endif
+
+
+    if (apMode) {
+        newMode = LED_MODE_MORZE_S;
+    } else if (!wifi_is_connected()) {
+        newMode = LED_MODE_MORZE_E;
+    } else if (!mqttManager.isConnected()) {
+        newMode = LED_MODE_MORZE_I;
+    } else {
+        newMode = LED_MODE_ON;
+    }
+
+    led_setMode(newMode);
+    // led_update() уже вызван в начале loop()
+    #endif
+
+
 }

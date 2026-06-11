@@ -73,7 +73,9 @@ public:
     unsigned long getStartTime() const { return _base.getStartTime(); }
     bool isDelayActive() const { return _base.isDelayActive(); }
     unsigned long getDelayTimer() const { return _base.getDelayTimer(); }
-
+    bool isEmergencyStop() const { return _base.isEmergencyStop(); }
+    void clearEmergencyStop() { _base.clearEmergencyStop(); }
+    
     /**
      * @brief Включить поэтапное увеличение скорости (для туалета)
      * При срабатывании таймера отложенного включения
