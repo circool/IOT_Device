@@ -117,8 +117,8 @@ const char* Logger::getColorForLevel(LogLevel level) const {
 		switch (level) {
 				case LOG_LEVEL_ERROR: return ANSI_BRIGHT_RED;
 				case LOG_LEVEL_WARN:  return ANSI_BRIGHT_MAGENTA;
-				case LOG_LEVEL_INFO:  return ANSI_BRIGHT_WHITE;
-				case LOG_LEVEL_DEBUG: return ANSI_CYAN;
+				case LOG_LEVEL_INFO:  return ANSI_RESET;
+				case LOG_LEVEL_DEBUG: return ANSI_BLUE;
 				default:              return ANSI_RESET;
 		}
 }
