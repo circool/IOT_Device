@@ -1,5 +1,4 @@
 #include "actuator_base.h"
-#include "ansi.h"
 #include "logger.h"
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 ActuatorBase::ActuatorBase()

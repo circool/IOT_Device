@@ -1,5 +1,4 @@
 #include "switch_actuator.h"
-#include "ansi.h"
 #include "logger.h"
 
 SwitchActuator::SwitchActuator()

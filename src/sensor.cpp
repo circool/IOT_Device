@@ -1,5 +1,4 @@
 #include "sensor.h"
-#include "ansi.h"
 #include "logger.h"
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2

@@ -1,6 +1,5 @@
 #include "ota.h"
 #include "config.h"
-#include "ansi.h"
 #include "logger.h"
 #include "wifi_manager.h"
 
