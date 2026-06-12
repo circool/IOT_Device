@@ -704,22 +704,22 @@ void web_init() {
         #endif
         if (apMode) {
             web_sendConfigPage("", "");
-            LOG_INFO(CAT_WEB, "GET / - show config page"); 
+            LOG_DEBUG(CAT_WEB, "GET / - show config page"); 
         } else {
-            LOG_INFO(CAT_WEB, "GET / - serving status page");
+            LOG_DEBUG(CAT_WEB, "GET / - serving status page");
             web_sendStatusPage(refreshInterval); 
         }
     });
     #else
     server.on("/", [](){ 
-        LOG_INFO(CAT_WEB, "GET / - redirect to config");
+        LOG_DEBUG(CAT_WEB, "GET / - redirect to config");
         server.sendHeader("Location", "/config", true); 
         server.send(302, "text/plain", ""); 
     });
     #endif
     
     server.on("/config", [](){ 
-        LOG_INFO(CAT_WEB, "GET /config - serving config page");
+        LOG_DEBUG(CAT_WEB, "GET /config - serving config page");
 
         web_sendConfigPage("", ""); 
     });
