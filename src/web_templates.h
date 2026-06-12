@@ -42,7 +42,8 @@ input[type=submit]:hover,button:hover,.link-btn:hover{background:#333;}
 .success{background:#e8f5e9;padding:10px;border-radius:5px;margin:10px 0;color:#2e7d32;border:1px solid #a5d6a7;}
 .row{display:flex;gap:10px;}.row>div{flex:1;}
 .password-hint{color:#7f8c8d;margin-top:-2px;margin-bottom:8px;}
-.note{background:#f9f9f9;padding:8px;margin-top:10px;border-left:3px solid #2c3e50;font-size:0.9em;color:#555;}
+.note{padding:8px;margin-top:10px;border-left:3px solid #2c3e50;font-size:0.9em;color:#555;}
+.note::before{content:"ℹ️ ";font-weight:bold;}
 .flex-container{display:flex;flex-wrap:wrap;justify-content:center;}
 .sensor-card{display:inline-block;width:45%;margin:10px;padding:15px;border-radius:10px;text-align:center;}
 .sensor-value{font-size:2em;font-weight:bold;}

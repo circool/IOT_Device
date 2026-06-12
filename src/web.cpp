@@ -42,6 +42,19 @@ static String formatRemainingTime(unsigned long remainingMs) {
     return String(remainingSec / 3600) + " ч " + String((remainingSec % 3600) / 60) + " min";
 }
 
+static bool isEmergencyStopActive() {
+  #if DEVICE_TYPE == 1
+    if (g_fanActuator != nullptr) {
+        return g_fanActuator->isEmergencyStop();
+    }
+  #elif DEVICE_TYPE == 3
+    if (g_switchActuator != nullptr) {
+        return g_switchActuator->isEmergencyStop();
+    }
+  #endif
+  return false;
+}
+
 static String getCurrentModeText() {
     #if DEVICE_TYPE == 1
         if (g_fanActuator == nullptr) return "NA";
@@ -219,6 +232,16 @@ String web_buildStatusHtml() {
     }
     #endif
     
+    #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    if (isEmergencyStopActive()) {
+      html += F("<div class='status-card error'>");
+      html += F("<div style='font-size:1.2em;'>EMERGENCY STOPPED</div>");
+      html += F("<div class='note'>");
+      html += F("Device was automatically turned off after exceeding <b>emergency timer</b>.");
+      html += F("</div></div>");
+    }
+    #endif
+
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     html += F("<div class='status-card' style='background:#f5f5f5; border:2px solid #ddd;'>");
     html += F("<div style='font-size:1.5em;font-weight:bold;'>Mode: ");
