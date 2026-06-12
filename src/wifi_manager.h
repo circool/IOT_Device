@@ -15,7 +15,7 @@ extern bool wifi_is_connecting;
 
 void wifi_begin();
 void wifi_check();
-void wifi_monitor();           // ← новая функция
+void wifi_monitor();           
 String wifi_get_local_ip();
 int wifi_get_rssi();
 bool wifi_is_connected();

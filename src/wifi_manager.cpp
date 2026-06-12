@@ -36,8 +36,7 @@ void wifi_begin() {
 void wifi_check() {
   if (!wifi_is_connecting) return;
   
-  wl_status_t status = WiFi.status();
-  
+  wl_status_t status = WiFi.status();  
   if (status == WL_CONNECTED) {
     wifi_is_connecting = false;
     wifi_lost_time = 0;
@@ -65,55 +64,55 @@ void wifi_check() {
 // wifi_monitor() - Постоянный мониторинг WiFi (вызывается в loop)
 // ============================================================================
 void wifi_monitor() {
-    // --- Режим AP: проверяем, не восстановился ли WiFi ---
-    if (apMode) {
-        if (strlen(config_get()->wifiSsid) == 0) return;
-        
-        // Запускаем фоновое подключение, если ещё не пытаемся
-        if (!wifi_is_connecting) {
-            LOG_INFO(CAT_WIFI, "AP mode active, attempting to connect to WiFi in background");
-            wifi_begin();
-        }
-        
-        // Проверяем статус
-        wifi_check();  // ← используем существующую логику проверки
-        
-        // Если подключились — wifi_check() сам выключит AP
-        return;
-    }
+  // --- Режим AP: проверяем, не восстановился ли WiFi ---
+  if (apMode) {
+      if (strlen(config_get()->wifiSsid) == 0) return;
+      
+      // Запускаем фоновое подключение, если ещё не пытаемся
+      if (!wifi_is_connecting) {
+          LOG_INFO(CAT_WIFI, "AP mode active, attempting to connect to WiFi in background");
+          wifi_begin();
+      }
+      
+      // Проверяем статус
+      wifi_check();  // ← используем существующую логику проверки
+      
+      // Если подключились — wifi_check() сам выключит AP
+      return;
+  }
     
-    // --- Нормальный режим: проверяем, не потеряли ли соединение ---
-    if (!wifi_is_connected()) {
-        if (!wifi_is_connecting) {
-            LOG_INFO(CAT_WIFI, "WiFi lost, attempting to reconnect");
-            wifi_begin();
-        }
-    }
+  // --- Нормальный режим: проверяем, не потеряли ли соединение ---
+  if (!wifi_is_connected()) {
+      if (!wifi_is_connecting) {
+          LOG_INFO(CAT_WIFI, "WiFi lost, attempting to reconnect");
+          wifi_begin();
+      }
+  }
+  
+  // Проверяем прогресс подключения
+  wifi_check();
     
-    // Проверяем прогресс подключения
-    wifi_check();
-    
-    // Fallback в AP при длительной потере (только если не в AP режиме)
-    if (!apMode && !wifi_is_connected() && !wifi_is_connecting) {
-        if (wifi_lost_time == 0) {
-            wifi_lost_time = millis();
-            LOG_INFO(CAT_WIFI, "WiFi lost, starting fallback timer");
-        } else if (millis() - wifi_lost_time > AP_FALLBACK_TIMEOUT_MS) {
-            LOG_INFO(CAT_WIFI, "WiFi lost for %d ms, switching to AP mode", AP_FALLBACK_TIMEOUT_MS);
-            
-            WiFi.disconnect(true);
-            WiFi.mode(WIFI_OFF);
-            delay(100);
-            
-            web_initAP();
-            wifi_lost_time = 0;
-        }
-    } else {
-        // сбрасываем таймер только при реальном подключении
-        if (wifi_is_connected()) {
-        wifi_lost_time = 0;
-        }
-    }
+  // Fallback в AP при длительной потере (только если не в AP режиме)
+  if (!apMode && !wifi_is_connected() && !wifi_is_connecting) {
+      if (wifi_lost_time == 0) {
+          wifi_lost_time = millis();
+          LOG_INFO(CAT_WIFI, "WiFi lost, starting fallback timer");
+      } else if (millis() - wifi_lost_time > AP_FALLBACK_TIMEOUT_MS) {
+          LOG_INFO(CAT_WIFI, "WiFi lost for %d ms, switching to AP mode", AP_FALLBACK_TIMEOUT_MS);
+          
+          WiFi.disconnect(true);
+          WiFi.mode(WIFI_OFF);
+          delay(100);
+          
+          web_initAP();
+          wifi_lost_time = 0;
+      }
+  } else {
+      // сбрасываем таймер только при реальном подключении
+      if (wifi_is_connected()) {
+      wifi_lost_time = 0;
+      }
+  }
 }
 
 // ============================================================================
