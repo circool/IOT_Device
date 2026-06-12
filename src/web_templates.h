@@ -93,7 +93,7 @@ inline void sendConfigPage(WebSendCallback send,
     send(FPSTR(HTML_STYLE));
     send(F("</head><body><div class='container'>"));
     
-    send(F("<h1>Setting "));
+    send(F("<h1>Settings "));
     send(deviceId);
     send(F(" v. "));
     send(VERSION);
@@ -203,7 +203,7 @@ inline void sendConfigPage(WebSendCallback send,
     send(String(savedConfig.sensorInterval));
     send(F("'></div>"));
     
-    send(F("<div><label>Emergency off after </label>"));
+    send(F("<div><label>Emergency timeout after </label>"));
     send(F("<input type='number' min='"));
     send(String(MAX_ON_TIME_MIN));
     send(F("' max='"));
@@ -213,7 +213,7 @@ inline void sendConfigPage(WebSendCallback send,
     send(F("'></div></div>"));
     
     send(F("<h3>Control</h3>"));
-    send(F("<label>Tun on after </label>"));
+    send(F("<label>Turn on after </label>"));
     send(F("<input type='number' min='"));
     send(String(DELAY_SECONDS_MIN));
     send(F("' max='"));
@@ -229,17 +229,17 @@ inline void sendConfigPage(WebSendCallback send,
     send(F("'>"));
     send(F("<div class='note'>0% - off, 100% - maximal speed (slow mode off).<br>Values below 100% reduce fan noise.</div>"));
     
-    send(F("<h3>Smart slow mode</h3>"));
+    send(F("<h3>Adaptive quiet mode</h3>"));
     send(F("<label><input type='checkbox' name='adaptiveMode' value='1'"));
     if (savedConfig.adaptiveMode) send(F(" checked"));
-    send(F("> Turn smart on</label>"));
+    send(F("> Enable adaptive mode</label>"));
     send(F("<div class='note'>Adaptive mode automatically adjusts speed to maintain temperature and humidity levels measured at fan startup.</div>"));
     
     send(F("<h3>Startup behavior</h3>"));
     send(F("<label><input type='checkbox' name='bootState' value='1'"));
     if (savedConfig.bootState) send(F(" checked"));
     send(F("> Turn on at startup</label>"));
-    send(F("<div class='note'>When enabled, the switch will turn on immediately after power is applied.</div>"));
+    send(F("<div class='note'>When enabled, the fan will turn on immediately after power is applied.</div>"));
     
     send(F("<h3>Mode</h3>"));
     send(F("<label><input type='checkbox' name='sensorControlMode' value='1'"));

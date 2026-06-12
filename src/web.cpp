@@ -237,7 +237,7 @@ String web_buildStatusHtml() {
       html += F("<div class='status-card error'>");
       html += F("<div style='font-size:1.2em;'>EMERGENCY STOPPED</div>");
       html += F("<div class='note'>");
-      html += F("Device was automatically turned off after exceeding <b>emergency timer</b>.");
+      html += F("Device was automatically turned off after exceeding the maximum allowed runtime.");
       html += F("</div></div>");
     }
     #endif
@@ -308,7 +308,7 @@ String web_buildStatusHtml() {
     #endif
     
     #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    html += F("Emergency off: ");
+    html += F("Emergency timeout: ");
     html += getMaxOnTimeRemaining();
     html += F("<br>");
     html += F("Delay timer: ");
