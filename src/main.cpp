@@ -236,21 +236,13 @@ void setup() {
 
   #if SCANING_WIFI_ENABLED == 1 
     wdt_stop();
-     LOG_INFO(CAT_WIFI, "Scanning WiFi APs ...");
-    int n = WiFi.scanNetworks();
-    for (int i = 0; i < n; i++) {
-      String ssid = WiFi.SSID(i);
-      bool isTarget = (ssid == config_get()->wifiSsid);
-      if (isTarget) {
-         LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET "", ssid.c_str(), WiFi.RSSI(i));
-      } else {
-        LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d)", ssid.c_str(), WiFi.RSSI(i));
-      }
-    }
-    WiFi.scanDelete();
-    LOG_INFO(CAT_WIFI, "Scanning complete, re-enabling Watch Dog Timer");
+    
+    const Config* cfg = config_get();
+    const char* targetSsid = (cfg != nullptr) ? cfg->wifiSsid : nullptr;
+    wifi_scan_and_log(targetSsid);
+    
     wdt_start();
-  #endif
+#endif
 
   #if DEBUG_ENABLED == 1
     config_print();

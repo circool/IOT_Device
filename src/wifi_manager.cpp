@@ -133,6 +133,60 @@ void wifi_start_ap(const char* ssid) {
 }
 
 // ============================================================================
+// wifi_scan_and_log() - Сканирование WiFi сетей с выводом в лог
+// ============================================================================
+int wifi_scan_and_log(const char* targetSsid) {
+    static bool is_scanning = false;
+    
+    // Защита от реентерабельности
+    if (is_scanning) {
+        LOG_WARN(CAT_WIFI, "Scan already in progress, skipping");
+        return -1;
+    }
+    
+    // Не сканируем, если в процессе подключения к другой сети
+    if (wifi_is_connecting) {
+        LOG_WARN(CAT_WIFI, "Cannot scan while connecting to WiFi");
+        return -1;
+    }
+    
+    is_scanning = true;
+    
+    LOG_INFO(CAT_WIFI, "Scanning WiFi networks...");
+    
+    int networksFound = WiFi.scanNetworks();
+    
+    if (networksFound == WIFI_SCAN_FAILED) {
+        LOG_ERROR(CAT_WIFI, "WiFi scan failed");
+        WiFi.scanDelete();
+        is_scanning = false;
+        return -1;
+    }
+    
+    bool markTarget = (targetSsid != nullptr && strlen(targetSsid) > 0);
+    
+    for (int i = 0; i < networksFound; i++) {
+        String ssid = WiFi.SSID(i);
+        int32_t rssi = WiFi.RSSI(i);
+        
+        if (markTarget && ssid == targetSsid) {
+            LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET, 
+                      ssid.c_str(), rssi);
+        } else {
+            LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d)", ssid.c_str(), rssi);
+        }
+    }
+    
+    LOG_INFO(CAT_WIFI, "Scan complete: %d network(s) found", networksFound);
+    
+    WiFi.scanDelete();
+    is_scanning = false;
+    
+    return networksFound;
+}
+
+
+// ============================================================================
 // Вспомогательные функции
 // ============================================================================
 String wifi_get_local_ip() {
