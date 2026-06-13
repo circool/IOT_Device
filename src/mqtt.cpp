@@ -472,7 +472,7 @@ void MQTTManager::publishResetReason(const char* reason) {
 
 #ifdef MQTT_IGNORE_PUBLISH_NORMAL_RESET_REASONS
   if (strcmp(reason, "POWER_ON") == 0 || strcmp(reason, "SOFT_RESTART") == 0) {
-    LOG_INFO(CAT_MQTT, "Skipping publish reset reason: %s", reason);
+    LOG_DEBUG(CAT_MQTT, "Skipping publish reset reason: %s", reason);
     return;
   }
 #endif
