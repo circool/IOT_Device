@@ -264,8 +264,18 @@ void MQTTManager::handleCommand(const char* topic, const String& payload) {
 
 #if MQTT_RESET_ENABLED == 1
   if (strcmp(topic, _topics.reset) == 0) {
-    if (payload == "1" && _resetCallback) {
-      _resetCallback();
+    String lowerPayload = payload;
+    lowerPayload.toLowerCase();
+
+    if (lowerPayload == "1" || lowerPayload == "on" || lowerPayload == "true" ||
+        lowerPayload == "reset") {
+      if (_resetCallback) {
+        _resetCallback();
+      }
+    } else {
+      LOG_WARN(CAT_MQTT,
+               "Unknown reset command: '%s' (expected 1/ON/TRUE/RESET)",
+               payload.c_str());
     }
     return;
   }
