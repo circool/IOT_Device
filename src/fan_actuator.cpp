@@ -21,7 +21,9 @@ FanActuator::FanActuator()
       _baseHum(0),
       _lastAdaptiveCheck(0),
       _startingPulseActive(false),
-      _startingPulseStart(0) {
+      _startingPulseStart(0),
+      _rampUpActive(false),
+      _lastRampUpTime(0) {
   _base.onSetPhysicalCallback = FanActuator::onSetPhysicalCallback;
   _base.onForceStopCallback = FanActuator::onForceStopCallback;
   _base.onManualCommandCallback = FanActuator::onManualCommandCallback;

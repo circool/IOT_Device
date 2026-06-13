@@ -16,6 +16,7 @@ MQTTManager::MQTTManager()
   memset(_broker, 0, sizeof(_broker));
   memset(_user, 0, sizeof(_user));
   memset(_password, 0, sizeof(_password));
+  memset(_clientId, 0, sizeof(_clientId));
 }
 
 MQTTManager::~MQTTManager() {
