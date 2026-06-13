@@ -56,13 +56,13 @@
  * Формируется автоматически на основе DEVICE_TYPE
  */
 #if DEVICE_TYPE == 1
-#define DEVICE_PREFIX "Fan"
+#define DEVICE_PREFIX "fan"
 #elif DEVICE_TYPE == 2
-#define DEVICE_PREFIX "Sensor"
+#define DEVICE_PREFIX "sensor"
 #elif DEVICE_TYPE == 3
-#define DEVICE_PREFIX "Switch"
+#define DEVICE_PREFIX "switch"
 #else
-#define DEVICE_PREFIX "Device"
+#define DEVICE_PREFIX "device"
 #endif
 
 // ============================================================================
