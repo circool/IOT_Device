@@ -621,17 +621,9 @@ bool config_write() {
 
   uint16_t oldCrc = _config.crc;
   _config.crc = 0;
-
   _config.crc = crc16((uint8_t*)&_config, sizeof(Config));
 
   LOG_DEBUG(CAT_CONFIG, "Calculated CRC: 0x%04X", _config.crc);
-
-//@TODO: Убрать после отладки
-#if SIMULATE_EEPROM_MALFUNCTION == 1
-  LOG_DEBUG(CAT_CONFIG, "SIMULATE: EEPROM commit FAILED" ANSI_RESET);
-  _config.crc = oldCrc;
-  return false;
-#endif
 
   uint8_t* ptr = (uint8_t*)&_config;
   for (size_t i = 0; i < sizeof(Config); i++) {
@@ -674,7 +666,6 @@ bool config_write() {
     LOG_INFO(CAT_CONFIG, "Verification saved config PASSED");
 
     _configValid = true;
-
     return true;
 
   } else {
@@ -777,14 +768,14 @@ void config_print() {
   LOG_DEBUG(CAT_CONFIG, "CRC: 0x%04X", _config.crc);
 
   if (_configValid) {
-    LOG_INFO(CAT_CONFIG, "Config valid: YES");
+    LOG_INFO(CAT_CONFIG, "Config is valid.");
   } else {
-    LOG_WARN(CAT_CONFIG, "Config valid: NO");
+    LOG_WARN(CAT_CONFIG, "Config is not valid!");
   }
 
 #if WIFI_ENABLED == 1
   if (!_configValid || strlen(_config.wifiSsid) == 0) {
-    LOG_INFO(CAT_CONFIG, "Mode: SETUP (AP will be started)");
+    LOG_INFO(CAT_CONFIG, "Mode: SETUP (AP)");
   } else {
     LOG_INFO(CAT_CONFIG, "Mode: NORMAL");
   }
