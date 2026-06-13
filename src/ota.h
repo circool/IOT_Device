@@ -26,9 +26,15 @@ bool ota_is_available();
 
 #else
 // Пустые заглушки
-inline void ota_init(WebServerClass* server) { (void)server; }
-inline void ota_set_available(bool available) { (void)available; }
-inline bool ota_is_available() { return false; }
+inline void ota_init(WebServerClass* server) {
+  (void)server;
+}
+inline void ota_set_available(bool available) {
+  (void)available;
+}
+inline bool ota_is_available() {
+  return false;
+}
 #endif
 
-#endif // OTA_H
+#endif  // OTA_H

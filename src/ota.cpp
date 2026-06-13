@@ -7,9 +7,9 @@
 
 // Системные заголовки
 #ifdef ESP32
-  #include <WiFi.h>
+#include <WiFi.h>
 #elif defined(ESP8266)
-  #include <ESP8266WiFi.h>
+#include <ESP8266WiFi.h>
 #endif
 
 #include <ElegantOTA.h>
@@ -20,19 +20,19 @@ static WebServerClass* ota_server = nullptr;
 
 // ========== РЕАЛИЗАЦИЯ ==========
 void ota_init(WebServerClass* server) {  // ← уже правильно в вашем файле
-    if (!ota_available || !server) return;
-    ota_server = server;
-    ElegantOTA.begin(server);
+  if (!ota_available || !server)
+    return;
+  ota_server = server;
+  ElegantOTA.begin(server);
 }
 
 bool ota_is_available() {
-    return ota_available;
+  return ota_available;
 }
 
 void ota_set_available(bool available) {
-    ota_available = available;
-    LOG_INFO(CAT_OTA, "Available: %s", available ? "YES" : "NO");
-
+  ota_available = available;
+  LOG_DEBUG(CAT_OTA, "Available: %s", available ? "YES" : "NO");
 }
 
-#endif // OTA_ENABLED == 1
+#endif  // OTA_ENABLED == 1

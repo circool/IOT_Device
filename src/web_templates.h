@@ -11,12 +11,9 @@
 
 /**
  * @brief Константы HTML-шаблонов
- * 
+ *
  * Хранятся в PROGMEM (Flash) для экономии RAM
  */
-
-
-
 
 // ========== ОБЩИЙ ШАБЛОН СТРАНИЦЫ (НАЧАЛО, БЕЗ МАРКЕРОВ) ==========
 const char HTML_PAGE_START[] PROGMEM = R"rawliteral(
@@ -63,244 +60,278 @@ const char HTML_PAGE_END[] PROGMEM = R"rawliteral(
 
 using WebSendCallback = std::function<void(const String&)>;
 
-inline void sendConfigPage(WebSendCallback send, 
-                            const String& errorMsg,
-                            const String& successMsg,
-                            const Config& savedConfig,
-                            const String& currentMode,
-                            const String& currentSsid,
-                            const String& currentIp,
-                            int refreshSeconds = 0,
-                            bool isApMode = false) {
-    send(FPSTR(HTML_PAGE_START));
-    
-    if (refreshSeconds > 0) {
-        char refresh[64];
-        snprintf_P(refresh, sizeof(refresh), PSTR("<meta http-equiv='refresh' content='%d'>"), refreshSeconds);
-        send(refresh);
-    }
-    
-    #if DEBUG_ENABLED == 1
-    send(F("<meta http-equiv='Cache-Control' content='no-cache, no-store, must-revalidate'>"));
-    send(F("<meta http-equiv='Pragma' content='no-cache'>"));
-    send(F("<meta http-equiv='Expires' content='0'>"));
-    #endif
-    
-    send(F("<title>"));
-    send(deviceId);
-    send(F(" Configuration</title>"));
-    
-    send(FPSTR(HTML_STYLE));
-    send(F("</head><body><div class='container'>"));
-    
-    send(F("<h1>Settings "));
-    send(deviceId);
-    send(F(" v. "));
-    send(VERSION);
-    send(F("</h1>"));
-    
-    send(F("<h3>State</h3><div class='info'>"));
-    send(F("Mode: <strong>")); send(currentMode); send(F("</strong><br>"));
-    send(F("SSID: <strong>")); send(currentSsid); send(F("</strong><br>"));
-    send(F("IP: <strong>")); send(currentIp); send(F("</strong><br>"));
+inline void sendConfigPage(WebSendCallback send,
+                           const String& errorMsg,
+                           const String& successMsg,
+                           const Config& savedConfig,
+                           const String& currentMode,
+                           const String& currentSsid,
+                           const String& currentIp,
+                           int refreshSeconds = 0,
+                           bool isApMode = false) {
+  send(FPSTR(HTML_PAGE_START));
+
+  if (refreshSeconds > 0) {
+    char refresh[64];
+    snprintf_P(refresh, sizeof(refresh),
+               PSTR("<meta http-equiv='refresh' content='%d'>"),
+               refreshSeconds);
+    send(refresh);
+  }
+
+#if LOG_LEVEL > 3
+  send(
+      F("<meta http-equiv='Cache-Control' content='no-cache, no-store, "
+        "must-revalidate'>"));
+  send(F("<meta http-equiv='Pragma' content='no-cache'>"));
+  send(F("<meta http-equiv='Expires' content='0'>"));
+#endif
+
+  send(F("<title>"));
+  send(deviceId);
+  send(F(" Configuration</title>"));
+
+  send(FPSTR(HTML_STYLE));
+  send(F("</head><body><div class='container'>"));
+
+  send(F("<h1>Settings "));
+  send(deviceId);
+  send(F(" v. "));
+  send(VERSION);
+  send(F("</h1>"));
+
+  send(F("<h3>State</h3><div class='info'>"));
+  send(F("Mode: <strong>"));
+  send(currentMode);
+  send(F("</strong><br>"));
+  send(F("SSID: <strong>"));
+  send(currentSsid);
+  send(F("</strong><br>"));
+  send(F("IP: <strong>"));
+  send(currentIp);
+  send(F("</strong><br>"));
+  send(F("</div>"));
+
+  if (errorMsg.length() > 0) {
+    send(F("<div class='error'><strong>Error:</strong> "));
+    send(errorMsg);
     send(F("</div>"));
-    
-    if (errorMsg.length() > 0) {
-        send(F("<div class='error'><strong>Error:</strong> "));
-        send(errorMsg);
-        send(F("</div>"));
-    }
-    
-    if (successMsg.length() > 0) {
-        send(F("<div class='success'><strong>Config saved!</strong> "));
-        send(successMsg);
-        send(F("</div>"));
-    }
-    
-    send(F("<form method='POST' action='/save'>"));
-    send(F("<h3>WiFi setup</h3>"));
-    send(F("<label>WiFi SSID:</label>"));
-    send(F("<input type='text' name='wifiSsid' required value='"));
-    send(savedConfig.wifiSsid);
-    send(F("'>"));
-    
-    send(F("<label>WiFi Password:</label>"));
-    send(F("<input type='password' name='wifiPassword' placeholder='(hidden)'>"));
-    send(F("<div class='password-hint'>Leave empty to keep current password</div>"));
-    
-    #if MQTT_ENABLED == 1
-    send(F("<h3>MQTT setup</h3>"));
-    send(F("<div class='row'><div><label>MQTT Broker:</label>"));
-    send(F("<input type='text' name='mqttBroker' required value='"));
-    send(savedConfig.mqttBroker);
-    send(F("'></div>"));
-    
-    send(F("<div><label>MQTT Port:</label>"));
-    send(F("<input type='number' name='mqttPort' required value='"));
-    send(String(savedConfig.mqttPort));
-    send(F("'></div></div>"));
-    
-    send(F("<div class='row'><div><label>MQTT User:</label>"));
-    send(F("<input type='text' name='mqttUser' value='"));
-    send(savedConfig.mqttUser);
-    send(F("'></div>"));
-    
-    send(F("<div><label>MQTT Password:</label>"));
-    send(F("<input type='password' name='mqttPassword' placeholder='(hidden)'></div></div>"));
-    send(F("<div class='password-hint'>Leave empty to keep current password</div>"));
-    
-    send(F("<label>MQTT Client ID:</label>"));
-    send(F("<input type='text' name='mqttClientId' required value='"));
-    send(savedConfig.mqttClientId);
-    send(F("'>"));
-    #endif
-    
-    #if DEVICE_TYPE == 1
-    send(F("<h3>Sensor</h3>"));
-    
-    send(F("<div class='row'><div><label>Low Temp (°C):</label>"));
-    send(F("<input type='number' step='0.1' min='"));
-    send(String(TEMP_MIN));
-    send(F("' max='"));
-    send(String(TEMP_MAX));
-    send(F("' name='lowTemp' required value='"));
-    send(String(savedConfig.lowTemp));
-    send(F("'></div>"));
-    
-    send(F("<div><label>High Temp (°C):</label>"));
-    send(F("<input type='number' step='0.1' min='"));
-    send(String(TEMP_MIN));
-    send(F("' max='"));
-    send(String(TEMP_MAX));
-    send(F("' name='highTemp' required value='"));
-    send(String(savedConfig.highTemp));
-    send(F("'></div></div>"));
-    
-    send(F("<div class='row'><div><label>Low Hum (%):</label>"));
-    send(F("<input type='number' step='0.1' min='"));
-    send(String(HUM_MIN));
-    send(F("' max='"));
-    send(String(HUM_MAX));
-    send(F("' name='lowHum' required value='"));
-    send(String(savedConfig.lowHum));
-    send(F("'></div>"));
-    
-    send(F("<div><label>High Hum (%):</label>"));
-    send(F("<input type='number' step='0.1' min='"));
-    send(String(HUM_MIN));
-    send(F("' max='"));
-    send(String(HUM_MAX));
-    send(F("' name='highHum' required value='"));
-    send(String(savedConfig.highHum));
-    send(F("'></div></div>"));
-    
-    send(F("<div class='row'><div><label>Sensor polling interval (sec)</label>"));
-    send(F("<input type='number' min='"));
-    send(String(SENSOR_INTERVAL_MIN));
-    send(F("' max='"));
-    send(String(SENSOR_INTERVAL_MAX));
-    send(F("' name='sensorInterval' required value='"));
-    send(String(savedConfig.sensorInterval));
-    send(F("'></div>"));
-    
-    send(F("<div><label>Emergency timeout after </label>"));
-    send(F("<input type='number' min='"));
-    send(String(MAX_ON_TIME_MIN));
-    send(F("' max='"));
-    send(String(MAX_ON_TIME_MAX));
-    send(F("' name='maxOnTime' required value='"));
-    send(String(savedConfig.maxOnTime));
-    send(F("'></div></div>"));
-    
-    send(F("<h3>Control</h3>"));
-    send(F("<label>Turn on after </label>"));
-    send(F("<input type='number' min='"));
-    send(String(DELAY_SECONDS_MIN));
-    send(F("' max='"));
-    send(String(DELAY_SECONDS_MAX));
-    send(F("' name='delaySeconds' required value='"));
-    send(String(savedConfig.delaySeconds));
-    send(F("'> sec"));
-    
-    send(F("<h3>Slow mode</h3>"));
-    send(F("<label>Speed (0-100%):</label>"));
-    send(F("<input type='number' min='0' max='100' name='speedPercent' required value='"));
-    send(String(savedConfig.speedPercent));
-    send(F("'>"));
-    send(F("<div class='note'>0% - off, 100% - maximal speed (slow mode off).<br>Values below 100% reduce fan noise.</div>"));
-    
-    send(F("<h3>Adaptive quiet mode</h3>"));
-    send(F("<label><input type='checkbox' name='adaptiveMode' value='1'"));
-    if (savedConfig.adaptiveMode) send(F(" checked"));
-    send(F("> Enable adaptive mode</label>"));
-    send(F("<div class='note'>Adaptive mode automatically adjusts speed to maintain temperature and humidity levels measured at fan startup.</div>"));
-    
-    send(F("<h3>Startup behavior</h3>"));
-    send(F("<label><input type='checkbox' name='bootState' value='1'"));
-    if (savedConfig.bootState) send(F(" checked"));
-    send(F("> Turn on at startup</label>"));
-    send(F("<div class='note'>When enabled, the fan will turn on immediately after power is applied.</div>"));
-    
-    send(F("<h3>Mode</h3>"));
-    send(F("<label><input type='checkbox' name='sensorControlMode' value='1'"));
-    if (savedConfig.sensorControlMode) send(F(" checked"));
-    send(F("> Sensor control</label>"));
-    send(F("<div class='note'>When enabled, the fan is controlled by temperature and humidity sensors. When disabled, only manual control works.</div>"));
-    
-    #elif DEVICE_TYPE == 2
-    send(F("<h3>Sensor</h3>"));
-    send(F("<label>Reading interval (sec)</label>"));
-    send(F("<input type='number' min='"));
-    send(String(SENSOR_INTERVAL_MIN));
-    send(F("' max='"));
-    send(String(SENSOR_INTERVAL_MAX));
-    send(F("' name='sensorInterval' required value='"));
-    send(String(savedConfig.sensorInterval));
-    send(F("'>"));
-    
-    #elif DEVICE_TYPE == 3
-    send(F("<h3>Control</h3>"));
-    send(F("<label>Turn on after </label>"));
-    send(F("<input type='number' min='"));
-    send(String(DELAY_SECONDS_MIN));
-    send(F("' max='"));
-    send(String(DELAY_SECONDS_MAX));
-    send(F("' name='delaySeconds' required value='"));
-    send(String(savedConfig.delaySeconds));
-    send(F("'> sec<br>"));
-    
-    send(F("<label>Emergency timer </label>"));
-    send(F("<input type='number' min='"));
-    send(String(MAX_ON_TIME_MIN));
-    send(F("' max='"));
-    send(String(MAX_ON_TIME_MAX));
-    send(F("' name='maxOnTime' required value='"));
-    send(String(savedConfig.maxOnTime));
-    send(F("'> sec"));
-    
-    send(F("<h3>Turn on at startup</h3>"));
-    send(F("<label><input type='checkbox' name='bootState' value='1'"));
-    if (savedConfig.bootState) send(F(" checked"));
-    send(F("> Turn on at startup</label>"));
-    send(F("<div class='note'>When enabled, the switch will turn on immediately after power is applied.</div>"));
-    #endif
-    
-    send(F("<label><input type='checkbox' name='confirmSave' required> Confirm saving</label>"));
-    send(F("<input type='submit' value='Save and reboot'>"));
-    send(F("</form>"));
-    
-    #if OTA_ENABLED == 1
-    if (ota_is_available()) {
-        send(F("<a href='/update' class='link-btn'>Upgrade firmware (OTA)</a>"));
-    } else {
-        send(F("<div class='warning'>OTA unavailable: insufficient Flash memory (2MB required)</div>"));
-    }
-    #endif
-    
-    if (!isApMode) {
-        send(F("<a href='/' class='link-btn'>Home</a>"));
-    }
-    send(FPSTR(HTML_PAGE_END));
+  }
+
+  if (successMsg.length() > 0) {
+    send(F("<div class='success'><strong>Config saved!</strong> "));
+    send(successMsg);
+    send(F("</div>"));
+  }
+
+  send(F("<form method='POST' action='/save'>"));
+  send(F("<h3>WiFi setup</h3>"));
+  send(F("<label>WiFi SSID:</label>"));
+  send(F("<input type='text' name='wifiSsid' required value='"));
+  send(savedConfig.wifiSsid);
+  send(F("'>"));
+
+  send(F("<label>WiFi Password:</label>"));
+  send(F("<input type='password' name='wifiPassword' placeholder='(hidden)'>"));
+  send(F(
+      "<div class='password-hint'>Leave empty to keep current password</div>"));
+
+#if MQTT_ENABLED == 1
+  send(F("<h3>MQTT setup</h3>"));
+  send(F("<div class='row'><div><label>MQTT Broker:</label>"));
+  send(F("<input type='text' name='mqttBroker' required value='"));
+  send(savedConfig.mqttBroker);
+  send(F("'></div>"));
+
+  send(F("<div><label>MQTT Port:</label>"));
+  send(F("<input type='number' name='mqttPort' required value='"));
+  send(String(savedConfig.mqttPort));
+  send(F("'></div></div>"));
+
+  send(F("<div class='row'><div><label>MQTT User:</label>"));
+  send(F("<input type='text' name='mqttUser' value='"));
+  send(savedConfig.mqttUser);
+  send(F("'></div>"));
+
+  send(F("<div><label>MQTT Password:</label>"));
+  send(
+      F("<input type='password' name='mqttPassword' "
+        "placeholder='(hidden)'></div></div>"));
+  send(F(
+      "<div class='password-hint'>Leave empty to keep current password</div>"));
+
+  send(F("<label>MQTT Client ID:</label>"));
+  send(F("<input type='text' name='mqttClientId' required value='"));
+  send(savedConfig.mqttClientId);
+  send(F("'>"));
+#endif
+
+#if DEVICE_TYPE == 1
+  send(F("<h3>Sensor</h3>"));
+
+  send(F("<div class='row'><div><label>Low Temp (°C):</label>"));
+  send(F("<input type='number' step='0.1' min='"));
+  send(String(TEMP_MIN));
+  send(F("' max='"));
+  send(String(TEMP_MAX));
+  send(F("' name='lowTemp' required value='"));
+  send(String(savedConfig.lowTemp));
+  send(F("'></div>"));
+
+  send(F("<div><label>High Temp (°C):</label>"));
+  send(F("<input type='number' step='0.1' min='"));
+  send(String(TEMP_MIN));
+  send(F("' max='"));
+  send(String(TEMP_MAX));
+  send(F("' name='highTemp' required value='"));
+  send(String(savedConfig.highTemp));
+  send(F("'></div></div>"));
+
+  send(F("<div class='row'><div><label>Low Hum (%):</label>"));
+  send(F("<input type='number' step='0.1' min='"));
+  send(String(HUM_MIN));
+  send(F("' max='"));
+  send(String(HUM_MAX));
+  send(F("' name='lowHum' required value='"));
+  send(String(savedConfig.lowHum));
+  send(F("'></div>"));
+
+  send(F("<div><label>High Hum (%):</label>"));
+  send(F("<input type='number' step='0.1' min='"));
+  send(String(HUM_MIN));
+  send(F("' max='"));
+  send(String(HUM_MAX));
+  send(F("' name='highHum' required value='"));
+  send(String(savedConfig.highHum));
+  send(F("'></div></div>"));
+
+  send(F("<div class='row'><div><label>Sensor polling interval (sec)</label>"));
+  send(F("<input type='number' min='"));
+  send(String(SENSOR_INTERVAL_MIN));
+  send(F("' max='"));
+  send(String(SENSOR_INTERVAL_MAX));
+  send(F("' name='sensorInterval' required value='"));
+  send(String(savedConfig.sensorInterval));
+  send(F("'></div>"));
+
+  send(F("<div><label>Emergency timeout after </label>"));
+  send(F("<input type='number' min='"));
+  send(String(MAX_ON_TIME_MIN));
+  send(F("' max='"));
+  send(String(MAX_ON_TIME_MAX));
+  send(F("' name='maxOnTime' required value='"));
+  send(String(savedConfig.maxOnTime));
+  send(F("'></div></div>"));
+
+  send(F("<h3>Control</h3>"));
+  send(F("<label>Turn on after </label>"));
+  send(F("<input type='number' min='"));
+  send(String(DELAY_SECONDS_MIN));
+  send(F("' max='"));
+  send(String(DELAY_SECONDS_MAX));
+  send(F("' name='delaySeconds' required value='"));
+  send(String(savedConfig.delaySeconds));
+  send(F("'> sec"));
+
+  send(F("<h3>Slow mode</h3>"));
+  send(F("<label>Speed (0-100%):</label>"));
+  send(
+      F("<input type='number' min='0' max='100' name='speedPercent' required "
+        "value='"));
+  send(String(savedConfig.speedPercent));
+  send(F("'>"));
+  send(
+      F("<div class='note'>0% - off, 100% - maximal speed (slow mode "
+        "off).<br>Values below 100% reduce fan noise.</div>"));
+
+  send(F("<h3>Adaptive quiet mode</h3>"));
+  send(F("<label><input type='checkbox' name='adaptiveMode' value='1'"));
+  if (savedConfig.adaptiveMode)
+    send(F(" checked"));
+  send(F("> Enable adaptive mode</label>"));
+  send(F(
+      "<div class='note'>Adaptive mode automatically adjusts speed to maintain "
+      "temperature and humidity levels measured at fan startup.</div>"));
+
+  send(F("<h3>Startup behavior</h3>"));
+  send(F("<label><input type='checkbox' name='bootState' value='1'"));
+  if (savedConfig.bootState)
+    send(F(" checked"));
+  send(F("> Turn on at startup</label>"));
+  send(
+      F("<div class='note'>When enabled, the fan will turn on immediately "
+        "after power is applied.</div>"));
+
+  send(F("<h3>Mode</h3>"));
+  send(F("<label><input type='checkbox' name='sensorControlMode' value='1'"));
+  if (savedConfig.sensorControlMode)
+    send(F(" checked"));
+  send(F("> Sensor control</label>"));
+  send(F(
+      "<div class='note'>When enabled, the fan is controlled by temperature "
+      "and humidity sensors. When disabled, only manual control works.</div>"));
+
+#elif DEVICE_TYPE == 2
+  send(F("<h3>Sensor</h3>"));
+  send(F("<label>Reading interval (sec)</label>"));
+  send(F("<input type='number' min='"));
+  send(String(SENSOR_INTERVAL_MIN));
+  send(F("' max='"));
+  send(String(SENSOR_INTERVAL_MAX));
+  send(F("' name='sensorInterval' required value='"));
+  send(String(savedConfig.sensorInterval));
+  send(F("'>"));
+
+#elif DEVICE_TYPE == 3
+  send(F("<h3>Control</h3>"));
+  send(F("<label>Turn on after </label>"));
+  send(F("<input type='number' min='"));
+  send(String(DELAY_SECONDS_MIN));
+  send(F("' max='"));
+  send(String(DELAY_SECONDS_MAX));
+  send(F("' name='delaySeconds' required value='"));
+  send(String(savedConfig.delaySeconds));
+  send(F("'> sec<br>"));
+
+  send(F("<label>Emergency timer </label>"));
+  send(F("<input type='number' min='"));
+  send(String(MAX_ON_TIME_MIN));
+  send(F("' max='"));
+  send(String(MAX_ON_TIME_MAX));
+  send(F("' name='maxOnTime' required value='"));
+  send(String(savedConfig.maxOnTime));
+  send(F("'> sec"));
+
+  send(F("<h3>Turn on at startup</h3>"));
+  send(F("<label><input type='checkbox' name='bootState' value='1'"));
+  if (savedConfig.bootState)
+    send(F(" checked"));
+  send(F("> Turn on at startup</label>"));
+  send(
+      F("<div class='note'>When enabled, the switch will turn on immediately "
+        "after power is applied.</div>"));
+#endif
+
+  send(
+      F("<label><input type='checkbox' name='confirmSave' required> Confirm "
+        "saving</label>"));
+  send(F("<input type='submit' value='Save and reboot'>"));
+  send(F("</form>"));
+
+#if OTA_ENABLED == 1
+  if (ota_is_available()) {
+    send(F("<a href='/update' class='link-btn'>Upgrade firmware (OTA)</a>"));
+  } else {
+    send(
+        F("<div class='warning'>OTA unavailable: insufficient Flash memory "
+          "(2MB required)</div>"));
+  }
+#endif
+
+  if (!isApMode) {
+    send(F("<a href='/' class='link-btn'>Home</a>"));
+  }
+  send(FPSTR(HTML_PAGE_END));
 }
-#endif // WEB_ENABLED
-#endif // WEB_TEMPLATES_H
+#endif  // WEB_ENABLED
+#endif  // WEB_TEMPLATES_H

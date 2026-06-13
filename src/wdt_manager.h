@@ -26,10 +26,10 @@ void wdt_start();
 
 #else
 
-inline void wdt_init(){};
-inline void wdt_feed(){};
+inline void wdt_init() {};
+inline void wdt_feed() {};
 inline void wdt_stop();
-inline void wdt_start(){};
+inline void wdt_start() {};
 
-#endif // WDT_ENABLED
-#endif // WDT_H
+#endif  // WDT_ENABLED
+#endif  // WDT_H

@@ -8,23 +8,19 @@
 
 /**
  * @brief Модуль работы с датчиком температуры и влажности
- * 
+ *
  * Поддерживает:
  * - AHT10 (I2C, SENSOR_TYPE=1)
  * - DHT11/DHT22 (1-Wire, SENSOR_TYPE=2)
- * 
+ *
  * Все функции потокобезопасны (нет прерываний, только опрос в loop)
  */
 
-
-
 #if SENSOR_TYPE == 1
-  #include <Adafruit_AHTX0.h>
+#include <Adafruit_AHTX0.h>
 #elif SENSOR_TYPE == 2
-  #include <DHT.h>
+#include <DHT.h>
 #endif
-
-
 
 /**
  * @brief Инициализация датчика
@@ -35,7 +31,8 @@ void sensor_init();
 /**
  * @brief Обновление показаний датчика
  * Вызывается в loop() с интервалом sensorInterval секунд
- * @return true — данные обновились (изменились), false — нет изменений или ошибка
+ * @return true — данные обновились (изменились), false — нет изменений или
+ * ошибка
  */
 bool sensor_update();
 
@@ -69,6 +66,6 @@ const char* sensor_getError();
  */
 float sensor_getHumRate();
 
-#endif // DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+#endif  // DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
-#endif // SENSOR_H
+#endif  // SENSOR_H

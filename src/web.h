@@ -8,11 +8,11 @@
 
 // Абстракция для поддержки ESP8266WebServer и WebServer
 #if defined(ESP8266)
-  #include <ESP8266WebServer.h>
-  typedef ESP8266WebServer WebServerClass;
+#include <ESP8266WebServer.h>
+typedef ESP8266WebServer WebServerClass;
 #elif defined(ESP32)
-  #include <WebServer.h>
-  typedef WebServer WebServerClass;
+#include <WebServer.h>
+typedef WebServer WebServerClass;
 #endif
 
 extern WebServerClass server;
@@ -31,7 +31,8 @@ String web_buildStatusHtml();
  * @param errorMsg Сообщение об ошибке (если есть)
  * @param successMsg Сообщение об успехе (если есть)
  */
-void web_sendConfigPage(const String& errorMsg = "", const String& successMsg = "");
+void web_sendConfigPage(const String& errorMsg = "",
+                        const String& successMsg = "");
 
 #if WEB_STATUS_ENABLED == 1
 /**
@@ -49,7 +50,8 @@ void web_saveConfig();
 /**
  * @brief Регистратор актуаторов в веб-модуле
  */
-void web_registerActuators(FanActuator* fanPtr = nullptr, SwitchActuator* switchPtr = nullptr);
+void web_registerActuators(FanActuator* fanPtr = nullptr,
+                           SwitchActuator* switchPtr = nullptr);
 
 /**
  * @brief Инициализация веб-сервера в режиме клиента WiFi
@@ -71,10 +73,10 @@ void web_update();
 // Глобальный сервер (объявлен в main.cpp)
 extern WebServerClass server;
 
-#else 
-  inline void web_init() {}
-  inline void web_update() {}
-  inline void web_sendStatusPage(int) {}
-#endif // WEB_ENABLED
+#else
+inline void web_init() {}
+inline void web_update() {}
+inline void web_sendStatusPage(int) {}
+#endif  // WEB_ENABLED
 
-#endif // WEB_H
+#endif  // WEB_H
