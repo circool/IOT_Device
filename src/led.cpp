@@ -41,6 +41,11 @@ void led_update() {
   static bool lastState = false;
   unsigned long now = millis();
   bool shouldBeOn = false;
+  // LED blink patterns use 1-second cycle (1000ms):
+  // - Dit (short) = 100ms
+  // - Dah (long)  = 300ms
+  // - Gap between symbols = 100ms
+  // Emergency pattern uses 800ms cycle for distinction
   switch (currentMode) {
     case LED_MODE_OFF:
       shouldBeOn = false;

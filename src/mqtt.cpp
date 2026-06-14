@@ -56,7 +56,7 @@ bool MQTTManager::begin(Client& client,
   _mqttClient.setServer(broker, port);
   _mqttClient.setCallback(staticCallback);
   _mqttClient.setKeepAlive(MQTT_KEEPALIVE_SEC);
-  _mqttClient.setBufferSize(512);
+  _mqttClient.setBufferSize(512);  // Default 128 is too small for thresholds JSON
   _initialized = true;
   LOG_DEBUG(CAT_MQTT, "Initialized for %s with keepalive = %d sec", _clientId,
             MQTT_KEEPALIVE_SEC);

@@ -88,11 +88,9 @@ void wifi_monitor() {
     } else if (millis() - wifi_lost_time > AP_FALLBACK_TIMEOUT_MS) {
       LOG_INFO(CAT_WIFI, "WiFi lost for %d ms, switching to AP mode",
                AP_FALLBACK_TIMEOUT_MS);
-
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
-      delay(100);
-
+      delay(100);  // Allow WiFi hardware to fully deinitialize before AP start (critical for ESP8266)
       web_initAP();
       wifi_lost_time = 0;
     }

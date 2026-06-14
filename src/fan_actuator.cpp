@@ -230,8 +230,10 @@ void FanActuator::disablePWM() {
 #ifdef ESP32
   ledcDetachPin(_pin);
 #elif defined(ESP8266)
+  // 1024 > default range (1023) — forces PWM hardware to release the pin
+  // without this, analogWrite(pin,0) would keep PWM active at 0% duty cycle
   analogWrite(_pin, 1024);
-  delayMicroseconds(10);
+  delayMicroseconds(10);  // Wait for PWM cycle to complete
   pinMode(_pin, OUTPUT);
 #endif
   _pwmActive = false;
