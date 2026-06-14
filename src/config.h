@@ -73,8 +73,6 @@
 #endif
 #endif
 
-
-
 /**
  * @brief Префикс устройства (для MQTT топиков и AP SSID)
  * Формируется автоматически на основе DEVICE_TYPE
@@ -148,8 +146,6 @@
 #ifndef SCANING_WIFI_ENABLED
 #define SCANING_WIFI_ENABLED 0
 #endif
-
-
 
 /** @brief Включить режим точки доступа (AP) для настройки */
 #ifndef AP_ENABLED
