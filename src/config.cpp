@@ -21,10 +21,10 @@ uint16_t crc16(const uint8_t* data, size_t len) {
   for (size_t i = 0; i < len; i++) {
     crc ^= (uint16_t)data[i] << 8;
     for (int j = 0; j < 8; j++) {
-      if (crc & 0x8000)
-        crc = (crc << 1) ^ 0x8005;
+      if (crc & 0x8000)  // Если старший бит установлен (0x8000 = бит 15)
+        crc = (crc << 1) ^ 0x8005;  // Сдвиг и XOR с полиномом CRC-16-IBM
       else
-        crc <<= 1;
+        crc <<= 1;  // Простой сдвиг
     }
   }
   return crc;
@@ -427,7 +427,7 @@ bool config_clear() {
 
   EEPROM.end();
   delay(50);
-  EEPROM.begin(sizeof(Config) + 4);
+  EEPROM.begin(sizeof(Config));
 
   for (size_t i = 0; i < sizeof(Config); i++) {
     EEPROM.write(i, 0);
@@ -697,7 +697,7 @@ void config_init() {
 
   LOG_INFO(CAT_CONFIG, "Initializing EEPROM...");
 
-  EEPROM.begin(sizeof(Config) + 4);
+  EEPROM.begin(sizeof(Config));
   LOG_DEBUG(CAT_CONFIG, "EEPROM size: %d bytes", EEPROM.length());
 
   config_read();
