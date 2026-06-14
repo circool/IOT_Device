@@ -28,7 +28,7 @@ void led_setMode(LedMode mode) {
                            "NO WIFI (1 blink)",
                            "NO MQTT (2 blink)",
                            "AP MODE (3 blink)",
-                           "EMERGENCY OFF (1 long and 2 short)"};
+                           "EMERGENCY OFF (slow blink)"};
     LOG_INFO(CAT_LED, "Mode: %s", names[mode]);
   }
 }
@@ -79,14 +79,12 @@ void led_update() {
       }
       break;
 
-    case LED_MODE_MORZE_D:
-      // Паттерн: ███_█_█_
-      // 300 ON, 100 OFF, 100 ON, 100 OFF, 100 ON, 100 OFF
-      // Период: 800 мс
+    case LED_SLOW_BLINK:
+      // Режим аварийного отключения: 1 секунда горит, 1 секунда не горит
+      // Период: 2000 мс
       {
-        unsigned long phase = now % 800;
-        shouldBeOn = (phase < 300) || (phase >= 400 && phase < 500) ||
-                     (phase >= 600 && phase < 700);
+        shouldBeOn = (now % 2000) < 1000;
+        break;
       }
       break;
   }

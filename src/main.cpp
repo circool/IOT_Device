@@ -406,11 +406,11 @@ void loop() {
 
 #if DEVICE_TYPE == 1
   if (fan.isEmergencyStop()) {
-    newMode = LED_MODE_MORZE_D;
+    newMode = LED_SLOW_BLINK;
   } else
 #elif DEVICE_TYPE == 3
   if (switchActuator.isEmergencyStop()) {
-    newMode = LED_MODE_MORZE_D;
+    newMode = LED_SLOW_BLINK;
   } else
 #endif
 
