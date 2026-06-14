@@ -34,9 +34,8 @@ static WiFiClient g_mqttClient;
 #include "switch_actuator.h"
 #endif
 
-#if WEB_ENABLED == 1
 #include "web.h"
-#endif
+
 
 // ======================== MQTT FUNCTIONS ========================
 #if MQTT_ENABLED == 1
@@ -367,13 +366,12 @@ void setup() {
     switchActuator.init(SWITCH_PIN, RELAY_ON_LEVEL, config_get()->bootState);
 #endif
 
-#if WEB_ENABLED == 1 && (DEVICE_TYPE == 1 || DEVICE_TYPE == 3)
 #if DEVICE_TYPE == 1
     web_registerActuators(&fan, nullptr);
 #elif DEVICE_TYPE == 3
     web_registerActuators(nullptr, &switchActuator);
 #endif
-#endif  // WEB_ENABLED == 1 && (DEVICE_TYPE == 1 || DEVICE_TYPE == 3)
+
 
 // ========== WIFI ==========
 #if SCANING_WIFI_ENABLED == 1
@@ -389,10 +387,7 @@ void setup() {
     wifi_begin();
 
 // ========== WEB ==========
-#if WEB_ENABLED == 1
     web_init();
-#endif
-
   } else {
     LOG_INFO(CAT_CONFIG, "Configuration mode - starting AP for setup");
 #if AP_ENABLED == 1
@@ -439,12 +434,11 @@ void loop() {
 
   led_update();
 // WEB
-#if WEB_ENABLED == 1
   if (!config_isValid() || strlen(config_get()->wifiSsid) == 0) {
     web_update();
     return;
   }
-#endif
+
 
 // ========== ДАТЧИК ==========
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
@@ -640,7 +634,6 @@ void loop() {
 #endif
 
 // ========== WEB ==========
-#if WEB_ENABLED == 1
   web_update();
-#endif
+
 }

@@ -2,7 +2,7 @@
 #define OTA_H
 
 #include <Arduino.h>
-#include "web.h"  // ← для WebServerClass
+#include "web.h"  // Для WebServerClass (реальный или заглушка)
 
 #if OTA_ENABLED == 1
 
@@ -25,7 +25,8 @@ void ota_set_available(bool available);
 bool ota_is_available();
 
 #else
-// Пустые заглушки
+
+// Заглушки
 inline void ota_init(WebServerClass* server) {
   (void)server;
 }
@@ -35,6 +36,7 @@ inline void ota_set_available(bool available) {
 inline bool ota_is_available() {
   return false;
 }
+
 #endif
 
 #endif  // OTA_H

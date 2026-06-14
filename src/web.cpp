@@ -1,16 +1,13 @@
 #include "web.h"
-#include "sensor.h"
-#include "web_templates.h"
-// #include "led.h"
-#include "config.h"
+#if WEB_ENABLED == 1
+
 #include "logger.h"
 #include "ota.h"
+#include "sensor.h"
+#include "web_templates.h"
 #include "wifi_manager.h"
 
-// extern WebServer server;
-#if WEB_ENABLED == 1
 WebServerClass server(80);
-#endif
 
 #if DEVICE_TYPE == 1
 #include "fan_actuator.h"
@@ -63,7 +60,7 @@ static bool isEmergencyStopActive() {
 static String getCurrentModeText() {
 #if DEVICE_TYPE == 1
   if (g_fanActuator == nullptr)
-    return "NA";
+    return "N/A";
 
   if (config_get()->sensorControlMode) {
     return F("<span style='color:#4CAF50;'>SENSOR</span>");
@@ -85,7 +82,7 @@ static String getCurrentModeText() {
 
 #elif DEVICE_TYPE == 3
   if (g_switchActuator == nullptr)
-    return "Н/Д";
+    return "N/A";
 
   if (g_switchActuator->isDelayActive()) {
     unsigned long remaining = g_switchActuator->getDelayTimer() - millis();
@@ -731,11 +728,11 @@ void web_init() {
 #if WEB_RESET_ENABLED == 1
   server.on("/resetall", []() {
     config_clear();
-    server.send(
-        200, "text/html",
-        F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta "
-          "http-equiv='refresh' content='5;url=/'></head><body><h2>Настройки "
-          "сброшены, перезагрузка...</h2></body></html>"));
+    server.send(200, "text/html",
+                F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta "
+                  "http-equiv='refresh' "
+                  "content='5;url=/'></head><body><h2>Configuration "
+                  "was reset, rebooting...</h2></body></html>"));
     delay(1000);
     ESP.restart();
   });
@@ -793,3 +790,5 @@ void web_initAP() {
 void web_update() {
   server.handleClient();
 }
+
+#endif

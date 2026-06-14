@@ -4,13 +4,11 @@
 #include <Arduino.h>
 #include "config.h"
 
+
 #if WEB_ENABLED == 1
 
-#ifndef DEFAULT_WEB_REFRESH
-#define DEFAULT_WEB_REFRESH 5
-#endif
+#include <functional>
 
-// Абстракция для поддержки ESP8266WebServer и WebServer
 #if defined(ESP8266)
 #include <ESP8266WebServer.h>
 typedef ESP8266WebServer WebServerClass;
@@ -19,68 +17,44 @@ typedef ESP8266WebServer WebServerClass;
 typedef WebServer WebServerClass;
 #endif
 
-extern WebServerClass server;
+#ifndef DEFAULT_WEB_REFRESH
+#define DEFAULT_WEB_REFRESH 5
+#endif
 
 class FanActuator;
 class SwitchActuator;
 
-/**
- * @brief Сгенерировать HTML-код страницы состояния
- * @return Строка с HTML
- */
-String web_buildStatusHtml();
-
-/**
- * @brief Отправить страницу настроек (HTTP)
- * @param errorMsg Сообщение об ошибке (если есть)
- * @param successMsg Сообщение об успехе (если есть)
- */
-void web_sendConfigPage(const String& errorMsg = "",
-                        const String& successMsg = "");
-
-#if WEB_STATUS_ENABLED == 1
-/**
- * @brief Отправить страницу состояния (HTTP)
- * @param refreshInterval Интервал автообновления страницы (сек)
- */
-void web_sendStatusPage(int refreshInterval);
-#endif
-
-/**
- * @brief Обработчик POST-запроса на сохранение конфигурации
- */
-void web_saveConfig();
-
-/**
- * @brief Регистратор актуаторов в веб-модуле
- */
-void web_registerActuators(FanActuator* fanPtr = nullptr,
-                           SwitchActuator* switchPtr = nullptr);
-
-/**
- * @brief Инициализация веб-сервера в режиме клиента WiFi
- */
-void web_init();
-
-/**
- * @brief Инициализация веб-сервера в режиме точки доступа (AP)
- * Создаёт WiFi сеть для первоначальной настройки
- */
-void web_initAP();
-
-/**
- * @brief Периодическая обработка HTTP-запросов
- * Вызывается в loop()
- */
-void web_update();
-
-// Глобальный сервер (объявлен в main.cpp)
 extern WebServerClass server;
 
-#else
-inline void web_init() {}
-inline void web_update() {}
+String web_buildStatusHtml();
+void web_sendConfigPage(const String& errorMsg = "",
+                        const String& successMsg = "");
+#if WEB_STATUS_ENABLED == 1
+void web_sendStatusPage(int refreshInterval);
+#endif
+void web_saveConfig();
+void web_registerActuators(FanActuator* fanPtr = nullptr,
+                           SwitchActuator* switchPtr = nullptr);
+void web_init();
+void web_initAP();
+void web_update();
+
+#else  // WEB_ENABLED == 0
+
+// Простые заглушки без WebServerClass
+inline String web_buildStatusHtml() {
+  return String();
+}
+inline void web_sendConfigPage(const String&, const String&) {}
+#if WEB_STATUS_ENABLED == 1
 inline void web_sendStatusPage(int) {}
-#endif  // WEB_ENABLED
+#endif
+inline void web_saveConfig() {}
+inline void web_registerActuators(void*, void*) {}
+inline void web_init() {}
+inline void web_initAP() {}
+inline void web_update() {}
+
+#endif  // WEB_ENABLED == 1
 
 #endif  // WEB_H
