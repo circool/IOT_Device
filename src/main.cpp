@@ -132,7 +132,7 @@ void checkResetButton() {
 
         if (config_clear()) {
           LOG_INFO(CAT_CONFIG, "Config cleared, restarting...");
-          delay(500);
+          // delay(500);
           ESP.restart();
         }
         return;
@@ -454,7 +454,7 @@ void loop() {
   }
 #endif
 
-  // ========== ДАТЧИК ==========
+// ========== ДАТЧИК ==========
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   bool sensorDataChanged = sensor_update();
 #if DEVICE_TYPE == 1
@@ -478,12 +478,12 @@ void loop() {
 #endif  // DEVICE_TYPE == 1
 #endif  // DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
-  // ========== ВЕНТИЛЯТОР ==========
+// ========== ВЕНТИЛЯТОР ==========
 #if DEVICE_TYPE == 1
   fan.update();
 #endif
 
-  // ========== ВЫКЛЮЧАТЕЛЬ ==========
+// ========== ВЫКЛЮЧАТЕЛЬ ==========
 #if DEVICE_TYPE == 3
   switchActuator.update();
 #endif
