@@ -11,21 +11,53 @@
 
 #if WIFI_ENABLED == 1
 
+/**
+ * @brief Флаг процесса подключения к WiFi
+ * @note true — идёт подключение, false — не идёт
+ */
 extern bool wifi_is_connecting;
 
-/**@brief Инициализация */
+/**
+ * @brief Инициализация подключения к WiFi
+ * @note Запускает асинхронное подключение к сохранённой сети
+ */
 void wifi_begin();
 
+/**
+ * @brief Проверка статуса подключения к WiFi
+ * @note Вызывается в loop() для отслеживания прогресса подключения
+ */
 void wifi_check();
 
+/**
+ * @brief Мониторинг и поддержание WiFi соединения
+ * @note Обрабатывает потерю связи, переподключение и fallback в AP режим
+ */
 void wifi_monitor();
 
+/**
+ * @brief Получить локальный IP адрес
+ * @return IP адрес в виде строки (например, "192.168.1.100")
+ */
 String wifi_get_local_ip();
 
+/**
+ * @brief Получить уровень сигнала WiFi
+ * @return RSSI в dBm (отрицательное значение, например -55)
+ */
 int wifi_get_rssi();
 
+/**
+ * @brief Проверить наличие WiFi соединения
+ * @return true — подключён к точке доступа, false — нет соединения
+ */
 bool wifi_is_connected();
 
+/**
+ * @brief Запустить режим точки доступа (AP)
+ * @param ssid Имя WiFi сети (SSID) для точки доступа
+ * @note IP адрес точки доступа задаётся макросом AP_IP_ADDRESS
+ */
 void wifi_start_ap(const char* ssid);
 
 /**
@@ -41,27 +73,69 @@ void wifi_start_ap(const char* ssid);
  */
 int wifi_scan_and_log(const char* targetSsid);
 
-#else
+#else  // WIFI_ENABLED == 0
 
+/**
+ * @brief Заглушка: инициализация WiFi (отключена)
+ */
 inline void wifi_begin() {}
+
+/**
+ * @brief Заглушка: проверка WiFi (отключена)
+ */
 inline void wifi_check() {}
+
+/**
+ * @brief Заглушка: мониторинг WiFi (отключён)
+ */
 inline void wifi_monitor() {}
+
+/**
+ * @brief Заглушка: получить локальный IP
+ * @return "0.0.0.0" — нет соединения
+ */
 inline String wifi_get_local_ip() {
   return "0.0.0.0";
 }
+
+/**
+ * @brief Заглушка: получить RSSI
+ * @return 0 — нет сигнала
+ */
 inline int wifi_get_rssi() {
   return 0;
 }
+
+/**
+ * @brief Заглушка: проверить соединение
+ * @return false — WiFi отключён
+ */
 inline bool wifi_is_connected() {
   return false;
 }
+
+/**
+ * @brief Заглушка: запустить точку доступа
+ * @param ssid Не используется
+ */
 inline void wifi_start_ap(const char* ssid) {
   (void)ssid;
 }
+
+/**
+ * @brief Заглушка: сканирование сетей
+ * @return -1 — операция недоступна
+ */
 inline int wifi_scan_and_log(const char* /*targetSsid*/) {
   return -1;
 }
+
+/**
+ * @brief Флаг подключения (заглушка)
+ * @note Всегда false, так как WiFi отключён
+ */
 static bool wifi_is_connecting = false;
-#endif  // WIFI_ENABLED
+
+#endif  // WIFI_ENABLED == 1
 
 #endif  // WIFI_H
