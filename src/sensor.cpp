@@ -42,6 +42,7 @@ static bool isSensorValueValid(float temp, float hum) {
 
 void sensor_init() {
 #if SENSOR_TYPE == 1
+  Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
   _sensorOk = _aht.begin();
   if (_sensorOk) {
     strcpy(_sensorError, "Waiting for first valid reading");
