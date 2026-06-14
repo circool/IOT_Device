@@ -6,6 +6,10 @@
 
 #if WEB_ENABLED == 1
 
+#ifndef DEFAULT_WEB_REFRESH
+#define DEFAULT_WEB_REFRESH 5
+#endif
+
 // Абстракция для поддержки ESP8266WebServer и WebServer
 #if defined(ESP8266)
 #include <ESP8266WebServer.h>

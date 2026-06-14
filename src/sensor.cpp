@@ -29,7 +29,7 @@ static DHT _dht(SENSOR_PIN, DHT_TYPE);
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 static bool isSensorValueValid(float temp, float hum) {
-  if (temp < -40 || temp > 85)
+  if (temp < TEMP_MIN || temp > TEMP_MAX)
     return false;
   if (hum < 0 || hum > 100)
     return false;
@@ -117,15 +117,23 @@ bool sensor_update() {
 
   if (readSuccess) {
     if (isSensorValueValid(temp, hum)) {
+      
       // расчёт скорости изменения влажности
       if (_lastHumTime > 0) {
         float dt = (millis() - _lastHumTime) / 1000.0;
         if (dt > 0.1) {
           _humRate = (hum - _lastHumValue) / dt;
+          
+          
+          // Limit humidity rate of change to ~5%/s.
+          // This is an empirical limit, ~100x higher than typical room dynamics
+          // (0.01-0.05%/s), but effectively filters sensor spikes and prevents
+          // algorithmic overreaction.
           if (_humRate > 5.0)
             _humRate = 5.0;
           if (_humRate < -5.0)
             _humRate = -5.0;
+
         }
       } else {
         _humRate = 0;

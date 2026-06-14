@@ -489,7 +489,7 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
   String currentMode = apMode ? F("Access Point") : F("Client WiFi");
   String currentSsid = apMode ? String(deviceId) : String(cfg->wifiSsid);
   String currentIp = apMode ? String(AP_IP_ADDRESS) : wifi_get_local_ip();
-  int refreshSeconds = (successMsg.length() > 0) ? 5 : 0;
+  int refreshSeconds = (successMsg.length() > 0) ? DEFAULT_WEB_REFRESH : 0;
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
 
@@ -598,9 +598,6 @@ void web_saveConfig() {
     String cid = server.arg("mqttClientId");
     if (cid.length() > 0 && cid.length() < sizeof(config_get()->mqttClientId)) {
       if (!config_setMqttClientId(cid.c_str())) {
-        // #if STATUS_LED_PIN > 0
-        //     led_setMode(LED_MODE_MORZE_S);
-        // #endif
         web_sendConfigPage(config_getLastError(), "");
         return;
       }
@@ -611,9 +608,6 @@ void web_saveConfig() {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (server.hasArg("sensorInterval")) {
     if (!config_setSensorInterval(server.arg("sensorInterval").toInt())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
@@ -623,63 +617,42 @@ void web_saveConfig() {
 #if DEVICE_TYPE == 1
   if (server.hasArg("lowTemp")) {
     if (!config_setLowTemp(server.arg("lowTemp").toFloat())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
   }
   if (server.hasArg("highTemp")) {
     if (!config_setHighTemp(server.arg("highTemp").toFloat())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
   }
   if (server.hasArg("lowHum")) {
     if (!config_setLowHum(server.arg("lowHum").toFloat())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
   }
   if (server.hasArg("highHum")) {
     if (!config_setHighHum(server.arg("highHum").toFloat())) {
-      // #if STATUS_LED_PIN > 0
-      // led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
   }
   if (server.hasArg("maxOnTime")) {
     if (!config_setMaxOnTime(server.arg("maxOnTime").toInt())) {
-      // #if STATUS_LED_PIN > 0
-      // led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
   }
   if (server.hasArg("delaySeconds")) {
     if (!config_setDelaySeconds(server.arg("delaySeconds").toInt())) {
-      // #if STATUS_LED_PIN > 0
-      // led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
   }
   if (server.hasArg("speedPercent")) {
     if (!config_setSpeedPercent(server.arg("speedPercent").toInt())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
@@ -693,18 +666,12 @@ void web_saveConfig() {
 #if DEVICE_TYPE == 3
   if (server.hasArg("maxOnTime")) {
     if (!config_setMaxOnTime(server.arg("maxOnTime").toInt())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
   }
   if (server.hasArg("delaySeconds")) {
     if (!config_setDelaySeconds(server.arg("delaySeconds").toInt())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
@@ -713,9 +680,6 @@ void web_saveConfig() {
 #endif
 
   if (!config_write()) {
-    // #if STATUS_LED_PIN > 0
-    // led_setMode(LED_MODE_MORZE_S);
-    // #endif
     web_sendConfigPage(
         "Ошибка записи во Flash. Пожалуйста, попробуйте ещё раз.", "");
     return;
@@ -735,7 +699,7 @@ void web_saveConfig() {
 </head>
 <body>
     <div class='success'>
-        <h2>✓ Настройки сохранены</h2>
+        <h2>Настройки сохранены</h2>
         <p>Перезагрузка устройства...</p>
     </div>
 </body>
@@ -743,12 +707,13 @@ void web_saveConfig() {
 )rawliteral";
 
   server.send(200, "text/html", html);
-  delay(2000);
+  server.client().flush();
+  delay(100);
   ESP.restart();
 }
 
 void web_init() {
-  int refreshInterval = 5;
+  int refreshInterval = DEFAULT_WEB_REFRESH;
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   refreshInterval = config_get()->sensorInterval;
 #endif
