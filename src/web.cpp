@@ -442,7 +442,7 @@ void web_sendStatusPage(int refreshInterval) {
   send(statusHtml);
   send(
       F("<div class='button-group'><a "
-        "href='/config'><button>Настройки</button></a></div>"));
+        "href='/config'><button>Settings</button></a></div>"));
   send(FPSTR(HTML_PAGE_END));
 
   flush();
@@ -476,7 +476,7 @@ void web_sendStatusPage(int refreshInterval) {
   send(statusHtml);
   send(
       F("<div class='button-group'><a "
-        "href='/config'><button>Настройки</button></a></div>"));
+        "href='/config'><button>Settings</button></a></div>"));
   send(FPSTR(HTML_PAGE_END));
 #endif
 }
@@ -673,8 +673,8 @@ void web_saveConfig() {
 </head>
 <body>
     <div class='success'>
-        <h2>Настройки сохранены</h2>
-        <p>Перезагрузка устройства...</p>
+        <h2>Configuration saved</h2>
+        <p>Rebooting...</p>
     </div>
 </body>
 </html>
