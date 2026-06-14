@@ -197,10 +197,11 @@
 #define WEB_SHOW_RSSI 1
 #endif
 
-/** @brief Включить кнопку сброса настроек в веб-интерфейсе */
-#ifndef WEB_RESET_ENABLED
-#define WEB_RESET_ENABLED 0
-#endif
+// /** @brief Включить кнопку сброса настроек в веб-интерфейсе */
+// #ifndef WEB_RESET_ENABLED
+// #define WEB_RESET_ENABLED 0
+// #endif
+
 #endif
 
 // ============================================================================
