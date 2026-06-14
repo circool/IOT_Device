@@ -149,10 +149,7 @@
 #define SCANING_WIFI_ENABLED 0
 #endif
 
-/** @brief Мощность WiFi передатчика (0.0 – 20.5 dBm) */
-#ifndef WIFI_OUTPUT_POWER
-#define WIFI_OUTPUT_POWER 15.0
-#endif
+
 
 /** @brief Включить режим точки доступа (AP) для настройки */
 #ifndef AP_ENABLED
@@ -624,7 +621,7 @@ struct Config {
 #if WIFI_ENABLED == 1
   char wifiSsid[32];      //!< Имя WiFi сети
   char wifiPassword[64];  //!< Пароль WiFi сети
-  float wifiOutputPower;  //!< Мощность передатчика (0-20.5 dBm)
+
 #endif
 
 // ========== MQTT настройки ==========
@@ -752,7 +749,6 @@ bool config_setWifiSsid(
     const char* ssid);  //!< Не может быть пустым, максимум 31 символ
 bool config_setWifiPassword(
     const char* password);  //!< Максимум 63 символа, может быть пустым
-bool config_setWifiOutputPower(float power);  //!< Диапазон 0.0 – 20.5 dBm
 
 // --- MQTT настройки ---
 #if MQTT_ENABLED == 1

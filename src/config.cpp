@@ -83,15 +83,7 @@ bool config_setWifiPassword(const char* password) {
   return true;
 }
 
-bool config_setWifiOutputPower(float power) {
-  if (power < 0 || power > 20.5) {
-    snprintf(_configLastError, sizeof(_configLastError),
-             "WiFi output power must be 0-20.5 dBm (got %.1f)", power);
-    return false;
-  }
-  _config.wifiOutputPower = power;
-  return true;
-}
+
 
 #if MQTT_ENABLED == 1
 bool config_setMqttBroker(const char* broker) {
@@ -411,17 +403,13 @@ void config_setDefaults() {
   LOG_DEBUG(CAT_CONFIG, "Generated MQTT Client ID: %s", _config.mqttClientId);
 #endif
 
-#if WIFI_ENABLED == 1
-  _config.wifiOutputPower = WIFI_OUTPUT_POWER;
-#endif
-
   LOG_DEBUG(CAT_CONFIG, "Defaults was set");
 }
 
 bool config_clear() {
 
   led_setMode(LED_MODE_MORZE_I);
-  
+
   LOG_INFO(CAT_CONFIG, "Erasing EEPROM...");
   EEPROM.end();
   delay(50);
