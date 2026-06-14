@@ -24,7 +24,7 @@ void led_setMode(LedMode mode) {
   if (currentMode != mode) {
     currentMode = mode;
     const char* names[] = {"OFF",
-                           "ON",
+                           "NORMAL",
                            "NO WIFI (1 blink)",
                            "NO MQTT (2 blink)",
                            "AP MODE (3 blink)",
