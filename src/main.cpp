@@ -15,7 +15,7 @@
 static WiFiClient g_mqttClient;
 
 #if OTA_ENABLED == 1
-#include "ota_check.h"
+#include "ota.h"
 #endif
 
 #ifdef ESP32
@@ -233,8 +233,7 @@ void setup() {
   config_init();
 
 #if OTA_ENABLED == 1
-  bool otaCapable = isOtaAvailable();
-  ota_set_available(otaCapable);
+  bool otaCapable = ota_is_available();
 #endif
 
 #if SCANING_WIFI_ENABLED == 1

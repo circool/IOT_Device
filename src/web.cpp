@@ -776,9 +776,7 @@ void web_initAP() {
   server.on("/favicon.ico", []() { server.send(404); });
 
 #if OTA_ENABLED == 1
-  if (ota_is_available()) {
-    ota_init(&server);
-  }
+  ota_init(&server);
 #endif
 
   LOG_INFO(CAT_WEB, "Web server started in AP mode: SSID %s, IP %s", deviceId,

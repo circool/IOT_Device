@@ -12,11 +12,6 @@
  */
 void ota_init(WebServerClass* server);
 
-/**
- * @brief Установить флаг доступности OTA
- * @param available true — OTA доступен (достаточно flash)
- */
-void ota_set_available(bool available);
 
 /**
  * @brief Проверить доступность OTA
@@ -30,9 +25,7 @@ bool ota_is_available();
 inline void ota_init(WebServerClass* server) {
   (void)server;
 }
-inline void ota_set_available(bool available) {
-  (void)available;
-}
+
 inline bool ota_is_available() {
   return false;
 }

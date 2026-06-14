@@ -27,12 +27,18 @@ void ota_init(WebServerClass* server) {  // ← уже правильно в в�
 }
 
 bool ota_is_available() {
-  return ota_available;
-}
-
-void ota_set_available(bool available) {
-  ota_available = available;
-  LOG_DEBUG(CAT_OTA, "Available: %s", available ? "YES" : "NO");
+  bool result = false;
+#ifdef ESP8266
+  uint32_t flashSize = ESP.getFlashChipRealSize();
+  uint32_t freeSketchSpace = ESP.getFreeSketchSpace();
+  uint32_t currentSketchSize = ESP.getSketchSize();
+  result = (flashSize >= (2 * 1024 * 1024)) &&
+         (freeSketchSpace >= currentSketchSize);
+#elif defined(ESP32)
+      result = (ESP.getFlashChipSize() >= (2 * 1024 * 1024));
+#endif
+  LOG_INFO(CAT_OTA, "Available: %s", result ? "YES" : "NO");
+  return result;
 }
 
 #endif  // OTA_ENABLED == 1
