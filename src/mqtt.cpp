@@ -185,10 +185,6 @@ void MQTTManager::reconnect() {
     lostLogged = true;
   }
 
-  // #if STATUS_LED_PIN > 0
-  // led_setMode(LED_MODE_MORZE_I);
-  // #endif
-
   LOG_DEBUG(CAT_MQTT, "Connecting to broker as %s", _clientId);
 
   bool connected;
@@ -205,10 +201,6 @@ void MQTTManager::reconnect() {
 
     wasConnectedBefore = true;
     lostLogged = false;
-
-    // #if STATUS_LED_PIN > 0
-    // led_setMode(LED_MODE_ON);
-    // #endif
 
     publishOnline();
     subscribe();

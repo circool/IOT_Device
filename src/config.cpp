@@ -419,12 +419,10 @@ void config_setDefaults() {
 }
 
 bool config_clear() {
-#if STATUS_LED_PIN > 0
+
   led_setMode(LED_MODE_MORZE_I);
-#endif
-
+  
   LOG_INFO(CAT_CONFIG, "Erasing EEPROM...");
-
   EEPROM.end();
   delay(50);
   EEPROM.begin(sizeof(Config));

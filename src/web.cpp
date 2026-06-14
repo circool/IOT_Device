@@ -526,16 +526,8 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
 }
 
 void web_saveConfig() {
-  // #if STATUS_LED_PIN > 0
-  //     led_setMode(LED_MODE_OFF);
-  //     delay(50);
-  // #endif
-
   if (server.hasArg("wifiSsid")) {
     if (!config_setWifiSsid(server.arg("wifiSsid").c_str())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
@@ -545,9 +537,6 @@ void web_saveConfig() {
     String pwd = server.arg("wifiPassword");
     if (pwd.length() > 0) {
       if (!config_setWifiPassword(pwd.c_str())) {
-        // #if STATUS_LED_PIN > 0
-        //     led_setMode(LED_MODE_MORZE_S);
-        // #endif
         web_sendConfigPage(config_getLastError(), "");
         return;
       }
@@ -557,27 +546,18 @@ void web_saveConfig() {
 #if MQTT_ENABLED == 1
   if (server.hasArg("mqttBroker")) {
     if (!config_setMqttBroker(server.arg("mqttBroker").c_str())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
   }
   if (server.hasArg("mqttPort")) {
     if (!config_setMqttPort(server.arg("mqttPort").toInt())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
   }
   if (server.hasArg("mqttUser")) {
     if (!config_setMqttUser(server.arg("mqttUser").c_str())) {
-      // #if STATUS_LED_PIN > 0
-      //     led_setMode(LED_MODE_MORZE_S);
-      // #endif
       web_sendConfigPage(config_getLastError(), "");
       return;
     }
@@ -586,9 +566,6 @@ void web_saveConfig() {
     String pwd = server.arg("mqttPassword");
     if (pwd.length() > 0) {
       if (!config_setMqttPassword(pwd.c_str())) {
-        // #if STATUS_LED_PIN > 0
-        //     led_setMode(LED_MODE_MORZE_S);
-        // #endif
         web_sendConfigPage(config_getLastError(), "");
         return;
       }

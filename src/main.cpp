@@ -103,14 +103,13 @@ void checkResetButton() {
   delay(50);
   if (digitalRead(RESET_PIN) == LOW) {
     LOG_INFO(CAT_MAIN, "Reset button pressed...");
-#if STATUS_LED_PIN > 0
+
     LedMode prevMode = led_getMode();
-#endif
     unsigned long pressStart = millis();
     wdt_stop();
     while (digitalRead(RESET_PIN) == LOW) {
       unsigned long pressedMs = millis() - pressStart;
-#if STATUS_LED_PIN > 0
+
       // Меняем режим в зависимости от времени удержания
       if (pressedMs < 1000) {
         led_setMode(LED_MODE_MORZE_E);  // 0-1 сек: одиночные
@@ -120,15 +119,13 @@ void checkResetButton() {
         led_setMode(LED_MODE_MORZE_S);  // 2-3 сек: тройные
       }
       led_update();
-#endif
+
 
       if (pressedMs >= 3000) {
         LOG_INFO(CAT_MAIN, "Auto-reset triggered!");
 
-#if STATUS_LED_PIN > 0
         led_setMode(LED_MODE_OFF);
         led_update();
-#endif
 
         if (config_clear()) {
           LOG_INFO(CAT_CONFIG, "Config cleared, restarting...");
@@ -146,10 +143,8 @@ void checkResetButton() {
     LOG_INFO(CAT_MAIN, "Reset cancelled (released after %d ms)",
              millis() - pressStart);
     wdt_start();
-
-#if STATUS_LED_PIN > 0
     led_setMode(prevMode);
-#endif
+
   }
 }
 
@@ -231,10 +226,8 @@ void setup() {
   LOG_INFO(CAT_MAIN, "Device starting with %s mode", DEVICE_PREFIX);
 
 // ========== ИНИЦИАЛИЗАЦИЯ ПОДСИСТЕМ ==========
-#if STATUS_LED_PIN > 0
   led_init();
   led_setMode(LED_MODE_MORZE_E);
-#endif
 
   wdt_init();
   // checkResetButton();
@@ -414,7 +407,6 @@ void loop() {
   checkResetButton();
 
 // LED
-#if STATUS_LED_PIN > 0
   static LedMode lastMode = LED_MODE_OFF;
   LedMode newMode = LED_MODE_ON;
 
@@ -443,7 +435,7 @@ void loop() {
     led_setMode(newMode);
     lastMode = newMode;
   }
-#endif
+
 
   led_update();
 // WEB
