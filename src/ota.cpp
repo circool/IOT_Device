@@ -37,7 +37,7 @@ bool ota_is_available() {
 #elif defined(ESP32)
       result = (ESP.getFlashChipSize() >= (2 * 1024 * 1024));
 #endif
-  LOG_INFO(CAT_OTA, "Available: %s", result ? "YES" : "NO");
+  LOG_INFO(CAT_OTA, "Check availablity: %s", result ? "YES" : "NO");
   return result;
 }
 
