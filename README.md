@@ -175,7 +175,7 @@ pio run -e esp32 -t upload
 // Функционал
 #define WIFI_ENABLED 1
 #define MQTT_ENABLED 1
-#define WEB_ENABLED 1
+#define WEB_STATUS_ENABLED 1
 #define OTA_ENABLED 1
 #define WDT_ENABLED 1
 
@@ -271,7 +271,7 @@ board_build.flash_mode = dout     # Режим flash (для ESP8266)
 # Основные модули (по умолчанию ВСЕ включены)
 -DWIFI_ENABLED=1          # WiFi поддержка
 -DMQTT_ENABLED=1          # MQTT клиент
--DWEB_ENABLED=1           # Веб-сервер
+-DWEB_STATUS_ENABLED=1           # Веб-сервер
 -DOTA_ENABLED=1           # OTA обновления
 -DWDT_ENABLED=1           # Watchdog Timer
 
@@ -285,28 +285,17 @@ board_build.flash_mode = dout     # Режим flash (для ESP8266)
 
 ```ini
 # Глобальное включение отладки
--DDEBUG_ENABLED=1
+-DLOG_LEVEL=4
 
-# Детальное логирование компонентов (работает только при DEBUG_ENABLED=1)
--DLOG_SENSOR=1            # Логи датчика
--DLOG_CONFIG=1            # Логи конфигурации
--DLOG_FAN=1               # Логи вентилятора
--DLOG_MQTT=1              # Логи MQTT
--DLOG_WIFI=1              # Логи WiFi
--DLOG_WEB=1               # Логи веб-сервера
--DLOG_AP=1                # Логи режима точки доступа
--DLOG_OTA=1               # Логи OTA обновлений
--DLOG_LED=1               # Логи LED индикации
+
 ```
 
 **Пример включения полной отладки:**
 ```ini
 build_flags =
     ${common.build_flags}
-    -DDEBUG_ENABLED=1
-    -DLOG_SENSOR=1
-    -DLOG_MQTT=1
-    -DLOG_WIFI=1
+    -DLOG_LEVEL=4
+    
 ```
 
 #### Настройка MQTT функционала
@@ -326,7 +315,7 @@ build_flags =
 #### Настройка веб-интерфейса
 
 ```ini
-# WEB возможности (требуют WEB_ENABLED=1)
+# WEB возможности (требуют WEB_STATUS_ENABLED=1)
 -DWEB_STATUS_ENABLED=1            # Страница статуса
 -DWEB_SHOW_RSSI=1                 # Отображать RSSI на странице
 -DWEB_RESET_ENABLED=1             # Кнопка сброса в веб-интерфейсе
@@ -395,7 +384,6 @@ build_flags =
 ```ini
 # Параметры WiFi (требуют WIFI_ENABLED=1)
 -DWIFI_CONNECT_TIMEOUT_MS=30000   # Таймаут подключения (мс)
--DWIFI_OUTPUT_POWER=15.0          # Мощность передатчика (0-20.5 dBm)
 
 # Включить сканирование сетей при старте (только для отладки)
 ; -DSCANING_WIFI_ENABLED=1
@@ -410,7 +398,7 @@ build_flags =
     -DDEVICE_TYPE=2
     -DWIFI_ENABLED=0
     -DMQTT_ENABLED=0
-    -DWEB_ENABLED=0
+    -DWEB_STATUS_ENABLED=0
     -DSENSOR_TYPE=1
     -DSTATUS_LED_PIN=0
 ```
@@ -420,12 +408,8 @@ build_flags =
 [env:esp32]
 build_flags =
     ${common.build_flags}
-    -DDEBUG_ENABLED=1
-    -DLOG_SENSOR=1
-    -DLOG_MQTT=1
-    -DLOG_WIFI=1
-    -DMQTT_PUBLISH_RSSI=1
-    -DWEB_SHOW_RSSI=1
+    -DLOG_LEVEL=4
+    
 ```
 
 **3. Выключатель с таймером (без датчика):**
@@ -457,7 +441,7 @@ build_flags =
 #### Важные замечания
 
 1. **Приоритет флагов:** Специфичные для платформы флаги переопределяют общие
-2. **Экономия памяти:** Отключайте ненужный функционал (`MQTT_ENABLED=0`, `WEB_ENABLED=0`) для ESP8266 (особенно важно при ограниченной flash)
+2. **Экономия памяти:** Отключайте ненужный функционал (`MQTT_ENABLED=0`, `WEB_STATUS_ENABLED=0`) для ESP8266 (особенно важно при ограниченной flash)
 3. **Частота ШИМ:** Для твердотельных реле оптимальна 5-10 Гц. Более высокая частота может вызвать перегрев реле
 4. **ESP8266 нюансы:**
    - Требуется `-Wno-sign-compare` и `-Wno-uninitialized` для подавления предупреждений
@@ -476,7 +460,7 @@ build_flags =
 - Тип устройства (`DEVICE_TYPE`)
 - Назначение пинов (`SWITCH_PIN`, `STATUS_LED_PIN`)
 - Частота ШИМ (`PWM_FREQUENCY`)
-- Включение/отключение модулей (`MQTT_ENABLED`, `WEB_ENABLED`)
+- Включение/отключение модулей (`MQTT_ENABLED`, `WEB_STATUS_ENABLED`)
 ```
 
 ### Файл credentials.h (опционально)
@@ -597,7 +581,7 @@ board = esp32dev
 build_flags = 
     -DDEVICE_TYPE=1
     -DMQTT_ENABLED=1
-    -DWEB_ENABLED=1
+    -DWEB_STATUS_ENABLED=1
 lib_deps = 
     knolleary/PubSubClient @ ^2.8
     adafruit/Adafruit AHTX0 @ ^2.0.5
@@ -615,11 +599,7 @@ lib_deps =
 ```cpp
 // В platformio.ini
 build_flags = 
-    -DDEBUG_ENABLED=1           // Включить отладку
-    -DLOG_SENSOR=1              // Логи датчика
-    -DLOG_MQTT=1                // Логи MQTT
-    -DLOG_WIFI=1                // Логи WiFi
-    -DLOG_WEB=1                 // Логи Web
+    -DLOG_LEVEL=4                 // Логи Web
 ```
 
 ## TODO

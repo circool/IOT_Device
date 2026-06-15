@@ -1,141 +1,162 @@
-#ifndef WIFI_H
-#define WIFI_H
+// ============================================================================
+// @file wifi_manager.h
+// @brief Управление WiFi соединением
+//
+// Обеспечивает:
+// - Подключение к WiFi сети в режиме клиента (STA)
+// - Запуск точки доступа (AP) для настройки
+// - Мониторинг состояния соединения
+// - Получение информации о сети (IP, RSSI)
+// - Автоматическое переподключение при потере соединения
+//
+// @note Все решения о том, в каком режиме работать (клиент/AP),
+//       принимает оркестратор (main.cpp). WiFi слой только выполняет команды.
+// ============================================================================
+
+#ifndef WIFI_MANAGER_H
+#define WIFI_MANAGER_H
 
 #include <Arduino.h>
-
-#ifdef ESP32
 #include <WiFi.h>
-#elif defined(ESP8266)
-#include <ESP8266WiFi.h>
-#endif
+#include "config.h"
 
 #if WIFI_ENABLED == 1
 
-/**
- * @brief Флаг процесса подключения к WiFi
- * @note true — идёт подключение, false — не идёт
- */
-extern bool wifi_is_connecting;
+// ============================================================================
+// ПАРАМЕТРЫ ПО УМОЛЧАНИЮ (можно переопределить в platformio.ini)
+// ============================================================================
+
+#ifndef WIFI_CONNECT_TIMEOUT_MS
+#define WIFI_CONNECT_TIMEOUT_MS 30000  // Таймаут подключения (мс)
+#endif
+
+#ifndef AP_IP_ADDRESS
+#define AP_IP_ADDRESS "192.168.4.1"  // IP адрес точки доступа
+#endif
+
+// ============================================================================
+// ПУБЛИЧНЫЕ ФУНКЦИИ
+// ============================================================================
 
 /**
- * @brief Инициализация подключения к WiFi
- * @note Запускает асинхронное подключение к сохранённой сети
+ * @brief Инициализация WiFi стека
+ *
+ * Вызывается один раз в setup(). Настраивает режим STA,
+ * но не пытается подключиться к сети.
  */
-void wifi_begin();
+void wifi_init();
 
 /**
- * @brief Проверка статуса подключения к WiFi
- * @note Вызывается в loop() для отслеживания прогресса подключения
+ * @brief Подключиться к WiFi сети
+ *
+ * @param ssid     Имя сети (SSID)
+ * @param password Пароль (может быть пустым для открытой сети)
+ * @return true    — подключение инициировано (асинхронно)
+ * @return false   — неверные параметры (пустой ssid)
+ *
+ * @note Функция не блокирующая. Результат проверяется через wifi_isConnected()
  */
-void wifi_check();
+bool wifi_connect(const char* ssid, const char* password);
 
 /**
- * @brief Мониторинг и поддержание WiFi соединения
- * @note Обрабатывает потерю связи, переподключение и fallback в AP режим
+ * @brief Проверить наличие соединения с WiFi
+ * @return true — подключено, false — нет соединения
  */
-void wifi_monitor();
+bool wifi_isConnected();
 
 /**
  * @brief Получить локальный IP адрес
  * @return IP адрес в виде строки (например, "192.168.1.100")
  */
-String wifi_get_local_ip();
+String wifi_getLocalIP();
 
 /**
  * @brief Получить уровень сигнала WiFi
  * @return RSSI в dBm (отрицательное значение, например -55)
  */
-int wifi_get_rssi();
+int wifi_getRSSI();
 
 /**
- * @brief Проверить наличие WiFi соединения
- * @return true — подключён к точке доступа, false — нет соединения
+ * @brief Получить статус подключения
+ * @return WL_CONNECTED, WL_NO_SSID_AVAIL, WL_CONNECT_FAILED и т.д.
  */
-bool wifi_is_connected();
+wl_status_t wifi_getStatus();
 
 /**
- * @brief Запустить режим точки доступа (AP)
- * @param ssid Имя WiFi сети (SSID) для точки доступа
- * @note IP адрес точки доступа задаётся макросом AP_IP_ADDRESS
- */
-void wifi_start_ap(const char* ssid);
-
-/**
- * @brief Выполнить сканирование WiFi сетей и вывести результат в лог
- * @param targetSsid SSID для отметки в логе (если nullptr или пустой — без
- * отметки)
- * @return количество найденных сетей, -1 при ошибке или если сканирование уже
- * выполняется
+ * @brief Периодический вызов в loop()
  *
- * @note Функция синхронная, блокирует выполнение до завершения сканирования
- * (2-5 секунд)
- * @note Защищена от реентерабельности
+ * Обрабатывает асинхронное подключение:
+ * - Проверяет статус подключения
+ * - При успехе — логирует IP
+ * - При таймауте — останавливает попытку
+ *
+ * @note Для автоматического переподключения при потере соединения
+ *       оркестратор должен вызывать wifi_connect() повторно.
  */
-int wifi_scan_and_log(const char* targetSsid);
+void wifi_process();
+
+/**
+ * @brief Запустить точку доступа (AP режим)
+ *
+ * @param ssid     Имя сети (SSID)
+ * @param password Пароль (может быть пустым для открытой сети)
+ * @return true    — AP запущена
+ * @return false   — ошибка
+ */
+bool wifi_startAP(const char* ssid, const char* password = nullptr);
+
+/**
+ * @brief Остановить точку доступа
+ *
+ * Отключает AP режим, возвращает устройство в режим клиента.
+ */
+void wifi_stopAP();
+
+/**
+ * @brief Проверить, активна ли точка доступа
+ * @return true — AP активна, false — нет
+ */
+bool wifi_isAPActive();
+
+/**
+ * @brief Сканирование WiFi сетей (для отладки)
+ *
+ * @param targetSsid Если указан, будет отмечен в логе
+ * @return Количество найденных сетей, -1 при ошибке
+ */
+int wifi_scan(const char* targetSsid = nullptr);
 
 #else  // WIFI_ENABLED == 0
 
-/**
- * @brief Заглушка: инициализация WiFi (отключена)
- */
-inline void wifi_begin() {}
+// ============================================================================
+// ЗАГЛУШКИ ДЛЯ РЕЖИМА БЕЗ WIFI
+// ============================================================================
 
-/**
- * @brief Заглушка: проверка WiFi (отключена)
- */
-inline void wifi_check() {}
-
-/**
- * @brief Заглушка: мониторинг WiFi (отключён)
- */
-inline void wifi_monitor() {}
-
-/**
- * @brief Заглушка: получить локальный IP
- * @return "0.0.0.0" — нет соединения
- */
-inline String wifi_get_local_ip() {
-  return "0.0.0.0";
-}
-
-/**
- * @brief Заглушка: получить RSSI
- * @return 0 — нет сигнала
- */
-inline int wifi_get_rssi() {
-  return 0;
-}
-
-/**
- * @brief Заглушка: проверить соединение
- * @return false — WiFi отключён
- */
-inline bool wifi_is_connected() {
+inline void wifi_init() {}
+inline bool wifi_connect(const char*, const char*) {
   return false;
 }
-
-/**
- * @brief Заглушка: запустить точку доступа
- * @param ssid Не используется
- */
-inline void wifi_start_ap(const char* ssid) {
-  (void)ssid;
+inline bool wifi_isConnected() {
+  return false;
 }
-
-/**
- * @brief Заглушка: сканирование сетей
- * @return -1 — операция недоступна
- */
-inline int wifi_scan_and_log(const char* /*targetSsid*/) {
+inline String wifi_getLocalIP() {
+  return "0.0.0.0";
+}
+inline int wifi_getRSSI() {
+  return 0;
+}
+inline void wifi_process() {}
+inline bool wifi_startAP(const char* ssid, const char* password = nullptr) {
+  return false;
+}
+inline void wifi_stopAP() {}
+inline bool wifi_isAPActive() {
+  return false;
+}
+inline int wifi_scan(const char*) {
   return -1;
 }
 
-/**
- * @brief Флаг подключения (заглушка)
- * @note Всегда false, так как WiFi отключён
- */
-static bool wifi_is_connecting = false;
-
 #endif  // WIFI_ENABLED == 1
 
-#endif  // WIFI_H
+#endif  // WIFI_MANAGER_H

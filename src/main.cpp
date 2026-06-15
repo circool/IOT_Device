@@ -1,165 +1,246 @@
+// ============================================================================
+// @file main.cpp
+// @brief Главный модуль, оркестратор устройства
+// ============================================================================
+
 #include <Arduino.h>
 #include "config.h"
 #include "led.h"
 #include "logger.h"
-#include "ota.h"
-#include "wdt_manager.h"
+#include "web.h"
 #include "wifi_manager.h"
 
 #ifdef ESP32
-#include <WiFi.h>
-#elif defined(ESP8266)
-#include <ESP8266WiFi.h>
-#endif
-
-static WiFiClient g_mqttClient;
-
-#if OTA_ENABLED == 1
-#include "ota.h"
-#endif
-
-#ifdef ESP32
 #include <esp_chip_info.h>
+#endif
+
+// ============================================================================
+// ПОДКЛЮЧЕНИЕ МОДУЛЕЙ (по флагам компиляции)
+// ============================================================================
+
+#if MQTT_ENABLED == 1
+#include "mqtt.h"
+static WiFiClient g_mqttClient;
+#endif
+
+#if WDT_ENABLED == 1
+#include "wdt_manager.h"
+#endif
+
+#if DEVICE_TYPE == 1
+#include "fan_actuator.h"
+#elif DEVICE_TYPE == 3
+#include "switch_actuator.h"
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 #include "sensor.h"
 #endif
 
+// ============================================================================
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
+// ============================================================================
+
+bool apMode = false;
+static Config g_activeConfig;
+
+// ============================================================================
+// ОБЪЕКТЫ АКТУАТОРОВ
+// ============================================================================
+
 #if DEVICE_TYPE == 1
-#include "fan_actuator.h"
-#endif
-
-#if DEVICE_TYPE == 3
-#include "switch_actuator.h"
-#endif
-
-#include "web.h"
-
-
-// ======================== MQTT FUNCTIONS ========================
-#if MQTT_ENABLED == 1
-
-#include "mqtt.h"
-unsigned long lastMQTTAttempt = 0;
-
-#if MQTT_PUBLISH_RESET_REASON == 1
-const char* getResetReason() {
-#ifdef ESP8266
-  struct rst_info* resetInfo = system_get_rst_info();
-  uint8_t reason = resetInfo->reason;
-
-  switch (reason) {
-    case REASON_DEFAULT_RST:
-      return "POWER_ON";
-    case REASON_WDT_RST:
-      return "WATCHDOG_CRASH";
-    case REASON_EXCEPTION_RST:
-      return "EXCEPTION_CRASH";
-    case REASON_SOFT_WDT_RST:
-      return "SOFT_WDT_CRASH";
-    case REASON_SOFT_RESTART:
-      return "SOFT_RESTART";
-    case REASON_EXT_SYS_RST:
-      return "EXT_RESET";
-    default:
-      return "UNKNOWN";
-  }
-
-#elif defined(ESP32)
-  esp_reset_reason_t reason = esp_reset_reason();
-
-  switch (reason) {
-    case ESP_RST_POWERON:
-      return "POWER_ON";
-    case ESP_RST_EXT:
-      return "EXT_RESET";
-    case ESP_RST_SW:
-      return "SOFT_RESTART";
-    case ESP_RST_PANIC:
-      return "PANIC_CRASH";
-    case ESP_RST_INT_WDT:
-      return "INT_WDT_CRASH";
-    case ESP_RST_TASK_WDT:
-      return "TASK_WDT_CRASH";
-    case ESP_RST_WDT:
-      return "WDT_CRASH";
-    case ESP_RST_DEEPSLEEP:
-      return "DEEP_SLEEP_WAKE";
-    default:
-      return "UNKNOWN";
-  }
-#else
-  return "UNKNOWN_PLATFORM";
-#endif
-}
-
-#endif
-#endif
-
-void checkResetButton() {
-  pinMode(RESET_PIN, INPUT_PULLUP);
-  delay(50);
-  if (digitalRead(RESET_PIN) == LOW) {
-    LOG_INFO(CAT_MAIN, "Reset button pressed...");
-
-    LedMode prevMode = led_getMode();
-    unsigned long pressStart = millis();
-    wdt_stop();
-    while (digitalRead(RESET_PIN) == LOW) {
-      unsigned long pressedMs = millis() - pressStart;
-
-      // Меняем режим в зависимости от времени удержания
-      if (pressedMs < 1000) {
-        led_setMode(LED_MODE_MORZE_E);  // 0-1 сек: одиночные
-      } else if (pressedMs < 2000) {
-        led_setMode(LED_MODE_MORZE_I);  // 1-2 сек: двойные
-      } else {
-        led_setMode(LED_MODE_MORZE_S);  // 2-3 сек: тройные
-      }
-      led_update();
-
-
-      if (pressedMs >= 3000) {
-        LOG_INFO(CAT_MAIN, "Auto-reset triggered!");
-
-        led_setMode(LED_MODE_OFF);
-        led_update();
-
-        if (config_clear()) {
-          LOG_INFO(CAT_CONFIG, "Config cleared, restarting...");
-          // delay(500);
-          ESP.restart();
-        }
-        return;
-      }
-
-      delay(10);
-      wdt_feed();
-    }
-
-    // Отмена сброса
-    LOG_INFO(CAT_MAIN, "Reset cancelled (released after %d ms)",
-             millis() - pressStart);
-    wdt_start();
-    led_setMode(prevMode);
-
-  }
-}
-
-// ======================== ГЛОБАЛЬНЫЕ ОБЪЕКТЫ АКТУАТОРОВ
-// ========================
-#if DEVICE_TYPE == 1
-FanActuator fan;
+static FanActuator fan;
+static unsigned long lastAdaptiveCheck = 0;
+static float baseTemp = 0;
+static float baseHum = 0;
+static bool adaptiveActive = false;
 #elif DEVICE_TYPE == 3
-SwitchActuator switchActuator;
+static SwitchActuator switchActuator;
 #endif
 
-// ======================== SETUP ========================
+// ============================================================================
+// ТАЙМЕРЫ ОРКЕСТРАТОРА
+// ============================================================================
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+static unsigned long delayTimerExpiry = 0;
+static bool delayActive = false;
+#endif
+
+// ============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ============================================================================
+
+static bool isAutoModeEnabled() {
+  return g_activeConfig.sensorControlMode && sensor_isOk();
+}
+
+// ============================================================================
+// ЛОГИКА УПРАВЛЕНИЯ ВЕНТИЛЯТОРОМ (TYPE 1)
+// ============================================================================
+
+#if DEVICE_TYPE == 1
+
+static void processSensorControl() {
+  static bool lastAutoWasWorking = false;
+  bool autoEnabled = isAutoModeEnabled();
+
+  if (autoEnabled != lastAutoWasWorking) {
+    if (autoEnabled) {
+      LOG_INFO(CAT_SENSOR, "Sensor control mode ACTIVE (sensor OK)");
+    } else {
+      if (!sensor_isOk()) {
+        LOG_WARN(CAT_SENSOR,
+                 "Sensor control mode DISABLED: sensor not available");
+      } else if (!g_activeConfig.sensorControlMode) {
+        LOG_INFO(CAT_SENSOR, "Sensor control mode DISABLED: user turned off");
+      }
+    }
+    lastAutoWasWorking = autoEnabled;
+  }
+
+  if (!autoEnabled)
+    return;
+
+  float temp = sensor_getTemperature();
+  float hum = sensor_getHumidity();
+
+  bool shouldBeOn =
+      (temp >= g_activeConfig.highTemp || hum >= g_activeConfig.highHum);
+  bool shouldBeOff =
+      (temp <= g_activeConfig.lowTemp && hum <= g_activeConfig.lowHum);
+
+  if (shouldBeOn && !fan.getState()) {
+    LOG_INFO(CAT_SENSOR, "Auto ON: T=%.1f°C H=%.1f%%", temp, hum);
+    fan.set(true, false);
+    adaptiveActive = false;
+  } else if (shouldBeOff && fan.getState()) {
+    LOG_INFO(CAT_SENSOR, "Auto OFF: T=%.1f°C H=%.1f%%", temp, hum);
+    fan.set(false, false);
+    adaptiveActive = false;
+  }
+}
+
+static void processAdaptiveMode() {
+  if (!g_activeConfig.adaptiveMode)
+    return;
+  if (!isAutoModeEnabled())
+    return;
+  if (!fan.getState())
+    return;
+
+  unsigned long interval = g_activeConfig.sensorInterval * 1000UL;
+  if (millis() - lastAdaptiveCheck < interval)
+    return;
+  lastAdaptiveCheck = millis();
+
+  if (!adaptiveActive) {
+    adaptiveActive = true;
+    baseTemp = sensor_getTemperature();
+    baseHum = sensor_getHumidity();
+    LOG_DEBUG(CAT_FAN, "Adaptive mode activated: base T=%.1f°C, H=%.1f%%",
+              baseTemp, baseHum);
+    return;
+  }
+
+  float deltaTemp = sensor_getTemperature() - baseTemp;
+  float deltaHum = sensor_getHumidity() - baseHum;
+  float humRate = sensor_getHumRate();
+
+  int step = ADAPTIVE_STEP_SIZE;
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 2 ||
+      deltaHum > ADAPTIVE_EPSILON_HUM * 2)
+    step *= 2;
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 3 ||
+      deltaHum > ADAPTIVE_EPSILON_HUM * 3)
+    step *= 3;
+
+  float mult = 1.0 + (humRate / ADAPTIVE_SPEED_SENSITIVITY);
+  mult = constrain(mult, 0.5, 3.0);
+  step = step * mult;
+  step = constrain(step, 5, 60);
+
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
+    int newSpeed = fan.getSpeed() + step;
+    if (newSpeed > 100)
+      newSpeed = 100;
+    if (newSpeed != fan.getSpeed()) {
+      fan.setSpeed(newSpeed, false);
+      baseTemp = sensor_getTemperature();
+      baseHum = sensor_getHumidity();
+      LOG_DEBUG(CAT_FAN, "Adaptive: speed %d%% (ΔT=%.1f, ΔH=%.1f, rate=%.2f)",
+                newSpeed, deltaTemp, deltaHum, humRate);
+    }
+  }
+}
+
+#endif  // DEVICE_TYPE == 1
+
+// ============================================================================
+// ЛОГИКА ТАЙМЕРА ОТЛОЖЕННОГО ВКЛЮЧЕНИЯ (TYPE 1 и 3)
+// ============================================================================
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+
+static void processDelayTimer() {
+  if (delayActive && !fan.getState() && g_activeConfig.delaySeconds > 0) {
+    if (millis() >= delayTimerExpiry) {
+      delayActive = false;
+      LOG_INFO(CAT_ACTUATOR, "Delay timer expired, turning ON");
+      fan.set(true, false);
+    }
+    return;
+  }
+
+  if (!delayActive && !fan.getState() && g_activeConfig.delaySeconds > 0) {
+    delayActive = true;
+    delayTimerExpiry = millis() + g_activeConfig.delaySeconds * 1000UL;
+    LOG_INFO(CAT_ACTUATOR, "Delay timer started: %d sec",
+             g_activeConfig.delaySeconds);
+    return;
+  }
+
+  if (delayActive && fan.getState()) {
+    delayActive = false;
+    LOG_INFO(CAT_ACTUATOR, "Delay timer cancelled (manual ON)");
+  }
+}
+
+#endif  // DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+
+// ============================================================================
+// ПРИМЕНЕНИЕ КОНФИГУРАЦИИ (для нормального режима)
+// ============================================================================
+
+static void applyNormalModeConfig() {
+  LOG_INFO(CAT_MAIN, "Applying normal mode configuration...");
+
+#if MQTT_ENABLED == 1
+  mqttManager.begin(g_mqttClient, g_activeConfig.mqttBroker,
+                    g_activeConfig.mqttPort, g_activeConfig.mqttUser,
+                    g_activeConfig.mqttPassword);
+  LOG_DEBUG(CAT_MAIN, "MQTT initialized: broker=%s:%d",
+            g_activeConfig.mqttBroker, g_activeConfig.mqttPort);
+#endif
+
+#if WDT_ENABLED == 1
+  wdt_init();
+  LOG_DEBUG(CAT_MAIN, "WDT initialized, timeout=%d ms", WDT_TIMER_MS);
+#endif
+
+  LOG_INFO(CAT_MAIN, "Normal mode configuration applied");
+}
+
+// ============================================================================
+// SETUP
+// ============================================================================
+
 void setup() {
+  // 1. Инициализация логгера
   Logger::getInstance().begin((LogLevel)LOG_LEVEL, LOG_CATEGORIES,
                               LOG_USE_COLOR);
 
+  LOG_INFO(CAT_MAIN, "==========================================");
   LOG_INFO(CAT_MAIN, "SYSTEM START");
   LOG_DEBUG(CAT_MAIN, "=== SYSTEM INFO ===");
 
@@ -184,13 +265,11 @@ void setup() {
 #else
   LOG_DEBUG(CAT_MAIN, "PSRAM: not supported/enabled");
 #endif
-
   LOG_DEBUG(CAT_MAIN, "Free heap: %u bytes", ESP.getFreeHeap());
   LOG_DEBUG(CAT_MAIN, "Minimum free heap: %u bytes", ESP.getMinFreeHeap());
   LOG_DEBUG(CAT_MAIN, "Maximum allocatable heap: %u bytes",
             ESP.getMaxAllocHeap());
   LOG_DEBUG(CAT_MAIN, "ESP-IDF version: %s", esp_get_idf_version());
-
 #elif defined(ESP8266)
   LOG_DEBUG(CAT_MAIN, "Platform: ESP8266");
   LOG_DEBUG(CAT_MAIN, "Chip ID: %08X", ESP.getChipId());
@@ -216,423 +295,181 @@ void setup() {
   LOG_DEBUG(CAT_MAIN, "Sketch size: %u bytes", ESP.getSketchSize());
   LOG_DEBUG(CAT_MAIN, "Free sketch space: %u bytes", ESP.getFreeSketchSpace());
   LOG_DEBUG(CAT_MAIN, "Free heap: %u bytes", ESP.getFreeHeap());
-  LOG_DEBUG(CAT_MAIN, "Firmware ver. %s", VERSION);
-#if MQTT_PUBLISH_RESET_REASON == 1
-  LOG_DEBUG(CAT_MAIN, "Reset reason: %s", getResetReason());
-#endif
-
+  LOG_DEBUG(CAT_MAIN, "Firmware version: %s", VERSION);
   LOG_INFO(CAT_MAIN, "==========================================");
   LOG_INFO(CAT_MAIN, "Device starting with %s mode", DEVICE_PREFIX);
 
-// ========== ИНИЦИАЛИЗАЦИЯ ПОДСИСТЕМ ==========
+  // 2. Инициализация LED
   led_init();
   led_setMode(LED_MODE_MORZE_E);
+  led_update();
+  LOG_DEBUG(CAT_MAIN, "LED initialized, pin=%d", STATUS_LED_PIN);
 
-  wdt_init();
-  // checkResetButton();
+  // 3. Инициализация WiFi стека
+  wifi_init();
+
+  // 4. Инициализация конфигурации
   config_init();
+  g_activeConfig = config_load();
 
-#if OTA_ENABLED == 1
-  bool otaCapable = ota_is_available();
-#endif
-
-#if SCANING_WIFI_ENABLED == 1
-  wdt_stop();
-
-  const Config* cfg = config_get();
-  const char* targetSsid = (cfg != nullptr) ? cfg->wifiSsid : nullptr;
-  wifi_scan_and_log(targetSsid);
-
-  wdt_start();
-#endif
-
-  config_print();
-  bool hasValidConfig = config_isValid();
-
-  if (hasValidConfig) {
-#if LOG_CONFIG == 1
-    LOG_INFO(CAT_CONFIG, "Normal mode - starting with saved config");
-#endif
-
-// ========== MQTT ИНИЦИАЛИЗАЦИЯ ==========
-#if MQTT_ENABLED == 1
-    mqttManager.begin(g_mqttClient, config_get()->mqttBroker,
-                      config_get()->mqttPort, config_get()->mqttClientId,
-                      config_get()->mqttUser, config_get()->mqttPassword);
-
-// Регистрация колбэков
-#if DEVICE_TYPE == 1
-    mqttManager.onStateCommand([](bool state) { fan.set(state, true); });
-
-    mqttManager.onSpeedCommand([](int speed) {
-      if (config_get()->adaptiveMode) {
-        config_setAdaptiveMode(false);
-        fan.setAdaptiveMode(false);
-      }
-      if (speed == 0 || speed < MIN_SPEED_PERCENT) {
-        fan.set(false, true);
-      } else {
-        fan.setSpeed(speed, true);
-        if (fan.getState()) {
-          fan.setSpeed(speed, false);
-        }
-      }
-    });
-
-    mqttManager.onSensorControlModeCommand([](bool enabled) {
-      if (enabled && !sensor_isOk()) {
-        LOG_WARN(CAT_MQTT,
-                 "Cannot enable sensor control mode - sensor not available");
-        mqttManager.publishSensorControlMode(false);
-        return;
-      }
-
-      config_setSensorControlMode(enabled);
-      if (!enabled) {
-        fan.setAdaptiveMode(false);
-      }
-    });
-
-    mqttManager.onAdaptiveModeCommand([](bool enabled) {
-      if (enabled && !config_get()->sensorControlMode) {
-        LOG_WARN(CAT_MQTT,
-                 "Cannot enable adaptive mode - sensor control mode is OFF");
-        return;
-      }
-      config_setAdaptiveMode(enabled);
-      fan.setAdaptiveMode(enabled);
-    });
-
-    mqttManager.onLowTempCommand([](float value) { config_setLowTemp(value); });
-    mqttManager.onHighTempCommand(
-        [](float value) { config_setHighTemp(value); });
-    mqttManager.onLowHumCommand([](float value) { config_setLowHum(value); });
-    mqttManager.onHighHumCommand([](float value) { config_setHighHum(value); });
-
-    mqttManager.onDelaySecCommand(
-        [](int delaySec) { config_setDelaySeconds(delaySec); });
-#endif
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    mqttManager.onMaxOnTimeCommand(
-        [](uint32_t maxOnTime) { config_setMaxOnTime(maxOnTime); });
-#endif
-
-#if MQTT_RESET_ENABLED == 1
-    mqttManager.onResetCommand([]() {
-      LOG_INFO(CAT_MQTT, "Resetting due MQTT RESET");
-      mqttManager.disconnect();
-      config_clear();
-      delay(1000);
-      ESP.restart();
-    });
-#endif
-#endif
-
-// ========== ДАТЧИК ==========
+  // 5. Инициализация датчика (всегда)
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+  sensor_init(&g_activeConfig);
+  LOG_DEBUG(CAT_MAIN, "Sensor initialized: interval=%d sec, type=%d",
+            g_activeConfig.sensorInterval, SENSOR_TYPE);
 
-    sensor_init();
-#if DEVICE_TYPE == 1
-    if (!sensor_isOk() && (
-#if SENSOR_TYPE == 1
-                              strcmp(sensor_getError(), "AHT10 not found") == 0
-#elif SENSOR_TYPE == 2
-                              strcmp(sensor_getError(),
-                                     "DHT read failed (NaN)") == 0
-#endif
-                              )) {
-      config_setSensorControlMode(false);
-      config_setAdaptiveMode(false);
-      fan.setAdaptiveMode(false);
-      LOG_WARN(CAT_SENSOR, "Not found - switching to MANUAL mode");
+  if (!sensor_isOk()) {
+    LOG_WARN(CAT_SENSOR, "Sensor not available: %s", sensor_getError());
+    if (g_activeConfig.sensorControlMode) {
+      LOG_WARN(CAT_MAIN,
+               "Sensor control mode temporarily disabled (no sensor)");
     }
-#endif
-
-#endif
-
-// ========== ВЕНТИЛЯТОР ==========
-#if DEVICE_TYPE == 1
-
-    fan.init(SWITCH_PIN, RELAY_ON_LEVEL, config_get()->bootState,
-             config_get()->speedPercent);
-    fan.setAdaptiveMode(config_get()->adaptiveMode);
-
-#endif
-
-// ========== ВЫКЛЮЧАТЕЛЬ ==========
-#if DEVICE_TYPE == 3
-    switchActuator.init(SWITCH_PIN, RELAY_ON_LEVEL, config_get()->bootState);
-#endif
-
-#if DEVICE_TYPE == 1
-    web_registerActuators(&fan, nullptr);
-#elif DEVICE_TYPE == 3
-    web_registerActuators(nullptr, &switchActuator);
-#endif
-
-
-// ========== WIFI ==========
-#if SCANING_WIFI_ENABLED == 1
-#ifdef ESP8266
-    WiFi.setSleepMode(WIFI_NONE_SLEEP);
-    WiFi.setPhyMode(WIFI_PHY_MODE_11G);
-    delay(100);
-#elif defined(ESP32)
-    WiFi.setSleep(false);
-    delay(100);
-#endif
-#endif
-    wifi_begin();
-
-// ========== WEB ==========
-    web_init();
-  } else {
-    LOG_INFO(CAT_CONFIG, "Configuration mode - starting AP for setup");
-#if AP_ENABLED == 1
-    web_initAP();
-#endif
   }
+#endif
+
+  // 6. Инициализация актуатора (всегда)
+#if DEVICE_TYPE == 1
+  fan.init(SWITCH_PIN, g_activeConfig.bootState, g_activeConfig.speedPercent,
+           g_activeConfig.maxOnTime);
+  LOG_INFO(CAT_MAIN, "Fan initialized: speed=%d%%, maxOnTime=%lu sec",
+           g_activeConfig.speedPercent, g_activeConfig.maxOnTime);
+#elif DEVICE_TYPE == 3
+  switchActuator.init(SWITCH_PIN, g_activeConfig.bootState,
+                      g_activeConfig.maxOnTime);
+  LOG_INFO(CAT_MAIN, "Switch initialized: maxOnTime=%lu sec",
+           g_activeConfig.maxOnTime);
+#endif
+
+  // ========== НАСТРОЙКА КОНТЕКСТА ДЛЯ ВЕБ-СЛОЯ ==========
+  web_setTransport((TransportType)TRANSPORT_TYPE);
+  web_setDeviceType(DEVICE_TYPE);
+  web_setConfig(&g_activeConfig);
+
+  // 7. Проверка валидности конфига и выбор режима
+  if (!g_activeConfig.valid) {
+    LOG_ERROR(CAT_MAIN, "Config is INVALID: %s", g_activeConfig.error);
+    LOG_INFO(CAT_MAIN, "Using defaults, entering AP mode for setup");
+
+    g_activeConfig = config_getDefaults();
+    apMode = true;
+
+    // Запускаем AP режим (открытая сеть)
+    wifi_startAP(g_activeConfig.deviceId, nullptr);
+    web_setApMode(true);
+    web_enableStatusPage(false);  // корень → конфиг
+    web_init();
+    led_setMode(LED_MODE_MORZE_S);
+    LOG_INFO(CAT_MAIN, "AP mode active. SSID: %s, IP: %s (open)",
+             g_activeConfig.deviceId, AP_IP_ADDRESS);
+  } else {
+    LOG_INFO(CAT_MAIN, "Config is VALID, entering normal mode");
+    apMode = false;
+
+    // Подключаемся к WiFi
+    if (strlen(g_activeConfig.wifiSsid) > 0) {
+      wifi_connect(g_activeConfig.wifiSsid, g_activeConfig.wifiPassword);
+    } else {
+      LOG_WARN(CAT_MAIN, "WiFi SSID is empty, staying in AP mode");
+      apMode = true;
+      wifi_startAP(g_activeConfig.deviceId, nullptr);
+      web_setApMode(true);
+      web_enableStatusPage(false);
+      web_init();
+      led_setMode(LED_MODE_MORZE_S);
+    }
+
+    web_setApMode(false);
+    web_enableStatusPage(WEB_STATUS_ENABLED == 1);
+    web_init();
+
+    applyNormalModeConfig();
+    led_setMode(LED_MODE_ON);
+  }
+
+  config_print(g_activeConfig);
+  LOG_INFO(CAT_MAIN, "==========================================");
+  LOG_INFO(CAT_MAIN, "Setup complete. Entering loop()");
+  LOG_INFO(CAT_MAIN, "==========================================");
 }
 
-// ======================== LOOP ========================
+// ============================================================================
+// LOOP
+// ============================================================================
+
 void loop() {
-  wdt_feed();
-  checkResetButton();
-
-// LED
-  static LedMode lastMode = LED_MODE_OFF;
-  LedMode newMode = LED_MODE_ON;
-
-#if DEVICE_TYPE == 1
-  if (fan.isEmergencyStop()) {
-    newMode = LED_SLOW_BLINK;
-  } else
-#elif DEVICE_TYPE == 3
-  if (switchActuator.isEmergencyStop()) {
-    newMode = LED_SLOW_BLINK;
-  } else
-#endif
-
-      if (apMode) {
-    newMode = LED_MODE_MORZE_S;
-  } else if (!wifi_is_connected()) {
-    newMode = LED_MODE_MORZE_E;
-  } else if (!mqttManager.isConnected()) {
-    newMode = LED_MODE_MORZE_I;
-  } else {
-    newMode = LED_MODE_ON;
-  }
-
-  // Меняем режим ТОЛЬКО если он изменился
-  if (newMode != lastMode) {
-    led_setMode(newMode);
-    lastMode = newMode;
-  }
-
-
   led_update();
-// WEB
-  if (!config_isValid() || strlen(config_get()->wifiSsid) == 0) {
-    web_update();
-    return;
-  }
 
+#if WDT_ENABLED == 1
+  wdt_feed();
+#endif
 
-// ========== ДАТЧИК ==========
+  // 1. Чтение датчика
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  bool sensorDataChanged = sensor_update();
+  sensor_update();
+#endif
+
+  // 2. Логика управления актуаторами
 #if DEVICE_TYPE == 1
-  if (config_get()->sensorControlMode && sensor_isOk() && sensorDataChanged) {
-    float temp = sensor_getTemperature();
-    float hum = sensor_getHumidity();
-
-    bool shouldBeOn =
-        (temp >= config_get()->highTemp || hum >= config_get()->highHum);
-    bool shouldBeOff =
-        (temp <= config_get()->lowTemp && hum <= config_get()->lowHum);
-
-    if (shouldBeOn && !fan.getState()) {
-      fan.set(true, false);
-      LOG_INFO(CAT_SENSOR, "Auto ON: T=%.1f°C H=%.1f%%", temp, hum);
-    } else if (shouldBeOff && fan.getState()) {
-      fan.set(false, false);
-      LOG_INFO(CAT_SENSOR, "Auto OFF: T=%.1f°C H=%.1f%%", temp, hum);
-    }
-  }
-#endif  // DEVICE_TYPE == 1
-#endif  // DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-
-// ========== ВЕНТИЛЯТОР ==========
-#if DEVICE_TYPE == 1
+  processSensorControl();
+  processAdaptiveMode();
+  processDelayTimer();
   fan.update();
-#endif
 
-// ========== ВЫКЛЮЧАТЕЛЬ ==========
-#if DEVICE_TYPE == 3
+  if (fan.isEmergencyStop()) {
+    led_setMode(LED_SLOW_BLINK);
+  }
+#elif DEVICE_TYPE == 3
+  processDelayTimer();
   switchActuator.update();
-#endif
 
-  // ========== WIFI ==========
-  wifi_monitor();
-
-// ========== MQTT ==========
-#if MQTT_ENABLED == 1
-  if (wifi_is_connected()) {
-    mqttManager.process();
-
-// ========== ОТСЛЕЖИВАНИЕ ИЗМЕНЕНИЙ ДЛЯ ПУБЛИКАЦИИ В MQTT ==========
-
-// 1. Состояние вентилятора/выключателя
-#if DEVICE_TYPE == 1
-    static bool lastFanState = false;
-    bool currentFanState = fan.getState();
-    if (currentFanState != lastFanState) {
-      mqttManager.publishState(currentFanState);
-      lastFanState = currentFanState;
-    }
-
-#elif DEVICE_TYPE == 3
-    static bool lastSwitchState = false;
-    bool currentSwitchState = switchActuator.getState();
-    if (currentSwitchState != lastSwitchState) {
-      mqttManager.publishState(currentSwitchState);
-      lastSwitchState = currentSwitchState;
-    }
-#endif
-
-// 2. Скорость вентилятора (только TYPE 1)
-#if DEVICE_TYPE == 1
-    static uint16_t lastSpeedPercent = 0;
-    if (fan.getSpeed() != lastSpeedPercent) {
-      mqttManager.publishSpeed(fan.getSpeed());
-      lastSpeedPercent = fan.getSpeed();
-    }
-#endif
-
-// 3. Режим управления сенсором (только TYPE 1)
-#if DEVICE_TYPE == 1
-    static bool lastSensorControlMode = false;
-    if (config_get()->sensorControlMode != lastSensorControlMode) {
-      mqttManager.publishSensorControlMode(config_get()->sensorControlMode);
-      lastSensorControlMode = config_get()->sensorControlMode;
-    }
-#endif
-
-// 4. Адаптивный режим (только TYPE 1)
-#if DEVICE_TYPE == 1
-    static bool lastAdaptiveMode = false;
-    if (fan.getAdaptiveMode() != lastAdaptiveMode) {
-      mqttManager.publishAdaptiveMode(fan.getAdaptiveMode());
-      lastAdaptiveMode = fan.getAdaptiveMode();
-    }
-#endif
-
-// 5. Пороги температуры и влажности (только TYPE 1)
-#if DEVICE_TYPE == 1
-    static float lastLowTemp = 0, lastHighTemp = 0, lastLowHum = 0,
-                 lastHighHum = 0;
-    if (fabs(config_get()->lowTemp - lastLowTemp) > 0.01 ||
-        fabs(config_get()->highTemp - lastHighTemp) > 0.01 ||
-        fabs(config_get()->lowHum - lastLowHum) > 0.01 ||
-        fabs(config_get()->highHum - lastHighHum) > 0.01) {
-      mqttManager.publishThresholds(
-          config_get()->lowTemp, config_get()->highTemp, config_get()->lowHum,
-          config_get()->highHum);
-      lastLowTemp = config_get()->lowTemp;
-      lastHighTemp = config_get()->highTemp;
-      lastLowHum = config_get()->lowHum;
-      lastHighHum = config_get()->highHum;
-    }
-#endif
-
-// 6. Задержка отложенного включения (TYPE 1 и 3)
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    static int lastDelaySeconds = -1;
-    if (config_get()->delaySeconds != lastDelaySeconds) {
-      mqttManager.publishDelaySec(config_get()->delaySeconds);
-      lastDelaySeconds = config_get()->delaySeconds;
-    }
-#endif
-
-// 7. Аварийное отключение (TYPE 1 и 3)
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    static uint32_t lastMaxOnTime = 0;
-    if (config_get()->maxOnTime != lastMaxOnTime) {
-      mqttManager.publishMaxOnTime(config_get()->maxOnTime);
-      lastMaxOnTime = config_get()->maxOnTime;
-    }
-#endif
-
-// 8. Публикация датчиков при изменении (TYPE 1 и 2)
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    if (sensor_isOk()) {
-      static float lastTemp = 0, lastHum = 0;
-      const float EPSILON = 0.05;
-      float temp = sensor_getTemperature();
-      float hum = sensor_getHumidity();
-      if (fabs(temp - lastTemp) > EPSILON || fabs(hum - lastHum) > EPSILON) {
-        mqttManager.publishSensor(temp, hum);
-        lastTemp = temp;
-        lastHum = hum;
-      }
-    }
-#endif
-
-    // ========== HEARTBEAT (ONLINE + RSSI) ==========
-    static unsigned long lastHeartbeat = 0;
-    static bool initialConfigPublished = false;
-
-    if (mqttManager.isConnected()) {
-      // Публикация начальной конфигурации при первом подключении
-      if (!initialConfigPublished) {
-#if DEVICE_TYPE == 1
-        mqttManager.publishState(fan.getState());
-        mqttManager.publishSpeed(fan.getSpeed());
-        mqttManager.publishSensorControlMode(config_get()->sensorControlMode);
-        mqttManager.publishAdaptiveMode(fan.getAdaptiveMode());
-        mqttManager.publishThresholds(
-            config_get()->lowTemp, config_get()->highTemp, config_get()->lowHum,
-            config_get()->highHum);
-
-#elif DEVICE_TYPE == 3
-        mqttManager.publishState(switchActuator.getState());
-#endif
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-        mqttManager.publishDelaySec(config_get()->delaySeconds);
-        mqttManager.publishMaxOnTime(config_get()->maxOnTime);
-#endif
-
-#if MQTT_PUBLISH_RESET_REASON == 1
-        mqttManager.publishResetReason(getResetReason());
-#endif
-
-#if MQTT_PUBLISH_VERSION == 1
-        mqttManager.publishVersion(VERSION);
-#endif
-
-        initialConfigPublished = true;
-        LOG_INFO(CAT_MQTT, "Initial config published");
-      }
-
-      // Heartbeat
-      if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
-        mqttManager.publishOnline();
-#if MQTT_PUBLISH_RSSI == 1
-        mqttManager.publishRSSI(wifi_get_rssi());
-#endif
-        lastHeartbeat = millis();
-      }
-    } else {
-      // При потере соединения сбрасываем флаг, чтобы при переподключении всё
-      // опубликовать заново
-      initialConfigPublished = false;
-    }
+  if (switchActuator.isEmergencyStop()) {
+    led_setMode(LED_SLOW_BLINK);
   }
 #endif
 
-// ========== WEB ==========
+  // 3. Передача данных в веб-слой
+  web_setSensorData(sensor_getTemperature(), sensor_getHumidity());
+  web_setActuatorState(fan.getState(), fan.getSpeed());
+
+  // 4. Обработка WiFi
+  wifi_process();
+
+  // 5. Веб-сервер
   web_update();
 
+  // 6. MQTT (только в нормальном режиме и при наличии WiFi)
+  // if (!apMode && wifi_isConnected() && MQTT_ENABLED == 1) {
+  //   mqttManager.process();
+  // }
+
+  delay(10);
+}
+
+// ============================================================================
+// ТОЧКИ ВХОДА ДЛЯ ВНЕШНИХ МОДУЛЕЙ
+// ============================================================================
+
+const Config* config_getActive() {
+  return &g_activeConfig;
+}
+
+bool config_updateFromWeb(const Config& newConfig) {
+  LOG_INFO(CAT_MAIN, "Updating config from web...");
+
+  Config temp = newConfig;
+  if (!config_validate(temp)) {
+    LOG_ERROR(CAT_MAIN, "Invalid config from web: %s", temp.error);
+    return false;
+  }
+
+  if (!config_save(temp)) {
+    LOG_ERROR(CAT_MAIN, "Failed to save config to EEPROM");
+    return false;
+  }
+
+  g_activeConfig = temp;
+  LOG_INFO(CAT_MAIN, "Config saved successfully, restarting...");
+  delay(100);
+  ESP.restart();
+  return true;
 }

@@ -5,11 +5,7 @@
 
 #include "config.h"
 
-#if MQTT_ENABLED == 1
-#include "mqtt.h"
-#endif
-
-// ========== СТАТИЧЕСКИЕ ПЕРЕМЕННЫЕ (СКРЫТЫЕ) ==========
+// ========== СТАТИЧЕСКИЕ ПЕРЕМЕННЫЕ ==========
 static float _currentTemp = 0;
 static float _currentHum = 0;
 static bool _sensorOk = false;
@@ -17,9 +13,10 @@ static unsigned long _lastSensorRead = 0;
 static char _sensorError[64] = "";
 static float _humRate = 0;
 
-// Статические переменные для расчёта humRate
 static unsigned long _lastHumTime = 0;
 static float _lastHumValue = 0;
+
+static const Config* _cfg = nullptr;  // указатель на активный конфиг
 
 #if SENSOR_TYPE == 1
 static Adafruit_AHTX0 _aht;
@@ -40,7 +37,9 @@ static bool isSensorValueValid(float temp, float hum) {
 
 // ========== ПУБЛИЧНЫЕ ФУНКЦИИ ==========
 
-void sensor_init() {
+void sensor_init(const Config* cfg) {
+  _cfg = cfg;
+
 #if SENSOR_TYPE == 1
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
   _sensorOk = _aht.begin();
@@ -53,7 +52,6 @@ void sensor_init() {
       _currentHum = humidity.relative_humidity;
       _sensorError[0] = '\0';
       _lastSensorRead = millis();
-
       LOG_INFO(CAT_SENSOR, "First reading: T=%.2f°C, H=%.2f%%", _currentTemp,
                _currentHum);
     }
@@ -68,7 +66,6 @@ void sensor_init() {
   _sensorOk = false;
   strcpy(_sensorError, "Waiting for first valid reading");
   LOG_INFO(CAT_SENSOR, "DHT initialized, waiting for first valid reading...");
-
 #endif
 
   _humRate = 0;
@@ -77,13 +74,14 @@ void sensor_init() {
 }
 
 bool sensor_update() {
-  // Если датчик не найден при инициализации — не пытаемся читать
+  if (!_cfg)
+    return false;
+
   if (strcmp(_sensorError, "AHT10 not found") == 0) {
     return false;
   }
 
-  // Проверка интервала опроса
-  if (millis() - _lastSensorRead < config_get()->sensorInterval * 1000UL) {
+  if (millis() - _lastSensorRead < _cfg->sensorInterval * 1000UL) {
     return false;
   }
   _lastSensorRead = millis();
@@ -118,23 +116,14 @@ bool sensor_update() {
 
   if (readSuccess) {
     if (isSensorValueValid(temp, hum)) {
-      
-      // расчёт скорости изменения влажности
       if (_lastHumTime > 0) {
         float dt = (millis() - _lastHumTime) / 1000.0;
         if (dt > 0.1) {
           _humRate = (hum - _lastHumValue) / dt;
-          
-          
-          // Limit humidity rate of change to ~5%/s.
-          // This is an empirical limit, ~100x higher than typical room dynamics
-          // (0.01-0.05%/s), but effectively filters sensor spikes and prevents
-          // algorithmic overreaction.
           if (_humRate > 5.0)
             _humRate = 5.0;
           if (_humRate < -5.0)
             _humRate = -5.0;
-
         }
       } else {
         _humRate = 0;
@@ -143,7 +132,6 @@ bool sensor_update() {
       _lastHumValue = hum;
       _lastHumTime = millis();
 
-      // Проверяем, изменились ли данные (для возврата true/false)
       bool changed =
           (fabs(_currentTemp - temp) > 0.05 || fabs(_currentHum - hum) > 0.05);
 
@@ -161,7 +149,6 @@ bool sensor_update() {
       snprintf(_sensorError, sizeof(_sensorError),
                "Out of range (T=%.1f H=%.1f)", temp, hum);
       _humRate = 0;
-
       LOG_ERROR(CAT_SENSOR, "%s", _sensorError);
       return false;
     }
@@ -170,8 +157,6 @@ bool sensor_update() {
     return false;
   }
 }
-
-// ========== ГЕТТЕРЫ ==========
 
 float sensor_getTemperature() {
   return _currentTemp;

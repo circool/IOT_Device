@@ -1,148 +1,173 @@
+// ============================================================================
+// @file fan_actuator.h
+// @brief Управление вентилятором с поддержкой ШИМ и стартового импульса
+//
+// Модуль реализует управление вентилятором с возможностью регулировки скорости
+// методом широтно-импульсной модуляции (ШИМ). Обеспечивает стартовый импульс
+// для надёжного запуска вентилятора при низких скоростях.
+//
+// @note Наследует базовый класс ActuatorBase, который отвечает за:
+//       - включение/выключение
+//       - контроль максимального времени работы (аварийное отключение)
+//       - флаг аварийной остановки
+//
+// @note ШИМ настраивается через макросы:
+//       - PWM_FREQUENCY — частота ШИМ (Гц)
+//       - PWM_RESOLUTION — разрешение ШИМ (бит)
+//       - PWM_STARTING — длительность стартового импульса (мс)
+//
+// @note Для ESP8266 используется аналоговый ШИМ через analogWrite(),
+//       для ESP32 — аппаратный ШИМ через LEDC.
+// ============================================================================
+
 #ifndef FAN_ACTUATOR_H
 #define FAN_ACTUATOR_H
 
 #include "actuator_base.h"
-#include "sensor.h"
+#include "config.h"
 
 /**
- * @brief Управление вентилятором с поддержкой ШИМ и адаптивного режима
+ * @class FanActuator
+ * @brief Управление вентилятором с ШИМ и стартовым импульсом
  *
- * Расширяет ActuatorBase:
- * - Регулировка скорости вращения (0-100%)
- * - Адаптивный тихий режим (автоматическое увеличение скорости при росте
- * влажности/температуры)
- * - Стартовый импульс на полной мощности для раскрутки
+ * Расширяет возможности ActuatorBase:
+ * - Регулировка скорости вращения от 0% до 100% (через ШИМ)
+ * - Стартовый импульс на 100% мощности для раскрутки пропеллера
+ * - Плавное переключение на целевую скорость после старта
  *
- * Используется только при DEVICE_TYPE == 1
+ * @note Вентилятор не может стартовать на низкой скорости — требуется
+ *       стартовый импульс. При вызове set(true) с _currentSpeed < 100%,
+ *       сначала подаётся 100% на PWM_STARTING мс, затем целевая скорость.
+ *
+ * @note При выключении (set(false)) система выходит из ШИМ-режима,
+ *       пин переводится в дискретный режим.
+ *
+ * @note Адаптивный режим не входит в обязанности актуатора —
+ *       это логика оркестратора (main.cpp).
  */
-class FanActuator {
+class FanActuator : public ActuatorBase {
  public:
+  /**
+   * @brief Конструктор вентилятора
+   *
+   * Инициализирует внутренние переменные:
+   * - _currentSpeed = 0 (выключен)
+   * - _pwmActive = false
+   * - _startingPulseActive = false
+   */
   FanActuator();
 
   /**
    * @brief Инициализация вентилятора
-   * @param pin GPIO для управления реле
-   * @param relayOnLevel Уровень включения (HIGH/LOW)
-   * @param bootState Состояние при старте (true=вкл)
+   *
+   * Настраивает ШИМ (ESP32: ledcSetup, ESP8266: analogWriteFreq),
+   * вызывает базовую инициализацию ActuatorBase, которая:
+   * - устанавливает пин в режим OUTPUT
+   * - применяет начальное состояние (bootState)
+   *
+   * @param pin          Номер GPIO для управления реле
+
+   * @param bootState    Состояние при старте (true = включён)
    * @param defaultSpeed Скорость по умолчанию (0-100%)
+   * @param maxOnTime    Максимальное время непрерывной работы (сек)
+   *
+   * @note Скорость по умолчанию используется при старте и восстанавливается
+   *       после выключения. При ручной команде скорость сохраняется.
    */
   void init(uint8_t pin,
-            uint8_t relayOnLevel,
             bool bootState,
-            uint16_t defaultSpeed);
-
-  /**
-   * @brief Периодический вызов в loop()
-   * Обрабатывает стартовый импульс, адаптивный режим, таймеры
-   */
-  void update();
-
-  /**
-   * @brief Включить/выключить вентилятор
-   * @param on true — включить, false — выключить
-   * @param manual true — ручная команда (отключает адаптивный режим)
-   */
-  void set(bool on, bool manual = true);
-
-  /**
-   * @brief Получить текущее состояние
-   */
-  bool getState() const;
+            uint16_t defaultSpeed,
+            uint32_t maxOnTime);
 
   /**
    * @brief Установить скорость вращения
-   * @param percent 0-100%
-   * @param manual true — ручная команда (отключает адаптивный режим)
+   *
+   * @param percent Скорость в процентах (0-100)
+   * @param manual  true — ручная команда (логируется как manual),
+   *                false — автоматическая (из адаптивного режима)
+   *
+   * @note Если вентилятор включён и нет активного стартового импульса,
+   *       скорость применяется немедленно через applySpeed().
+   * @note Если вентилятор выключен, скорость сохраняется и будет применена
+   *       при следующем включении (после стартового импульса).
    */
   void setSpeed(int percent, bool manual = true);
 
   /**
    * @brief Получить текущую скорость
-   * @return 0-100%
+   * @return Скорость в процентах (0-100)
    */
   int getSpeed() const;
 
   /**
-   * @brief Включить/выключить адаптивный режим
-   * При включении фиксирует базовые показания датчика
+   * @brief Периодический вызов в loop()
+   *
+   * Выполняет:
+   * 1. Если активен стартовый импульс — по истечении PWM_STARTING мс
+   *    переключается на целевую скорость.
+   * 2. Вызывает ActuatorBase::update() для проверки maxOnTime.
+   *
+   * @note Стартовый импульс имеет приоритет над проверкой maxOnTime.
    */
-  void setAdaptiveMode(bool enabled);
+  void update() override;
 
+ protected:
   /**
-   * @brief Получить состояние адаптивного режима
+   * @brief Обработка физического включения/выключения
+   *
+   * Реализация чисто виртуального метода ActuatorBase::onSetPhysical().
+   *
+   * @param on true — включить, false — выключить
+   *
+   * @note При включении (on = true):
+   *       - Если скорость < 100% и > 0% — запускается стартовый импульс
+   *         (applySpeed(100) временно)
+   *       - Иначе — применяется целевая скорость
+   * @note При выключении (on = false):
+   *       - applySpeed(0) (выключить ШИМ, установить пин в !ACTIVE_LEVEL)
+   *       - Сбрасывается флаг стартового импульса
    */
-  bool getAdaptiveMode() const;
-
-  // Прокси-методы для доступа к таймерам базового класса
-  unsigned long getStartTime() const { return _base.getStartTime(); }
-  bool isDelayActive() const { return _base.isDelayActive(); }
-  unsigned long getDelayTimer() const { return _base.getDelayTimer(); }
-  bool isEmergencyStop() const { return _base.isEmergencyStop(); }
-  void clearEmergencyStop() { _base.clearEmergencyStop(); }
-
-  /**
-   * @brief Включить поэтапное увеличение скорости (для туалета)
-   * При срабатывании таймера отложенного включения
-   */
-  // void enableRampUp() { _rampUpActive = true; _lastRampUpTime = millis(); }
-
-  // Статические колбэки для ActuatorBase
-  static void onSetPhysicalCallback(void* context, bool on);
-  static void onForceStopCallback(void* context);
-  static void onManualCommandCallback(void* context);
+  void onSetPhysical(bool on) override;
 
  private:
   /**
-   * @brief Применить скорость к физическому выходу (ШИМ или дискретно)
+   * @brief Применить скорость к физическому пину
+   *
+   * @param percent Скорость в процентах (0-100)
+   *
+   * @note Логика:
+   *       - 0%: disablePWM(), digitalWrite(off)
+   *       - 100%: disablePWM(), digitalWrite(on)
+   *       - 1-99%: enablePWM(), установить ШИМ-значение
+   *
+   * @note Учитывает инверсию ACTIVE_LEVEL:
+   *       - Если ACTIVE_LEVEL == LOW, ШИМ-значение инвертируется
    */
   void applySpeed(int percent);
 
   /**
-   * @brief Включить режим ШИМ на пине
+   * @brief Включить ШИМ-режим на пине
+   *
+   * @note ESP32: ledcAttachPin()
+   * @note ESP8266: не требуется (analogWrite() автоматически включает ШИМ)
    */
   void enablePWM();
 
   /**
-   * @brief Выключить режим ШИМ (возврат к дискретному управлению)
+   * @brief Выключить ШИМ-режим (вернуться к дискретному управлению)
+   *
+   * @note ESP32: ledcDetachPin()
+   * @note ESP8266: analogWrite(pin, 1024) + delayMicroseconds(10) +
+   * pinMode(OUTPUT) — это принудительно отключает ШИМ и возвращает пин в режим
+   * GPIO.
    */
   void disablePWM();
 
-  /**
-   * @brief Обновление адаптивного режима (вызывается в update)
-   * Увеличивает скорость при росте температуры или влажности
-   */
-  void adaptiveUpdate();
-
-  /**
-   * @brief Рассчитать шаг увеличения скорости при адаптации
-   * @param deltaTemp Изменение температуры от базового значения
-   * @param deltaHum Изменение влажности от базового значения
-   * @param humRate Скорость изменения влажности (%/сек)
-   * @return Шаг в процентах (5-60)
-   */
-  int calculateAdaptiveStep(float deltaTemp, float deltaHum, float humRate);
-
-  ActuatorBase _base;  // Базовый класс (дискретное управление)
-
-  uint8_t _pin;           // GPIO для управления реле
-  uint8_t _relayOnLevel;  // Уровень включения
-  int _currentSpeed;      // Текущая скорость (0-100)
-  bool _adaptiveMode;     // Включён ли адаптивный режим
-  bool _pwmActive;        // Активен ли ШИМ в данный момент
-
-  // Адаптивный режим
-  bool _adaptiveActive;              // Адаптация активна в текущей сессии
-  float _baseTemp;                   // Температура при включении вентилятора
-  float _baseHum;                    // Влажность при включении вентилятора
-  unsigned long _lastAdaptiveCheck;  // Время последней адаптации
-
-  // Стартовый импульс
-  bool _startingPulseActive;          // Идёт ли стартовый импульс
-  unsigned long _startingPulseStart;  // Время начала импульса
-
-  // Поэтапное увеличение скорости (ramp-up)
-  bool _rampUpActive;             // Активно ли поэтапное увеличение
-  unsigned long _lastRampUpTime;  // Время последнего увеличения
+  int _currentSpeed;          //!< Текущая скорость (0-100%)
+  bool _pwmActive;            //!< Активен ли ШИМ в данный момент
+  bool _startingPulseActive;  //!< Идёт ли стартовый импульс
+  unsigned long
+      _startingPulseStart;  //!< Время начала стартового импульса (millis)
 };
 
-#endif
+#endif  // FAN_ACTUATOR_H

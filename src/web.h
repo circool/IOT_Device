@@ -1,10 +1,15 @@
+// ============================================================================
+// @file web.h
+// @brief Веб-сервер для отображения статуса и настройки
+// ============================================================================
+
 #ifndef WEB_H
 #define WEB_H
 
 #include <Arduino.h>
 #include "config.h"
 
-#if WEB_ENABLED == 1
+
 
 #if defined(ESP8266)
 #include <ESP8266WebServer.h>
@@ -14,122 +19,74 @@ typedef ESP8266WebServer WebServerClass;
 typedef WebServer WebServerClass;
 #endif
 
-#ifndef DEFAULT_WEB_REFRESH
-#define DEFAULT_WEB_REFRESH 5
-#endif
-
-class FanActuator;
-class SwitchActuator;
+// ============================================================================
+// ФУНКЦИИ УСТАНОВКИ КОНТЕКСТА (вызываются из оркестратора)
+// ============================================================================
 
 /**
- * @brief Глобальный экземпляр веб-сервера
+ * @brief Установить тип активного транспорта
+ * @param type TRANSPORT_MQTT, TRANSPORT_ZIGBEE, TRANSPORT_MATTER или
+ * TRANSPORT_NONE
  */
-extern WebServerClass server;
+void web_setTransport(TransportType type);
 
 /**
- * @brief Сгенерировать HTML-код страницы состояния
- * @return Строка с HTML
+ * @brief Установить тип устройства
+ * @param type DEVICE_TYPE (1=fan, 2=sensor, 3=switch)
  */
-String web_buildStatusHtml();
+void web_setDeviceType(uint8_t type);
 
 /**
- * @brief Отправить страницу настроек (HTTP)
- * @param errorMsg Сообщение об ошибке (если есть)
- * @param successMsg Сообщение об успехе (если есть)
+ * @brief Установить указатель на активный конфиг
+ * @param cfg Указатель на Config (из оркестратора)
  */
-void web_sendConfigPage(const String& errorMsg = "",
-                        const String& successMsg = "");
+void web_setConfig(const Config* cfg);
 
-#if WEB_STATUS_ENABLED == 1
 /**
- * @brief Отправить страницу состояния (HTTP)
- * @param refreshInterval Интервал автообновления страницы (сек)
+ * @brief Установить флаг режима AP
+ * @param isApMode true = AP режим, false = STA режим
  */
-void web_sendStatusPage(int refreshInterval);
-#endif
+void web_setApMode(bool isApMode);
 
 /**
- * @brief Обработчик POST-запроса на сохранение конфигурации
+ * @brief Включить/выключить страницу статуса в корне
+ * @param enabled true — корень ведёт на статус, false — на конфиг
  */
-void web_saveConfig();
+void web_enableStatusPage(bool enabled);
 
 /**
- * @brief Регистратор актуаторов в веб-модуле
- * @param fanPtr Указатель на FanActuator (для TYPE 1)
- * @param switchPtr Указатель на SwitchActuator (для TYPE 3)
+ * @brief Обновить данные датчика для отображения
  */
-void web_registerActuators(FanActuator* fanPtr = nullptr,
-                           SwitchActuator* switchPtr = nullptr);
+void web_setSensorData(float temp, float hum);
 
 /**
- * @brief Инициализация веб-сервера в режиме клиента WiFi
+ * @brief Обновить состояние актуатора для отображения
+ */
+void web_setActuatorState(bool on, int speed = -1);
+
+/**
+ * @brief Инициализация веб-сервера
  */
 void web_init();
 
 /**
- * @brief Инициализация веб-сервера в режиме точки доступа (AP)
- * @note Создаёт WiFi сеть для первоначальной настройки
- */
-void web_initAP();
-
-/**
- * @brief Периодическая обработка HTTP-запросов
- * @note Вызывается в loop()
+ * @brief Периодический вызов в loop()
  */
 void web_update();
 
-#else  // WEB_ENABLED == 0
+// #else  // WEB_ENABLED == 1
 
-/**
- * @brief Заглушка: генерация HTML страницы состояния
- * @return Пустая строка
- */
-inline String web_buildStatusHtml() {
-  return String();
-}
+// // Заглушки
+// inline void web_setTransport(TransportType) {}
+// inline void web_setDeviceType(uint8_t) {}
+// inline void web_setConfig(const Config*) {}
+// inline void web_setApMode(bool) {}
+// inline void web_enableStatusPage(bool) {}
+// inline void web_setSensorData(float, float) {}
+// inline void web_setActuatorState(bool, int) {}
+// inline void web_init() {}
+// inline void web_update() {}
 
-/**
- * @brief Заглушка: отправка страницы настроек
- * @param errorMsg Не используется
- * @param successMsg Не используется
- */
-inline void web_sendConfigPage(const String&, const String&) {}
-
-#if WEB_STATUS_ENABLED == 1
-/**
- * @brief Заглушка: отправка страницы состояния
- * @param refreshInterval Не используется
- */
-inline void web_sendStatusPage(int) {}
-#endif
-
-/**
- * @brief Заглушка: сохранение конфигурации
- */
-inline void web_saveConfig() {}
-
-/**
- * @brief Заглушка: регистрация актуаторов
- * @param fanPtr Не используется
- * @param switchPtr Не используется
- */
-inline void web_registerActuators(void*, void*) {}
-
-/**
- * @brief Заглушка: инициализация веб-сервера
- */
-inline void web_init() {}
-
-/**
- * @brief Заглушка: инициализация точки доступа
- */
-inline void web_initAP() {}
-
-/**
- * @brief Заглушка: обработка HTTP запросов
- */
-inline void web_update() {}
-
-#endif  // WEB_ENABLED == 1
+// #endif  // WEB_ENABLED == 1
 
 #endif  // WEB_H

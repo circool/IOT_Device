@@ -1,139 +1,207 @@
 #include "wifi_manager.h"
 #include "config.h"
 #include "logger.h"
-#include "web.h"
 
 #if WIFI_ENABLED == 1
 
-static unsigned long wifi_connect_start_time = 0;
-bool wifi_is_connecting = false;
-static unsigned long wifi_lost_time = 0;
+// ============================================================================
+// СТАТИЧЕСКИЕ ПЕРЕМЕННЫЕ (скрытые внутри модуля)
+// ============================================================================
 
-void wifi_begin() {
-  if (strlen(config_get()->wifiSsid) == 0) {
-    LOG_WARN(CAT_WIFI, "No SSID configured");
-    return;
+static bool _isConnecting = false;
+static unsigned long _connectStartTime = 0;
+static bool _isAPActive = false;
+static char _lastSsid[32] = "";
+static char _lastPassword[64] = "";
+
+// ============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ============================================================================
+
+/**
+ * @brief Сбросить состояние подключения
+ */
+static void resetConnectionState() {
+  _isConnecting = false;
+  _connectStartTime = 0;
+}
+
+/**
+ * @brief Получить строковое представление статуса WiFi
+ */
+static const char* statusToString(wl_status_t status) {
+  switch (status) {
+    case WL_IDLE_STATUS:
+      return "IDLE";
+    case WL_NO_SSID_AVAIL:
+      return "NO_SSID_AVAIL";
+    case WL_SCAN_COMPLETED:
+      return "SCAN_COMPLETED";
+    case WL_CONNECTED:
+      return "CONNECTED";
+    case WL_CONNECT_FAILED:
+      return "CONNECT_FAILED";
+    case WL_CONNECTION_LOST:
+      return "CONNECTION_LOST";
+    case WL_DISCONNECTED:
+      return "DISCONNECTED";
+    default:
+      return "UNKNOWN";
   }
+}
 
-  if (WiFi.status() == WL_CONNECTED)
-    return;
-  if (wifi_is_connecting)
-    return;
+// ============================================================================
+// ПУБЛИЧНЫЕ ФУНКЦИИ
+// ============================================================================
 
-  LOG_INFO(CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET,
-           config_get()->wifiSsid);
+void wifi_init() {
+  LOG_INFO(CAT_WIFI, "Initializing WiFi...");
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin(config_get()->wifiSsid, config_get()->wifiPassword);
-  wifi_is_connecting = true;
-  wifi_connect_start_time = millis();
+  WiFi.disconnect(true);
+  delay(100);
+
+  LOG_DEBUG(CAT_WIFI, "WiFi initialized in STA mode");
 }
 
-void wifi_check() {
-  if (!wifi_is_connecting)
+bool wifi_connect(const char* ssid, const char* password) {
+  if (!ssid || strlen(ssid) == 0) {
+    LOG_WARN(CAT_WIFI, "Cannot connect: empty SSID");
+    return false;
+  }
+
+  if (wifi_isConnected()) {
+    LOG_DEBUG(CAT_WIFI, "Already connected to %s", ssid);
+    return true;
+  }
+
+  if (_isConnecting) {
+    LOG_DEBUG(CAT_WIFI, "Already connecting to %s", _lastSsid);
+    return true;
+  }
+
+  LOG_INFO(CAT_WIFI, "Connecting to SSID: '%s'", ssid);
+
+  // Сохраняем для переподключения
+  strncpy(_lastSsid, ssid, sizeof(_lastSsid) - 1);
+  _lastSsid[sizeof(_lastSsid) - 1] = '\0';
+  if (password) {
+    strncpy(_lastPassword, password, sizeof(_lastPassword) - 1);
+    _lastPassword[sizeof(_lastPassword) - 1] = '\0';
+  } else {
+    _lastPassword[0] = '\0';
+  }
+
+  // Запускаем асинхронное подключение
+  WiFi.begin(ssid, password);
+  _isConnecting = true;
+  _connectStartTime = millis();
+
+  return true;
+}
+
+bool wifi_isConnected() {
+  return WiFi.status() == WL_CONNECTED;
+}
+
+String wifi_getLocalIP() {
+  return WiFi.localIP().toString();
+}
+
+int wifi_getRSSI() {
+  return WiFi.RSSI();
+}
+
+wl_status_t wifi_getStatus() {
+  return WiFi.status();
+}
+
+void wifi_process() {
+  // Если не в процессе подключения — выходим
+  if (!_isConnecting) {
     return;
+  }
 
   wl_status_t status = WiFi.status();
+
   if (status == WL_CONNECTED) {
-    wifi_is_connecting = false;
-    wifi_lost_time = 0;
-    LOG_INFO(CAT_WIFI, "Connected! IP: " ANSI_BOLD "%s" ANSI_RESET,
-             WiFi.localIP().toString().c_str());
-
-// Выход из AP режима при успешном подключении
-#if AP_ENABLED == 1
-    if (apMode) {
-      WiFi.softAPdisconnect(true);
-      apMode = false;
-      LOG_INFO(CAT_WIFI, "Exited AP mode, back to client mode");
-      WiFi.mode(WIFI_STA);
-    }
-#endif
-
-  } else if (millis() - wifi_connect_start_time > WIFI_CONNECT_TIMEOUT_MS) {
-    LOG_INFO(CAT_WIFI, "Connection timeout! (%d)", WIFI_CONNECT_TIMEOUT_MS);
-    wifi_is_connecting = false;
+    // Подключились успешно
+    LOG_INFO(CAT_WIFI, "Connected! IP: %s, RSSI: %d dBm",
+             wifi_getLocalIP().c_str(), wifi_getRSSI());
+    resetConnectionState();
+  } else if (millis() - _connectStartTime > WIFI_CONNECT_TIMEOUT_MS) {
+    // Таймаут подключения
+    LOG_WARN(CAT_WIFI, "Connection timeout! Status: %s",
+             statusToString(status));
     WiFi.disconnect();
+    resetConnectionState();
   }
 }
 
-void wifi_monitor() {
-  if (apMode) {
-    if (strlen(config_get()->wifiSsid) == 0)
-      return;
-
-    if (!wifi_is_connecting) {
-      LOG_INFO(CAT_WIFI,
-               "AP mode active, attempting to connect to WiFi in background");
-      wifi_begin();
-    }
-    wifi_check();
-    return;
+bool wifi_startAP(const char* ssid, const char* password) {
+  if (!ssid || strlen(ssid) == 0) {
+    LOG_WARN(CAT_WIFI, "Cannot start AP: empty SSID");
+    return false;
   }
 
-  if (!wifi_is_connected()) {
-    if (!wifi_is_connecting) {
-      LOG_INFO(CAT_WIFI, "WiFi lost, attempting to reconnect");
-      wifi_begin();
-    }
+  if (_isAPActive) {
+    LOG_DEBUG(CAT_WIFI, "AP already active");
+    return true;
   }
 
-  wifi_check();
+  LOG_INFO(CAT_WIFI, "Starting AP mode: SSID='%s'", ssid);
 
-  // Fallback в AP при длительной потере (только если не в AP режиме)
-  if (!apMode && !wifi_is_connected() && !wifi_is_connecting) {
-    if (wifi_lost_time == 0) {
-      wifi_lost_time = millis();
-      LOG_INFO(CAT_WIFI, "WiFi lost, starting fallback timer");
-    } else if (millis() - wifi_lost_time > AP_FALLBACK_TIMEOUT_MS) {
-      LOG_INFO(CAT_WIFI, "WiFi lost for %d ms, switching to AP mode",
-               AP_FALLBACK_TIMEOUT_MS);
-      WiFi.disconnect(true);
-      WiFi.mode(WIFI_OFF);
-      delay(100);  // Allow WiFi hardware to fully deinitialize before AP start (critical for ESP8266)
-      web_initAP();
-      wifi_lost_time = 0;
-    }
-  } else {
-    // сбрасываем таймер только при реальном подключении
-    if (wifi_is_connected()) {
-      wifi_lost_time = 0;
-    }
-  }
-}
+  // Отключаем клиентский режим
+  WiFi.disconnect(true);
+  WiFi.mode(WIFI_AP);
 
-void wifi_start_ap(const char* ssid) {
-  WiFi.mode(WIFI_AP_STA);
-
+  // Настраиваем IP (для ESP8266)
 #ifdef ESP8266
   IPAddress apIP;
   apIP.fromString(AP_IP_ADDRESS);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
 #endif
 
-  WiFi.softAP(ssid);
+  // Запускаем точку доступа
+  if (password && strlen(password) >= 8) {
+    WiFi.softAP(ssid, password);
+    LOG_INFO(CAT_WIFI, "AP started with password (secured)");
+  } else {
+    WiFi.softAP(ssid);
+    LOG_INFO(CAT_WIFI, "AP started without password (open)");
+  }
 
-  LOG_INFO(CAT_WIFI, "AP started: SSID=" ANSI_BOLD "%s" ANSI_RESET ", IP=%s",
-           ssid, AP_IP_ADDRESS);
+  _isAPActive = true;
+  LOG_INFO(CAT_WIFI, "AP IP: %s", AP_IP_ADDRESS);
+
+  return true;
 }
 
-int wifi_scan_and_log(const char* targetSsid) {
-  static bool is_scanning = false;
+void wifi_stopAP() {
+  if (!_isAPActive) {
+    return;
+  }
 
-  // Защита от реентерабельности
-  if (is_scanning) {
+  LOG_INFO(CAT_WIFI, "Stopping AP mode...");
+  WiFi.softAPdisconnect(true);
+  WiFi.mode(WIFI_STA);
+  _isAPActive = false;
+  LOG_INFO(CAT_WIFI, "AP stopped, back to STA mode");
+}
+
+bool wifi_isAPActive() {
+  return _isAPActive;
+}
+
+int wifi_scan(const char* targetSsid) {
+  static bool isScanning = false;
+
+  if (isScanning) {
     LOG_WARN(CAT_WIFI, "Scan already in progress, skipping");
     return -1;
   }
 
-  // Не сканируем, если в процессе подключения к другой сети
-  if (wifi_is_connecting) {
-    LOG_WARN(CAT_WIFI, "Cannot scan while connecting to WiFi");
-    return -1;
-  }
-
-  is_scanning = true;
-
+  isScanning = true;
   LOG_INFO(CAT_WIFI, "Scanning WiFi networks...");
 
   int networksFound = WiFi.scanNetworks();
@@ -141,7 +209,7 @@ int wifi_scan_and_log(const char* targetSsid) {
   if (networksFound == WIFI_SCAN_FAILED) {
     LOG_ERROR(CAT_WIFI, "WiFi scan failed");
     WiFi.scanDelete();
-    is_scanning = false;
+    isScanning = false;
     return -1;
   }
 
@@ -152,9 +220,7 @@ int wifi_scan_and_log(const char* targetSsid) {
     int32_t rssi = WiFi.RSSI(i);
 
     if (markTarget && ssid == targetSsid) {
-      LOG_DEBUG(CAT_WIFI,
-                "%s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET,
-                ssid.c_str(), rssi);
+      LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d) <<< TARGET", ssid.c_str(), rssi);
     } else {
       LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d)", ssid.c_str(), rssi);
     }
@@ -163,21 +229,8 @@ int wifi_scan_and_log(const char* targetSsid) {
   LOG_INFO(CAT_WIFI, "Scan complete: %d network(s) found", networksFound);
 
   WiFi.scanDelete();
-  is_scanning = false;
-
+  isScanning = false;
   return networksFound;
 }
 
-String wifi_get_local_ip() {
-  return WiFi.localIP().toString();
-}
-
-int wifi_get_rssi() {
-  return WiFi.RSSI();
-}
-
-bool wifi_is_connected() {
-  return WiFi.status() == WL_CONNECTED;
-}
-
-#endif
+#endif  // WIFI_ENABLED == 1

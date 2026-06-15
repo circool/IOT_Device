@@ -1,72 +1,48 @@
 #include "actuator_base.h"
 #include "logger.h"
 
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 ActuatorBase::ActuatorBase()
-    : onSetPhysicalCallback(nullptr),
-      onForceStopCallback(nullptr),
-      onManualCommandCallback(nullptr),
-      callbackContext(nullptr),
-      _pin(0),
-      _relayOnLevel(LOW),
+    : _pin(0),
       _state(false),
       _startTime(0),
-      _delayActive(false),
-      _delayTimer(0),
+      _maxOnTime(0),
       _emergencyStop(false) {}
 
-void ActuatorBase::init(uint8_t pin, uint8_t relayOnLevel, bool bootState) {
+void ActuatorBase::init(uint8_t pin,
+                        bool bootState,
+                        uint32_t maxOnTime) {
   _pin = pin;
-  _relayOnLevel = relayOnLevel;
-
-  pinMode(_pin, OUTPUT);
-  _delayActive = false;
-  _delayTimer = 0;
-  _startTime = 0;
+  _maxOnTime = maxOnTime;
   _emergencyStop = false;
 
+  pinMode(_pin, OUTPUT);
+
   if (bootState) {
-    if (onSetPhysicalCallback)
-      onSetPhysicalCallback(callbackContext, true);
     _state = true;
     _startTime = millis();
+    onSetPhysical(true);
+    LOG_INFO(CAT_ACTUATOR, "Init: pin=%d, state=ON, maxOnTime=%lu sec", _pin,
+             _maxOnTime);
   } else {
-    if (onSetPhysicalCallback)
-      onSetPhysicalCallback(callbackContext, false);
     _state = false;
     _startTime = 0;
+    onSetPhysical(false);
+    LOG_INFO(CAT_ACTUATOR, "Init: pin=%d, state=OFF, maxOnTime=%lu sec", _pin,
+             _maxOnTime);
   }
-
-  LOG_INFO(CAT_ACTUATOR, "Init: pin=%d, state=%s, bootState=%s", _pin,
-           _state ? "ON" : "OFF", bootState ? "ON" : "OFF");
 }
 
 void ActuatorBase::set(bool on, bool manual) {
-  // Обработка ручного режима выполняется всегда, даже если состояние не
-  // меняется
-  if (manual) {
-    if (onManualCommandCallback) {
-      onManualCommandCallback(callbackContext);
-    }
-
-    if (_delayActive) {
-      _delayActive = false;
-      LOG_INFO(CAT_ACTUATOR, "Manual - delay cancelled");
-    }
+  if (manual && _emergencyStop) {
+    LOG_INFO(CAT_ACTUATOR, "Manual command resets emergency stop");
+    _emergencyStop = false;
   }
 
   if (_state == on)
     return;
 
   _state = on;
-
-  if (onSetPhysicalCallback) {
-    onSetPhysicalCallback(callbackContext, _state);
-  }
-
-  if (_state) {
-    _emergencyStop = false;
-  }
+  onSetPhysical(_state);
 
   if (_state) {
     _startTime = millis();
@@ -83,54 +59,22 @@ bool ActuatorBase::getState() const {
 
 void ActuatorBase::update() {
   checkMaxOnTime();
-
-  bool timerExpired = delayTimer(false);
-  if (timerExpired && !_state) {
-    set(true, true);
-  }
-
-  if (!_state && !_delayActive && config_get()->delaySeconds > 0) {
-    delayTimer(true);
-  }
-}
-
-void ActuatorBase::forceStop() {
-  LOG_INFO(CAT_ACTUATOR, "Force stop!");
-  set(false, true);
-  _emergencyStop = true;
-  if (onForceStopCallback)
-    onForceStopCallback(callbackContext);
 }
 
 void ActuatorBase::checkMaxOnTime() {
   if (!_state)
     return;
-  if (config_get()->maxOnTime == 0)
+  if (_maxOnTime == 0)
+    return;
+  if (_emergencyStop)
     return;
   if (_startTime == 0)
     return;
 
-  if ((millis() - _startTime) > config_get()->maxOnTime * 1000UL) {
-    forceStop();
+  if ((millis() - _startTime) > _maxOnTime * 1000UL) {
+    LOG_WARN(CAT_ACTUATOR, "MaxOnTime exceeded (%lu sec)! Emergency stop.",
+             _maxOnTime);
+    _emergencyStop = true;
+    set(false, false);
   }
 }
-
-bool ActuatorBase::delayTimer(bool start) {
-  if (start) {
-    uint16_t delaySec = config_get()->delaySeconds;
-    if (delaySec > 0 && !_delayActive && !_state) {
-      _delayActive = true;
-      _delayTimer = millis() + delaySec * 1000UL;
-      LOG_INFO(CAT_ACTUATOR, "Delay start: %d sec", delaySec);
-    }
-    return false;
-  } else {
-    if (_delayActive && millis() >= _delayTimer) {
-      _delayActive = false;
-      LOG_INFO(CAT_ACTUATOR, "Delay expired");
-      return true;
-    }
-    return false;
-  }
-}
-#endif
