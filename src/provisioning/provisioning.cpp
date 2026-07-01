@@ -152,7 +152,7 @@ void ProvisioningManager::onConfigReceived(const ProvisioningConfig* config) {
 // ============================================================================
 
 BleProvisioningServer* ProvisioningManager::getBleServer() const {
-  return _bleServer;  // <-- ИСПРАВЛЕНО
+  return _bleServer;  
 }
 
 void ProvisioningManager::selectProvisioningMethod() {
@@ -187,7 +187,7 @@ void ProvisioningManager::selectProvisioningMethod() {
             this->onConfigReceived(&provConfig);
           },
           nullptr, BLE_PROVISIONING_TIMEOUT_MS)) {
-    LOG_INFO(CAT_PROVISIONING, "BLE provisioning started");
+    // LOG_INFO(CAT_PROVISIONING, "BLE provisioning started");
   } else {
     LOG_ERROR(CAT_PROVISIONING, "Failed to start BLE provisioning");
     delete _bleServer;

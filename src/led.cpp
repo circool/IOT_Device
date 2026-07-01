@@ -17,7 +17,7 @@ static LedMode currentMode = LED_MODE_OFF;
 void led_init() {
   pinMode(STATUS_LED_PIN, OUTPUT);
   digitalWrite(STATUS_LED_PIN, LED_INVERTED ? HIGH : LOW);
-  LOG_INFO(CAT_LED, "Init pin %d (inverted=%d)", STATUS_LED_PIN, LED_INVERTED);
+  LOG_DEBUG(CAT_LED, "Init pin %d (inverted=%d)", STATUS_LED_PIN, LED_INVERTED);
 }
 
 void led_setMode(LedMode mode) {

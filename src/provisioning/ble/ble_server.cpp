@@ -55,13 +55,7 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
   _credentialsReceived = false;
   _configSaved = false;
 
-  LOG_INFO(CAT_PROVISIONING, "========================================");
-  LOG_INFO(CAT_PROVISIONING, "Starting BLE Provisioning");
-  LOG_INFO(CAT_PROVISIONING, "Device name: %s", _deviceName);
-  LOG_INFO(CAT_PROVISIONING, "Timeout: %u ms", _timeoutMs);
-  LOG_INFO(CAT_PROVISIONING, "Max attempts: %d", MAX_WIFI_ATTEMPTS);
-  LOG_INFO(CAT_PROVISIONING, "========================================");
-
+  LOG_INFO(CAT_PROVISIONING, "Starting BLE Provisioning for device %s",_deviceName);
   // Регистрируем обработчик событий
   WiFi.onEvent(sysProvEvent);
 
