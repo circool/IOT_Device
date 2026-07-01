@@ -27,7 +27,7 @@ void led_setMode(LedMode mode) {
                            "NORMAL",
                            "NO WIFI (1 blink)",
                            "NO MQTT (2 blink)",
-                           "AP MODE (3 blink)",
+                           "AP/BLE Setup MODE (3 blink)",
                            "EMERGENCY OFF (slow blink)"};
     LOG_INFO(CAT_LED, "Mode: %s", names[mode]);
   }

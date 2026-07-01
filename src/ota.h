@@ -2,22 +2,24 @@
 #define OTA_H
 
 #include <Arduino.h>
-#include "web.h"  // Для WebServerClass (реальный или заглушка)
+#include "web.h"
+
+#ifndef OTA_ENABLED
+#define OTA_ENABLED 1
+#endif
 
 #if OTA_ENABLED == 1
 
-/**
- * @brief Инициализация OTA
- * @param server Указатель на WebServer (инъекция зависимости)
- */
 void ota_init(WebServerClass* server);
-
+bool ota_is_available();
 
 /**
- * @brief Проверить доступность OTA
- * @return true — OTA доступен
+ * @brief Получить HTML-код кнопки OTA
+ * @return HTML-строка с кнопкой или сообщением о недоступности
  */
-bool ota_is_available();
+String ota_getButtonHtml();
+
+void ota_loop();
 
 #else
 
@@ -29,6 +31,12 @@ inline void ota_init(WebServerClass* server) {
 inline bool ota_is_available() {
   return false;
 }
+
+inline String ota_getButtonHtml() {
+  return String();
+}
+
+inline void ota_loop() {}
 
 #endif
 

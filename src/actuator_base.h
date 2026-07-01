@@ -2,7 +2,7 @@
 #define ACTUATOR_BASE_H
 
 #include <Arduino.h>
-#include "config.h"
+#include "config_manager.h"
 
 /**
  * @brief Базовый класс для управления исполнительным механизмом

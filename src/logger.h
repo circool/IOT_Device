@@ -7,6 +7,22 @@
 #define MONITOR_SPEED 115200
 #endif
 
+// ============================================================================
+// ОТЛАДКА И ЛОГИРОВАНИЕ
+// ============================================================================
+
+#ifndef LOG_LEVEL
+#define LOG_LEVEL 3  // 0=ERROR, 1=WARN, 2=INFO, 3=DEBUG
+#endif
+
+#ifndef LOG_CATEGORIES
+#define LOG_CATEGORIES 0xFFFF  // Все категории
+#endif
+
+#ifndef LOG_USE_COLOR
+#define LOG_USE_COLOR 1
+#endif
+
 /**
  * @brief Уровни логирования
  */
@@ -23,19 +39,20 @@ enum LogLevel : uint8_t {
  */
 enum LogCategory : uint16_t {
   CAT_NONE = 0,
-  CAT_CONFIG = 1 << 0,    // 1
-  CAT_SENSOR = 1 << 1,    // 2
-  CAT_FAN = 1 << 2,       // 4
-  CAT_SWITCH = 1 << 3,    // 8
-  CAT_ACTUATOR = 1 << 4,  // 16
-  CAT_MQTT = 1 << 5,      // 32
-  CAT_WIFI = 1 << 6,      // 64
-  CAT_WEB = 1 << 7,       // 128
-  CAT_OTA = 1 << 8,       // 256
-  CAT_LED = 1 << 9,       // 512
-  CAT_WDT = 1 << 10,      // 1024
-  CAT_AP = 1 << 11,       // 2048
-  CAT_MAIN = 1 << 12,     // 4096
+  CAT_CONFIG = 1 << 0,         // 1
+  CAT_SENSOR = 1 << 1,         // 2
+  CAT_FAN = 1 << 2,            // 4
+  CAT_SWITCH = 1 << 3,         // 8
+  CAT_ACTUATOR = 1 << 4,       // 16
+  CAT_MQTT = 1 << 5,           // 32
+  CAT_WIFI = 1 << 6,           // 64
+  CAT_WEB = 1 << 7,            // 128
+  CAT_OTA = 1 << 8,            // 256
+  CAT_LED = 1 << 9,            // 512
+  CAT_WDT = 1 << 10,           // 1024
+  CAT_AP = 1 << 11,            // 2048
+  CAT_MAIN = 1 << 12,          // 4096
+  CAT_PROVISIONING = 1 << 13,  // 8192
   CAT_ALL = 0xFFFF
 };
 

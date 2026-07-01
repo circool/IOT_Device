@@ -5,6 +5,90 @@
 #include "sensor.h"
 
 /**
+ * @brief Уровень сигнала для включения реле
+ * @values HIGH или LOW
+ */
+#ifndef RELAY_ON_LEVEL
+#define RELAY_ON_LEVEL LOW
+#endif
+
+// ============================================================================
+// ШИМ (PWM) — для TYPE 1
+// ============================================================================
+
+#if DEVICE_TYPE == 1
+
+/** @brief Включить ШИМ управление скоростью */
+#ifndef PWM_ENABLED
+#define PWM_ENABLED 1
+#endif
+
+#if PWM_ENABLED == 1
+/** @brief Частота ШИМ в Герцах */
+#ifndef PWM_FREQUENCY
+#define PWM_FREQUENCY 500
+#endif
+
+/** @brief Разрешение ШИМ (бит) */
+#ifndef PWM_RESOLUTION
+#define PWM_RESOLUTION 8
+#endif
+
+/** @brief Длина стартового импульса для раскрутки вентилятора (мс) */
+#ifndef PWM_STARTING
+#define PWM_STARTING 200
+#endif
+
+/** @brief Скорость по умолчанию (%) */
+#ifndef DEFAULT_SPEED_PERCENT
+#define DEFAULT_SPEED_PERCENT 50
+#endif
+#endif
+
+/**
+ * @brief Адаптивный тихий режим
+ * Автоматически увеличивает скорость при росте температуры/влажности
+ */
+#if PWM_ENABLED == 1
+#ifndef ADAPTIVE_ENABLED
+#define ADAPTIVE_ENABLED 1
+#endif
+
+#if ADAPTIVE_ENABLED == 1
+/** @brief Порог изменения температуры для адаптации (°C) */
+#ifndef ADAPTIVE_EPSILON_TEMP
+#define ADAPTIVE_EPSILON_TEMP 0.5
+#endif
+
+/** @brief Порог изменения влажности для адаптации (%) */
+#ifndef ADAPTIVE_EPSILON_HUM
+#define ADAPTIVE_EPSILON_HUM 2.0
+#endif
+
+/** @brief Чувствительность адаптации (1.0 = нормальная) */
+#ifndef ADAPTIVE_SPEED_SENSITIVITY
+#define ADAPTIVE_SPEED_SENSITIVITY 0.7
+#endif
+
+/** @brief Шаг изменения скорости при адаптации (%) */
+#ifndef ADAPTIVE_STEP_SIZE
+#define ADAPTIVE_STEP_SIZE 10
+#endif
+
+/** @brief Минимальная скорость при адаптации (%) */
+#ifndef MIN_SPEED_PERCENT
+#define MIN_SPEED_PERCENT 1
+#endif
+#endif
+#endif
+
+#else
+#ifndef PWM_ENABLED
+#define PWM_ENABLED 0
+#endif
+#endif
+
+/**
  * @brief Управление вентилятором с поддержкой ШИМ и адаптивного режима
  *
  * Расширяет ActuatorBase:
@@ -79,12 +163,6 @@ class FanActuator {
   unsigned long getDelayTimer() const { return _base.getDelayTimer(); }
   bool isEmergencyStop() const { return _base.isEmergencyStop(); }
   void clearEmergencyStop() { _base.clearEmergencyStop(); }
-
-  /**
-   * @brief Включить поэтапное увеличение скорости (для туалета)
-   * При срабатывании таймера отложенного включения
-   */
-  // void enableRampUp() { _rampUpActive = true; _lastRampUpTime = millis(); }
 
   // Статические колбэки для ActuatorBase
   static void onSetPhysicalCallback(void* context, bool on);

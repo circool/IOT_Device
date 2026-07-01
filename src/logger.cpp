@@ -127,6 +127,8 @@ const char* Logger::categoryToString(LogCategory category) const {
       return "AP";
     case CAT_MAIN:
       return "MAIN";
+    case CAT_PROVISIONING:
+      return "PROV";
     default:
       return "???";
   }

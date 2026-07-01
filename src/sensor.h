@@ -2,7 +2,7 @@
 #define SENSOR_H
 
 #include <Arduino.h>
-#include "config.h"
+#include "config_manager.h"
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
@@ -17,6 +17,7 @@
  */
 
 #if SENSOR_TYPE == 1
+
 #include <Adafruit_AHTX0.h>
 #elif SENSOR_TYPE == 2
 #include <DHT.h>

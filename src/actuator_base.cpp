@@ -89,7 +89,7 @@ void ActuatorBase::update() {
     set(true, true);
   }
 
-  if (!_state && !_delayActive && config_get()->delaySeconds > 0) {
+  if (!_state && !_delayActive && g_configManager.getDelaySeconds() > 0) {
     delayTimer(true);
   }
 }
@@ -105,19 +105,19 @@ void ActuatorBase::forceStop() {
 void ActuatorBase::checkMaxOnTime() {
   if (!_state)
     return;
-  if (config_get()->maxOnTime == 0)
+  if (g_configManager.getMaxOnTime() == 0)
     return;
   if (_startTime == 0)
     return;
 
-  if ((millis() - _startTime) > config_get()->maxOnTime * 1000UL) {
+  if ((millis() - _startTime) > g_configManager.getMaxOnTime() * 1000UL) {
     forceStop();
   }
 }
 
 bool ActuatorBase::delayTimer(bool start) {
   if (start) {
-    uint16_t delaySec = config_get()->delaySeconds;
+    uint16_t delaySec = g_configManager.getDelaySeconds();
     if (delaySec > 0 && !_delayActive && !_state) {
       _delayActive = true;
       _delayTimer = millis() + delaySec * 1000UL;

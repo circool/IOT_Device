@@ -1,6 +1,10 @@
 #include "fan_actuator.h"
 #include "logger.h"
 
+#ifdef ESP32
+#include <esp32-hal-ledc.h>
+#endif
+
 #if DEVICE_TYPE == 1
 static int percentToPWMValue(int percent) {
   if (percent <= 0)
@@ -37,13 +41,17 @@ void FanActuator::init(uint8_t pin,
   _pin = pin;
   _relayOnLevel = relayOnLevel;
   _currentSpeed = defaultSpeed;
-  _adaptiveMode = config_get()->adaptiveMode;
+  _adaptiveMode = g_configManager.getAdaptiveMode();
   _pwmActive = false;
   _adaptiveActive = false;
   _startingPulseActive = false;
 
 #ifdef ESP32
+  // Используем правильный API для всех ESP32
+  // ledcSetup - настройка канала ШИМ
+  // ledcAttachPin - привязка пина к каналу
   ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcAttachPin(_pin, 0);
 #elif defined(ESP8266)
   analogWriteFreq(PWM_FREQUENCY);
   analogWriteRange(255);
@@ -71,7 +79,8 @@ void FanActuator::update() {
       } else {
         applySpeed(_currentSpeed);
         _startingPulseActive = false;
-        if (_adaptiveMode && sensor_isOk() && config_get()->sensorControlMode) {
+        if (_adaptiveMode && sensor_isOk() &&
+            g_configManager.getSensorControlMode()) {
           _adaptiveActive = true;
           _baseTemp = sensor_getTemperature();
           _baseHum = sensor_getHumidity();
@@ -85,7 +94,7 @@ void FanActuator::update() {
 
   _base.update();
 
-  if (_adaptiveMode && getState() && config_get()->sensorControlMode &&
+  if (_adaptiveMode && getState() && g_configManager.getSensorControlMode() &&
       sensor_isOk()) {
     adaptiveUpdate();
   }
@@ -99,7 +108,7 @@ void FanActuator::setSpeed(int percent, bool manual) {
 
   if (manual) {
     if (_adaptiveMode) {
-      config_setAdaptiveMode(false);
+      g_configManager.setAdaptiveMode(false);
       _adaptiveMode = false;
       _adaptiveActive = false;
     }
@@ -157,8 +166,7 @@ void FanActuator::onSetPhysicalCallback(void* context, bool on) {
     self->applySpeed(0);
     self->_adaptiveActive = false;
     self->_startingPulseActive = false;
-    // ВОССТАНОВЛЕНИЕ СКОРОСТИ ИЗ КОНФИГА
-    self->_currentSpeed = config_get()->speedPercent;
+    self->_currentSpeed = g_configManager.getSpeedPercent();
     LOG_INFO(CAT_FAN, "OFF - restored speed to %d%%", self->_currentSpeed);
   }
 }
@@ -167,8 +175,8 @@ void FanActuator::onForceStopCallback(void* context) {
   FanActuator* self = (FanActuator*)context;
   if (!self)
     return;
-  config_setSensorControlMode(false);
-  config_setAdaptiveMode(false);
+  g_configManager.setSensorControlMode(false);
+  g_configManager.setAdaptiveMode(false);
   self->_adaptiveMode = false;
   self->_adaptiveActive = false;
 }
@@ -178,16 +186,14 @@ void FanActuator::onManualCommandCallback(void* context) {
   if (!self)
     return;
 
-  // Временно отключаем таймер до перезагрузки (для TYPE 1 и TYPE 3)
-  if (config_get()->delaySeconds != 0) {
-    config_setDelaySeconds(0);
+  if (g_configManager.getDelaySeconds() != 0) {
+    g_configManager.setDelaySeconds(0);
     LOG_INFO(CAT_FAN, "Manual command - delaySeconds temporarily disabled");
   }
 
 #if DEVICE_TYPE == 1
-  // Переход в ручной режим при любой ручной команде
-  if (config_get()->sensorControlMode) {
-    config_setSensorControlMode(false);
+  if (g_configManager.getSensorControlMode()) {
+    g_configManager.setSensorControlMode(false);
     LOG_INFO(CAT_FAN, "Manual command - switching to MANUAL mode");
   }
 #endif
@@ -219,7 +225,10 @@ void FanActuator::enablePWM() {
   if (_pwmActive)
     return;
 #ifdef ESP32
+  ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcAttachPin(_pin, 0);
+#elif defined(ESP8266)
+  // Для ESP8266 не требуется отдельного включения
 #endif
   _pwmActive = true;
 }
@@ -230,10 +239,8 @@ void FanActuator::disablePWM() {
 #ifdef ESP32
   ledcDetachPin(_pin);
 #elif defined(ESP8266)
-  // 1024 > default range (1023) — forces PWM hardware to release the pin
-  // without this, analogWrite(pin,0) would keep PWM active at 0% duty cycle
   analogWrite(_pin, 1024);
-  delayMicroseconds(10);  // Wait for PWM cycle to complete
+  delayMicroseconds(10);
   pinMode(_pin, OUTPUT);
 #endif
   _pwmActive = false;
@@ -258,7 +265,8 @@ void FanActuator::adaptiveUpdate() {
     return;
   }
 
-  if (millis() - _lastAdaptiveCheck < config_get()->sensorInterval * 1000UL)
+  if (millis() - _lastAdaptiveCheck <
+      g_configManager.getSensorInterval() * 1000UL)
     return;
   _lastAdaptiveCheck = millis();
 

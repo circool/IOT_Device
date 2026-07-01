@@ -1,7 +1,66 @@
 #ifndef MQTT_H
 #define MQTT_H
 #include <Arduino.h>
-#include "config.h"
+#include "config_manager.h"
+
+/** @brief Включить MQTT клиент по умолчанию */
+#ifndef MQTT_ENABLED
+#define MQTT_ENABLED 1
+#endif
+
+// ============================================================================
+// НАСТРОЙКИ MQTT
+// ============================================================================
+
+#if MQTT_ENABLED == 1
+
+/** @brief Задержка между попытками переподключения (мс) */
+#ifndef MQTT_RECONNECT_DELAY_MS
+#define MQTT_RECONNECT_DELAY_MS 5000
+#endif
+
+/** @brief Интервал публикации heartbeat (мс) */
+#ifndef STATE_PUBLISH_INTERVAL_MS
+#define STATE_PUBLISH_INTERVAL_MS 3000
+#endif
+
+/** @brief Keep-alive интервал MQTT (секунды) */
+#ifndef MQTT_KEEPALIVE_SEC
+#define MQTT_KEEPALIVE_SEC 3
+#endif
+
+/** @brief Включить MQTT команду сброса настроек */
+#ifndef MQTT_RESET_ENABLED
+#define MQTT_RESET_ENABLED 1
+#endif
+
+/** @brief Публиковать RSSI в MQTT */
+#ifndef MQTT_PUBLISH_RSSI
+#define MQTT_PUBLISH_RSSI 1
+#endif
+
+/** @brief Публиковать версию прошивки в MQTT */
+#ifndef MQTT_PUBLISH_VERSION
+#define MQTT_PUBLISH_VERSION 1
+#endif
+
+/** @brief Публиковать причину перезагрузки (кроме POWER_ON/SOFT_RESTART) */
+#ifndef MQTT_PUBLISH_RESET_REASON
+#define MQTT_PUBLISH_RESET_REASON 1
+#endif
+
+#if MQTT_PUBLISH_RESET_REASON == 1
+/** @brief Не публиковать штатные перезагрузки (POWER_ON, SOFT_RESTART) */
+#ifndef MQTT_IGNORE_PUBLISH_NORMAL_RESET_REASONS
+#define MQTT_IGNORE_PUBLISH_NORMAL_RESET_REASONS 1
+#endif
+#endif
+
+#else
+#define MQTT_RESET_ENABLED 0
+#define MQTT_PUBLISH_RSSI 0
+#define MQTT_PUBLISH_RESET_REASON 0
+#endif
 
 #if MQTT_ENABLED == 1
 
