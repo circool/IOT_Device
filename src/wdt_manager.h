@@ -1,7 +1,42 @@
 #ifndef WDT_H
 #define WDT_H
 
-#include "config.h"
+#include "config_manager.h"
+
+// ============================================================================
+// WATCHDOG (WDT)
+// ============================================================================
+
+/** @brief Включить аппаратный сторожевой таймер */
+#ifndef WDT_ENABLED
+#define WDT_ENABLED 1
+
+#endif
+
+#ifndef WDT_TIMER_MS
+#define WDT_TIMER_MS 5000
+#endif
+
+#if WDT_ENABLED == 1
+/** @brief Таймаут WDT в миллисекундах */
+#ifndef WDT_TIMER_MS
+#define WDT_TIMER_MS 5000
+#endif
+
+/** @brief Множитель для расчёта WDT в loop (не используется в текущей версии)
+ */
+#ifndef LOOP_WATCHDOG_MULTIPLIER
+#define LOOP_WATCHDOG_MULTIPLIER 3
+#endif
+
+#else
+
+/** @brief Софт-WDT (заглушка, не реализован) */
+#ifndef SOFT_WDT_ENABLED
+#define SOFT_WDT_ENABLED 1
+#endif
+
+#endif
 
 // ============================================================================
 // WATCHDOG FUNCTIONS

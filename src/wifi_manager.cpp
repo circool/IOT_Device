@@ -1,16 +1,21 @@
 #include "wifi_manager.h"
-#include "config.h"
+#include "config_manager.h"
 #include "logger.h"
 #include "web.h"
 
 #if WIFI_ENABLED == 1
+bool apMode = false;
+
+bool wifi_is_ap_mode() {
+  return apMode;
+}
 
 static unsigned long wifi_connect_start_time = 0;
 bool wifi_is_connecting = false;
 static unsigned long wifi_lost_time = 0;
 
 void wifi_begin() {
-  if (strlen(config_get()->wifiSsid) == 0) {
+  if (strlen(g_configManager.getWifiSsid()) == 0) {
     LOG_WARN(CAT_WIFI, "No SSID configured");
     return;
   }
@@ -21,10 +26,10 @@ void wifi_begin() {
     return;
 
   LOG_INFO(CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET,
-           config_get()->wifiSsid);
+           g_configManager.getWifiSsid());
 
   WiFi.mode(WIFI_STA);
-  WiFi.begin(config_get()->wifiSsid, config_get()->wifiPassword);
+  WiFi.begin(g_configManager.getWifiSsid(), g_configManager.getWifiPassword());
   wifi_is_connecting = true;
   wifi_connect_start_time = millis();
 }
@@ -59,7 +64,7 @@ void wifi_check() {
 
 void wifi_monitor() {
   if (apMode) {
-    if (strlen(config_get()->wifiSsid) == 0)
+    if (strlen(g_configManager.getWifiSsid()) == 0)
       return;
 
     if (!wifi_is_connecting) {
@@ -90,7 +95,8 @@ void wifi_monitor() {
                AP_FALLBACK_TIMEOUT_MS);
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
-      delay(100);  // Allow WiFi hardware to fully deinitialize before AP start (critical for ESP8266)
+      delay(100);  // Allow WiFi hardware to fully deinitialize before AP start
+                   // (critical for ESP8266)
       web_initAP();
       wifi_lost_time = 0;
     }
@@ -178,6 +184,14 @@ int wifi_get_rssi() {
 
 bool wifi_is_connected() {
   return WiFi.status() == WL_CONNECTED;
+}
+
+void wifi_start_ap_mode() {
+  if (apMode)
+    return;
+  apMode = true;
+  wifi_start_ap(g_configManager.getDeviceId());
+  web_initAP();
 }
 
 #endif

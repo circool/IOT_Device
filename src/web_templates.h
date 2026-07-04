@@ -2,7 +2,7 @@
 #define WEB_TEMPLATES_H
 
 #include <Arduino.h>
-#include "config.h"
+#include "config_manager.h"
 #include "ota.h"
 
 #if WEB_ENABLED == 1
@@ -11,11 +11,10 @@
 
 /**
  * @brief Константы HTML-шаблонов
- *
  * Хранятся в PROGMEM (Flash) для экономии RAM
  */
 
-// ========== ОБЩИЙ ШАБЛОН СТРАНИЦЫ (НАЧАЛО, БЕЗ МАРКЕРОВ) ==========
+// ========== ОБЩИЙ ШАБЛОН СТРАНИЦЫ (НАЧАЛО) ==========
 const char HTML_PAGE_START[] PROGMEM = R"rawliteral(
 <!DOCTYPE html>
 <html><head><meta charset='UTF-8'>
@@ -134,7 +133,6 @@ input[type=submit]:hover,button:hover,.link-btn:hover {
   gap: 8px;
   align-items: flex-start;
 }
-
 .note::before {	
   content: "ℹ️";
   font-weight: bold;
@@ -210,7 +208,7 @@ using WebSendCallback = std::function<void(const String&)>;
 inline void sendConfigPage(WebSendCallback send,
                            const String& errorMsg,
                            const String& successMsg,
-                           const Config& savedConfig,
+                           const ConfigData& savedConfig,
                            const String& currentMode,
                            const String& currentSsid,
                            const String& currentIp,
@@ -235,14 +233,14 @@ inline void sendConfigPage(WebSendCallback send,
 #endif
 
   send(F("<title>"));
-  send(deviceId);
+  send(g_configManager.getDeviceId());
   send(F(" Configuration</title>"));
 
   send(FPSTR(HTML_STYLE));
   send(F("</head><body><div class='container'>"));
 
   send(F("<h1>Settings "));
-  send(deviceId);
+  send(g_configManager.getDeviceId());
   send(F(" v. "));
   send(VERSION);
   send(F("</h1>"));
@@ -466,13 +464,7 @@ inline void sendConfigPage(WebSendCallback send,
   send(F("</form>"));
 
 #if OTA_ENABLED == 1
-  if (ota_is_available()) {
-    send(F("<a href='/update' class='link-btn'>Upgrade firmware (OTA)</a>"));
-  } else {
-    send(
-        F("<div class='warning'>OTA unavailable: insufficient Flash memory "
-          "(2MB required)</div>"));
-  }
+  send(ota_getButtonHtml());
 #endif
 
   if (!isApMode) {
@@ -480,5 +472,7 @@ inline void sendConfigPage(WebSendCallback send,
   }
   send(FPSTR(HTML_PAGE_END));
 }
+
 #endif  // WEB_ENABLED
+
 #endif  // WEB_TEMPLATES_H

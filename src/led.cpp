@@ -17,7 +17,7 @@ static LedMode currentMode = LED_MODE_OFF;
 void led_init() {
   pinMode(STATUS_LED_PIN, OUTPUT);
   digitalWrite(STATUS_LED_PIN, LED_INVERTED ? HIGH : LOW);
-  LOG_INFO(CAT_LED, "Init pin %d (inverted=%d)", STATUS_LED_PIN, LED_INVERTED);
+  LOG_DEBUG(CAT_LED, "Init pin %d (inverted=%d)", STATUS_LED_PIN, LED_INVERTED);
 }
 
 void led_setMode(LedMode mode) {
@@ -27,7 +27,7 @@ void led_setMode(LedMode mode) {
                            "NORMAL",
                            "NO WIFI (1 blink)",
                            "NO MQTT (2 blink)",
-                           "AP MODE (3 blink)",
+                           "AP/BLE Setup MODE (3 blink)",
                            "EMERGENCY OFF (slow blink)"};
     LOG_INFO(CAT_LED, "Mode: %s", names[mode]);
   }

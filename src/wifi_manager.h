@@ -9,7 +9,63 @@
 #include <ESP8266WiFi.h>
 #endif
 
+// ============================================================================
+// НАСТРОЙКИ WIFI
+// ============================================================================
+
+/** @brief Включить режим точки доступа (AP) для настройки */
+#ifndef AP_ENABLED
+#define AP_ENABLED 1
+#endif
+
+/** @brief Таймаут подключения к WiFi (миллисекунды) */
+#ifndef WIFI_CONNECT_TIMEOUT_MS
+#define WIFI_CONNECT_TIMEOUT_MS 6000
+#endif
+
+/** @brief Интервал проверки WiFi соединения (мс) */
+#ifndef WIFI_CHECK_INTERVAL_MS
+#define WIFI_CHECK_INTERVAL_MS 10000
+#endif
+
+// ============================================================================
+// РЕЖИМ ТОЧКИ ДОСТУПА (AP)
+// ============================================================================
+
+#if AP_ENABLED == 1
+/** @brief IP адрес точки доступа */
+#ifndef AP_IP_ADDRESS
+#define AP_IP_ADDRESS "192.168.4.1"
+#endif
+
+/**
+ * @brief Время без WiFi до перехода в режим AP (мс)
+ * Если устройство не может подключиться к WiFi дольше этого времени,
+ * запускается собственная точка доступа для настройки.
+ */
+#ifndef AP_FALLBACK_TIMEOUT_MS
+#define AP_FALLBACK_TIMEOUT_MS 12000
+#endif
+#endif
+
+/** @brief Включить поддержку WiFi */
+#ifndef WIFI_ENABLED
+#define WIFI_ENABLED 1
+#endif
+
 #if WIFI_ENABLED == 1
+
+extern bool apMode;
+bool wifi_is_ap_mode();
+
+#ifndef SCANING_WIFI_ENABLED
+#define SCANING_WIFI_ENABLED 0
+#endif
+
+/** @brief Включить веб-интерфейс */
+#ifndef WEB_ENABLED
+#define WEB_ENABLED 1
+#endif
 
 /**
  * @brief Флаг процесса подключения к WiFi
@@ -73,6 +129,8 @@ void wifi_start_ap(const char* ssid);
  */
 int wifi_scan_and_log(const char* targetSsid);
 
+void wifi_start_ap_mode();
+
 #else  // WIFI_ENABLED == 0
 
 /**
@@ -135,6 +193,8 @@ inline int wifi_scan_and_log(const char* /*targetSsid*/) {
  * @note Всегда false, так как WiFi отключён
  */
 static bool wifi_is_connecting = false;
+
+void wifi_start_ap_mode() {};
 
 #endif  // WIFI_ENABLED == 1
 
