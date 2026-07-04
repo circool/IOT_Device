@@ -1,3 +1,14 @@
+/**
+ * @file ble_server.cpp
+ * @brief Реализация BLE-сервера провизионинга для ESP32
+ *
+ * @details Реализует BLE-сервер для ESP BLE Provisioning протокола.
+ *          Использует библиотеку WiFiProv от Espressif.
+ *
+ * @see
+ * https://github.com/espressif/arduino-esp32/tree/master/libraries/WiFiProv
+ */
+
 #include "ble_server.h"
 #include "config_manager.h"
 #include "logger.h"
@@ -9,17 +20,43 @@
 #include <WiFi.h>
 #include <WiFiProv.h>
 
-static BleProvisioningServer* g_provServer = nullptr;
-static ProvConfigCallback g_configCallback = nullptr;
-static BleConfigData g_receivedConfig;
-static bool g_credentialsReceived = false;
+// ============================================================================
+// СТАТИЧЕСКИЕ ПЕРЕМЕННЫЕ
+// ============================================================================
 
-// UUID сервиса (стандартный для ESP BLE Provisioning)
+static BleProvisioningServer* g_provServer =
+    nullptr;  //!< Глобальный указатель на сервер
+static ProvConfigCallback g_configCallback =
+    nullptr;                                //!< Глобальный колбэк конфигурации
+static BleConfigData g_receivedConfig;      //!< Буфер полученной конфигурации
+static bool g_credentialsReceived = false;  //!< Флаг получения креденшелов
+
+/**
+ * @brief UUID сервиса для ESP BLE Provisioning
+ * @details Стандартный UUID, используемый приложением ESP BLE Provisioning
+ */
 static const uint8_t PROV_UUID[16] = {0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b,
                                       0xf4, 0xbf, 0xea, 0x4a, 0x82, 0x03,
                                       0x04, 0x90, 0x1a, 0x02};
 
-// ===== ОБРАБОТЧИК СОБЫТИЙ ПО ДОКУМЕНТАЦИИ =====
+// ============================================================================
+// ОБРАБОТЧИК СОБЫТИЙ
+// ============================================================================
+
+/**
+ * @brief Обработчик системных событий Arduino
+ *
+ * @details Обрабатывает события провизионинга:
+ *          - PROV_START — начало процесса
+ *          - PROV_CRED_RECV — получены креденшелы
+ *          - PROV_CRED_FAIL — ошибка авторизации
+ *          - PROV_CRED_SUCCESS — успешное завершение
+ *          - PROV_END — окончание провизионинга
+ *
+ * @param sys_event Указатель на событие
+ *
+ * @note Реализован по официальной документации ESP32 WiFiProv
+ */
 void SysProvEvent(arduino_event_t* sys_event) {
   switch (sys_event->event_id) {
     case ARDUINO_EVENT_PROV_START:
@@ -50,7 +87,7 @@ void SysProvEvent(arduino_event_t* sys_event) {
     case ARDUINO_EVENT_PROV_CRED_FAIL:
       Serial.printf("\nProvisioning failed!\n");
       if (g_configCallback) {
-        g_configCallback(nullptr);
+        g_configCallback(nullptr);  // Передаём nullptr при ошибке
       }
       break;
 
@@ -71,7 +108,10 @@ void SysProvEvent(arduino_event_t* sys_event) {
   }
 }
 
-// ===== КОНСТРУКТОР =====
+// ============================================================================
+// РЕАЛИЗАЦИЯ КЛАССА
+// ============================================================================
+
 BleProvisioningServer::BleProvisioningServer(const char* deviceName) {
   if (deviceName && strlen(deviceName) < sizeof(_deviceName)) {
     strncpy(_deviceName, deviceName, sizeof(_deviceName) - 1);
@@ -84,13 +124,11 @@ BleProvisioningServer::BleProvisioningServer(const char* deviceName) {
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 }
 
-// ===== ДЕСТРУКТОР =====
 BleProvisioningServer::~BleProvisioningServer() {
   stop();
   g_provServer = nullptr;
 }
 
-// ===== ЗАПУСК =====
 bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
                                   ProvStatusCallback statusCallback,
                                   ProvConnCallback connCallback,
@@ -112,10 +150,19 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
   LOG_INFO(CAT_PROVISIONING, "PIN: %s", BLE_PROVISIONING_PIN);
   LOG_INFO(CAT_PROVISIONING, "========================================");
 
-  // Регистрируем обработчик
+  // Регистрируем обработчик событий WiFi
   WiFi.onEvent(SysProvEvent);
 
   // Запускаем провизионинг по документации
+  // Параметры:
+  //   WIFI_PROV_SCHEME_BLE - используем BLE транспорт
+  //   WIFI_PROV_SCHEME_HANDLER_FREE_BLE - стандартный обработчик
+  //   WIFI_PROV_SECURITY_1 - уровень безопасности 1
+  //   BLE_PROVISIONING_PIN - PIN для сопряжения (PoP)
+  //   _deviceName - имя устройства в BLE
+  //   NULL - пользовательские данные (не используются)
+  //   (uint8_t*)PROV_UUID - UUID сервиса
+  //   true - сбросить предыдущие данные провизионинга
   WiFiProv.beginProvision(WIFI_PROV_SCHEME_BLE,
                           WIFI_PROV_SCHEME_HANDLER_FREE_BLE,
                           WIFI_PROV_SECURITY_1, BLE_PROVISIONING_PIN,
@@ -130,7 +177,6 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
   return true;
 }
 
-// ===== ОСТАНОВКА =====
 void BleProvisioningServer::stop() {
   if (!_active)
     return;
@@ -143,7 +189,6 @@ void BleProvisioningServer::stop() {
   LOG_INFO(CAT_PROVISIONING, "BLE provisioning stopped");
 }
 
-// ===== ПРОЧИЕ МЕТОДЫ =====
 bool BleProvisioningServer::isActive() const {
   return _active;
 }
