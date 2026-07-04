@@ -1,27 +1,9 @@
-/**
- * @file ble_server.h
- * @brief BLE Provisioning Server для ESP32
- *
- * Реализует BLE-комиссионинг через протокол ESP BLE Provisioning.
- * Совместим с приложением ESP BLE Provisioning (доступно в Play Store).
- *
- * @note Для настройки используйте приложение "ESP BLE Provisioning" от
- * Espressif
- * @see https://play.google.com/store/apps/details?id=com.espressif.bleprov
- */
-
+// ===== ФАЙЛ: src/provisioning/ble/ble_server.h =====
 #ifndef BLE_SERVER_H
 #define BLE_SERVER_H
 
 #include <Arduino.h>
 #include <functional>
-#include "settings.h"
-
-// Вместо forward declaration включаем правильный заголовок
-// Но только если мы компилируем для ESP32
-#if defined(ESP32) && !defined(ESP8266)
-#include <WiFiGeneric.h>  // Содержит полное определение arduino_event_t
-#endif
 
 struct BleConfigData {
   char wifiSsid[32];
@@ -39,45 +21,11 @@ struct BleConfigData {
 
 using ProvConfigCallback = std::function<void(const BleConfigData* config)>;
 using ProvStatusCallback = std::function<void(uint8_t status)>;
+using ProvConnCallback = std::function<bool()>;
+using ProvIpCallback = std::function<const char*()>;
 
-enum class BleProvisioningState : uint8_t {
-  IDLE = 0,
-  WAITING_CREDENTIALS,
-  CONNECTING_WIFI,
-  WIFI_CONNECTED,
-  WIFI_AUTH_ERROR,
-  TIMEOUT,
-  MAX_ATTEMPTS_REACHED,
-  STOPPED
-};
+#if defined(ESP32) && !defined(ESP8266)
 
-/**
- * @brief BLE Provisioning Server
- *
- * Устройство становится доступно как BLE-устройство с именем {prefix}_XXXX.
- * Для настройки используйте приложение ESP BLE Provisioning.
- *
- * @section provisioning_flow Процесс настройки:
- * 1. Устройство запускает BLE-сервер при первом включении
- * 2. Пользователь подключается через ESP BLE Provisioning
- * 3. Вводит SSID и пароль WiFi
- * 4. Устройство пытается подключиться (максимум 3 попытки)
- * 5. При успехе — сохраняет настройки и перезагружается
- * 6. При ошибке (неверный пароль/SSID) — перезапускает процесс
- *
- * @section app_settings Настройки в приложении:
- * - Security: Security 1 (PoP)
- * - PoP (Proof of Possession): 12345678
- * - Device Name: {prefix}_{XXXX} (например, fan_ABCD)
- *
- * @section supported_platforms Поддерживаемые платформы:
- * - ESP32 (классический)
- * - ESP32-C3
- * - ESP32-S3
- * - ESP32-C6 (с BLE)
- *
- * @note Для ESP8266 BLE не доступен — используется AP-режим
- */
 class BleProvisioningServer {
  public:
   explicit BleProvisioningServer(const char* deviceName = nullptr);
@@ -85,35 +33,58 @@ class BleProvisioningServer {
 
   bool begin(ProvConfigCallback configCallback,
              ProvStatusCallback statusCallback = nullptr,
-             uint32_t timeoutMs = BLE_PROVISIONING_TIMEOUT_MS);
+             ProvConnCallback connCallback = nullptr,
+             ProvIpCallback ipCallback = nullptr);
 
   void stop();
-  void deinit();
-
   bool isActive() const;
-  BleProvisioningState getState() const;
-  void process();
-
-  void onWiFiEvent(arduino_event_t* event);
+  const char* getDeviceName() const;
+  void setDeviceName(const char* name);
+  void sendStatus(uint8_t status);
+  void sendConnectionStatus(bool connected, const char* ip = nullptr);
+  bool hasConnectedClient() const { return false; }
+  void sendGetStatus() {}
 
  private:
-  bool startWiFiProvisioning();
-
   bool _active = false;
-  bool _provisioningStarted = false;
   char _deviceName[32];
   BleConfigData _config;
-  BleProvisioningState _state = BleProvisioningState::IDLE;
+  bool _configReceived = false;
 
   ProvConfigCallback _configCallback;
   ProvStatusCallback _statusCallback;
-
-  static const uint8_t MAX_WIFI_ATTEMPTS = BLE_PROVISIONING_MAX_ATTEMPTS;
-  uint8_t _wifiAttempts = 0;
-  uint32_t _startTimeMs = 0;
-  uint32_t _timeoutMs = 0;
-  bool _credentialsReceived = false;
-  bool _configSaved = false;
+  ProvConnCallback _connCallback;
+  ProvIpCallback _ipCallback;
 };
+
+#else
+
+class BleProvisioningServer {
+ public:
+  explicit BleProvisioningServer(const char* deviceName = nullptr) {
+    (void)deviceName;
+  }
+  ~BleProvisioningServer() {}
+
+  bool begin(ProvConfigCallback,
+             ProvStatusCallback = nullptr,
+             ProvConnCallback = nullptr,
+             ProvIpCallback = nullptr) {
+    return false;
+  }
+  void stop() {}
+  bool isActive() const { return false; }
+  const char* getDeviceName() const { return "No BLE"; }
+  void setDeviceName(const char* name) { (void)name; }
+  void sendStatus(uint8_t status) { (void)status; }
+  void sendConnectionStatus(bool connected, const char* ip = nullptr) {
+    (void)connected;
+    (void)ip;
+  }
+  bool hasConnectedClient() const { return false; }
+  void sendGetStatus() {}
+};
+
+#endif
 
 #endif  // BLE_SERVER_H
