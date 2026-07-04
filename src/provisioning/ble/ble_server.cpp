@@ -1,4 +1,3 @@
-// ===== ФАЙЛ: src/provisioning/ble/ble_server.cpp =====
 #include "ble_server.h"
 #include "config_manager.h"
 #include "logger.h"
@@ -12,90 +11,59 @@
 
 static BleProvisioningServer* g_provServer = nullptr;
 static ProvConfigCallback g_configCallback = nullptr;
-static ProvStatusCallback g_statusCallback = nullptr;
 static BleConfigData g_receivedConfig;
 static bool g_credentialsReceived = false;
-static bool g_credentialsSaved = false;
 
+// UUID сервиса (стандартный для ESP BLE Provisioning)
 static const uint8_t PROV_UUID[16] = {0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b,
                                       0xf4, 0xbf, 0xea, 0x4a, 0x82, 0x03,
                                       0x04, 0x90, 0x1a, 0x02};
 
-void sysProvEvent(arduino_event_t* sys_event) {
-  if (!g_provServer)
-    return;
-
+// ===== ОБРАБОТЧИК СОБЫТИЙ ПО ДОКУМЕНТАЦИИ =====
+void SysProvEvent(arduino_event_t* sys_event) {
   switch (sys_event->event_id) {
-    case ARDUINO_EVENT_WIFI_STA_GOT_IP: {
-      LOG_INFO(CAT_PROVISIONING, "WiFi connected! IP: %s",
-               IPAddress(sys_event->event_info.got_ip.ip_info.ip.addr)
-                   .toString()
-                   .c_str());
-
-      if (g_credentialsReceived && !g_credentialsSaved) {
-        String ssid = WiFi.SSID();
-        String password = WiFi.psk();
-
-        LOG_INFO(CAT_PROVISIONING,
-                 "Saving credentials (WiFi connected successfully)");
-        LOG_INFO(CAT_PROVISIONING, "SSID: %s", ssid.c_str());
-
-        memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
-        strncpy(g_receivedConfig.wifiSsid, ssid.c_str(),
-                sizeof(g_receivedConfig.wifiSsid) - 1);
-        strncpy(g_receivedConfig.wifiPassword, password.c_str(),
-                sizeof(g_receivedConfig.wifiPassword) - 1);
-
-        if (g_configCallback) {
-          g_configCallback(&g_receivedConfig);
-          g_credentialsSaved = true;
-        }
-      }
-      break;
-    }
-
     case ARDUINO_EVENT_PROV_START:
-      LOG_INFO(CAT_PROVISIONING, "Provisioning started");
-      g_credentialsReceived = false;
-      g_credentialsSaved = false;
-      memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
-      if (g_statusCallback)
-        g_statusCallback(0x01);
+      Serial.printf("\nProvisioning Started\n");
       break;
 
     case ARDUINO_EVENT_PROV_CRED_RECV: {
-      LOG_INFO(CAT_PROVISIONING, "Credentials received from BLE");
-      g_credentialsReceived = true;
+      Serial.printf("\nReceived Wi-Fi credentials\n");
+      Serial.printf("\tSSID : %s\n",
+                    (const char*)sys_event->event_info.prov_cred_recv.ssid);
+      Serial.printf("\tPassword : %s\n",
+                    (const char*)sys_event->event_info.prov_cred_recv.password);
+
+      // Сохраняем полученные данные
+      if (sys_event->event_info.prov_cred_recv.ssid) {
+        memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
+        strncpy(g_receivedConfig.wifiSsid,
+                (char*)sys_event->event_info.prov_cred_recv.ssid,
+                sizeof(g_receivedConfig.wifiSsid) - 1);
+        strncpy(g_receivedConfig.wifiPassword,
+                (char*)sys_event->event_info.prov_cred_recv.password,
+                sizeof(g_receivedConfig.wifiPassword) - 1);
+        g_credentialsReceived = true;
+      }
       break;
     }
 
-    case ARDUINO_EVENT_PROV_CRED_FAIL: {
-      LOG_ERROR(CAT_PROVISIONING,
-                "Provisioning failed - WiFi authentication error");
-      g_credentialsReceived = false;
-      memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
-      if (g_statusCallback)
-        g_statusCallback(0x04);
+    case ARDUINO_EVENT_PROV_CRED_FAIL:
+      Serial.printf("\nProvisioning failed!\n");
+      if (g_configCallback) {
+        g_configCallback(nullptr);
+      }
       break;
-    }
 
     case ARDUINO_EVENT_PROV_CRED_SUCCESS:
-      LOG_INFO(CAT_PROVISIONING,
-               "Provisioning successful - WiFi credentials applied");
-      if (g_statusCallback)
-        g_statusCallback(0x02);
+      Serial.printf("\nProvisioning Successful\n");
+      if (g_credentialsReceived && g_configCallback) {
+        g_configCallback(&g_receivedConfig);
+        g_credentialsReceived = false;
+      }
       break;
 
     case ARDUINO_EVENT_PROV_END:
-      LOG_INFO(CAT_PROVISIONING, "Provisioning ended");
-      if (g_credentialsReceived && !g_credentialsSaved) {
-        LOG_WARN(CAT_PROVISIONING,
-                 "Provisioning ended without successful WiFi connection");
-        g_credentialsReceived = false;
-        memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
-      }
-      if (g_statusCallback)
-        g_statusCallback(0x03);
+      Serial.printf("\nProvisioning Ends\n");
       break;
 
     default:
@@ -103,6 +71,7 @@ void sysProvEvent(arduino_event_t* sys_event) {
   }
 }
 
+// ===== КОНСТРУКТОР =====
 BleProvisioningServer::BleProvisioningServer(const char* deviceName) {
   if (deviceName && strlen(deviceName) < sizeof(_deviceName)) {
     strncpy(_deviceName, deviceName, sizeof(_deviceName) - 1);
@@ -112,15 +81,16 @@ BleProvisioningServer::BleProvisioningServer(const char* deviceName) {
   }
   g_provServer = this;
   g_credentialsReceived = false;
-  g_credentialsSaved = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 }
 
+// ===== ДЕСТРУКТОР =====
 BleProvisioningServer::~BleProvisioningServer() {
   stop();
   g_provServer = nullptr;
 }
 
+// ===== ЗАПУСК =====
 bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
                                   ProvStatusCallback statusCallback,
                                   ProvConnCallback connCallback,
@@ -129,46 +99,51 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
     return true;
 
   g_configCallback = configCallback;
-  g_statusCallback = statusCallback;
   g_credentialsReceived = false;
-  g_credentialsSaved = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
+
+  (void)statusCallback;
   (void)connCallback;
   (void)ipCallback;
 
   LOG_INFO(CAT_PROVISIONING, "========================================");
-  LOG_INFO(CAT_PROVISIONING, "Starting BLE Provisioning via WiFiProv");
+  LOG_INFO(CAT_PROVISIONING, "Starting BLE Provisioning");
   LOG_INFO(CAT_PROVISIONING, "Device name: %s", _deviceName);
+  LOG_INFO(CAT_PROVISIONING, "PIN: %s", BLE_PROVISIONING_PIN);
   LOG_INFO(CAT_PROVISIONING, "========================================");
 
-  // Регистрируем обработчик событий WiFi
-  WiFi.onEvent(sysProvEvent);
+  // Регистрируем обработчик
+  WiFi.onEvent(SysProvEvent);
 
-  const char* pop = BLE_PROVISIONING_PIN;
-
-  WiFiProv.beginProvision(
-      WIFI_PROV_SCHEME_BLE, WIFI_PROV_SCHEME_HANDLER_FREE_BLE,
-      WIFI_PROV_SECURITY_1, pop, _deviceName, NULL, (uint8_t*)PROV_UUID, true);
+  // Запускаем провизионинг по документации
+  WiFiProv.beginProvision(WIFI_PROV_SCHEME_BLE,
+                          WIFI_PROV_SCHEME_HANDLER_FREE_BLE,
+                          WIFI_PROV_SECURITY_1, BLE_PROVISIONING_PIN,
+                          _deviceName, NULL, (uint8_t*)PROV_UUID,
+                          true  // reset_provisioned
+  );
 
   _active = true;
   LOG_INFO(CAT_PROVISIONING, "BLE provisioning started successfully!");
-  LOG_INFO(CAT_PROVISIONING, "Device name: %s", _deviceName);
-  LOG_INFO(CAT_PROVISIONING, "PIN: %s", pop);
   LOG_INFO(CAT_PROVISIONING, "Use ESP BLE Provisioning app");
 
   return true;
 }
 
+// ===== ОСТАНОВКА =====
 void BleProvisioningServer::stop() {
   if (!_active)
     return;
+
   _active = false;
   g_credentialsReceived = false;
-  g_credentialsSaved = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
+
+  WiFi.removeEvent(SysProvEvent);
   LOG_INFO(CAT_PROVISIONING, "BLE provisioning stopped");
 }
 
+// ===== ПРОЧИЕ МЕТОДЫ =====
 bool BleProvisioningServer::isActive() const {
   return _active;
 }
