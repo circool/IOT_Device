@@ -60,15 +60,15 @@ static const uint8_t PROV_UUID[16] = {0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b,
 void SysProvEvent(arduino_event_t* sys_event) {
   switch (sys_event->event_id) {
     case ARDUINO_EVENT_PROV_START:
-      Serial.printf("\nProvisioning Started\n");
+      // Serial.printf("\nProvisioning Started\n");
       break;
 
     case ARDUINO_EVENT_PROV_CRED_RECV: {
-      Serial.printf("\nReceived Wi-Fi credentials\n");
-      Serial.printf("\tSSID : %s\n",
-                    (const char*)sys_event->event_info.prov_cred_recv.ssid);
-      Serial.printf("\tPassword : %s\n",
-                    (const char*)sys_event->event_info.prov_cred_recv.password);
+      // Serial.printf("\nReceived Wi-Fi credentials\n");
+      // Serial.printf("\tSSID : %s\n",
+      //               (const char*)sys_event->event_info.prov_cred_recv.ssid);
+      // Serial.printf("\tPassword : %s\n",
+                    // (const char*)sys_event->event_info.prov_cred_recv.password);
 
       // Сохраняем полученные данные
       if (sys_event->event_info.prov_cred_recv.ssid) {

@@ -109,69 +109,38 @@ void wifi_monitor() {
 }
 
 void wifi_start_ap(const char* ssid) {
-  WiFi.mode(WIFI_AP_STA);
+  LOG_DEBUG(CAT_WIFI, "========================================");
+  LOG_DEBUG(CAT_WIFI, "Starting AP with SSID: %s", ssid);
+  LOG_DEBUG(CAT_WIFI, "========================================");
+
+  // Пробуем режим WIFI_AP (только точка доступа)
+  WiFi.mode(WIFI_AP);
 
 #ifdef ESP8266
   IPAddress apIP;
   apIP.fromString(AP_IP_ADDRESS);
-  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+  if (!WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0))) {
+    LOG_ERROR(CAT_WIFI, "softAPConfig FAILED!");
+  }
 #endif
 
-  WiFi.softAP(ssid);
+  // Пытаемся запустить AP
+  
 
-  LOG_INFO(CAT_WIFI, "AP started: SSID=" ANSI_BOLD "%s" ANSI_RESET ", IP=%s",
-           ssid, AP_IP_ADDRESS);
-}
-
-int wifi_scan_and_log(const char* targetSsid) {
-  static bool is_scanning = false;
-
-  // Защита от реентерабельности
-  if (is_scanning) {
-    LOG_WARN(CAT_WIFI, "Scan already in progress, skipping");
-    return -1;
+  if (WiFi.softAP(ssid)) {
+    LOG_INFO(CAT_WIFI, "AP started SUCCESSFULLY!");
+    LOG_DEBUG(CAT_WIFI, "  SSID: %s", ssid);
+    LOG_DEBUG(CAT_WIFI, "  IP: %s", WiFi.softAPIP().toString().c_str());
+    LOG_DEBUG(CAT_WIFI, "  MAC: %s", WiFi.softAPmacAddress().c_str());
+    LOG_DEBUG(CAT_WIFI, "  Channel: %d", WiFi.channel());
+    LOG_DEBUG(CAT_WIFI, "  Mode: %d", WiFi.getMode());
+  } else {
+    LOG_ERROR(CAT_WIFI, "AP start FAILED!");
+    LOG_DEBUG(CAT_WIFI, "  WiFi mode: %d", WiFi.getMode());
+    LOG_DEBUG(CAT_WIFI, "  Status: %d", WiFi.status());
   }
 
-  // Не сканируем, если в процессе подключения к другой сети
-  if (wifi_is_connecting) {
-    LOG_WARN(CAT_WIFI, "Cannot scan while connecting to WiFi");
-    return -1;
-  }
-
-  is_scanning = true;
-
-  LOG_INFO(CAT_WIFI, "Scanning WiFi networks...");
-
-  int networksFound = WiFi.scanNetworks();
-
-  if (networksFound == WIFI_SCAN_FAILED) {
-    LOG_ERROR(CAT_WIFI, "WiFi scan failed");
-    WiFi.scanDelete();
-    is_scanning = false;
-    return -1;
-  }
-
-  bool markTarget = (targetSsid != nullptr && strlen(targetSsid) > 0);
-
-  for (int i = 0; i < networksFound; i++) {
-    String ssid = WiFi.SSID(i);
-    int32_t rssi = WiFi.RSSI(i);
-
-    if (markTarget && ssid == targetSsid) {
-      LOG_DEBUG(CAT_WIFI,
-                "%s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET,
-                ssid.c_str(), rssi);
-    } else {
-      LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d)", ssid.c_str(), rssi);
-    }
-  }
-
-  LOG_INFO(CAT_WIFI, "Scan complete: %d network(s) found", networksFound);
-
-  WiFi.scanDelete();
-  is_scanning = false;
-
-  return networksFound;
+  LOG_INFO(CAT_WIFI, "========================================");
 }
 
 String wifi_get_local_ip() {

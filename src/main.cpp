@@ -21,14 +21,6 @@
 
 #include "provisioning/provisioning.h"
 
-// Если используется BLE, AP и Web отключаются
-#if USE_BLE_PROVISIONING == 1
-#undef AP_ENABLED
-#define AP_ENABLED 0
-#undef WEB_ENABLED
-#define WEB_ENABLED 0
-#endif
-
 static WiFiClient g_mqttClient;
 
 #if OTA_ENABLED == 1
@@ -62,24 +54,16 @@ static WiFiClient g_mqttClient;
 // ГЛОБАЛЬНЫЙ ФЛАГ РЕЖИМА
 // ============================================================================
 
-/**
- * @brief Флаг режима работы устройства
- * @note true — нормальная работа, false — режим настройки (провизионинг)
- */
 bool g_normalMode = false;
 
 // ============================================================================
-// ПРОТОТИПЫ ФУНКЦИЙ (из normal.cpp)
+// ПРОТОТИПЫ ФУНКЦИЙ
 // ============================================================================
 
-void initNormalMode();     ///< Инициализация нормального режима
-void processNormalMode();  ///< Цикл нормального режима
-
-// ============================================================================
-// ПРОТОТИПЫ ФУНКЦИЙ (локальные)
-// ============================================================================
-
-void checkResetButton();  ///< Обработка кнопки сброса
+void initNormalMode();
+void processNormalMode();
+void checkResetButton();
+bool hasValidConfig();
 
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ОБЪЕКТЫ
@@ -100,12 +84,35 @@ static SwitchWebStatusProvider statusProvider(&switchActuator, &mqttManager);
 #endif
 
 // ============================================================================
+// ПРОВЕРКА КОНФИГУРАЦИИ (ОРКЕСТРАТОР)
+// ============================================================================
+
+bool hasValidConfig() {
+  if (!g_configManager.isValid()) {
+    LOG_DEBUG(CAT_MAIN, "Config invalid");
+    return false;
+  }
+
+  if (strlen(g_configManager.getWifiSsid()) == 0) {
+    LOG_DEBUG(CAT_MAIN, "WiFi SSID is empty");
+    return false;
+  }
+
+#if MQTT_ENABLED == 1
+  if (strlen(g_configManager.getMqttBroker()) == 0) {
+    LOG_DEBUG(CAT_MAIN, "MQTT broker is empty");
+    return false;
+  }
+#endif
+
+  return true;
+}
+
+// ============================================================================
 // MQTT FUNCTIONS
 // ============================================================================
 
 #if MQTT_ENABLED == 1
-
-unsigned long lastMQTTAttempt = 0;
 
 void registerMqttCallbacks() {
 #if DEVICE_TYPE == 1
@@ -353,7 +360,7 @@ void checkResetButton() {
 }
 
 // ============================================================================
-// ИНИЦИАЛИЗАЦИЯ NORMAL MODE (перенесена из main)
+// ИНИЦИАЛИЗАЦИЯ NORMAL MODE
 // ============================================================================
 
 void initNormalMode() {
@@ -418,14 +425,12 @@ void initNormalMode() {
 
   // ========== WEB ==========
 #if WEB_ENABLED == 1
-  // Регистрируем провайдер статуса
 #if DEVICE_TYPE == 1
   web_registerStatusProvider(&statusProvider);
 #elif DEVICE_TYPE == 3
   web_registerStatusProvider(&statusProvider);
 #endif
 
-  // ========== OTA ==========
 #if OTA_ENABLED == 1
   if (ota_is_available()) {
     ota_init(&server);
@@ -442,7 +447,7 @@ void initNormalMode() {
 }
 
 // ============================================================================
-// ЦИКЛ NORMAL MODE (перенесена из main)
+// ЦИКЛ NORMAL MODE
 // ============================================================================
 
 void processNormalMode() {
@@ -501,7 +506,6 @@ void processNormalMode() {
   web_update();
 
   // ========== LED ==========
-  // Устанавливаем режим LED в зависимости от состояния
   if (apMode) {
     led_setMode(LED_MODE_MORZE_S);
   } else if (!wifi_is_connected()) {
@@ -515,34 +519,7 @@ void processNormalMode() {
   }
 }
 
-void processProvisioning() {
-  auto& prov = ProvisioningManager::getInstance();
-  prov.update();
 
-  // ===== AP РЕЖИМ — ЖДЁМ СОХРАНЕНИЯ КОНФИГА =====
-  if (prov.getMode() == ProvisioningMode::AP) {
-    web_update();
-
-    // Проверяем, не сохранил ли пользователь конфиг через веб
-    if (g_configManager.isValid()) {
-      LOG_INFO(CAT_MAIN, "AP provisioning completed (config saved)");
-      g_normalMode = true;
-      initNormalMode();
-      return;
-    }
-  }
-
-  // ===== BLE РЕЖИМ — ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ =====
-  if (isProvisioningComplete()) {
-    LOG_INFO(CAT_MAIN, "Provisioning done, switching to NORMAL mode");
-    g_normalMode = true;
-    initNormalMode();
-    return;
-  }
-
-  // ===== LED =====
-  led_setMode(LED_MODE_MORZE_S);
-}
 
 // ============================================================================
 // SETUP
@@ -576,58 +553,48 @@ void setup() {
 
   g_configManager.print();
 
-  // ================================================================
-  // ПРОВЕРКА КОНФИГУРАЦИИ
-  // ================================================================
-
-  bool hasValidConfig = g_configManager.isValid();
-  bool hasWifi = (strlen(g_configManager.getWifiSsid()) > 0);
-
-#if IS_MQTT_ENABLED
-  bool hasMqtt = (strlen(g_configManager.getMqttBroker()) > 0);
-#else
-  bool hasMqtt = true;
-#endif
-
-  // ================================================================
-  // ВЫБОР РЕЖИМА РАБОТЫ
-  // ================================================================
-
-#if USE_BLE_PROVISIONING == 1
-  // BLE — только WiFi
-  if (hasValidConfig && hasWifi) {
-    LOG_INFO(CAT_MAIN, "WiFi configured. Entering NORMAL mode.");
+  if (hasValidConfig()) {
+    LOG_INFO(CAT_MAIN, "Valid config found. Entering NORMAL mode.");
     LOG_INFO(CAT_MAIN, "Complete setup at device IP.");
     g_normalMode = true;
     initNormalMode();
   } else {
-    LOG_INFO(CAT_MAIN, "No WiFi config. Starting BLE provisioning.");
+    LOG_INFO(CAT_MAIN, "No valid config. Starting provisioning (BLE + AP).");
     g_normalMode = false;
-    startProvisioning();
-  }
 
-#elif USE_AP_PROVISIONING == 1
-  // AP + Web — полная настройка
-  if (hasValidConfig && hasWifi && hasMqtt) {
-    LOG_INFO(CAT_MAIN, "Full config found. Entering NORMAL mode.");
-    g_normalMode = true;
-    initNormalMode();
-  } else {
-    LOG_INFO(CAT_MAIN, "Incomplete config. Starting AP provisioning.");
-    g_normalMode = false;
-    startProvisioning();
-  }
+    // Оркестратор подготавливает конфигурацию для провизионинга
+    ProvisioningConfig provConfig;
+    provConfig.deviceName = g_configManager.getDeviceId();
+    provConfig.apIpAddress = AP_IP_ADDRESS;
+    provConfig.blePin = BLE_PROVISIONING_PIN;
+    
 
-#else
-  // Fallback: AP
-  if (hasValidConfig && hasWifi) {
-    g_normalMode = true;
-    initNormalMode();
-  } else {
-    g_normalMode = false;
-    startProvisioning();
+    // Запускаем AP
+    web_initAP();
+
+    // Запускаем провизионинг с колбэками
+    startProvisioning(
+        provConfig,
+        // Колбэк для обновления web
+        []() { web_update(); },
+        // Колбэк при завершении
+        [](const ProvisioningResult* result, void* userData) {
+          if (result && result->success) {
+            LOG_INFO(CAT_MAIN, "Provisioning completed successfully!");
+            LOG_INFO(CAT_MAIN, "WiFi SSID: %s", result->wifiSsid);
+
+            auto* cfg = static_cast<ConfigManager*>(userData);
+            if (cfg) {
+              cfg->setWifiSsid(result->wifiSsid);
+              cfg->setWifiPassword(result->wifiPassword);
+              cfg->save();
+            }
+          } else {
+            LOG_ERROR(CAT_MAIN, "Provisioning failed!");
+          }
+        },
+        &ConfigManager::getInstance());
   }
-#endif
 
   LOG_INFO(CAT_MAIN, "Setup complete, entering loop()");
 }
@@ -643,7 +610,21 @@ void loop() {
   if (g_normalMode) {
     processNormalMode();
   } else {
-    processProvisioning();
+    // 1. Обновляем состояние провизионинга (BLE)
+    ProvisioningManager::getInstance().update();
+
+    // 2. Обновляем web сервер (AP режим) - ВАЖНО!
+    web_update();
+
+    // 3. LED индикация
+    led_setMode(LED_MODE_MORZE_S);
+
+    // 4. Проверяем завершение
+    if (ProvisioningManager::getInstance().isCompleted()) {
+      LOG_INFO(CAT_MAIN, "Provisioning completed, switching to NORMAL mode");
+      g_normalMode = true;
+      initNormalMode();
+    }
   }
 
   led_update();

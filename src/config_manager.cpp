@@ -72,7 +72,25 @@ const ConfigData* ConfigManager::get() const {
 }
 
 bool ConfigManager::isValid() const {
-  return _configValid;
+  if (!_configValid)
+    return false;
+
+  // Проверяем обязательные поля для работы
+#if WIFI_ENABLED == 1
+  if (strlen(_config.wifiSsid) == 0) {
+    LOG_DEBUG(CAT_CONFIG, "WiFi SSID is empty");
+    return false;
+  }
+#endif
+
+#if MQTT_ENABLED == 1
+  if (strlen(_config.mqttBroker) == 0) {
+    LOG_DEBUG(CAT_CONFIG, "MQTT broker is empty");
+    return false;
+  }
+#endif
+
+  return true;
 }
 
 const char* ConfigManager::getLastError() const {
