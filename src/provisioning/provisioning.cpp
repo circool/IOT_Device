@@ -8,7 +8,6 @@
 #include "config_manager.h"
 #include "led.h"
 #include "logger.h"
-#include "settings.h"
 #include "web.h"
 #include "wifi_manager.h"
 
@@ -23,21 +22,21 @@ static BleProvisioningServer* g_bleServer = nullptr;
 // ============================================================================
 
 /**
- * @brief Колбэк при получении конфигурации через BLE
- * @param bleConfig Указатель на полученные данные
+ * @brief Колбэк при получении WiFi через BLE
+ * @param bleConfig Указатель на полученные WiFi данные
  */
-static void onBleConfigReceived(const BleConfigData* bleConfig) {
+static void onBleConfigReceived(const BleWifiConfig* bleConfig) {
   if (!bleConfig) {
     LOG_ERROR(CAT_PROVISIONING, "BLE config is null!");
     return;
   }
 
-  LOG_INFO(CAT_PROVISIONING, "BLE config received");
-  LOG_INFO(CAT_PROVISIONING, "WiFi SSID: %s", bleConfig->wifiSsid);
+  LOG_INFO(CAT_PROVISIONING, "WiFi config received: %s", bleConfig->wifiSsid);
 
   auto& cfg = ConfigManager::getInstance();
 
-  // Сохраняем настройки WiFi
+  // BLE даёт только WiFi настройки
+  // Остальные настройки (MQTT/Zigbee) берутся из defaults или EEPROM
   if (strlen(bleConfig->wifiSsid) > 0) {
     cfg.setWifiSsid(bleConfig->wifiSsid);
   }
@@ -45,41 +44,13 @@ static void onBleConfigReceived(const BleConfigData* bleConfig) {
     cfg.setWifiPassword(bleConfig->wifiPassword);
   }
 
-#if IS_MQTT_ENABLED
-  // Сохраняем настройки MQTT (если есть)
-  if (strlen(bleConfig->mqttBroker) > 0) {
-    cfg.setMqttBroker(bleConfig->mqttBroker);
-  }
-  if (bleConfig->mqttPort > 0) {
-    cfg.setMqttPort(bleConfig->mqttPort);
-  }
-  if (strlen(bleConfig->mqttUser) > 0) {
-    cfg.setMqttUser(bleConfig->mqttUser);
-  }
-  if (strlen(bleConfig->mqttPassword) > 0) {
-    cfg.setMqttPassword(bleConfig->mqttPassword);
-  }
-  if (strlen(bleConfig->mqttClientId) > 0) {
-    cfg.setMqttClientId(bleConfig->mqttClientId);
-  }
-#endif
+  // Если нужны MQTT/Zigbee настройки, они должны быть:
+  // 1. В EEPROM (уже сохранены ранее)
+  // 2. В defaults (заводские настройки из credentials.h)
+  // 3. Или позже через AP/Web
 
-#if IS_ZIGBEE_ENABLED
-  // Сохраняем настройки Zigbee (если есть)
-  if (strlen(bleConfig->zigbeeNetworkKey) > 0) {
-    cfg.setZigbeeNetworkKey(bleConfig->zigbeeNetworkKey);
-  }
-  cfg.setZigbeePanId(bleConfig->zigbeePanId);
-  if (bleConfig->zigbeeChannel >= 11 && bleConfig->zigbeeChannel <= 26) {
-    cfg.setZigbeeChannel(bleConfig->zigbeeChannel);
-  }
-  cfg.setProtocolMode(bleConfig->protocolMode);
-#endif
-
-  // Сохраняем конфигурацию в EEPROM
   if (cfg.save()) {
     LOG_INFO(CAT_PROVISIONING, "Config saved successfully!");
-    // Перезагружаемся для применения настроек
     delay(100);
     ESP.restart();
   } else {
@@ -109,8 +80,6 @@ bool ProvisioningManager::begin(ProvisioningCallback callback,
                                 uint32_t timeoutMs) {
   if (_state != InternalState::IDLE)
     return false;
-
-  // LOG_INFO(CAT_PROVISIONING, "Provisioning begin...");
 
   _callback = callback;
   _userData = userData;
@@ -144,24 +113,48 @@ bool ProvisioningManager::begin(ProvisioningCallback callback,
   return true;
 }
 
-void ProvisioningManager::process() {
+void ProvisioningManager::update() {
   if (_state != InternalState::WAITING)
     return;
 
-  // WiFiProv сам обрабатывает все события через sysProvEvent
-  // Нам нужно только ждать завершения
-
+  // Проверяем таймаут
   if (_timeoutMs > 0 && (millis() - _startTime) > _timeoutMs) {
     _state = InternalState::ERROR;
     _completed = true;
     LOG_WARN(CAT_PROVISIONING, "Provisioning timeout");
     // Переключаемся на AP как fallback
-    startApProvisioning();
+    if (_mode == ProvisioningMode::BLE) {
+      startApProvisioning();
+    }
+    return;
   }
-}
 
-void ProvisioningManager::update() {
-  process();
+  // BLE режим — проверяем завершение
+  if (_mode == ProvisioningMode::BLE) {
+    if (isBleProvisioningComplete()) {
+      _state = InternalState::COMPLETED;
+      _completed = true;
+      if (_callback) {
+        _callback(_userData);
+      }
+    }
+    return;
+  }
+
+  // AP режим — обновляем веб-интерфейс
+  if (_mode == ProvisioningMode::AP) {
+    web_update();
+
+    // Проверяем, не сохранил ли пользователь конфиг через веб
+    if (ConfigManager::getInstance().isValid()) {
+      LOG_INFO(CAT_PROVISIONING, "AP provisioning completed (config saved)");
+      _state = InternalState::COMPLETED;
+      _completed = true;
+      if (_callback) {
+        _callback(_userData);
+      }
+    }
+  }
 }
 
 bool ProvisioningManager::isActive() const {
@@ -204,7 +197,6 @@ void ProvisioningManager::reset() {
 // ============================================================================
 
 void ProvisioningManager::selectProvisioningMethod() {
-  // ===== BLE (только WiFi) =====
 #if USE_BLE_PROVISIONING == 1
   const char* deviceId = ConfigManager::getInstance().getDeviceId();
 
@@ -213,16 +205,15 @@ void ProvisioningManager::selectProvisioningMethod() {
 
   g_bleServer = new BleProvisioningServer(deviceId);
 
-  if (g_bleServer->begin(onBleConfigReceived, onBleStatusChanged, nullptr,
-                         nullptr)) {
+  if (g_bleServer->begin(onBleConfigReceived, onBleStatusChanged)) {
     led_setMode(LED_MODE_MORZE_S);
+    LOG_INFO(CAT_PROVISIONING, "BLE provisioning started");
   } else {
     LOG_ERROR(CAT_PROVISIONING, "Failed to start BLE provisioning");
     delete g_bleServer;
     g_bleServer = nullptr;
     _mode = ProvisioningMode::NONE;
-    // Пробуем AP как fallback
-    startApProvisioning();
+    startApProvisioning();  // Fallback
   }
 #else
   LOG_WARN(CAT_PROVISIONING, "BLE not supported, falling back to AP");
@@ -230,7 +221,6 @@ void ProvisioningManager::selectProvisioningMethod() {
   startApProvisioning();
 #endif
 
-  // ===== AP + Web (полная настройка) =====
 #elif USE_AP_PROVISIONING == 1
   LOG_INFO(CAT_PROVISIONING, "Selecting AP provisioning method...");
   _mode = ProvisioningMode::AP;
@@ -254,32 +244,25 @@ void ProvisioningManager::startApProvisioning() {
   led_setMode(LED_MODE_MORZE_S);
 }
 
+bool ProvisioningManager::isBleProvisioningComplete() {
+  // Проверяем, завершён ли BLE-провизионинг
+  // BLE сам вызывает колбэк onBleConfigReceived при получении данных
+  // и перезагружает устройство после сохранения
+  // Поэтому здесь просто проверяем, не остановлен ли сервер
+  if (g_bleServer && !g_bleServer->isActive()) {
+    return true;
+  }
+  return false;
+}
+
 // ============================================================================
 // ПРОСТЫЕ ФУНКЦИИ-ОБЁРТКИ ДЛЯ MAIN
 // ============================================================================
 
 void startProvisioning() {
-
-
   auto& prov = ProvisioningManager::getInstance();
-
-  // Запускаем с колбэком, который переключает режим
-  prov.begin(
-      [](void*) {
-        LOG_INFO(CAT_MAIN, "Provisioning completed!");
-        // Флаг g_normalMode переключается в main.cpp
-      },
-      nullptr, BLE_PROVISIONING_TIMEOUT_MS);
-}
-
-void runProvisioning() {
-  auto& prov = ProvisioningManager::getInstance();
-  prov.update();  // Вызывает process()
-
-  // Если AP режим — обновляем web
-  if (prov.getMode() == ProvisioningMode::AP) {
-    web_update();
-  }
+  prov.begin([](void*) { LOG_INFO(CAT_MAIN, "Provisioning completed!"); },
+             nullptr, BLE_PROVISIONING_TIMEOUT_MS);
 }
 
 bool isProvisioningComplete() {

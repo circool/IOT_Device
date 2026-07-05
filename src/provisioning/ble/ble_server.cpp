@@ -10,10 +10,8 @@
  */
 
 #include "ble_server.h"
-#include "config_manager.h"
 #include "logger.h"
 #include "settings.h"
-#include "wifi_manager.h"
 
 #if defined(ESP32) && !defined(ESP8266)
 
@@ -24,12 +22,9 @@
 // СТАТИЧЕСКИЕ ПЕРЕМЕННЫЕ
 // ============================================================================
 
-static BleProvisioningServer* g_provServer =
-    nullptr;  //!< Глобальный указатель на сервер
-static ProvConfigCallback g_configCallback =
-    nullptr;                                //!< Глобальный колбэк конфигурации
-static BleConfigData g_receivedConfig;      //!< Буфер полученной конфигурации
-static bool g_credentialsReceived = false;  //!< Флаг получения креденшелов
+static ProvConfigCallback g_configCallback = nullptr;
+static BleWifiConfig g_receivedConfig;
+static bool g_credentialsReceived = false;
 
 /**
  * @brief UUID сервиса для ESP BLE Provisioning
@@ -47,20 +42,15 @@ static const uint8_t PROV_UUID[16] = {0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b,
  * @brief Обработчик системных событий Arduino
  *
  * @details Обрабатывает события провизионинга:
- *          - PROV_START — начало процесса
- *          - PROV_CRED_RECV — получены креденшелы
+ *          - PROV_CRED_RECV — получены WiFi креденшелы
  *          - PROV_CRED_FAIL — ошибка авторизации
  *          - PROV_CRED_SUCCESS — успешное завершение
- *          - PROV_END — окончание провизионинга
  *
  * @param sys_event Указатель на событие
- *
- * @note Реализован по официальной документации ESP32 WiFiProv
  */
 void SysProvEvent(arduino_event_t* sys_event) {
   switch (sys_event->event_id) {
     case ARDUINO_EVENT_PROV_CRED_RECV: {
-      // Сохраняем полученные данные
       if (sys_event->event_info.prov_cred_recv.ssid) {
         memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
         strncpy(g_receivedConfig.wifiSsid,
@@ -103,29 +93,24 @@ BleProvisioningServer::BleProvisioningServer(const char* deviceName) {
   } else {
     strncpy(_deviceName, "PROV_123", sizeof(_deviceName) - 1);
   }
-  g_provServer = this;
   g_credentialsReceived = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 }
 
 BleProvisioningServer::~BleProvisioningServer() {
   stop();
-  g_provServer = nullptr;
 }
 
 bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
-                                  ProvStatusCallback statusCallback,
-                                  ProvConnCallback connCallback,
-                                  ProvIpCallback ipCallback) {
+                                  ProvStatusCallback statusCallback) {
   if (_active)
     return true;
+
   g_configCallback = configCallback;
   g_credentialsReceived = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 
-  (void)statusCallback;
-  (void)connCallback;
-  (void)ipCallback;
+  (void)statusCallback;  // Пока не используется, но оставлен для совместимости
 
   LOG_DEBUG(CAT_PROVISIONING, "Starting BLE Provisioning server");
   LOG_DEBUG(CAT_PROVISIONING, "Device name: %s", _deviceName);
@@ -135,16 +120,7 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
   // Регистрируем обработчик событий WiFi
   WiFi.onEvent(SysProvEvent);
 
-  // Запускаем провизионинг по документации
-  // Параметры:
-  //   WIFI_PROV_SCHEME_BLE - используем BLE транспорт
-  //   WIFI_PROV_SCHEME_HANDLER_FREE_BLE - стандартный обработчик
-  //   WIFI_PROV_SECURITY_1 - уровень безопасности 1
-  //   BLE_PROVISIONING_PIN - PIN для сопряжения (PoP)
-  //   _deviceName - имя устройства в BLE
-  //   NULL - пользовательские данные (не используются)
-  //   (uint8_t*)PROV_UUID - UUID сервиса
-  //   true - сбросить предыдущие данные провизионинга
+  // Запускаем провизионинг
   WiFiProv.beginProvision(WIFI_PROV_SCHEME_BLE,
                           WIFI_PROV_SCHEME_HANDLER_FREE_BLE,
                           WIFI_PROV_SECURITY_1, BLE_PROVISIONING_PIN,
@@ -153,8 +129,6 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
   );
 
   _active = true;
-  
-
   return true;
 }
 
@@ -182,16 +156,6 @@ void BleProvisioningServer::setDeviceName(const char* name) {
     strncpy(_deviceName, name, sizeof(_deviceName) - 1);
     _deviceName[sizeof(_deviceName) - 1] = '\0';
   }
-}
-
-void BleProvisioningServer::sendStatus(uint8_t status) {
-  (void)status;
-}
-
-void BleProvisioningServer::sendConnectionStatus(bool connected,
-                                                 const char* ip) {
-  (void)connected;
-  (void)ip;
 }
 
 #endif  // ESP32

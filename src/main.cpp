@@ -62,24 +62,15 @@ static WiFiClient g_mqttClient;
 // ГЛОБАЛЬНЫЙ ФЛАГ РЕЖИМА
 // ============================================================================
 
-/**
- * @brief Флаг режима работы устройства
- * @note true — нормальная работа, false — режим настройки (провизионинг)
- */
 bool g_normalMode = false;
 
 // ============================================================================
-// ПРОТОТИПЫ ФУНКЦИЙ (из normal.cpp)
+// ПРОТОТИПЫ ФУНКЦИЙ
 // ============================================================================
 
-void initNormalMode();     ///< Инициализация нормального режима
-void processNormalMode();  ///< Цикл нормального режима
-
-// ============================================================================
-// ПРОТОТИПЫ ФУНКЦИЙ (локальные)
-// ============================================================================
-
-void checkResetButton();  ///< Обработка кнопки сброса
+void initNormalMode();
+void processNormalMode();
+void checkResetButton();
 
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ОБЪЕКТЫ
@@ -100,14 +91,18 @@ static SwitchWebStatusProvider statusProvider(&switchActuator, &mqttManager);
 #endif
 
 // ============================================================================
-// MQTT FUNCTIONS
+// MQTT FUNCTIONS (Локальные статические функции)
 // ============================================================================
 
 #if MQTT_ENABLED == 1
 
-unsigned long lastMQTTAttempt = 0;
+static unsigned long lastMQTTAttempt = 0;
 
-void registerMqttCallbacks() {
+/**
+ * @brief Регистрация колбэков MQTT
+ * @note Локальная функция, специфичная для типа устройства
+ */
+static void registerMqttCallbacks() {
 #if DEVICE_TYPE == 1
   mqttManager.onStateCommand([](bool state) { fan.set(state, true); });
 
@@ -177,7 +172,11 @@ void registerMqttCallbacks() {
 #endif
 }
 
-void publishMqttStatus() {
+/**
+ * @brief Публикация статуса в MQTT
+ * @note Локальная функция, специфичная для типа устройства
+ */
+static void publishMqttStatus() {
   if (!mqttManager.isConnected())
     return;
 
@@ -305,55 +304,7 @@ void publishMqttStatus() {
 #endif  // MQTT_ENABLED == 1
 
 // ============================================================================
-// КНОПКА СБРОСА
-// ============================================================================
-
-void checkResetButton() {
-  pinMode(RESET_PIN, INPUT_PULLUP);
-  delay(50);
-  if (digitalRead(RESET_PIN) == LOW) {
-    LOG_INFO(CAT_MAIN, "Reset button pressed...");
-
-    LedMode prevMode = led_getMode();
-    unsigned long pressStart = millis();
-    wdt_stop();
-    while (digitalRead(RESET_PIN) == LOW) {
-      unsigned long pressedMs = millis() - pressStart;
-
-      if (pressedMs < 1000) {
-        led_setMode(LED_MODE_MORZE_E);
-      } else if (pressedMs < 2000) {
-        led_setMode(LED_MODE_MORZE_I);
-      } else {
-        led_setMode(LED_MODE_MORZE_S);
-      }
-      led_update();
-
-      if (pressedMs >= 3000) {
-        LOG_INFO(CAT_MAIN, "Auto-reset triggered!");
-        led_setMode(LED_MODE_OFF);
-        led_update();
-
-        if (g_configManager.reset()) {
-          LOG_INFO(CAT_CONFIG, "Config cleared, restarting...");
-          ESP.restart();
-        }
-        return;
-      }
-
-      delay(10);
-      wdt_feed();
-    }
-
-    LOG_INFO(CAT_MAIN, "Reset cancelled (released after %d ms)",
-             millis() - pressStart);
-    wdt_start();
-    led_setMode(prevMode);
-  }
-}
-
-// ============================================================================
-// ИНИЦИАЛИЗАЦИЯ NORMAL MODE (перенесена из main)
+// NORMAL MODE ФУНКЦИИ
 // ============================================================================
 
 void initNormalMode() {
@@ -418,14 +369,12 @@ void initNormalMode() {
 
   // ========== WEB ==========
 #if WEB_ENABLED == 1
-  // Регистрируем провайдер статуса
 #if DEVICE_TYPE == 1
   web_registerStatusProvider(&statusProvider);
 #elif DEVICE_TYPE == 3
   web_registerStatusProvider(&statusProvider);
 #endif
 
-  // ========== OTA ==========
 #if OTA_ENABLED == 1
   if (ota_is_available()) {
     ota_init(&server);
@@ -440,10 +389,6 @@ void initNormalMode() {
 
   LOG_INFO(CAT_MAIN, "System initialized successfully!");
 }
-
-// ============================================================================
-// ЦИКЛ NORMAL MODE (перенесена из main)
-// ============================================================================
 
 void processNormalMode() {
   // ========== ДАТЧИК ==========
@@ -501,7 +446,6 @@ void processNormalMode() {
   web_update();
 
   // ========== LED ==========
-  // Устанавливаем режим LED в зависимости от состояния
   if (apMode) {
     led_setMode(LED_MODE_MORZE_S);
   } else if (!wifi_is_connected()) {
@@ -515,33 +459,52 @@ void processNormalMode() {
   }
 }
 
-void processProvisioning() {
-  auto& prov = ProvisioningManager::getInstance();
-  prov.update();
+// ============================================================================
+// КНОПКА СБРОСА
+// ============================================================================
 
-  // ===== AP РЕЖИМ — ЖДЁМ СОХРАНЕНИЯ КОНФИГА =====
-  if (prov.getMode() == ProvisioningMode::AP) {
-    web_update();
+void checkResetButton() {
+  pinMode(RESET_PIN, INPUT_PULLUP);
+  delay(50);
+  if (digitalRead(RESET_PIN) == LOW) {
+    LOG_INFO(CAT_MAIN, "Reset button pressed...");
 
-    // Проверяем, не сохранил ли пользователь конфиг через веб
-    if (g_configManager.isValid()) {
-      LOG_INFO(CAT_MAIN, "AP provisioning completed (config saved)");
-      g_normalMode = true;
-      initNormalMode();
-      return;
+    LedMode prevMode = led_getMode();
+    unsigned long pressStart = millis();
+    wdt_stop();
+    while (digitalRead(RESET_PIN) == LOW) {
+      unsigned long pressedMs = millis() - pressStart;
+
+      if (pressedMs < 1000) {
+        led_setMode(LED_MODE_MORZE_E);
+      } else if (pressedMs < 2000) {
+        led_setMode(LED_MODE_MORZE_I);
+      } else {
+        led_setMode(LED_MODE_MORZE_S);
+      }
+      led_update();
+
+      if (pressedMs >= 3000) {
+        LOG_INFO(CAT_MAIN, "Auto-reset triggered!");
+        led_setMode(LED_MODE_OFF);
+        led_update();
+
+        if (g_configManager.reset()) {
+          LOG_INFO(CAT_CONFIG, "Config cleared, restarting...");
+          ESP.restart();
+        }
+        return;
+      }
+
+      delay(10);
+      wdt_feed();
     }
-  }
 
-  // ===== BLE РЕЖИМ — ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ =====
-  if (isProvisioningComplete()) {
-    LOG_INFO(CAT_MAIN, "Provisioning done, switching to NORMAL mode");
-    g_normalMode = true;
-    initNormalMode();
-    return;
+    LOG_INFO(CAT_MAIN, "Reset cancelled (released after %d ms)",
+             millis() - pressStart);
+    wdt_start();
+    led_setMode(prevMode);
   }
-
-  // ===== LED =====
-  led_setMode(LED_MODE_MORZE_S);
 }
 
 // ============================================================================
@@ -559,7 +522,6 @@ void setup() {
   LOG_INFO(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
 
   // ========== ИНИЦИАЛИЗАЦИЯ ПОДСИСТЕМ ==========
-
   led_init();
   led_setMode(LED_MODE_MORZE_E);
 
@@ -642,7 +604,15 @@ void loop() {
   if (g_normalMode) {
     processNormalMode();
   } else {
-    processProvisioning();
+    // Вся логика провизионинга инкапсулирована в менеджере
+    ProvisioningManager::getInstance().update();
+
+    // Оркестратор только проверяет результат
+    if (isProvisioningComplete()) {
+      LOG_INFO(CAT_MAIN, "Provisioning complete, switching to NORMAL mode");
+      g_normalMode = true;
+      initNormalMode();
+    }
   }
 
   led_update();

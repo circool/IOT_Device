@@ -74,13 +74,7 @@ class ProvisioningManager {
 
   /**
    * @brief Периодическая обработка провизионинга
-   * @note Вызывается из update()
-   */
-  void process();
-
-  /**
-   * @brief Периодическая обработка (вызывается в loop)
-   * @note Вызывает process() и проверяет состояние
+   * @note Вызывается в loop() для обработки BLE/AP событий
    */
   void update();
 
@@ -140,32 +134,22 @@ class ProvisioningManager {
    */
   void startApProvisioning();
 
+  /**
+   * @brief Проверить, завершён ли BLE-провизионинг
+   */
+  bool isBleProvisioningComplete();
+
   // ========================================================================
   // ДАННЫЕ
   // ========================================================================
 
-  /** @brief Текущее состояние */
   InternalState _state = InternalState::IDLE;
-
-  /** @brief Текущий режим */
   ProvisioningMode _mode = ProvisioningMode::NONE;
-
-  /** @brief Колбэк при завершении */
   ProvisioningCallback _callback = nullptr;
-
-  /** @brief Пользовательские данные для колбэка */
   void* _userData = nullptr;
-
-  /** @brief Таймаут в миллисекундах */
   uint32_t _timeoutMs = 0;
-
-  /** @brief Время запуска */
   unsigned long _startTime = 0;
-
-  /** @brief Флаг запуска процесса */
   bool _started = false;
-
-  /** @brief Флаг завершения процесса */
   bool _completed = false;
 };
 
@@ -180,13 +164,6 @@ class ProvisioningManager {
  *          При ошибке BLE автоматически переключается на AP.
  */
 void startProvisioning();
-
-/**
- * @brief Периодическая обработка провизионинга
- * @details Вызывается в loop(). Обрабатывает BLE-события или
- *          обновляет веб-интерфейс в AP-режиме.
- */
-void runProvisioning();
 
 /**
  * @brief Проверить, завершён ли процесс настройки
