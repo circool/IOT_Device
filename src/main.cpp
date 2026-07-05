@@ -21,14 +21,6 @@
 
 #include "provisioning/provisioning.h"
 
-// Если используется BLE, AP и Web отключаются
-#if USE_BLE_PROVISIONING == 1
-#undef AP_ENABLED
-#define AP_ENABLED 0
-#undef WEB_ENABLED
-#define WEB_ENABLED 0
-#endif
-
 static WiFiClient g_mqttClient;
 
 #if OTA_ENABLED == 1
