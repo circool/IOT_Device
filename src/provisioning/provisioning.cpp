@@ -110,7 +110,7 @@ bool ProvisioningManager::begin(ProvisioningCallback callback,
   if (_state != InternalState::IDLE)
     return false;
 
-  LOG_INFO(CAT_PROVISIONING, "Provisioning begin...");
+  // LOG_INFO(CAT_PROVISIONING, "Provisioning begin...");
 
   _callback = callback;
   _userData = userData;
@@ -209,15 +209,12 @@ void ProvisioningManager::selectProvisioningMethod() {
   const char* deviceId = ConfigManager::getInstance().getDeviceId();
 
 #if defined(ESP32) && !defined(ESP8266)
-  LOG_INFO(CAT_PROVISIONING, "Selecting BLE provisioning method...");
   _mode = ProvisioningMode::BLE;
 
   g_bleServer = new BleProvisioningServer(deviceId);
 
   if (g_bleServer->begin(onBleConfigReceived, onBleStatusChanged, nullptr,
                          nullptr)) {
-    LOG_INFO(CAT_PROVISIONING, "BLE provisioning started via WiFiProv");
-    LOG_INFO(CAT_PROVISIONING, "Device name: %s", deviceId);
     led_setMode(LED_MODE_MORZE_S);
   } else {
     LOG_ERROR(CAT_PROVISIONING, "Failed to start BLE provisioning");
@@ -262,7 +259,7 @@ void ProvisioningManager::startApProvisioning() {
 // ============================================================================
 
 void startProvisioning() {
-  LOG_INFO(CAT_MAIN, "Starting provisioning...");
+
 
   auto& prov = ProvisioningManager::getInstance();
 

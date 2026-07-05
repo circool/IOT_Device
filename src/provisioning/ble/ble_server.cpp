@@ -59,17 +59,7 @@ static const uint8_t PROV_UUID[16] = {0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b,
  */
 void SysProvEvent(arduino_event_t* sys_event) {
   switch (sys_event->event_id) {
-    case ARDUINO_EVENT_PROV_START:
-      Serial.printf("\nProvisioning Started\n");
-      break;
-
     case ARDUINO_EVENT_PROV_CRED_RECV: {
-      Serial.printf("\nReceived Wi-Fi credentials\n");
-      Serial.printf("\tSSID : %s\n",
-                    (const char*)sys_event->event_info.prov_cred_recv.ssid);
-      Serial.printf("\tPassword : %s\n",
-                    (const char*)sys_event->event_info.prov_cred_recv.password);
-
       // Сохраняем полученные данные
       if (sys_event->event_info.prov_cred_recv.ssid) {
         memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
@@ -85,22 +75,16 @@ void SysProvEvent(arduino_event_t* sys_event) {
     }
 
     case ARDUINO_EVENT_PROV_CRED_FAIL:
-      Serial.printf("\nProvisioning failed!\n");
       if (g_configCallback) {
         g_configCallback(nullptr);  // Передаём nullptr при ошибке
       }
       break;
 
     case ARDUINO_EVENT_PROV_CRED_SUCCESS:
-      Serial.printf("\nProvisioning Successful\n");
       if (g_credentialsReceived && g_configCallback) {
         g_configCallback(&g_receivedConfig);
         g_credentialsReceived = false;
       }
-      break;
-
-    case ARDUINO_EVENT_PROV_END:
-      Serial.printf("\nProvisioning Ends\n");
       break;
 
     default:
@@ -135,7 +119,6 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
                                   ProvIpCallback ipCallback) {
   if (_active)
     return true;
-
   g_configCallback = configCallback;
   g_credentialsReceived = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
@@ -144,11 +127,10 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
   (void)connCallback;
   (void)ipCallback;
 
-  LOG_INFO(CAT_PROVISIONING, "========================================");
-  LOG_INFO(CAT_PROVISIONING, "Starting BLE Provisioning");
-  LOG_INFO(CAT_PROVISIONING, "Device name: %s", _deviceName);
-  LOG_INFO(CAT_PROVISIONING, "PIN: %s", BLE_PROVISIONING_PIN);
-  LOG_INFO(CAT_PROVISIONING, "========================================");
+  LOG_DEBUG(CAT_PROVISIONING, "Starting BLE Provisioning server");
+  LOG_DEBUG(CAT_PROVISIONING, "Device name: %s", _deviceName);
+  LOG_DEBUG(CAT_PROVISIONING, "PIN: %s", BLE_PROVISIONING_PIN);
+  LOG_INFO(CAT_PROVISIONING, "Use ESP BLE Prov app");
 
   // Регистрируем обработчик событий WiFi
   WiFi.onEvent(SysProvEvent);
@@ -171,8 +153,7 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
   );
 
   _active = true;
-  LOG_INFO(CAT_PROVISIONING, "BLE provisioning started successfully!");
-  LOG_INFO(CAT_PROVISIONING, "Use ESP BLE Provisioning app");
+  
 
   return true;
 }
@@ -186,7 +167,6 @@ void BleProvisioningServer::stop() {
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 
   WiFi.removeEvent(SysProvEvent);
-  LOG_INFO(CAT_PROVISIONING, "BLE provisioning stopped");
 }
 
 bool BleProvisioningServer::isActive() const {

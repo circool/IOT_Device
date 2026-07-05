@@ -597,11 +597,10 @@ void setup() {
   // BLE — только WiFi
   if (hasValidConfig && hasWifi) {
     LOG_INFO(CAT_MAIN, "WiFi configured. Entering NORMAL mode.");
-    LOG_INFO(CAT_MAIN, "Complete setup at device IP.");
     g_normalMode = true;
     initNormalMode();
   } else {
-    LOG_INFO(CAT_MAIN, "No WiFi config. Starting BLE provisioning.");
+    LOG_WARN(CAT_MAIN, "No WiFi config.");
     g_normalMode = false;
     startProvisioning();
   }
