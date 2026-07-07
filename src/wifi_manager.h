@@ -129,7 +129,8 @@ void wifi_start_ap(const char* ssid);
  */
 int wifi_scan_and_log(const char* targetSsid);
 
-void wifi_start_ap_mode();
+void wifi_start_ap(const char* ssid);
+void wifi_stop_ap();
 
 #else  // WIFI_ENABLED == 0
 
@@ -179,6 +180,8 @@ inline bool wifi_is_connected() {
 inline void wifi_start_ap(const char* ssid) {
   (void)ssid;
 }
+
+inline void wifi_stop_ap(){}
 
 /**
  * @brief Заглушка: сканирование сетей

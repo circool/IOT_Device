@@ -952,23 +952,23 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
   return ok;
 }
 
-bool ConfigManager::isConfigValid(const ConfigData& config) const {
-  // Проверяем, что есть WiFi SSID (если WiFi включён)
-#if WIFI_ENABLED == 1
-  if (strlen(config.wifiSsid) == 0) {
-    return false;
-  }
-#endif
+// bool ConfigManager::isConfigValid(const ConfigData& config) const {
+//   // Проверяем, что есть WiFi SSID (если WiFi включён)
+// #if WIFI_ENABLED == 1
+//   if (strlen(config.wifiSsid) == 0) {
+//     return false;
+//   }
+// #endif
 
-  // Проверяем, что есть MQTT брокер (если MQTT включён)
-#if MQTT_ENABLED == 1
-  if (strlen(config.mqttBroker) == 0) {
-    return false;
-  }
-#endif
+//   // Проверяем, что есть MQTT брокер (если MQTT включён)
+// #if MQTT_ENABLED == 1
+//   if (strlen(config.mqttBroker) == 0) {
+//     return false;
+//   }
+// #endif
 
-  return true;
-}
+//   return true;
+// }
 
 uint16_t ConfigManager::calculateCRC(const ConfigData& config) const {
   ConfigData copy = config;

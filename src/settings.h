@@ -167,14 +167,6 @@
 #define BLE_PROVISIONING_PIN "12345678"
 #endif
 
-/**
- * @brief Таймаут BLE-провизионинга (миллисекунды)
- *
- * Общее время, отведенное на процесс настройки.
- * По истечении таймаута устройство переходит в состояние ошибки.
- */
-#ifndef BLE_PROVISIONING_TIMEOUT_MS
-#define BLE_PROVISIONING_TIMEOUT_MS 120000  // 2 минуты
-#endif
+
 
 #endif  // SETTINGS_H

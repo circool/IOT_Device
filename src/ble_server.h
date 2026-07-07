@@ -38,6 +38,12 @@ using ProvConfigCallback = std::function<void(const BleWifiConfig* config)>;
  */
 using ProvStatusCallback = std::function<void(uint8_t status)>;
 
+/**
+ * @brief Колбэк при изменении состояния BLE-соединения
+ * @param connected true — клиент подключился, false — отключился
+ */
+using BleConnectionCallback = std::function<void(bool connected)>;
+
 #if defined(ESP32) && !defined(ESP8266)
 
 /**
@@ -45,17 +51,22 @@ using ProvStatusCallback = std::function<void(uint8_t status)>;
  *
  * @details Использует библиотеку WiFiProv от Espressif.
  *          Передаёт только WiFi SSID и пароль.
+ *          Не знает про AP — только события через колбэк.
  *
  * @note Только для ESP32 (ESP8266 не поддерживает BLE)
  *
  * @example
  * @code
  * BleProvisioningServer server("my_device");
- * server.begin([](const BleWifiConfig* config) {
- *     if (config) {
+ * server.begin(
+ *     [](const BleWifiConfig* config) {
  *         // Сохранить WiFi настройки
+ *     },
+ *     nullptr,
+ *     [](bool connected) {
+ *         // BLE клиент подключился/отключился
  *     }
- * });
+ * );
  * @endcode
  */
 class BleProvisioningServer {
@@ -78,6 +89,7 @@ class BleProvisioningServer {
    *
    * @param configCallback Колбэк при получении WiFi конфигурации
    * @param statusCallback Колбэк при изменении статуса (опционально)
+   * @param connCallback Колбэк при подключении/отключении клиента (опционально)
    *
    * @return true — сервер запущен, false — ошибка
    *
@@ -85,7 +97,8 @@ class BleProvisioningServer {
    * @note При успешном запуске устройство становится видимым в BLE
    */
   bool begin(ProvConfigCallback configCallback,
-             ProvStatusCallback statusCallback = nullptr);
+             ProvStatusCallback statusCallback = nullptr,
+             BleConnectionCallback connCallback = nullptr);
 
   /**
    * @brief Остановить BLE-сервер
@@ -129,7 +142,11 @@ class BleProvisioningServer {
   }
   ~BleProvisioningServer() {}
 
-  bool begin(ProvConfigCallback, ProvStatusCallback = nullptr) { return false; }
+  bool begin(ProvConfigCallback,
+             ProvStatusCallback = nullptr,
+             BleConnectionCallback = nullptr) {
+    return false;
+  }
   void stop() {}
   bool isActive() const { return false; }
   const char* getDeviceName() const { return "No BLE"; }

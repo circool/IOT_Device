@@ -81,15 +81,17 @@ void web_sendStatusPage(int refreshInterval);
 void web_saveConfig();
 
 /**
- * @brief Инициализация веб-сервера в режиме клиента WiFi
+ * @brief Инициализация веб-сервера
+ * @param setupMode true - режим настройки (только страница конфигурации),
+ *                  false - нормальный режим (полный функционал)
  */
-void web_init();
+void web_init(bool setupMode = false);
 
 /**
  * @brief Инициализация веб-сервера в режиме точки доступа (AP)
  * @note Создаёт WiFi сеть для первоначальной настройки
  */
-void web_initAP();
+// void web_initAP();
 
 /**
  * @brief Периодическая обработка HTTP-запросов
@@ -115,7 +117,7 @@ inline void web_registerStatusProvider(IWebStatusProvider* provider) {
   (void)provider;
 }
 
-inline void web_initAP() {}
+// inline void web_initAP() {}
 inline String web_buildStatusHtml() {
   return String();
 }

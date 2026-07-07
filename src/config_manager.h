@@ -340,44 +340,7 @@ struct ConfigData {
 #endif
 };
 
-/**
- * @brief Структура для оперативных (runtime) настроек
- * Используется для передачи между компонентами
- */
-struct RuntimeConfig {
-  // WiFi
-  char wifiSsid[32];
-  char wifiPassword[64];
 
-  // MQTT
-  char mqttBroker[64];
-  uint16_t mqttPort;
-  char mqttUser[32];
-  char mqttPassword[64];
-  char mqttClientId[24];
-
-  // Sensor (TYPE 1 и 2)
-  uint16_t sensorInterval;
-
-  // Fan (TYPE 1)
-  double lowTemp;
-  double highTemp;
-  double lowHum;
-  double highHum;
-  bool sensorControlMode;
-  uint16_t speedPercent;
-  bool adaptiveMode;
-
-  // Общие (TYPE 1 и 3)
-  int delaySeconds;
-  uint32_t maxOnTime;
-  bool bootState;
-
-  // Zigbee
-  char zigbeeNetworkKey[32];
-  uint16_t zigbeePanId;
-  uint8_t zigbeeChannel;
-};
 
 // ============================================================================
 // КЛАСС CONFIG MANAGER
@@ -539,7 +502,7 @@ class ConfigManager {
   void loadFromCredentials();
   void readFromEEPROM();
   bool validateAndApply(const ConfigData& raw);
-  bool isConfigValid(const ConfigData& config) const;
+  // bool isConfigValid(const ConfigData& config) const;
   uint16_t calculateCRC(const ConfigData& config) const;
   void initDeviceId();
 

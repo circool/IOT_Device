@@ -9,6 +9,8 @@
 
 WebServerClass server(80);
 
+static bool g_setupMode = false;
+
 // ========== ЕДИНСТВЕННАЯ ЗАВИСИМОСТЬ ==========
 static IWebStatusProvider* g_statusProvider = nullptr;
 
@@ -457,7 +459,7 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
   };
 
   sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid,
-                 currentIp, refreshSeconds, isApMode);
+                 currentIp, refreshSeconds, g_setupMode);
   flush();
 
 #elif defined(ESP8266)
@@ -465,7 +467,7 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
   auto send = [&](const String& chunk) { server.sendContent(chunk); };
 
   sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid,
-                 currentIp, refreshSeconds, isApMode);
+                 currentIp, refreshSeconds, g_setupMode);
 
 #else
   // ========== FALLBACK ДЛЯ ДРУГИХ ПЛАТФОРМ ==========
@@ -473,7 +475,7 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
   auto send = [&](const String& chunk) { fullHtml += chunk; };
 
   sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid,
-                 currentIp, refreshSeconds, isApMode);
+                 currentIp, refreshSeconds, g_setupMode);
   server.sendContent(fullHtml);
 #endif
 }
@@ -651,105 +653,118 @@ void web_saveConfig() {
 
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
-void web_init() {
-  LOG_INFO(CAT_WEB, "web_init() called");
+void web_init(bool setupMode) {
+  LOG_INFO(CAT_WEB, "web_init() called, setupMode=%d", setupMode);
+  g_setupMode = setupMode;
+  if (setupMode) {
+    // ========== РЕЖИМ НАСТРОЙКИ (AP) ==========
+    LOG_INFO(CAT_WEB, "Initializing in SETUP mode");
 
-  int refreshInterval = DEFAULT_WEB_REFRESH;
+    server.on("/", []() {
+      LOG_DEBUG(CAT_WEB, "GET / - Config page (setup mode)");
+      web_sendConfigPage("", "");
+    });
+
+    server.on("/save", web_saveConfig);
+    server.on("/favicon.ico", []() { server.send(404); });
+
+  } else {
+    // ========== НОРМАЛЬНЫЙ РЕЖИМ (STA) ==========
+    LOG_INFO(CAT_WEB, "Initializing in NORMAL mode");
+
+    int refreshInterval = DEFAULT_WEB_REFRESH;
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  refreshInterval = g_configManager.getSensorInterval();
+    refreshInterval = g_configManager.getSensorInterval();
 #endif
 
 #if WEB_STATUS_ENABLED == 1
-  server.on("/", [refreshInterval]() {
+    server.on("/", [refreshInterval]() {
 #ifdef ESP32
-    server.client().setNoDelay(true);
+      server.client().setNoDelay(true);
 #endif
-    if (wifi_is_ap_mode()) {
-      web_sendConfigPage("", "");
-      LOG_DEBUG(CAT_WEB, "GET / - show config page (AP mode)");
-    } else {
       LOG_DEBUG(CAT_WEB, "GET / - serving status page");
       web_sendStatusPage(refreshInterval);
-    }
-  });
+    });
 #else
-  server.on("/", []() {
-    LOG_DEBUG(CAT_WEB, "GET / - redirect to config");
-    server.sendHeader("Location", "/config", true);
-    server.send(302, "text/plain", "");
-  });
+    server.on("/", []() {
+      LOG_DEBUG(CAT_WEB, "GET / - redirect to config");
+      server.sendHeader("Location", "/config", true);
+      server.send(302, "text/plain", "");
+    });
 #endif
 
-  server.on("/config", []() {
-    LOG_DEBUG(CAT_WEB, "GET /config - serving config page");
-    web_sendConfigPage("", "");
-  });
+    server.on("/config", []() {
+      LOG_DEBUG(CAT_WEB, "GET /config - serving config page");
+      web_sendConfigPage("", "");
+    });
 
-  server.on("/save", []() {
-    LOG_INFO(CAT_WEB, "POST /save - saving configuration");
-    web_saveConfig();
-  });
-
-  server.on("/favicon.ico", []() { server.send(404); });
+    server.on("/save", web_saveConfig);
+    server.on("/favicon.ico", []() { server.send(404); });
 
 #if WEB_RESET_ENABLED == 1
-  server.on("/resetall", []() {
-    g_configManager.reset();
-    server.send(200, "text/html",
-                F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta "
-                  "http-equiv='refresh' "
-                  "content='5;url=/'></head><body><h2>Configuration "
-                  "was reset, rebooting...</h2></body></html>"));
-    delay(1000);
-    ESP.restart();
-  });
+    server.on("/resetall", []() {
+      g_configManager.reset();
+      server.send(200, "text/html",
+                  F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta "
+                    "http-equiv='refresh' "
+                    "content='5;url=/'></head><body><h2>Configuration "
+                    "was reset, rebooting...</h2></body></html>"));
+      delay(1000);
+      ESP.restart();
+    });
 #endif
 
 #if DEVICE_TYPE == 1
-  server.on("/fan/toggle", []() {
-    handleToggle();
-    server.sendHeader("Location", "/", true);
-    server.send(302, "text/plain", "");
-  });
-  server.on("/fan/auto", []() {
-    handleSensorControlMode();
-    server.sendHeader("Location", "/", true);
-    server.send(302, "text/plain", "");
-  });
+    server.on("/fan/toggle", []() {
+      handleToggle();
+      server.sendHeader("Location", "/", true);
+      server.send(302, "text/plain", "");
+    });
+    server.on("/fan/auto", []() {
+      handleSensorControlMode();
+      server.sendHeader("Location", "/", true);
+      server.send(302, "text/plain", "");
+    });
 #elif DEVICE_TYPE == 3
-  server.on("/switch/toggle", []() {
-    handleToggle();
-    server.sendHeader("Location", "/", true);
-    server.send(302, "text/plain", "");
-  });
+    server.on("/switch/toggle", []() {
+      handleToggle();
+      server.sendHeader("Location", "/", true);
+      server.send(302, "text/plain", "");
+    });
 #endif
+  }
 
   server.begin();
-  LOG_INFO(CAT_WEB, "Web server started");
+  LOG_INFO(CAT_WEB, "Web server started (mode: %s)",
+           setupMode ? "SETUP" : "NORMAL");
 }
 
 // ========== ИНИЦИАЛИЗАЦИЯ AP РЕЖИМА ==========
 
-void web_initAP() {
-  if (wifi_is_ap_mode())
-    return;
+// void web_initAP() {
+//   LOG_DEBUG(CAT_WEB, "Started web_initAP(), wifi_is_ap_mode() state is %d",
+//             wifi_is_ap_mode());
+  
+//   if (wifi_is_ap_mode())
+//     return;
 
-  apMode = true;
-  const char* deviceId = g_configManager.getDeviceId();
-  wifi_start_ap(deviceId);
+//   apMode = true;
+//   const char* deviceId = g_configManager.getDeviceId();
+//   LOG_DEBUG(CAT_WEB, "web_initAP() called wifi_start_ap");
+//   wifi_start_ap(deviceId);
 
-  server.on("/", []() {
-    LOG_DEBUG(CAT_WEB, "GET / - Config page requested from AP mode");
-    web_sendConfigPage("", "");
-  });
+//   server.on("/", []() {
+//     LOG_DEBUG(CAT_WEB, "GET / - Config page requested from AP mode");
+//     web_sendConfigPage("", "");
+//   });
 
-  server.on("/save", web_saveConfig);
-  server.on("/favicon.ico", []() { server.send(404); });
+//   server.on("/save", web_saveConfig);
+//   server.on("/favicon.ico", []() { server.send(404); });
 
-  LOG_INFO(CAT_WEB, "Web server started in AP mode: SSID %s, IP %s", deviceId,
-           AP_IP_ADDRESS);
-  server.begin();
-}
+//   LOG_INFO(CAT_WEB, "Web server started in AP mode: SSID %s, IP %s", deviceId,
+//            AP_IP_ADDRESS);
+//   server.begin();
+// }
 
 void web_update() {
   server.handleClient();

@@ -160,7 +160,7 @@ class Logger {
   Logger(const Logger&) = delete;
   Logger& operator=(const Logger&) = delete;
 
-  void output(const char* message);
+  // void output(const char* message);
   const char* levelToString(LogLevel level) const;
   const char* categoryToString(LogCategory category) const;
   const char* getColorForLevel(LogLevel level) const;

@@ -7,7 +7,18 @@
 bool apMode = false;
 
 bool wifi_is_ap_mode() {
-  return apMode;
+  // Если флаг установлен - точно AP режим
+  if (apMode)
+    return true;
+
+// Проверяем реальное состояние WiFi
+#if defined(ESP32) || defined(ESP8266)
+  wifi_mode_t mode = WiFi.getMode();
+  // LOG_DEBUG(CAT_WIFI, "wifi_is_ap_mode(): WiFi mode is %d", mode);
+  return (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA);
+#else
+  return false;
+#endif
 }
 
 static unsigned long wifi_connect_start_time = 0;
@@ -93,16 +104,18 @@ void wifi_monitor() {
     } else if (millis() - wifi_lost_time > AP_FALLBACK_TIMEOUT_MS) {
       LOG_INFO(CAT_WIFI, "WiFi lost for %d ms, switching to AP mode",
                AP_FALLBACK_TIMEOUT_MS);
+
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
-      delay(100);  // Allow WiFi hardware to fully deinitialize before AP start
-                   // (critical for ESP8266)
-      web_initAP();
-      wifi_lost_time = 0;
-    }
-  } else {
-    // сбрасываем таймер только при реальном подключении
-    if (wifi_is_connected()) {
+      delay(100);
+
+      // Запускаем AP через WiFiManager
+      const char* deviceId = g_configManager.getDeviceId();
+      wifi_start_ap(deviceId);
+
+      // Web в режиме настройки
+      web_init(true);
+
       wifi_lost_time = 0;
     }
   }
@@ -121,6 +134,11 @@ void wifi_start_ap(const char* ssid) {
 
   LOG_INFO(CAT_WIFI, "AP started: SSID=" ANSI_BOLD "%s" ANSI_RESET ", IP=%s",
            ssid, AP_IP_ADDRESS);
+}
+
+void wifi_stop_ap() {
+  WiFi.softAPdisconnect(true);
+  apMode = false;
 }
 
 int wifi_scan_and_log(const char* targetSsid) {
@@ -186,12 +204,12 @@ bool wifi_is_connected() {
   return WiFi.status() == WL_CONNECTED;
 }
 
-void wifi_start_ap_mode() {
-  if (apMode)
-    return;
-  apMode = true;
-  wifi_start_ap(g_configManager.getDeviceId());
-  web_initAP();
-}
+// void wifi_start_ap_mode() {
+//   if (apMode)
+//     return;
+//   apMode = true;
+//   wifi_start_ap(g_configManager.getDeviceId());
+//   web_initAP();
+// }
 
 #endif

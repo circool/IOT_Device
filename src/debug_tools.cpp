@@ -1,5 +1,6 @@
 #include "debug_tools.h"
 #include "logger.h"
+#include <qrcode.h>
 
 const char* getResetReason() {
 #ifdef ESP8266
@@ -47,10 +48,6 @@ const char* getResetReason() {
   return "UNKNOWN_PLATFORM";
 #endif
 }
-
-
-
-#if LOG_LEVEL > 0
 
 void print_system_info() {
 #ifdef ESP32
@@ -139,4 +136,5 @@ void print_system_info() {
 }
 
 
-#endif
+
+

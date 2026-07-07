@@ -19,7 +19,7 @@
 // PROVISIONING
 // ============================================================================
 
-#include "provisioning/provisioning.h"
+#include "provisioning.h"
 
 static WiFiClient g_mqttClient;
 
@@ -304,6 +304,14 @@ void initNormalMode() {
   LOG_INFO(CAT_MAIN, "NORMAL MODE");
   LOG_INFO(CAT_MAIN, "========================================");
 
+  // принудительно выйти из AP режима
+  if (apMode) {
+    // WiFi.softAPdisconnect(true);
+    // apMode = false;
+    wifi_stop_ap();
+    LOG_INFO(CAT_WIFI, "AP mode disabled");
+  }
+
   // ========== ДАТЧИК ==========
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   sensor_init();
@@ -582,7 +590,7 @@ void setup() {
   }
 #endif
 
-  LOG_INFO(CAT_MAIN, "Setup complete, entering loop()");
+  LOG_DEBUG(CAT_MAIN, "Setup complete");
 }
 
 // ============================================================================
@@ -593,18 +601,56 @@ void loop() {
   wdt_feed();
   checkResetButton();
 
-  if (g_normalMode) {
-    processNormalMode();
-  } else {
-    // Вся логика провизионинга инкапсулирована в менеджере
+  if (!g_normalMode) {
     ProvisioningManager::getInstance().update();
 
-    // Оркестратор только проверяет результат
     if (isProvisioningComplete()) {
-      LOG_INFO(CAT_MAIN, "Provisioning complete, switching to NORMAL mode");
+      auto& prov = ProvisioningManager::getInstance();
+      auto method = prov.getCompletedBy();
+
+      if (method == ProvisioningMethod::FAILED) {
+        LOG_WARN(CAT_MAIN, "Provisioning FAILED! Rebooting ...");
+        wdt_stop();
+        ESP.restart();
+        return;
+      }
+
+      // Успешное завершение
+      LOG_INFO(CAT_MAIN, "Provisioning completed via %s",
+               method == ProvisioningMethod::BLE ? "BLE" : "AP");
+
+      // Оркестратор сам сохраняет конфиг
+      const auto* data = prov.getData();
+      if (data && strlen(data->wifiSsid) > 0) {
+        LOG_INFO(CAT_MAIN, "Saving config: SSID='%s'", data->wifiSsid);
+
+        auto& cfg = ConfigManager::getInstance();
+        cfg.setWifiSsid(data->wifiSsid);
+        cfg.setWifiPassword(data->wifiPassword);
+
+        if (cfg.save()) {
+          LOG_INFO(CAT_MAIN, "Config saved successfully!");
+        } else {
+          LOG_ERROR(CAT_MAIN, "Failed to save config!");
+          return;
+        }
+      }
+
+      // Выходим из AP режима (если активен)
+      if (apMode) {
+        wifi_stop_ap();
+        LOG_INFO(CAT_WIFI, "AP mode disabled");
+      }
+
+      // Переходим в NORMAL MODE без перезагрузки
       g_normalMode = true;
       initNormalMode();
+
+      LOG_INFO(CAT_MAIN,
+               "System running in NORMAL mode with new configuration");
     }
+  } else {
+    processNormalMode();
   }
 
   led_update();
