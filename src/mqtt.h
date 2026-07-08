@@ -1,94 +1,124 @@
+/**
+ * @file mqtt.h
+ * @brief MQTT транспорт для умного дома
+ * @details Обеспечивает обмен данными с MQTT-брокером.
+ *          Поддерживает публикацию состояния и приём команд.
+ *
+ * @note Для ESP8266: колбэки используют указатели на функции вместо
+ * std::function для экономии RAM (~500 байт)
+ */
+
 #ifndef MQTT_H
 #define MQTT_H
+
 #include <Arduino.h>
+#include <PubSubClient.h>
 #include "config_manager.h"
 
-/** @brief Включить MQTT клиент по умолчанию */
+// ============================================================================
+// НАСТРОЙКИ
+// ============================================================================
+
 #ifndef MQTT_ENABLED
 #define MQTT_ENABLED 1
 #endif
 
-// ============================================================================
-// НАСТРОЙКИ MQTT
-// ============================================================================
-
 #if MQTT_ENABLED == 1
 
-/** @brief Задержка между попытками переподключения (мс) */
-#ifndef MQTT_RECONNECT_DELAY_MS
-#define MQTT_RECONNECT_DELAY_MS 5000
-#endif
-
-/** @brief Интервал публикации heartbeat (мс) */
-#ifndef STATE_PUBLISH_INTERVAL_MS
-#define STATE_PUBLISH_INTERVAL_MS 3000
-#endif
-
-/** @brief Keep-alive интервал MQTT (секунды) */
-#ifndef MQTT_KEEPALIVE_SEC
-#define MQTT_KEEPALIVE_SEC 3
-#endif
-
-/** @brief Включить MQTT команду сброса настроек */
-#ifndef MQTT_RESET_ENABLED
-#define MQTT_RESET_ENABLED 1
-#endif
-
-/** @brief Публиковать RSSI в MQTT */
-#ifndef MQTT_PUBLISH_RSSI
-#define MQTT_PUBLISH_RSSI 1
-#endif
-
-/** @brief Публиковать версию прошивки в MQTT */
-#ifndef MQTT_PUBLISH_VERSION
-#define MQTT_PUBLISH_VERSION 1
-#endif
-
-/** @brief Публиковать причину перезагрузки (кроме POWER_ON/SOFT_RESTART) */
+/** @brief По умолчанию публиковать причину перезагрузки */
 #ifndef MQTT_PUBLISH_RESET_REASON
 #define MQTT_PUBLISH_RESET_REASON 1
 #endif
 
-#if MQTT_PUBLISH_RESET_REASON == 1
 /** @brief Не публиковать штатные перезагрузки (POWER_ON, SOFT_RESTART) */
 #ifndef MQTT_IGNORE_PUBLISH_NORMAL_RESET_REASONS
 #define MQTT_IGNORE_PUBLISH_NORMAL_RESET_REASONS 1
 #endif
+
+/** @brief По умолчанию публиковать RSSI */
+#ifndef MQTT_PUBLISH_RSSI
+#define MQTT_PUBLISH_RSSI 1
 #endif
 
-#else
-#define MQTT_RESET_ENABLED 0
-#define MQTT_PUBLISH_RSSI 0
-#define MQTT_PUBLISH_RESET_REASON 0
+/** @brief По умолчанию публиковать версию прошивки */
+#ifndef MQTT_PUBLISH_VERSION
+#define MQTT_PUBLISH_VERSION 1
 #endif
 
-#if MQTT_ENABLED == 1
 
-#include <PubSubClient.h>
-#include <functional>
-class Client;
+
+
+/** @brief Задержка между попытками переподключения */
+#ifndef MQTT_RECONNECT_DELAY_MS
+#define MQTT_RECONNECT_DELAY_MS 5000
+#endif
+
+/** @brief Интервал публикации heartbeat */
+#ifndef STATE_PUBLISH_INTERVAL_MS
+#define STATE_PUBLISH_INTERVAL_MS 3000
+#endif
+
+/** @brief Keep-alive интервал MQTT */
+#ifndef MQTT_KEEPALIVE_SEC
+#define MQTT_KEEPALIVE_SEC 3
+#endif
+
+// ============================================================================
+// КЛАСС MQTTManager
+// ============================================================================
 
 /**
  * @brief Менеджер MQTT-соединения
  *
- * Обеспечивает:
- * - Автоматическое переподключение к брокеру
- * - Публикацию состояния, показаний датчиков, конфигурации
- * - Обработку входящих команд
+ * Отвечает за:
+ * - Подключение к брокеру
+ * - Публикацию состояния (температура, влажность, статус)
+ * - Приём команд (вкл/выкл, скорость, настройки)
+ *
+ * @note Колбэки реализованы через указатели на функции (не std::function)
+ *       для совместимости с ESP8266 (экономия RAM)
  */
 class MQTTManager {
  public:
+  // ========================================================================
+  // ТИПЫ КОЛБЭКОВ (для приёма команд от брокера)
+  // ========================================================================
+
+  /** @brief Колбэк с одним булевым параметром */
+  typedef void (*BoolCallback)(bool value, void* context);
+
+  /** @brief Колбэк с целочисленным параметром */
+  typedef void (*IntCallback)(int value, void* context);
+
+  /** @brief Колбэк с 32-битным беззнаковым параметром */
+  typedef void (*UintCallback)(uint32_t value, void* context);
+
+  /** @brief Колбэк с float-параметром */
+  typedef void (*FloatCallback)(float value, void* context);
+
+  /** @brief Колбэк без параметров */
+  typedef void (*VoidCallback)(void* context);
+
+  // ========================================================================
+  // КОНСТРУКТОР / ДЕСТРУКТОР
+  // ========================================================================
+
   MQTTManager();
   ~MQTTManager();
 
+  // ========================================================================
+  // УПРАВЛЕНИЕ ПОДКЛЮЧЕНИЕМ
+  // ========================================================================
+
   /**
    * @brief Инициализация MQTT-клиента
+   * @param client WiFi-клиент (WiFiClient)
    * @param broker Адрес брокера (IP или домен)
-   * @param port Порт брокера (обычно 1883)
-   * @param clientId Уникальный идентификатор клиента
+   * @param port Порт (обычно 1883)
+   * @param clientId Уникальный ID устройства
    * @param user Имя пользователя (опционально)
    * @param password Пароль (опционально)
-   * @return true — успешно, false — ошибка (нет брокера)
+   * @return true — успешно
    */
   bool begin(Client& client,
              const char* broker,
@@ -98,36 +128,39 @@ class MQTTManager {
              const char* password = nullptr);
 
   /**
-   * @brief Периодический вызов в loop()
-   * Обрабатывает входящие сообщения и переподключение
+   * @brief Периодическая обработка (вызывается в loop)
+   * @details Обрабатывает входящие сообщения и переподключение
    */
   void process();
 
   /**
-   * @brief Проверить соединение с брокером
-   * @return true — подключён, false — нет
+   * @brief Проверка соединения с брокером
+   * @return true — подключён
    */
   bool isConnected();
 
   /**
-   * @brief Принудительно отключиться от брокера
+   * @brief Принудительное отключение от брокера
    */
   void disconnect();
 
-  // --- Публикации ---
-  void publishOnline();                     // Статус Online/Offline (LWT)
-  void publishState(bool on);               // Состояние вентилятора/выключателя
-  void publishSpeed(int percent);           // Текущая скорость (0-100)
-  void publishDelaySec(int seconds);        // Таймер отложенного включения
-  void publishMaxOnTime(uint32_t seconds);  // Таймер аварийного отключения
-  void publishSensorControlMode(bool enabled);  // Режим AUTO/MANUAL
+  // ========================================================================
+  // ПУБЛИКАЦИЯ ДАННЫХ (устройство → брокер)
+  // ========================================================================
+
+  void publishOnline();                     ///< Статус Online
+  void publishState(bool on);               ///< Состояние (ON/OFF)
+  void publishSpeed(int percent);           ///< Скорость (0-100%)
+  void publishDelaySec(int seconds);        ///< Задержка включения
+  void publishMaxOnTime(uint32_t seconds);  ///< Таймер аварийного отключения
+  void publishSensorControlMode(bool enabled);  ///< Режим AUTO/MANUAL
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  void publishSensor(float temp, float hum);  // Показания датчика
+  void publishSensor(float temp, float hum);  ///< Показания датчика
 #endif
 
 #if DEVICE_TYPE == 1
-  void publishAdaptiveMode(bool enabled);  // Состояние адаптивного режима
+  void publishAdaptiveMode(bool enabled);
   void publishThresholds(float lowTemp,
                          float highTemp,
                          float lowHum,
@@ -135,7 +168,7 @@ class MQTTManager {
 #endif
 
 #if MQTT_PUBLISH_RSSI == 1
-  void publishRSSI(int rssi);  // Уровень WiFi-сигнала
+  void publishRSSI(int rssi);
 #endif
 
 #if MQTT_PUBLISH_VERSION == 1
@@ -143,41 +176,72 @@ class MQTTManager {
 #endif
 
 #if MQTT_PUBLISH_RESET_REASON == 1
-  void publishResetReason(
-      const char* reason);  // Причина последней перезагрузки
+  void publishResetReason(const char* reason);
 #endif
 
-  // --- Колбэки на входящие команды ---
-  void onStateCommand(std::function<void(bool)> callback);
-  void onSpeedCommand(std::function<void(int)> callback);
-  void onDelaySecCommand(std::function<void(int)> callback);
-  void onMaxOnTimeCommand(std::function<void(uint32_t)> callback);
-  void onSensorControlModeCommand(std::function<void(bool)> callback);
+  // ========================================================================
+  // РЕГИСТРАЦИЯ КОЛБЭКОВ (брокер → устройство)
+  // ========================================================================
+
+  void onState(BoolCallback callback, void* context);
+  void onSpeed(IntCallback callback, void* context);
+  void onDelaySec(IntCallback callback, void* context);
+  void onMaxOnTime(UintCallback callback, void* context);
+  void onSensorControlMode(BoolCallback callback, void* context);
 
 #if DEVICE_TYPE == 1
-  void onAdaptiveModeCommand(std::function<void(bool)> callback);
-  void onLowTempCommand(std::function<void(float)> callback);
-  void onHighTempCommand(std::function<void(float)> callback);
-  void onLowHumCommand(std::function<void(float)> callback);
-  void onHighHumCommand(std::function<void(float)> callback);
+  void onAdaptiveMode(BoolCallback callback, void* context);
+  void onLowTemp(FloatCallback callback, void* context);
+  void onHighTemp(FloatCallback callback, void* context);
+  void onLowHum(FloatCallback callback, void* context);
+  void onHighHum(FloatCallback callback, void* context);
 #endif
 
 #if MQTT_RESET_ENABLED == 1
-  void onResetCommand(std::function<void()> callback);
+  void onReset(VoidCallback callback, void* context);
 #endif
 
  private:
-  void reconnect();    // Попытка переподключения к брокеру
-  void setupTopics();  // Формирование MQTT-топиков на основе clientId
-  void subscribe();    // Подписка на управляющие топики
+  // ========================================================================
+  // ВНУТРЕННИЕ МЕТОДЫ
+  // ========================================================================
+
+  void reconnect();
+  void setupTopics();
+  void subscribe();
   void callback(char* topic, byte* payload, unsigned int length);
   static void staticCallback(char* topic, byte* payload, unsigned int length);
   void handleCommand(const char* topic, const String& payload);
 
+  // ========================================================================
+  // СТРУКТУРЫ ДЛЯ ХРАНЕНИЯ КОЛБЭКОВ
+  // ========================================================================
+
+  /**
+   * @brief Контейнер для колбэка с контекстом
+   * @note Простая структура вместо std::function (экономит RAM)
+   */
+  template <typename T>
+  struct Callback {
+    T func = nullptr;
+    void* context = nullptr;
+  };
+
+  // Типы колбэков с контекстом
+  typedef Callback<BoolCallback> BoolCb;
+  typedef Callback<IntCallback> IntCb;
+  typedef Callback<UintCallback> UintCb;
+  typedef Callback<FloatCallback> FloatCb;
+  typedef Callback<VoidCallback> VoidCb;
+
+  // ========================================================================
+  // ДАННЫЕ
+  // ========================================================================
+
   PubSubClient _mqttClient;
 
-  // Хранение топиков (pre-allocated, не String)
-  struct Topics {
+  // Топики (все топики предвыделены для экономии RAM)
+  struct {
     char online[48];
     char version[48];
     char reset[48];
@@ -200,14 +264,9 @@ class MQTTManager {
 #if DEVICE_TYPE == 1
     char adaptiveMode[48];
     char adaptiveModeControl[48];
-    char lowTemp[48];
-    char highTemp[48];
-    char lowHum[48];
-    char highHum[48];
-    char lowTempControl[48];
-    char highTempControl[48];
-    char lowHumControl[48];
-    char highHumControl[48];
+    char lowTemp[48], highTemp[48], lowHum[48], highHum[48];
+    char lowTempControl[48], highTempControl[48];
+    char lowHumControl[48], highHumControl[48];
 #endif
 
 #if MQTT_PUBLISH_RSSI == 1
@@ -216,132 +275,40 @@ class MQTTManager {
   } _topics;
 
   char _clientId[24];
-  bool _initialized;
-  unsigned long _lastReconnectAttempt;
+  bool _initialized = false;
+  unsigned long _lastReconnectAttempt = 0;
 
-  // Сохранённые параметры для reconnect
+  // Параметры для переподключения
   char _broker[64];
-  uint16_t _port;
+  uint16_t _port = 1883;
   char _user[32];
   char _password[64];
 
-  // Колбэки (std::function допустим на ESP32, на ESP8266 экономит Flash)
-  std::function<void(bool)> _stateCallback;
-  std::function<void(int)> _speedCallback;
-  std::function<void(int)> _delaySecCallback;
-  std::function<void(uint32_t)> _maxOnTimeCallback;
-  std::function<void(bool)> _sensorControlModeCallback;
+  // ========================================================================
+  // КОЛБЭКИ (без std::function!)
+  // ========================================================================
+
+  BoolCb _onState;
+  IntCb _onSpeed;
+  IntCb _onDelaySec;
+  UintCb _onMaxOnTime;
+  BoolCb _onSensorControlMode;
 
 #if DEVICE_TYPE == 1
-  std::function<void(bool)> _adaptiveModeCallback;
-  std::function<void(float)> _lowTempCallback;
-  std::function<void(float)> _highTempCallback;
-  std::function<void(float)> _lowHumCallback;
-  std::function<void(float)> _highHumCallback;
+  BoolCb _onAdaptiveMode;
+  FloatCb _onLowTemp;
+  FloatCb _onHighTemp;
+  FloatCb _onLowHum;
+  FloatCb _onHighHum;
 #endif
 
 #if MQTT_RESET_ENABLED == 1
-  std::function<void()> _resetCallback;
-#endif
-};
-
-extern MQTTManager mqttManager;
-#else  // MQTT_ENABLED == 0
-
-// ============================================================================
-// ЗАГЛУШКИ ДЛЯ РЕЖИМА БЕЗ MQTT
-// ============================================================================
-
-/**
- * @brief Класс-заглушка для режима без MQTT
- * Все методы пустые или возвращают значения по умолчанию
- */
-class MQTTManager {
- public:
-  MQTTManager() {}
-  ~MQTTManager() {}
-
-  bool begin(T&,
-             const char*,
-             uint16_t,
-             const char*,
-             const char* = nullptr,
-             const char* = nullptr) {
-    return false;
-  }
-
-  void process() {}
-  bool isConnected() { return false; }
-  void disconnect() {}
-
-  void publishOnline() {}
-  void publishState(bool on) { (void)on; }
-  void publishSpeed(int percent) { (void)percent; }
-  void publishDelaySec(int seconds) { (void)seconds; }
-  void publishMaxOnTime(uint32_t seconds) { (void)seconds; }
-  void publishSensorControlMode(bool enabled) { (void)enabled; }
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  void publishSensor(float temp, float hum) {
-    (void)temp;
-    (void)hum;
-  }
-#endif
-
-#if DEVICE_TYPE == 1
-  void publishAdaptiveMode(bool enabled) { (void)enabled; }
-  void publishThresholds(float lowTemp,
-                         float highTemp,
-                         float lowHum,
-                         float highHum) {
-    (void)lowTemp;
-    (void)highTemp;
-    (void)lowHum;
-    (void)highHum;
-  }
-#endif
-
-#if MQTT_PUBLISH_RSSI == 1
-  void publishRSSI(int rssi) { (void)rssi; }
-#endif
-
-#if MQTT_PUBLISH_VERSION == 1
-  void publishVersion(const char* version) { (void)version; }
-#endif
-
-#if MQTT_PUBLISH_RESET_REASON == 1
-  void publishResetReason(const char* reason) { (void)reason; }
-#endif
-
-  // Колбэки — просто сохраняем, но никогда не вызываем
-  void onStateCommand(std::function<void(bool)> callback) { (void)callback; }
-  void onSpeedCommand(std::function<void(int)> callback) { (void)callback; }
-  void onDelaySecCommand(std::function<void(int)> callback) { (void)callback; }
-  void onMaxOnTimeCommand(std::function<void(uint32_t)> callback) {
-    (void)callback;
-  }
-  void onSensorControlModeCommand(std::function<void(bool)> callback) {
-    (void)callback;
-  }
-
-#if DEVICE_TYPE == 1
-  void onAdaptiveModeCommand(std::function<void(bool)> callback) {
-    (void)callback;
-  }
-  void onLowTempCommand(std::function<void(float)> callback) { (void)callback; }
-  void onHighTempCommand(std::function<void(float)> callback) {
-    (void)callback;
-  }
-  void onLowHumCommand(std::function<void(float)> callback) { (void)callback; }
-  void onHighHumCommand(std::function<void(float)> callback) { (void)callback; }
-#endif
-
-#if MQTT_RESET_ENABLED == 1
-  void onResetCommand(std::function<void()> callback) { (void)callback; }
+  VoidCb _onReset;
 #endif
 };
 
 extern MQTTManager mqttManager;
 
 #endif  // MQTT_ENABLED == 1
+
 #endif  // MQTT_H

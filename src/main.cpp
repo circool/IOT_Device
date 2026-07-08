@@ -83,96 +83,160 @@ static SwitchWebStatusProvider statusProvider(&switchActuator, &mqttManager);
 #endif
 
 // ============================================================================
-// MQTT FUNCTIONS (Локальные статические функции)
+// СТАТИЧЕСКИЕ ФУНКЦИИ-ОБРАБОТЧИКИ ДЛЯ MQTT КОЛБЭКОВ
 // ============================================================================
 
 #if MQTT_ENABLED == 1
 
-static unsigned long lastMQTTAttempt = 0;
-
-/**
- * @brief Регистрация колбэков MQTT
- * @note Локальная функция, специфичная для типа устройства
- */
-static void registerMqttCallbacks() {
 #if DEVICE_TYPE == 1
-  mqttManager.onStateCommand([](bool state) { fan.set(state, true); });
 
-  mqttManager.onSpeedCommand([](int speed) {
-    if (g_configManager.getAdaptiveMode()) {
-      g_configManager.setAdaptiveMode(false);
-      fan.setAdaptiveMode(false);
-    }
-    if (speed == 0 || speed < MIN_SPEED_PERCENT) {
-      fan.set(false, true);
-    } else {
-      fan.setSpeed(speed, true);
-      if (fan.getState()) {
-        fan.setSpeed(speed, false);
-      }
-    }
-  });
+static void onMqttState(bool state, void* context) {
+  FanActuator* fan = (FanActuator*)context;
+  fan->set(state, true);
+}
 
-  mqttManager.onSensorControlModeCommand([](bool enabled) {
-    if (enabled && !sensor_isOk()) {
-      LOG_WARN(CAT_MQTT,
-               "Cannot enable sensor control mode - sensor not available");
-      mqttManager.publishSensorControlMode(false);
-      return;
-    }
-    g_configManager.setSensorControlMode(enabled);
-    if (!enabled) {
-      fan.setAdaptiveMode(false);
-    }
-  });
+static void onMqttSpeed(int speed, void* context) {
+  FanActuator* fan = (FanActuator*)context;
 
-  mqttManager.onAdaptiveModeCommand([](bool enabled) {
-    if (enabled && !g_configManager.getSensorControlMode()) {
-      LOG_WARN(CAT_MQTT,
-               "Cannot enable adaptive mode - sensor control mode is OFF");
-      return;
+  if (g_configManager.getAdaptiveMode()) {
+    g_configManager.setAdaptiveMode(false);
+    fan->setAdaptiveMode(false);
+  }
+
+  if (speed == 0 || speed < MIN_SPEED_PERCENT) {
+    fan->set(false, true);
+  } else {
+    fan->setSpeed(speed, true);
+    if (fan->getState()) {
+      fan->setSpeed(speed, false);
     }
-    g_configManager.setAdaptiveMode(enabled);
-    fan.setAdaptiveMode(enabled);
-  });
+  }
+}
 
-  mqttManager.onLowTempCommand(
-      [](float value) { g_configManager.setLowTemp(value); });
-  mqttManager.onHighTempCommand(
-      [](float value) { g_configManager.setHighTemp(value); });
-  mqttManager.onLowHumCommand(
-      [](float value) { g_configManager.setLowHum(value); });
-  mqttManager.onHighHumCommand(
-      [](float value) { g_configManager.setHighHum(value); });
-  mqttManager.onDelaySecCommand(
-      [](int delaySec) { g_configManager.setDelaySeconds(delaySec); });
-#endif
+static void onMqttSensorControlMode(bool enabled, void* context) {
+  FanActuator* fan = (FanActuator*)context;
 
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  mqttManager.onMaxOnTimeCommand(
-      [](uint32_t maxOnTime) { g_configManager.setMaxOnTime(maxOnTime); });
-#endif
+  if (enabled && !sensor_isOk()) {
+    LOG_WARN(CAT_MQTT, "Cannot enable sensor mode - sensor not available");
+    mqttManager.publishSensorControlMode(false);
+    return;
+  }
+
+  g_configManager.setSensorControlMode(enabled);
+  if (!enabled) {
+    fan->setAdaptiveMode(false);
+  }
+}
+
+static void onMqttAdaptiveMode(bool enabled, void* context) {
+  FanActuator* fan = (FanActuator*)context;
+
+  if (enabled && !g_configManager.getSensorControlMode()) {
+    LOG_WARN(CAT_MQTT, "Cannot enable adaptive - sensor mode is OFF");
+    return;
+  }
+
+  g_configManager.setAdaptiveMode(enabled);
+  fan->setAdaptiveMode(enabled);
+}
+
+static void onMqttLowTemp(float value, void* /*context*/) {
+  g_configManager.setLowTemp(value);
+}
+
+static void onMqttHighTemp(float value, void* /*context*/) {
+  g_configManager.setHighTemp(value);
+}
+
+static void onMqttLowHum(float value, void* /*context*/) {
+  g_configManager.setLowHum(value);
+}
+
+static void onMqttHighHum(float value, void* /*context*/) {
+  g_configManager.setHighHum(value);
+}
+
+static void onMqttDelaySec(int seconds, void* /*context*/) {
+  g_configManager.setDelaySeconds(seconds);
+}
+
+static void onMqttMaxOnTime(uint32_t seconds, void* /*context*/) {
+  g_configManager.setMaxOnTime(seconds);
+}
+
+#elif DEVICE_TYPE == 3
+
+static void onMqttState(bool state, void* context) {
+  SwitchActuator* sw = (SwitchActuator*)context;
+  sw->set(state, true);
+}
+
+static void onMqttDelaySec(int seconds, void* /*context*/) {
+  g_configManager.setDelaySeconds(seconds);
+}
+
+static void onMqttMaxOnTime(uint32_t seconds, void* /*context*/) {
+  g_configManager.setMaxOnTime(seconds);
+}
+
+#endif  // DEVICE_TYPE
 
 #if MQTT_RESET_ENABLED == 1
-  mqttManager.onResetCommand([]() {
-    LOG_INFO(CAT_MQTT, "Resetting due MQTT RESET");
-    mqttManager.disconnect();
-    g_configManager.reset();
-    delay(1000);
-    ESP.restart();
-  });
+static void onMqttReset(void* context) {
+  LOG_INFO(CAT_MQTT, "Reset via MQTT");
+  mqttManager.disconnect();
+  g_configManager.reset();
+  delay(1000);
+  ESP.restart();
+}
+#endif
+
+// ============================================================================
+// РЕГИСТРАЦИЯ КОЛБЭКОВ
+// ============================================================================
+
+static void registerMqttCallbacks() {
+#if DEVICE_TYPE == 1
+  mqttManager.onState(onMqttState, &fan);
+  mqttManager.onSpeed(onMqttSpeed, &fan);
+  mqttManager.onSensorControlMode(onMqttSensorControlMode, &fan);
+  mqttManager.onAdaptiveMode(onMqttAdaptiveMode, &fan);
+  mqttManager.onLowTemp(onMqttLowTemp, nullptr);
+  mqttManager.onHighTemp(onMqttHighTemp, nullptr);
+  mqttManager.onLowHum(onMqttLowHum, nullptr);
+  mqttManager.onHighHum(onMqttHighHum, nullptr);
+  mqttManager.onDelaySec(onMqttDelaySec, nullptr);
+  mqttManager.onMaxOnTime(onMqttMaxOnTime, nullptr);
+
+#if MQTT_RESET_ENABLED == 1
+  mqttManager.onReset(onMqttReset, nullptr);
+#endif
+
+#elif DEVICE_TYPE == 3
+  mqttManager.onState(onMqttState, &switchActuator);
+  mqttManager.onDelaySec(onMqttDelaySec, nullptr);
+  mqttManager.onMaxOnTime(onMqttMaxOnTime, nullptr);
+
+#if MQTT_RESET_ENABLED == 1
+  mqttManager.onReset(onMqttReset, nullptr);
+#endif
 #endif
 }
 
-/**
- * @brief Публикация статуса в MQTT
- * @note Локальная функция, специфичная для типа устройства
- */
+// ============================================================================
+// ПУБЛИКАЦИЯ СТАТУСА В MQTT
+// ============================================================================
+
 static void publishMqttStatus() {
   if (!mqttManager.isConnected())
     return;
 
+  // ========================================================================
+  // ПУБЛИКАЦИЯ СОСТОЯНИЯ УСТРОЙСТВА
+  // ========================================================================
+
 #if DEVICE_TYPE == 1
+  // Состояние вентилятора
   static bool lastFanState = false;
   bool currentFanState = fan.getState();
   if (currentFanState != lastFanState) {
@@ -180,12 +244,14 @@ static void publishMqttStatus() {
     lastFanState = currentFanState;
   }
 
+  // Скорость
   static uint16_t lastSpeedPercent = 0;
   if (fan.getSpeed() != lastSpeedPercent) {
     mqttManager.publishSpeed(fan.getSpeed());
     lastSpeedPercent = fan.getSpeed();
   }
 
+  // Режим AUTO/MANUAL
   static bool lastSensorControlMode = false;
   if (g_configManager.getSensorControlMode() != lastSensorControlMode) {
     mqttManager.publishSensorControlMode(
@@ -193,12 +259,14 @@ static void publishMqttStatus() {
     lastSensorControlMode = g_configManager.getSensorControlMode();
   }
 
+  // Адаптивный режим
   static bool lastAdaptiveMode = false;
   if (fan.getAdaptiveMode() != lastAdaptiveMode) {
     mqttManager.publishAdaptiveMode(fan.getAdaptiveMode());
     lastAdaptiveMode = fan.getAdaptiveMode();
   }
 
+  // Пороги датчика
   static float lastLowTemp = 0, lastHighTemp = 0, lastLowHum = 0,
                lastHighHum = 0;
   if (fabs(g_configManager.getLowTemp() - lastLowTemp) > 0.01 ||
@@ -213,30 +281,41 @@ static void publishMqttStatus() {
     lastLowHum = g_configManager.getLowHum();
     lastHighHum = g_configManager.getHighHum();
   }
-#endif
+#endif  // DEVICE_TYPE == 1
 
 #if DEVICE_TYPE == 3
+  // Состояние выключателя
   static bool lastSwitchState = false;
   bool currentSwitchState = switchActuator.getState();
   if (currentSwitchState != lastSwitchState) {
     mqttManager.publishState(currentSwitchState);
     lastSwitchState = currentSwitchState;
   }
-#endif
+#endif  // DEVICE_TYPE == 3
+
+  // ========================================================================
+  // ОБЩИЕ ПАРАМЕТРЫ (для TYPE 1 и TYPE 3)
+  // ========================================================================
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+  // Задержка включения
   static int lastDelaySeconds = -1;
   if (g_configManager.getDelaySeconds() != lastDelaySeconds) {
     mqttManager.publishDelaySec(g_configManager.getDelaySeconds());
     lastDelaySeconds = g_configManager.getDelaySeconds();
   }
 
+  // Таймер аварийного отключения
   static uint32_t lastMaxOnTime = 0;
   if (g_configManager.getMaxOnTime() != lastMaxOnTime) {
     mqttManager.publishMaxOnTime(g_configManager.getMaxOnTime());
     lastMaxOnTime = g_configManager.getMaxOnTime();
   }
 #endif
+
+  // ========================================================================
+  // ПОКАЗАНИЯ ДАТЧИКА (для TYPE 1 и TYPE 2)
+  // ========================================================================
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (sensor_isOk()) {
@@ -252,8 +331,12 @@ static void publishMqttStatus() {
   }
 #endif
 
-  static unsigned long lastHeartbeat = 0;
+  // ========================================================================
+  // ПЕРВИЧНАЯ ПУБЛИКАЦИЯ ВСЕХ НАСТРОЕК (при первом подключении)
+  // ========================================================================
+
   static bool initialConfigPublished = false;
+  static unsigned long lastHeartbeat = 0;
 
   if (!initialConfigPublished) {
 #if DEVICE_TYPE == 1
@@ -284,11 +367,17 @@ static void publishMqttStatus() {
     LOG_INFO(CAT_MQTT, "Initial config published");
   }
 
+  // ========================================================================
+  // HEARTBEAT (периодическая публикация статуса)
+  // ========================================================================
+
   if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
     mqttManager.publishOnline();
+
 #if MQTT_PUBLISH_RSSI == 1
     mqttManager.publishRSSI(wifi_get_rssi());
 #endif
+
     lastHeartbeat = millis();
   }
 }
@@ -306,8 +395,6 @@ void initNormalMode() {
 
   // принудительно выйти из AP режима
   if (apMode) {
-    // WiFi.softAPdisconnect(true);
-    // apMode = false;
     wifi_stop_ap();
     LOG_INFO(CAT_WIFI, "AP mode disabled");
   }
@@ -316,14 +403,7 @@ void initNormalMode() {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   sensor_init();
 #if DEVICE_TYPE == 1
-  if (!sensor_isOk() && (
-#if SENSOR_TYPE == 1
-                            strcmp(sensor_getError(), "AHT10 not found") == 0
-#elif SENSOR_TYPE == 2
-                            strcmp(sensor_getError(),
-                                   "DHT read failed (NaN)") == 0
-#endif
-                            )) {
+  if (!sensor_isOk()) {
     g_configManager.setSensorControlMode(false);
     g_configManager.setAdaptiveMode(false);
     fan.setAdaptiveMode(false);
@@ -438,7 +518,7 @@ void processNormalMode() {
 #if MQTT_ENABLED == 1
   if (wifi_is_connected()) {
     mqttManager.process();
-    publishMqttStatus();
+    publishMqttStatus();  // ← Теперь публикуем статус
   }
 #endif
 

@@ -1,10 +1,17 @@
+/**
+ * @file mqtt.cpp
+ * @brief Реализация MQTTManager
+ */
+
+#include "mqtt.h"
 #include "config_manager.h"
-// #include "led.h"
 #include "logger.h"
 
 #if MQTT_ENABLED == 1
-#include <PubSubClient.h>
-#include "mqtt.h"
+
+// ============================================================================
+// КОНСТРУКТОР / ДЕСТРУКТОР
+// ============================================================================
 
 MQTTManager::MQTTManager()
     : _mqttClient(),
@@ -22,6 +29,10 @@ MQTTManager::~MQTTManager() {
   disconnect();
 }
 
+// ============================================================================
+// УПРАВЛЕНИЕ ПОДКЛЮЧЕНИЕМ
+// ============================================================================
+
 bool MQTTManager::begin(Client& client,
                         const char* broker,
                         uint16_t port,
@@ -33,10 +44,10 @@ bool MQTTManager::begin(Client& client,
     return false;
   }
 
+  // Сохраняем параметры для reconnect
   strncpy(_clientId, clientId, sizeof(_clientId) - 1);
   _clientId[sizeof(_clientId) - 1] = '\0';
 
-  // Сохраняем для reconnect
   strncpy(_broker, broker, sizeof(_broker) - 1);
   _broker[sizeof(_broker) - 1] = '\0';
   _port = port;
@@ -51,26 +62,100 @@ bool MQTTManager::begin(Client& client,
   }
 
   setupTopics();
+
   _mqttClient.setClient(client);
   _mqttClient.setServer(broker, port);
   _mqttClient.setCallback(staticCallback);
   _mqttClient.setKeepAlive(MQTT_KEEPALIVE_SEC);
-  _mqttClient.setBufferSize(
-      512);  // Default 128 is too small for thresholds JSON
+  _mqttClient.setBufferSize(512);  // Для JSON-сообщений
+
   _initialized = true;
-  LOG_DEBUG(CAT_MQTT, "Initialized for %s with keepalive = %d sec", _clientId,
-            MQTT_KEEPALIVE_SEC);
+
+  LOG_DEBUG(CAT_MQTT, "Initialized for %s", _clientId);
   return true;
 }
 
+void MQTTManager::process() {
+  if (!_initialized)
+    return;
+
+  if (!isConnected()) {
+    reconnect();
+  }
+
+  if (isConnected()) {
+    _mqttClient.loop();
+  }
+}
+
+bool MQTTManager::isConnected() {
+  return _mqttClient.connected();
+}
+
+void MQTTManager::disconnect() {
+  if (_mqttClient.connected()) {
+    _mqttClient.publish(_topics.online, "Offline", true);
+    _mqttClient.disconnect();
+  }
+}
+
+// ============================================================================
+// ПЕРЕПОДКЛЮЧЕНИЕ
+// ============================================================================
+
+void MQTTManager::reconnect() {
+  if (!_initialized)
+    return;
+  if (isConnected())
+    return;
+
+  unsigned long now = millis();
+  if (now - _lastReconnectAttempt < MQTT_RECONNECT_DELAY_MS)
+    return;
+  _lastReconnectAttempt = now;
+
+  static bool firstAttempt = true;
+  if (firstAttempt) {
+    LOG_INFO(CAT_MQTT, "Connecting to broker...");
+    firstAttempt = false;
+  } else {
+    LOG_DEBUG(CAT_MQTT, "Reconnecting...");
+  }
+
+  bool connected;
+  if (strlen(_user) > 0) {
+    connected = _mqttClient.connect(_clientId, _user, _password, _topics.online,
+                                    1, true, "Offline");
+  } else {
+    connected =
+        _mqttClient.connect(_clientId, _topics.online, 1, true, "Offline");
+  }
+
+  if (connected) {
+    LOG_INFO(CAT_MQTT, "Connected to %s", _broker);
+    firstAttempt = true;
+    publishOnline();
+    subscribe();
+  } else {
+    LOG_ERROR(CAT_MQTT, "Failed, state=%d", _mqttClient.state());
+  }
+}
+
+// ============================================================================
+// ТОПИКИ И ПОДПИСКИ
+// ============================================================================
+
 void MQTTManager::setupTopics() {
   const char* prefix = _clientId;
+
   snprintf(_topics.online, sizeof(_topics.online), "%s/status", prefix);
 
 #if MQTT_PUBLISH_VERSION == 1
   snprintf(_topics.version, sizeof(_topics.version), "%s/version", prefix);
 #endif
+
   snprintf(_topics.reset, sizeof(_topics.reset), "%s/c/system/reset", prefix);
+
 #if MQTT_PUBLISH_RSSI == 1
   snprintf(_topics.rssi, sizeof(_topics.rssi), "%s/rssi", prefix);
 #endif
@@ -138,82 +223,6 @@ void MQTTManager::setupTopics() {
 #endif
 }
 
-void MQTTManager::process() {
-  if (!_initialized)
-    return;
-
-  if (!isConnected()) {
-    reconnect();
-  }
-
-  if (isConnected()) {
-    _mqttClient.loop();
-  }
-}
-
-bool MQTTManager::isConnected() {
-  return _mqttClient.connected();
-}
-
-void MQTTManager::disconnect() {
-  if (_mqttClient.connected()) {
-    _mqttClient.publish(_topics.online, "Offline", true);
-    _mqttClient.disconnect();
-  }
-}
-
-void MQTTManager::reconnect() {
-  if (!_initialized)
-    return;
-  if (isConnected())
-    return;
-
-  unsigned long now = millis();
-  if (now - _lastReconnectAttempt < MQTT_RECONNECT_DELAY_MS)
-    return;
-  _lastReconnectAttempt = now;
-  static bool wasConnectedBefore =
-      false;  // Был ли хотя бы один успешный коннект?
-
-  static bool lostLogged = false;
-  if (!wasConnectedBefore) {
-    // Первое подключение в жизни устройства
-    LOG_INFO(CAT_MQTT, "Connecting to broker...");
-  } else if (!lostLogged) {
-    // Были подключены, но потеряли связь
-    LOG_INFO(CAT_MQTT, "Connection lost, attempting to reconnect...");
-    lostLogged = true;
-  }
-
-  LOG_DEBUG(CAT_MQTT, "Connecting to broker as %s", _clientId);
-
-  bool connected;
-  if (strlen(_user) > 0) {
-    connected = _mqttClient.connect(_clientId, _user, _password, _topics.online,
-                                    1, true, "Offline");
-  } else {
-    connected =
-        _mqttClient.connect(_clientId, _topics.online, 1, true, "Offline");
-  }
-
-  if (connected) {
-    LOG_INFO(CAT_MQTT, "Connected! Broker: %s", _broker);
-
-    wasConnectedBefore = true;
-    lostLogged = false;
-
-    publishOnline();
-    subscribe();
-
-  } else {
-    static bool failLogged = false;
-    if (!failLogged) {
-      LOG_ERROR(CAT_MQTT, "Failed to connect, state=%d", _mqttClient.state());
-      failLogged = true;
-    }
-  }
-}
-
 void MQTTManager::subscribe() {
 #if MQTT_RESET_ENABLED == 1
   _mqttClient.subscribe(_topics.reset);
@@ -235,8 +244,12 @@ void MQTTManager::subscribe() {
   _mqttClient.subscribe(_topics.highHumControl);
 #endif
 
-  LOG_INFO(CAT_MQTT, "Subscribed to control topics");
+  LOG_DEBUG(CAT_MQTT, "Subscribed to control topics");
 }
+
+// ============================================================================
+// ОБРАБОТКА СООБЩЕНИЙ
+// ============================================================================
 
 void MQTTManager::staticCallback(char* topic,
                                  byte* payload,
@@ -248,124 +261,187 @@ void MQTTManager::callback(char* topic, byte* payload, unsigned int length) {
   char msg[length + 1];
   memcpy(msg, payload, length);
   msg[length] = '\0';
-  handleCommand(topic, msg);
+  handleCommand(topic, String(msg));
 }
 
 void MQTTManager::handleCommand(const char* topic, const String& payload) {
-  LOG_INFO(CAT_MQTT, "Command received: %s = %s", topic, payload.c_str());
+  LOG_INFO(CAT_MQTT, "Command: %s = %s", topic, payload.c_str());
 
+  // Команда сброса
 #if MQTT_RESET_ENABLED == 1
   if (strcmp(topic, _topics.reset) == 0) {
-    String lowerPayload = payload;
-    lowerPayload.toLowerCase();
-
-    if (lowerPayload == "1" || lowerPayload == "on" || lowerPayload == "true" ||
-        lowerPayload == "reset") {
-      if (_resetCallback) {
-        _resetCallback();
-      }
-    } else {
-      LOG_WARN(CAT_MQTT,
-               "Unknown reset command: '%s' (expected 1/ON/TRUE/RESET)",
-               payload.c_str());
+    String lower = payload;
+    lower.toLowerCase();
+    if (lower == "1" || lower == "on" || lower == "true" || lower == "reset") {
+      if (_onReset.func)
+        _onReset.func(_onReset.context);
     }
     return;
   }
 #endif
 
+  // Команда состояния (ON/OFF)
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   if (strcmp(topic, _topics.control) == 0) {
     bool state = (payload == "ON" || payload == "1");
-    if (_stateCallback)
-      _stateCallback(state);
+    if (_onState.func)
+      _onState.func(state, _onState.context);
     return;
   }
 
+  // Команда скорости
   if (strcmp(topic, _topics.speedControl) == 0) {
     int speed = payload.toInt();
-    if (speed >= 0 && speed <= 100 && _speedCallback) {
-      _speedCallback(speed);
+    if (speed >= 0 && speed <= 100 && _onSpeed.func) {
+      _onSpeed.func(speed, _onSpeed.context);
     }
     return;
   }
 
+  // Команда задержки включения
   if (strcmp(topic, _topics.delaySecControl) == 0) {
     int delaySec = payload.toInt();
-    if (delaySec >= 0 && delaySec <= 86400 && _delaySecCallback) {
-      _delaySecCallback(delaySec);
+    if (delaySec >= 0 && delaySec <= 86400 && _onDelaySec.func) {
+      _onDelaySec.func(delaySec, _onDelaySec.context);
     }
     return;
   }
 
+  // Команда таймера аварийного отключения
   if (strcmp(topic, _topics.maxOnTimeControl) == 0) {
     uint32_t maxOnTime = payload.toInt();
-    if (maxOnTime <= 86400 && _maxOnTimeCallback) {
-      _maxOnTimeCallback(maxOnTime);
+    if (maxOnTime <= 86400 && _onMaxOnTime.func) {
+      _onMaxOnTime.func(maxOnTime, _onMaxOnTime.context);
     }
     return;
   }
 
+  // Команда сенсорного режима
   if (strcmp(topic, _topics.sensorControlModeControl) == 0) {
     bool enabled = (payload == "ON" || payload == "1" || payload == "AUTO");
-    if (_sensorControlModeCallback)
-      _sensorControlModeCallback(enabled);
+    if (_onSensorControlMode.func) {
+      _onSensorControlMode.func(enabled, _onSensorControlMode.context);
+    }
     return;
   }
 #endif
 
+  // Команды для TYPE 1
 #if DEVICE_TYPE == 1
   if (strcmp(topic, _topics.adaptiveModeControl) == 0) {
     bool enabled = (payload == "1" || payload == "ON");
-    if (_adaptiveModeCallback)
-      _adaptiveModeCallback(enabled);
+    if (_onAdaptiveMode.func)
+      _onAdaptiveMode.func(enabled, _onAdaptiveMode.context);
     return;
   }
 
   if (strcmp(topic, _topics.lowTempControl) == 0) {
     float value = payload.toFloat();
-    if (_lowTempCallback)
-      _lowTempCallback(value);
+    if (_onLowTemp.func)
+      _onLowTemp.func(value, _onLowTemp.context);
     return;
   }
 
   if (strcmp(topic, _topics.highTempControl) == 0) {
     float value = payload.toFloat();
-    if (_highTempCallback)
-      _highTempCallback(value);
+    if (_onHighTemp.func)
+      _onHighTemp.func(value, _onHighTemp.context);
     return;
   }
 
   if (strcmp(topic, _topics.lowHumControl) == 0) {
     float value = payload.toFloat();
-    if (_lowHumCallback)
-      _lowHumCallback(value);
+    if (_onLowHum.func)
+      _onLowHum.func(value, _onLowHum.context);
     return;
   }
 
   if (strcmp(topic, _topics.highHumControl) == 0) {
     float value = payload.toFloat();
-    if (_highHumCallback)
-      _highHumCallback(value);
+    if (_onHighHum.func)
+      _onHighHum.func(value, _onHighHum.context);
     return;
   }
 #endif
 }
 
-// ========== ПУБЛИКАЦИИ ==========
+// ============================================================================
+// РЕГИСТРАЦИЯ КОЛБЭКОВ
+// ============================================================================
+
+void MQTTManager::onState(BoolCallback func, void* context) {
+  _onState.func = func;
+  _onState.context = context;
+}
+
+void MQTTManager::onSpeed(IntCallback func, void* context) {
+  _onSpeed.func = func;
+  _onSpeed.context = context;
+}
+
+void MQTTManager::onDelaySec(IntCallback func, void* context) {
+  _onDelaySec.func = func;
+  _onDelaySec.context = context;
+}
+
+void MQTTManager::onMaxOnTime(UintCallback func, void* context) {
+  _onMaxOnTime.func = func;
+  _onMaxOnTime.context = context;
+}
+
+void MQTTManager::onSensorControlMode(BoolCallback func, void* context) {
+  _onSensorControlMode.func = func;
+  _onSensorControlMode.context = context;
+}
+
+#if DEVICE_TYPE == 1
+void MQTTManager::onAdaptiveMode(BoolCallback func, void* context) {
+  _onAdaptiveMode.func = func;
+  _onAdaptiveMode.context = context;
+}
+
+void MQTTManager::onLowTemp(FloatCallback func, void* context) {
+  _onLowTemp.func = func;
+  _onLowTemp.context = context;
+}
+
+void MQTTManager::onHighTemp(FloatCallback func, void* context) {
+  _onHighTemp.func = func;
+  _onHighTemp.context = context;
+}
+
+void MQTTManager::onLowHum(FloatCallback func, void* context) {
+  _onLowHum.func = func;
+  _onLowHum.context = context;
+}
+
+void MQTTManager::onHighHum(FloatCallback func, void* context) {
+  _onHighHum.func = func;
+  _onHighHum.context = context;
+}
+#endif
+
+#if MQTT_RESET_ENABLED == 1
+void MQTTManager::onReset(VoidCallback func, void* context) {
+  _onReset.func = func;
+  _onReset.context = context;
+}
+#endif
+
+// ============================================================================
+// ПУБЛИКАЦИЯ ДАННЫХ
+// ============================================================================
 
 void MQTTManager::publishOnline() {
   if (!isConnected())
     return;
   _mqttClient.publish(_topics.online, "Online", true);
-  LOG_DEBUG(CAT_MQTT, "Online published to: %s", _topics.online);
 }
 
 void MQTTManager::publishState(bool on) {
   if (!isConnected())
     return;
   _mqttClient.publish(_topics.state, on ? "ON" : "OFF");
-  LOG_DEBUG(CAT_MQTT, "State published: %s -> %s", on ? "ON" : "OFF",
-            _topics.state);
 }
 
 void MQTTManager::publishSpeed(int percent) {
@@ -374,7 +450,6 @@ void MQTTManager::publishSpeed(int percent) {
   char buf[8];
   snprintf(buf, sizeof(buf), "%d", percent);
   _mqttClient.publish(_topics.speed, buf);
-  LOG_DEBUG(CAT_MQTT, "Speed published: %d%% -> %s", percent, _topics.speed);
 }
 
 void MQTTManager::publishDelaySec(int seconds) {
@@ -383,8 +458,6 @@ void MQTTManager::publishDelaySec(int seconds) {
   char buf[16];
   snprintf(buf, sizeof(buf), "%d", seconds);
   _mqttClient.publish(_topics.delaySec, buf);
-  LOG_DEBUG(CAT_MQTT, "Delay seconds published: %d -> %s", seconds,
-            _topics.delaySec);
 }
 
 void MQTTManager::publishMaxOnTime(uint32_t seconds) {
@@ -393,16 +466,12 @@ void MQTTManager::publishMaxOnTime(uint32_t seconds) {
   char buf[16];
   snprintf(buf, sizeof(buf), "%u", seconds);
   _mqttClient.publish(_topics.maxOnTime, buf);
-  LOG_DEBUG(CAT_MQTT, "Max on time published: %u -> %s", seconds,
-            _topics.maxOnTime);
 }
 
 void MQTTManager::publishSensorControlMode(bool enabled) {
   if (!isConnected())
     return;
   _mqttClient.publish(_topics.sensorControlMode, enabled ? "1" : "0");
-  LOG_DEBUG(CAT_MQTT, "Sensor control mode published: %s -> %s",
-            enabled ? "ON" : "OFF", _topics.sensorControlMode);
 }
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
@@ -414,7 +483,6 @@ void MQTTManager::publishSensor(float temp, float hum) {
   snprintf(humBuf, sizeof(humBuf), "%.2f", hum);
   _mqttClient.publish(_topics.temperature, tempBuf);
   _mqttClient.publish(_topics.humidity, humBuf);
-  LOG_DEBUG(CAT_MQTT, "Sensor published: T=%.2f°C, H=%.2f%%", temp, hum);
 }
 #endif
 
@@ -423,8 +491,6 @@ void MQTTManager::publishAdaptiveMode(bool enabled) {
   if (!isConnected())
     return;
   _mqttClient.publish(_topics.adaptiveMode, enabled ? "1" : "0");
-  LOG_DEBUG(CAT_MQTT, "Adaptive mode published: %s -> %s",
-            enabled ? "ON" : "OFF", _topics.adaptiveMode);
 }
 
 void MQTTManager::publishThresholds(float lowTemp,
@@ -442,8 +508,6 @@ void MQTTManager::publishThresholds(float lowTemp,
   _mqttClient.publish(_topics.lowHum, buf);
   snprintf(buf, sizeof(buf), "%.1f", highHum);
   _mqttClient.publish(_topics.highHum, buf);
-
-  LOG_INFO(CAT_MQTT, "Thresholds published");
 }
 #endif
 
@@ -451,10 +515,9 @@ void MQTTManager::publishThresholds(float lowTemp,
 void MQTTManager::publishRSSI(int rssi) {
   if (!isConnected())
     return;
-  char buffer[8];
-  snprintf(buffer, sizeof(buffer), "%d", rssi);
-  _mqttClient.publish(_topics.rssi, buffer);
-  LOG_DEBUG(CAT_MQTT, "WiFi RSSI published: %d dBm -> %s", rssi, _topics.rssi);
+  char buf[8];
+  snprintf(buf, sizeof(buf), "%d", rssi);
+  _mqttClient.publish(_topics.rssi, buf);
 }
 #endif
 
@@ -462,8 +525,7 @@ void MQTTManager::publishRSSI(int rssi) {
 void MQTTManager::publishVersion(const char* version) {
   if (!isConnected())
     return;
-  _mqttClient.publish(_topics.version, version, true);  // retain = true
-  LOG_DEBUG(CAT_MQTT, "Version published: %s -> %s", version, _topics.version);
+  _mqttClient.publish(_topics.version, version, true);
 }
 #endif
 
@@ -472,9 +534,8 @@ void MQTTManager::publishResetReason(const char* reason) {
   if (!isConnected())
     return;
 
-#ifdef MQTT_IGNORE_PUBLISH_NORMAL_RESET_REASONS
+#if MQTT_IGNORE_PUBLISH_NORMAL_RESET_REASONS == 1
   if (strcmp(reason, "POWER_ON") == 0 || strcmp(reason, "SOFT_RESTART") == 0) {
-    LOG_DEBUG(CAT_MQTT, "Skipping publish reset reason: %s", reason);
     return;
   }
 #endif
@@ -482,62 +543,13 @@ void MQTTManager::publishResetReason(const char* reason) {
   char topic[64];
   snprintf(topic, sizeof(topic), "%s/last_reset", _clientId);
   _mqttClient.publish(topic, reason, true);
-  LOG_DEBUG(CAT_MQTT, "Reset reason published: %s -> %s", reason, topic);
 }
 #endif
 
-// ========== УСТАНОВКА КОЛБЭКОВ ==========
+// ============================================================================
+// ГЛОБАЛЬНЫЙ ЭКЗЕМПЛЯР
+// ============================================================================
 
-void MQTTManager::onStateCommand(std::function<void(bool)> callback) {
-  _stateCallback = callback;
-}
-
-void MQTTManager::onSpeedCommand(std::function<void(int)> callback) {
-  _speedCallback = callback;
-}
-
-void MQTTManager::onDelaySecCommand(std::function<void(int)> callback) {
-  _delaySecCallback = callback;
-}
-
-void MQTTManager::onMaxOnTimeCommand(std::function<void(uint32_t)> callback) {
-  _maxOnTimeCallback = callback;
-}
-
-void MQTTManager::onSensorControlModeCommand(
-    std::function<void(bool)> callback) {
-  _sensorControlModeCallback = callback;
-}
-
-#if DEVICE_TYPE == 1
-void MQTTManager::onAdaptiveModeCommand(std::function<void(bool)> callback) {
-  _adaptiveModeCallback = callback;
-}
-
-void MQTTManager::onLowTempCommand(std::function<void(float)> callback) {
-  _lowTempCallback = callback;
-}
-
-void MQTTManager::onHighTempCommand(std::function<void(float)> callback) {
-  _highTempCallback = callback;
-}
-
-void MQTTManager::onLowHumCommand(std::function<void(float)> callback) {
-  _lowHumCallback = callback;
-}
-
-void MQTTManager::onHighHumCommand(std::function<void(float)> callback) {
-  _highHumCallback = callback;
-}
-#endif
-
-#if MQTT_RESET_ENABLED == 1
-void MQTTManager::onResetCommand(std::function<void()> callback) {
-  _resetCallback = callback;
-}
-#endif
-
-// Глобальный экземпляр
 MQTTManager mqttManager;
 
-#endif
+#endif  // MQTT_ENABLED == 1
