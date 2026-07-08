@@ -1,3 +1,8 @@
+/**
+ * @file web.cpp
+ * @brief Реализация веб-интерфейса
+ */
+
 #include "web.h"
 #include "config_manager.h"
 #include "logger.h"
@@ -102,7 +107,6 @@ String web_buildStatusHtml() {
   String html;
   bool sensorOk = g_statusProvider->isSensorOk();
 
-  // ========== ДАТЧИК ==========
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (sensorOk) {
     float temp = g_statusProvider->getTemperature();
@@ -299,7 +303,19 @@ void handleToggle() {
 }
 #endif
 
-// ========== ОТПРАВКА СТРАНИЦЫ СТАТУСА (с буферизацией) ==========
+// ========== ФУНКЦИЯ ОТПРАВКИ HTML ДЛЯ WEB_TEMPLATES ==========
+
+/**
+ * @brief Отправка HTML-контента через WebServer
+ * @param chunk Строка для отправки
+ * @param context Указатель на WebServerClass
+ */
+static void webSendContent(const String& chunk, void* context) {
+  WebServerClass* srv = (WebServerClass*)context;
+  srv->sendContent(chunk);
+}
+
+// ========== ОТПРАВКА СТРАНИЦЫ СТАТУСА ==========
 
 void web_sendStatusPage(int refreshInterval) {
   if (!g_statusProvider) {
@@ -307,10 +323,9 @@ void web_sendStatusPage(int refreshInterval) {
     return;
   }
 
-  // Получаем deviceId один раз
   const char* deviceId = g_configManager.getDeviceId();
-
   String statusHtml = web_buildStatusHtml();
+
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
 
@@ -365,38 +380,37 @@ void web_sendStatusPage(int refreshInterval) {
 
 #elif defined(ESP8266)
   // ========== ВЕРСИЯ БЕЗ БУФЕРИЗАЦИИ ДЛЯ ESP8266 ==========
-  auto send = [&](const String& chunk) { server.sendContent(chunk); };
-
-  send(FPSTR(HTML_PAGE_START));
+  // Используем webSendContent напрямую
+  webSendContent(FPSTR(HTML_PAGE_START), &server);
 
   if (refreshInterval > 0) {
     char refresh[64];
     snprintf_P(refresh, sizeof(refresh),
                PSTR("<meta http-equiv='refresh' content='%d'>"),
                refreshInterval);
-    send(refresh);
+    webSendContent(refresh, &server);
   } else {
-    send(F("{META_REFRESH}"));
+    webSendContent(F("{META_REFRESH}"), &server);
   }
 
-  send(F("<title>"));
-  send(deviceId);
-  send(F("</title>"));
-  send(FPSTR(HTML_STYLE));
-  send(F("</head><body><div class='container'>"));
-  send(F("<h1>"));
-  send(deviceId);
-  send(F(" VERSION "));
-  send(VERSION);
-  send(F("</h1>"));
-  send(statusHtml);
-  send(
-      F("<div class='button-group'><a "
-        "href='/config'><button>Settings</button></a></div>"));
-  send(FPSTR(HTML_PAGE_END));
+  webSendContent(F("<title>"), &server);
+  webSendContent(deviceId, &server);
+  webSendContent(F("</title>"), &server);
+  webSendContent(FPSTR(HTML_STYLE), &server);
+  webSendContent(F("</head><body><div class='container'>"), &server);
+  webSendContent(F("<h1>"), &server);
+  webSendContent(deviceId, &server);
+  webSendContent(F(" VERSION "), &server);
+  webSendContent(VERSION, &server);
+  webSendContent(F("</h1>"), &server);
+  webSendContent(statusHtml, &server);
+  webSendContent(F("<div class='button-group'><a "
+                   "href='/config'><button>Settings</button></a></div>"),
+                 &server);
+  webSendContent(FPSTR(HTML_PAGE_END), &server);
 
 #else
-  // ========== FALLBACK ДЛЯ ДРУГИХ ПЛАТФОРМ ==========
+  // ========== FALLBACK ==========
   String fullHtml = FPSTR(HTML_PAGE_START);
   if (refreshInterval > 0) {
     char refresh[64];
@@ -424,7 +438,35 @@ void web_sendStatusPage(int refreshInterval) {
 #endif
 }
 
-// ========== ОТПРАВКА СТРАНИЦЫ КОНФИГУРАЦИИ (с буферизацией) ==========
+// ========== ОТПРАВКА СТРАНИЦЫ КОНФИГУРАЦИИ ==========
+
+// Глобальные переменные для буферизации при отправке страницы конфигурации
+#if defined(ESP32)
+static String g_configBuffer;
+static bool g_configFlushNeeded = false;
+
+static void configFlush() {
+  if (g_configBuffer.length() > 0) {
+    server.sendContent(g_configBuffer);
+    g_configBuffer = "";
+    g_configFlushNeeded = false;
+  }
+}
+
+static void configSend(const String& chunk) {
+  if (g_configBuffer.length() + chunk.length() > 1024) {
+    configFlush();
+  }
+  g_configBuffer += chunk;
+  g_configFlushNeeded = true;
+}
+
+// Функция-обёртка для WebSendCallback (без захвата!)
+static void configSendWrapper(const String& chunk, void* context) {
+  (void)context;
+  configSend(chunk);
+}
+#endif
 
 void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
   const ConfigData* cfg = g_configManager.get();
@@ -441,41 +483,35 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
 
 #if defined(ESP32)
   // ========== БУФЕРИЗИРОВАННАЯ ВЕРСИЯ ДЛЯ ESP32 ==========
-  String buffer;
-  buffer.reserve(1024);
+  g_configBuffer = "";
+  g_configBuffer.reserve(1024);
+  g_configFlushNeeded = false;
 
-  auto flush = [&]() {
-    if (buffer.length() > 0) {
-      server.sendContent(buffer);
-      buffer = "";
-    }
-  };
+  sendConfigPage(configSendWrapper, nullptr, errorMsg, successMsg, *cfg,
+                 currentMode, currentSsid, currentIp, refreshSeconds,
+                 g_setupMode);
 
-  auto send = [&](const String& chunk) {
-    if (buffer.length() + chunk.length() > 1024) {
-      flush();
-    }
-    buffer += chunk;
-  };
-
-  sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid,
-                 currentIp, refreshSeconds, g_setupMode);
-  flush();
+  if (g_configFlushNeeded) {
+    configFlush();
+  }
 
 #elif defined(ESP8266)
   // ========== ВЕРСИЯ БЕЗ БУФЕРИЗАЦИИ ДЛЯ ESP8266 ==========
-  auto send = [&](const String& chunk) { server.sendContent(chunk); };
-
-  sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid,
-                 currentIp, refreshSeconds, g_setupMode);
+  // Используем webSendContent как WebSendCallback
+  sendConfigPage(webSendContent, &server, errorMsg, successMsg, *cfg,
+                 currentMode, currentSsid, currentIp, refreshSeconds,
+                 g_setupMode);
 
 #else
-  // ========== FALLBACK ДЛЯ ДРУГИХ ПЛАТФОРМ ==========
+  // ========== FALLBACK ==========
   String fullHtml;
-  auto send = [&](const String& chunk) { fullHtml += chunk; };
+  auto send = [&](const String& chunk, void* context) {
+    (void)context;
+    fullHtml += chunk;
+  };
 
-  sendConfigPage(send, errorMsg, successMsg, *cfg, currentMode, currentSsid,
-                 currentIp, refreshSeconds, g_setupMode);
+  sendConfigPage(send, nullptr, errorMsg, successMsg, *cfg, currentMode,
+                 currentSsid, currentIp, refreshSeconds, g_setupMode);
   server.sendContent(fullHtml);
 #endif
 }
@@ -654,11 +690,12 @@ void web_saveConfig() {
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
 void web_init(bool setupMode) {
-  LOG_INFO(CAT_WEB, "web_init() called, setupMode=%d", setupMode);
+  LOG_DEBUG(CAT_WEB, "web_init() called, setupMode=%d", setupMode);
   g_setupMode = setupMode;
+
   if (setupMode) {
     // ========== РЕЖИМ НАСТРОЙКИ (AP) ==========
-    LOG_INFO(CAT_WEB, "Initializing in SETUP mode");
+    LOG_DEBUG(CAT_WEB, "Initializing in SETUP mode");
 
     server.on("/", []() {
       LOG_DEBUG(CAT_WEB, "GET / - Config page (setup mode)");
@@ -670,7 +707,7 @@ void web_init(bool setupMode) {
 
   } else {
     // ========== НОРМАЛЬНЫЙ РЕЖИМ (STA) ==========
-    LOG_INFO(CAT_WEB, "Initializing in NORMAL mode");
+    LOG_DEBUG(CAT_WEB, "Initializing in NORMAL mode");
 
     int refreshInterval = DEFAULT_WEB_REFRESH;
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
@@ -735,36 +772,9 @@ void web_init(bool setupMode) {
   }
 
   server.begin();
-  LOG_INFO(CAT_WEB, "Web server started (mode: %s)",
+  LOG_DEBUG(CAT_WEB, "Web server started (mode: %s)",
            setupMode ? "SETUP" : "NORMAL");
 }
-
-// ========== ИНИЦИАЛИЗАЦИЯ AP РЕЖИМА ==========
-
-// void web_initAP() {
-//   LOG_DEBUG(CAT_WEB, "Started web_initAP(), wifi_is_ap_mode() state is %d",
-//             wifi_is_ap_mode());
-  
-//   if (wifi_is_ap_mode())
-//     return;
-
-//   apMode = true;
-//   const char* deviceId = g_configManager.getDeviceId();
-//   LOG_DEBUG(CAT_WEB, "web_initAP() called wifi_start_ap");
-//   wifi_start_ap(deviceId);
-
-//   server.on("/", []() {
-//     LOG_DEBUG(CAT_WEB, "GET / - Config page requested from AP mode");
-//     web_sendConfigPage("", "");
-//   });
-
-//   server.on("/save", web_saveConfig);
-//   server.on("/favicon.ico", []() { server.send(404); });
-
-//   LOG_INFO(CAT_WEB, "Web server started in AP mode: SSID %s, IP %s", deviceId,
-//            AP_IP_ADDRESS);
-//   server.begin();
-// }
 
 void web_update() {
   server.handleClient();
