@@ -114,12 +114,14 @@ class BleProvisioningServer {
 
   /**
    * @brief Получить имя устройства
+   * @deprecated Не испольхуется
    * @return Строка с именем устройства
    */
   const char* getDeviceName() const;
 
   /**
    * @brief Установить имя устройства
+   * @deprecated Не используется
    * @param name Новое имя устройства (максимум 31 символ)
    */
   void setDeviceName(const char* name);

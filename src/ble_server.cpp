@@ -186,18 +186,6 @@ void SysProvEvent(arduino_event_t* sys_event) {
       uint16_t number = sys_event->event_info.wifi_scan_done.number;
       uint8_t status = sys_event->event_info.wifi_scan_done.status;
       Serial.printf("\nWiFi scan completed: %d networks found (status=%d)\n", number,status);
-
-      // Если нужно вывести список сетей
-      // if (number > 0) {
-      //   LOG_DEBUG(CAT_PROVISIONING, "Available networks:");
-      //   for (int i = 0; i < number && i < 20; i++) {
-      //     String ssid = WiFi.SSID(i);
-      //     int32_t rssi = WiFi.RSSI(i);
-      //     LOG_DEBUG(CAT_PROVISIONING, "  %d: %s (RSSI: %d dBm)", i + 1,
-      //               ssid.c_str(), rssi);
-      //   }
-      //   WiFi.scanDelete();  // Очищаем результаты после использования
-      // }
       break;
     }
 
@@ -278,10 +266,12 @@ bool BleProvisioningServer::isActive() const {
   return _active;
 }
 
+// @deprecated Не используется
 const char* BleProvisioningServer::getDeviceName() const {
   return _deviceName;
 }
 
+// @deprecated Не используется
 void BleProvisioningServer::setDeviceName(const char* name) {
   if (name && strlen(name) < sizeof(_deviceName)) {
     strncpy(_deviceName, name, sizeof(_deviceName) - 1);

@@ -204,12 +204,4 @@ bool wifi_is_connected() {
   return WiFi.status() == WL_CONNECTED;
 }
 
-// void wifi_start_ap_mode() {
-//   if (apMode)
-//     return;
-//   apMode = true;
-//   wifi_start_ap(g_configManager.getDeviceId());
-//   web_initAP();
-// }
-
 #endif
