@@ -1,3 +1,8 @@
+/**
+ * @file config_manager.cpp
+ * @brief Реализация ConfigManager
+ */
+
 #include "config_manager.h"
 #include "led.h"
 #include "logger.h"
@@ -10,9 +15,15 @@
 #endif
 
 // ============================================================================
-// РЕАЛИЗАЦИЯ CRC16
+// CRC16
 // ============================================================================
 
+/**
+ * @brief Рассчитать CRC16 для массива данных
+ * @param data Указатель на данные
+ * @param len Длина данных в байтах
+ * @return 16-битный CRC
+ */
 static uint16_t crc16_impl(const uint8_t* data, size_t len) {
   uint16_t crc = 0x0000;
   for (size_t i = 0; i < len; i++) {
@@ -52,14 +63,10 @@ void ConfigManager::begin() {
 
   LOG_INFO(CAT_CONFIG, "Initializing ConfigManager...");
 
-  // Инициализация EEPROM
   EEPROM.begin(EEPROM_SIZE);
   LOG_DEBUG(CAT_CONFIG, "EEPROM size: %d bytes", EEPROM.length());
 
-  // Генерация ID устройства
   initDeviceId();
-
-  // Чтение из EEPROM
   readFromEEPROM();
 
   _initialized = true;
@@ -79,13 +86,17 @@ const char* ConfigManager::getLastError() const {
   return _lastError;
 }
 
+// ============================================================================
+// СОХРАНЕНИЕ И СБРОС
+// ============================================================================
+
 bool ConfigManager::save() {
   LOG_INFO(CAT_CONFIG, "Saving configuration to EEPROM...");
 
   // Обновляем CRC
   _config.crc = 0;
   _config.crc = calculateCRC(_config);
-  _config.magic = MAGIC;
+  _config.magic = MAGIC_VALUE;
 
   LOG_DEBUG(CAT_CONFIG, "Calculated CRC: 0x%04X", _config.crc);
 
@@ -97,6 +108,7 @@ bool ConfigManager::save() {
 
   if (!EEPROM.commit()) {
     LOG_ERROR(CAT_CONFIG, "EEPROM commit FAILED!");
+    setError("EEPROM write failed");
     return false;
   }
 
@@ -110,18 +122,13 @@ bool ConfigManager::save() {
   verify.crc = 0;
   uint16_t calcVerifyCrc = calculateCRC(verify);
 
-  if (verify.magic == MAGIC && calcVerifyCrc == _config.crc) {
+  if (verify.magic == MAGIC_VALUE && calcVerifyCrc == _config.crc) {
     LOG_INFO(CAT_CONFIG, "Verification PASSED");
     _configValid = true;
-
-    // Уведомление об изменении
-    if (_changeCallback) {
-      _changeCallback();
-    }
-
     return true;
   } else {
     LOG_ERROR(CAT_CONFIG, "Verification FAILED!");
+    setError("CRC verification failed after save");
     return false;
   }
 }
@@ -147,6 +154,7 @@ bool ConfigManager::reset() {
     LOG_INFO(CAT_CONFIG, "Reset SUCCESSFUL");
   } else {
     LOG_WARN(CAT_CONFIG, "Reset FAILED");
+    setError("EEPROM erase failed");
   }
 
   return ok;
@@ -335,12 +343,11 @@ const char* ConfigManager::getDeviceId() const {
 bool ConfigManager::setWifiSsid(const char* ssid) {
 #if WIFI_ENABLED == 1
   if (!ssid || strlen(ssid) == 0) {
-    snprintf(_lastError, sizeof(_lastError), "WiFi SSID cannot be empty");
+    setError("WiFi SSID cannot be empty");
     return false;
   }
   if (strlen(ssid) >= sizeof(_config.wifiSsid)) {
-    snprintf(_lastError, sizeof(_lastError), "WiFi SSID too long (max %d)",
-             (int)sizeof(_config.wifiSsid) - 1);
+    setError("WiFi SSID too long");
     return false;
   }
   strncpy(_config.wifiSsid, ssid, sizeof(_config.wifiSsid) - 1);
@@ -357,8 +364,7 @@ bool ConfigManager::setWifiPassword(const char* password) {
   if (!password)
     return false;
   if (strlen(password) >= sizeof(_config.wifiPassword)) {
-    snprintf(_lastError, sizeof(_lastError), "WiFi password too long (max %d)",
-             (int)sizeof(_config.wifiPassword) - 1);
+    setError("WiFi password too long");
     return false;
   }
   strncpy(_config.wifiPassword, password, sizeof(_config.wifiPassword) - 1);
@@ -373,12 +379,11 @@ bool ConfigManager::setWifiPassword(const char* password) {
 bool ConfigManager::setMqttBroker(const char* broker) {
 #if MQTT_ENABLED == 1
   if (!broker || strlen(broker) == 0) {
-    snprintf(_lastError, sizeof(_lastError), "MQTT Broker cannot be empty");
+    setError("MQTT Broker cannot be empty");
     return false;
   }
   if (strlen(broker) >= sizeof(_config.mqttBroker)) {
-    snprintf(_lastError, sizeof(_lastError), "MQTT Broker too long (max %d)",
-             (int)sizeof(_config.mqttBroker) - 1);
+    setError("MQTT Broker too long");
     return false;
   }
   strncpy(_config.mqttBroker, broker, sizeof(_config.mqttBroker) - 1);
@@ -393,8 +398,7 @@ bool ConfigManager::setMqttBroker(const char* broker) {
 bool ConfigManager::setMqttPort(uint16_t port) {
 #if MQTT_ENABLED == 1
   if (port < 1 || port > 65535) {
-    snprintf(_lastError, sizeof(_lastError),
-             "MQTT Port must be 1-65535 (got %d)", port);
+    setError("MQTT Port must be 1-65535");
     return false;
   }
   _config.mqttPort = port;
@@ -410,8 +414,7 @@ bool ConfigManager::setMqttUser(const char* user) {
   if (!user)
     return false;
   if (strlen(user) >= sizeof(_config.mqttUser)) {
-    snprintf(_lastError, sizeof(_lastError), "MQTT User too long (max %d)",
-             (int)sizeof(_config.mqttUser) - 1);
+    setError("MQTT User too long");
     return false;
   }
   strncpy(_config.mqttUser, user, sizeof(_config.mqttUser) - 1);
@@ -428,8 +431,7 @@ bool ConfigManager::setMqttPassword(const char* password) {
   if (!password)
     return false;
   if (strlen(password) >= sizeof(_config.mqttPassword)) {
-    snprintf(_lastError, sizeof(_lastError), "MQTT Password too long (max %d)",
-             (int)sizeof(_config.mqttPassword) - 1);
+    setError("MQTT Password too long");
     return false;
   }
   strncpy(_config.mqttPassword, password, sizeof(_config.mqttPassword) - 1);
@@ -444,12 +446,11 @@ bool ConfigManager::setMqttPassword(const char* password) {
 bool ConfigManager::setMqttClientId(const char* clientId) {
 #if MQTT_ENABLED == 1
   if (!clientId || strlen(clientId) == 0) {
-    snprintf(_lastError, sizeof(_lastError), "MQTT Client ID cannot be empty");
+    setError("MQTT Client ID cannot be empty");
     return false;
   }
   if (strlen(clientId) >= sizeof(_config.mqttClientId)) {
-    snprintf(_lastError, sizeof(_lastError), "MQTT Client ID too long (max %d)",
-             (int)sizeof(_config.mqttClientId) - 1);
+    setError("MQTT Client ID too long");
     return false;
   }
   // Проверка допустимых символов
@@ -457,8 +458,7 @@ bool ConfigManager::setMqttClientId(const char* clientId) {
     char c = clientId[i];
     if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
           (c >= '0' && c <= '9') || c == '_' || c == '-')) {
-      snprintf(_lastError, sizeof(_lastError),
-               "MQTT Client ID invalid char '%c' (use a-z, A-Z, 0-9, _, -)", c);
+      setError("MQTT Client ID has invalid characters");
       return false;
     }
   }
@@ -474,9 +474,7 @@ bool ConfigManager::setMqttClientId(const char* clientId) {
 bool ConfigManager::setSensorInterval(uint16_t interval) {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (interval < SENSOR_INTERVAL_MIN || interval > SENSOR_INTERVAL_MAX) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Sensor interval must be %d-%d seconds (got %d)",
-             SENSOR_INTERVAL_MIN, SENSOR_INTERVAL_MAX, interval);
+    setError("Sensor interval out of range");
     return false;
   }
   _config.sensorInterval = interval;
@@ -490,15 +488,11 @@ bool ConfigManager::setSensorInterval(uint16_t interval) {
 bool ConfigManager::setLowTemp(double temp) {
 #if DEVICE_TYPE == 1
   if (temp < TEMP_MIN || temp > TEMP_MAX) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Low Temp must be %.1f..%.1f°C (got %.1f)", TEMP_MIN, TEMP_MAX,
-             temp);
+    setError("Low Temp out of range");
     return false;
   }
   if (temp >= _config.highTemp && _config.highTemp != 0) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Low Temp (%.1f) must be < High Temp (%.1f)", temp,
-             _config.highTemp);
+    setError("Low Temp must be < High Temp");
     return false;
   }
   _config.lowTemp = temp;
@@ -512,15 +506,11 @@ bool ConfigManager::setLowTemp(double temp) {
 bool ConfigManager::setHighTemp(double temp) {
 #if DEVICE_TYPE == 1
   if (temp < TEMP_MIN || temp > TEMP_MAX) {
-    snprintf(_lastError, sizeof(_lastError),
-             "High Temp must be %.1f..%.1f°C (got %.1f)", TEMP_MIN, TEMP_MAX,
-             temp);
+    setError("High Temp out of range");
     return false;
   }
   if (temp <= _config.lowTemp && _config.lowTemp != 0) {
-    snprintf(_lastError, sizeof(_lastError),
-             "High Temp (%.1f) must be > Low Temp (%.1f)", temp,
-             _config.lowTemp);
+    setError("High Temp must be > Low Temp");
     return false;
   }
   _config.highTemp = temp;
@@ -534,13 +524,11 @@ bool ConfigManager::setHighTemp(double temp) {
 bool ConfigManager::setLowHum(double hum) {
 #if DEVICE_TYPE == 1
   if (hum < HUM_MIN || hum > HUM_MAX) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Low Hum must be %.1f..%.1f%% (got %.1f)", HUM_MIN, HUM_MAX, hum);
+    setError("Low Hum out of range");
     return false;
   }
   if (hum >= _config.highHum && _config.highHum != 0) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Low Hum (%.1f) must be < High Hum (%.1f)", hum, _config.highHum);
+    setError("Low Hum must be < High Hum");
     return false;
   }
   _config.lowHum = hum;
@@ -554,13 +542,11 @@ bool ConfigManager::setLowHum(double hum) {
 bool ConfigManager::setHighHum(double hum) {
 #if DEVICE_TYPE == 1
   if (hum < HUM_MIN || hum > HUM_MAX) {
-    snprintf(_lastError, sizeof(_lastError),
-             "High Hum must be %.1f..%.1f%% (got %.1f)", HUM_MIN, HUM_MAX, hum);
+    setError("High Hum out of range");
     return false;
   }
   if (hum <= _config.lowHum && _config.lowHum != 0) {
-    snprintf(_lastError, sizeof(_lastError),
-             "High Hum (%.1f) must be > Low Hum (%.1f)", hum, _config.lowHum);
+    setError("High Hum must be > Low Hum");
     return false;
   }
   _config.highHum = hum;
@@ -574,8 +560,7 @@ bool ConfigManager::setHighHum(double hum) {
 bool ConfigManager::setSensorControlMode(bool enabled) {
 #if DEVICE_TYPE == 1
   if (enabled && _config.speedPercent == 0) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Sensor Control Mode requires speed percent > 0%%");
+    setError("Sensor mode requires speed > 0%");
     return false;
   }
   _config.sensorControlMode = enabled;
@@ -589,8 +574,7 @@ bool ConfigManager::setSensorControlMode(bool enabled) {
 bool ConfigManager::setSpeedPercent(uint16_t percent) {
 #if DEVICE_TYPE == 1
   if (percent > 100) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Speed percent must be 0-100 (got %d)", percent);
+    setError("Speed must be 0-100%");
     return false;
   }
   _config.speedPercent = percent;
@@ -604,13 +588,11 @@ bool ConfigManager::setSpeedPercent(uint16_t percent) {
 bool ConfigManager::setAdaptiveMode(bool enabled) {
 #if DEVICE_TYPE == 1
   if (enabled && !_config.sensorControlMode) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Adaptive mode requires Sensor Control Mode ON");
+    setError("Adaptive mode requires Sensor Control ON");
     return false;
   }
   if (enabled && _config.speedPercent == 0) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Adaptive mode requires speed percent > 0%%");
+    setError("Adaptive mode requires speed > 0%");
     return false;
   }
   _config.adaptiveMode = enabled;
@@ -624,9 +606,7 @@ bool ConfigManager::setAdaptiveMode(bool enabled) {
 bool ConfigManager::setDelaySeconds(int seconds) {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   if (seconds < DELAY_SECONDS_MIN || seconds > DELAY_SECONDS_MAX) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Delay seconds must be %d-%d (got %d)", DELAY_SECONDS_MIN,
-             DELAY_SECONDS_MAX, seconds);
+    setError("Delay seconds out of range");
     return false;
   }
   _config.delaySeconds = seconds;
@@ -640,9 +620,7 @@ bool ConfigManager::setDelaySeconds(int seconds) {
 bool ConfigManager::setMaxOnTime(uint32_t seconds) {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   if (seconds > MAX_ON_TIME_MAX) {
-    snprintf(_lastError, sizeof(_lastError),
-             "MaxOnTime seconds must be %d-%d (got %u)", (int)MAX_ON_TIME_MIN,
-             (int)MAX_ON_TIME_MAX, seconds);
+    setError("MaxOnTime seconds out of range");
     return false;
   }
   _config.maxOnTime = seconds;
@@ -668,9 +646,7 @@ bool ConfigManager::setZigbeeNetworkKey(const char* key) {
   if (!key)
     return false;
   if (strlen(key) >= sizeof(_config.zigbeeNetworkKey)) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Zigbee network key too long (max %d)",
-             (int)sizeof(_config.zigbeeNetworkKey) - 1);
+    setError("Zigbee network key too long");
     return false;
   }
   strncpy(_config.zigbeeNetworkKey, key, sizeof(_config.zigbeeNetworkKey) - 1);
@@ -695,8 +671,7 @@ bool ConfigManager::setZigbeePanId(uint16_t panId) {
 bool ConfigManager::setZigbeeChannel(uint8_t channel) {
 #if ZIGBEE_ENABLED == 1
   if (channel < 11 || channel > 26) {
-    snprintf(_lastError, sizeof(_lastError),
-             "Zigbee channel must be 11-26 (got %d)", channel);
+    setError("Zigbee channel must be 11-26");
     return false;
   }
   _config.zigbeeChannel = channel;
@@ -708,14 +683,6 @@ bool ConfigManager::setZigbeeChannel(uint8_t channel) {
 }
 
 // ============================================================================
-// УВЕДОМЛЕНИЯ
-// ============================================================================
-
-void ConfigManager::onConfigChanged(ChangeCallback callback) {
-  _changeCallback = callback;
-}
-
-// ============================================================================
 // ПРИВАТНЫЕ МЕТОДЫ
 // ============================================================================
 
@@ -723,8 +690,7 @@ void ConfigManager::setDefaults() {
   LOG_DEBUG(CAT_CONFIG, "Setting defaults");
 
   memset(&_config, 0, sizeof(ConfigData));
-
-  _config.magic = MAGIC;
+  _config.magic = MAGIC_VALUE;
   _config.crc = 0;
 
 #if MQTT_ENABLED == 1
@@ -743,7 +709,13 @@ void ConfigManager::setDefaults() {
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   _config.delaySeconds = DEFAULT_DELAY_SECONDS;
+
+#if EMERGENCY_ENABLED == 1
   _config.maxOnTime = MAX_ON_TIME_SEC;
+#else
+  _config.maxOnTime = 0;
+#endif
+
   _config.bootState = BOOT_SWITCH_STATE;
 #endif
 
@@ -755,10 +727,8 @@ void ConfigManager::setDefaults() {
   _config.zigbeeChannel = 15;
 #endif
 
-  // Загружаем заводские настройки (если есть)
   loadFromCredentials();
 
-  // Генерируем MQTT Client ID
 #if MQTT_ENABLED == 1
   snprintf(_config.mqttClientId, sizeof(_config.mqttClientId), "%s", _deviceId);
   LOG_DEBUG(CAT_CONFIG, "Generated MQTT Client ID: %s", _config.mqttClientId);
@@ -770,6 +740,7 @@ void ConfigManager::setDefaults() {
 void ConfigManager::loadFromCredentials() {
 #if HAS_CREDENTIALS
   LOG_DEBUG(CAT_CONFIG, "Loading factory settings");
+
 #if WIFI_ENABLED == 1
   if (strlen(SSID_NAME) > 0) {
     strncpy(_config.wifiSsid, SSID_NAME, sizeof(_config.wifiSsid) - 1);
@@ -781,6 +752,7 @@ void ConfigManager::loadFromCredentials() {
     _config.wifiPassword[sizeof(_config.wifiPassword) - 1] = '\0';
   }
 #endif
+
 #if MQTT_ENABLED == 1
   if (strlen(MQTT_ADDRESS) > 0) {
     strncpy(_config.mqttBroker, MQTT_ADDRESS, sizeof(_config.mqttBroker) - 1);
@@ -811,26 +783,21 @@ void ConfigManager::readFromEEPROM() {
   }
 
   LOG_DEBUG(CAT_CONFIG, "Read magic: 0x%04X (expected 0x%04X)", raw.magic,
-            MAGIC);
+            MAGIC_VALUE);
 
-  // Устанавливаем значения по умолчанию
   setDefaults();
 
-  // Проверяем EEPROM
-  if (raw.magic == MAGIC) {
+  if (raw.magic == MAGIC_VALUE) {
     uint16_t savedCrc = raw.crc;
     raw.crc = 0;
     uint16_t calcCrc = calculateCRC(raw);
 
-    LOG_DEBUG(CAT_CONFIG, "Calculated CRC: 0x%04X (saved: 0x%04X)", calcCrc,
-              savedCrc);
+    LOG_DEBUG(CAT_CONFIG, "CRC: saved 0x%04X, calculated 0x%04X", savedCrc,
+              calcCrc);
 
     if (calcCrc == savedCrc) {
-      LOG_DEBUG(CAT_CONFIG, "CRC is VALID, applying EEPROM config...");
-
-      // Применяем все настройки из EEPROM через сеттеры
+      LOG_DEBUG(CAT_CONFIG, "CRC VALID, applying EEPROM config...");
       validateAndApply(raw);
-
       _configValid = true;
       LOG_INFO(CAT_CONFIG, "Config loaded from EEPROM");
       return;
@@ -891,8 +858,8 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
       ok = false;
     }
   }
-#endif  // MQTT_ENABLED
-#endif  // WIFI_ENABLED
+#endif
+#endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (!setSensorInterval(raw.sensorInterval)) {
@@ -952,24 +919,6 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
   return ok;
 }
 
-// bool ConfigManager::isConfigValid(const ConfigData& config) const {
-//   // Проверяем, что есть WiFi SSID (если WiFi включён)
-// #if WIFI_ENABLED == 1
-//   if (strlen(config.wifiSsid) == 0) {
-//     return false;
-//   }
-// #endif
-
-//   // Проверяем, что есть MQTT брокер (если MQTT включён)
-// #if MQTT_ENABLED == 1
-//   if (strlen(config.mqttBroker) == 0) {
-//     return false;
-//   }
-// #endif
-
-//   return true;
-// }
-
 uint16_t ConfigManager::calculateCRC(const ConfigData& config) const {
   ConfigData copy = config;
   copy.crc = 0;
@@ -981,77 +930,62 @@ void ConfigManager::initDeviceId() {
 #if defined(ESP32)
   uint8_t mac[6];
   esp_read_mac(mac, ESP_MAC_WIFI_STA);
-  snprintf(_deviceId, sizeof(_deviceId), "%s_%02X%02X",
-#if DEVICE_TYPE == 1
-           "fan",
-#elif DEVICE_TYPE == 2
-           "sensor",
-#elif DEVICE_TYPE == 3
-           "switch",
-#else
-           "device",
-#endif
-           mac[4], mac[5]);
+  snprintf(_deviceId, sizeof(_deviceId), "%s_%02X%02X", DEVICE_PREFIX, mac[4],
+           mac[5]);
 #elif defined(ESP8266)
   uint32_t chipId = ESP.getChipId();
-  snprintf(_deviceId, sizeof(_deviceId), "%s_%04X",
-#if DEVICE_TYPE == 1
-           "fan",
-#elif DEVICE_TYPE == 2
-           "sensor",
-#elif DEVICE_TYPE == 3
-           "switch",
-#else
-           "device",
-#endif
+  snprintf(_deviceId, sizeof(_deviceId), "%s_%04X", DEVICE_PREFIX,
            chipId & 0xFFFF);
+#else
+  snprintf(_deviceId, sizeof(_deviceId), "%s_0000", DEVICE_PREFIX);
 #endif
 
   LOG_DEBUG(CAT_CONFIG, "Device ID initialized: %s", _deviceId);
 }
 
+void ConfigManager::setError(const char* msg) {
+  strncpy(_lastError, msg, sizeof(_lastError) - 1);
+  _lastError[sizeof(_lastError) - 1] = '\0';
+}
+
 void ConfigManager::print() const {
-  LOG_DEBUG(CAT_CONFIG, "=== Config ===");
+  LOG_INFO(CAT_CONFIG, "=== Config ===");
+
 #if WIFI_ENABLED == 1
-  LOG_DEBUG(CAT_CONFIG, "WiFi SSID: '%s'", _config.wifiSsid);
-  LOG_DEBUG(CAT_CONFIG, "WiFi Password: %s",
-            _config.wifiPassword[0] ? "***" : "(empty)");
-#if MQTT_ENABLED == 1
-  LOG_DEBUG(CAT_CONFIG, "MQTT Broker: '%s:%d'", _config.mqttBroker,
-            _config.mqttPort);
-  LOG_DEBUG(CAT_CONFIG, "MQTT User: '%s'", _config.mqttUser);
-  LOG_DEBUG(CAT_CONFIG, "MQTT Client ID: '%s'", _config.mqttClientId);
+  LOG_INFO(CAT_CONFIG, "WiFi SSID: '%s'", _config.wifiSsid);
+  LOG_INFO(CAT_CONFIG, "WiFi Password: %s",
+           _config.wifiPassword[0] ? "***" : "(empty)");
 #endif
+
+#if MQTT_ENABLED == 1
+  LOG_INFO(CAT_CONFIG, "MQTT Broker: '%s:%d'", _config.mqttBroker,
+           _config.mqttPort);
+  LOG_INFO(CAT_CONFIG, "MQTT User: '%s'", _config.mqttUser);
+  LOG_INFO(CAT_CONFIG, "MQTT Client ID: '%s'", _config.mqttClientId);
 #endif
 
 #if DEVICE_TYPE == 1
-  LOG_DEBUG(CAT_CONFIG, "Temp range: %.1f - %.1f", _config.lowTemp,
-            _config.highTemp);
-  LOG_DEBUG(CAT_CONFIG, "Hum range: %.1f - %.1f", _config.lowHum,
-            _config.highHum);
-  LOG_DEBUG(CAT_CONFIG, "Sensor control mode: %s",
-            _config.sensorControlMode ? "ON" : "OFF");
-  LOG_DEBUG(CAT_CONFIG, "Speed percent: %d%%", _config.speedPercent);
-  LOG_DEBUG(CAT_CONFIG, "Adaptive mode: %s",
-            _config.adaptiveMode ? "ON" : "OFF");
+  LOG_INFO(CAT_CONFIG, "Temp range: %.1f - %.1f°C", _config.lowTemp,
+           _config.highTemp);
+  LOG_INFO(CAT_CONFIG, "Hum range: %.1f - %.1f%%", _config.lowHum,
+           _config.highHum);
+  LOG_INFO(CAT_CONFIG, "Sensor mode: %s",
+           _config.sensorControlMode ? "ON" : "OFF");
+  LOG_INFO(CAT_CONFIG, "Speed: %d%%", _config.speedPercent);
+  LOG_INFO(CAT_CONFIG, "Adaptive: %s", _config.adaptiveMode ? "ON" : "OFF");
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  LOG_DEBUG(CAT_CONFIG, "Delay: %d sec", _config.delaySeconds);
-  LOG_DEBUG(CAT_CONFIG, "MaxOnTime: %u sec", _config.maxOnTime);
-  LOG_DEBUG(CAT_CONFIG, "Boot state: %s", _config.bootState ? "ON" : "OFF");
+  LOG_INFO(CAT_CONFIG, "Delay: %d sec", _config.delaySeconds);
+  LOG_INFO(CAT_CONFIG, "MaxOnTime: %u sec", _config.maxOnTime);
+  LOG_INFO(CAT_CONFIG, "Boot state: %s", _config.bootState ? "ON" : "OFF");
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  LOG_DEBUG(CAT_CONFIG, "Sensor interval: %d sec", _config.sensorInterval);
+  LOG_INFO(CAT_CONFIG, "Sensor interval: %d sec", _config.sensorInterval);
 #endif
 
-#if ZIGBEE_ENABLED == 1
-  LOG_DEBUG(CAT_CONFIG, "Zigbee PAN ID: 0x%04X", _config.zigbeePanId);
-  LOG_DEBUG(CAT_CONFIG, "Zigbee Channel: %d", _config.zigbeeChannel);
-#endif
-
-  LOG_DEBUG(CAT_CONFIG, "CRC: 0x%04X", _config.crc);
-  LOG_DEBUG(CAT_CONFIG, "Config valid: %s", _configValid ? "YES" : "NO");
-  LOG_DEBUG(CAT_CONFIG, "=================");
+  LOG_INFO(CAT_CONFIG, "CRC: 0x%04X", _config.crc);
+  LOG_INFO(CAT_CONFIG, "Valid: %s", _configValid ? "YES" : "NO");
+  LOG_INFO(CAT_CONFIG, "=================");
 }

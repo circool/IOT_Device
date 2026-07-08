@@ -236,7 +236,6 @@ static void publishMqttStatus() {
   // ========================================================================
 
 #if DEVICE_TYPE == 1
-  // Состояние вентилятора
   static bool lastFanState = false;
   bool currentFanState = fan.getState();
   if (currentFanState != lastFanState) {
@@ -244,14 +243,12 @@ static void publishMqttStatus() {
     lastFanState = currentFanState;
   }
 
-  // Скорость
   static uint16_t lastSpeedPercent = 0;
   if (fan.getSpeed() != lastSpeedPercent) {
     mqttManager.publishSpeed(fan.getSpeed());
     lastSpeedPercent = fan.getSpeed();
   }
 
-  // Режим AUTO/MANUAL
   static bool lastSensorControlMode = false;
   if (g_configManager.getSensorControlMode() != lastSensorControlMode) {
     mqttManager.publishSensorControlMode(
@@ -259,14 +256,12 @@ static void publishMqttStatus() {
     lastSensorControlMode = g_configManager.getSensorControlMode();
   }
 
-  // Адаптивный режим
   static bool lastAdaptiveMode = false;
   if (fan.getAdaptiveMode() != lastAdaptiveMode) {
     mqttManager.publishAdaptiveMode(fan.getAdaptiveMode());
     lastAdaptiveMode = fan.getAdaptiveMode();
   }
 
-  // Пороги датчика
   static float lastLowTemp = 0, lastHighTemp = 0, lastLowHum = 0,
                lastHighHum = 0;
   if (fabs(g_configManager.getLowTemp() - lastLowTemp) > 0.01 ||
@@ -284,7 +279,6 @@ static void publishMqttStatus() {
 #endif  // DEVICE_TYPE == 1
 
 #if DEVICE_TYPE == 3
-  // Состояние выключателя
   static bool lastSwitchState = false;
   bool currentSwitchState = switchActuator.getState();
   if (currentSwitchState != lastSwitchState) {
@@ -298,14 +292,12 @@ static void publishMqttStatus() {
   // ========================================================================
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  // Задержка включения
   static int lastDelaySeconds = -1;
   if (g_configManager.getDelaySeconds() != lastDelaySeconds) {
     mqttManager.publishDelaySec(g_configManager.getDelaySeconds());
     lastDelaySeconds = g_configManager.getDelaySeconds();
   }
 
-  // Таймер аварийного отключения
   static uint32_t lastMaxOnTime = 0;
   if (g_configManager.getMaxOnTime() != lastMaxOnTime) {
     mqttManager.publishMaxOnTime(g_configManager.getMaxOnTime());
@@ -364,7 +356,7 @@ static void publishMqttStatus() {
 #endif
 
     initialConfigPublished = true;
-    LOG_INFO(CAT_MQTT, "Initial config published");
+    LOG_DEBUG(CAT_MQTT, "Initial config published");
   }
 
   // ========================================================================
@@ -407,7 +399,7 @@ void initNormalMode() {
     g_configManager.setSensorControlMode(false);
     g_configManager.setAdaptiveMode(false);
     fan.setAdaptiveMode(false);
-    LOG_WARN(CAT_SENSOR, "Not found - switching to MANUAL mode");
+    LOG_WARN(CAT_SENSOR, "Sensor not found - switching to MANUAL mode");
   }
 #endif
 #endif
@@ -518,7 +510,7 @@ void processNormalMode() {
 #if MQTT_ENABLED == 1
   if (wifi_is_connected()) {
     mqttManager.process();
-    publishMqttStatus();  // ← Теперь публикуем статус
+    publishMqttStatus();
   }
 #endif
 
@@ -606,27 +598,30 @@ void setup() {
   led_setMode(LED_MODE_MORZE_E);
 
   wdt_init();
-  g_configManager.begin();
+  g_configManager.begin();  
 
 #if SCANING_WIFI_ENABLED == 1
   wdt_stop();
-  const ConfigData* cfg = g_configManager.get();
+  const ConfigData* cfg = g_configManager.get();  
   const char* targetSsid = (cfg != nullptr) ? cfg->wifiSsid : nullptr;
   wifi_scan_and_log(targetSsid);
   wdt_start();
 #endif
 
-  g_configManager.print();
+  g_configManager.print();  
 
   // ================================================================
   // ПРОВЕРКА КОНФИГУРАЦИИ
   // ================================================================
 
-  bool hasValidConfig = g_configManager.isValid();
-  bool hasWifi = (strlen(g_configManager.getWifiSsid()) > 0);
+  bool hasValidConfig =
+      g_configManager.isValid();  
+  bool hasWifi = (strlen(g_configManager.getWifiSsid()) >
+                  0);  
 
 #if IS_MQTT_ENABLED
-  bool hasMqtt = (strlen(g_configManager.getMqttBroker()) > 0);
+  bool hasMqtt = (strlen(g_configManager.getMqttBroker()) >
+                  0);  
 #else
   bool hasMqtt = true;
 #endif
@@ -636,7 +631,6 @@ void setup() {
   // ================================================================
 
 #if USE_BLE_PROVISIONING == 1
-  // BLE — только WiFi
   if (hasValidConfig && hasWifi) {
     LOG_INFO(CAT_MAIN, "WiFi configured. Entering NORMAL mode.");
     g_normalMode = true;
@@ -648,7 +642,6 @@ void setup() {
   }
 
 #elif USE_AP_PROVISIONING == 1
-  // AP + Web — полная настройка
   if (hasValidConfig && hasWifi && hasMqtt) {
     LOG_INFO(CAT_MAIN, "Full config found. Entering NORMAL mode.");
     g_normalMode = true;
@@ -660,7 +653,6 @@ void setup() {
   }
 
 #else
-  // Fallback: AP
   if (hasValidConfig && hasWifi) {
     g_normalMode = true;
     initNormalMode();
@@ -695,20 +687,19 @@ void loop() {
         return;
       }
 
-      // Успешное завершение
       LOG_INFO(CAT_MAIN, "Provisioning completed via %s",
                method == ProvisioningMethod::BLE ? "BLE" : "AP");
 
-      // Оркестратор сам сохраняет конфиг
       const auto* data = prov.getData();
       if (data && strlen(data->wifiSsid) > 0) {
         LOG_INFO(CAT_MAIN, "Saving config: SSID='%s'", data->wifiSsid);
 
         auto& cfg = ConfigManager::getInstance();
-        cfg.setWifiSsid(data->wifiSsid);
-        cfg.setWifiPassword(data->wifiPassword);
+        cfg.setWifiSsid(data->wifiSsid);  
+        cfg.setWifiPassword(
+            data->wifiPassword);  
 
-        if (cfg.save()) {
+        if (cfg.save()) {  
           LOG_INFO(CAT_MAIN, "Config saved successfully!");
         } else {
           LOG_ERROR(CAT_MAIN, "Failed to save config!");
@@ -716,18 +707,15 @@ void loop() {
         }
       }
 
-      // Выходим из AP режима (если активен)
       if (apMode) {
         wifi_stop_ap();
         LOG_INFO(CAT_WIFI, "AP mode disabled");
       }
 
-      // Переходим в NORMAL MODE без перезагрузки
       g_normalMode = true;
       initNormalMode();
 
-      LOG_INFO(CAT_MAIN,
-               "System running in NORMAL mode with new configuration");
+      LOG_INFO(CAT_MAIN, "System running in NORMAL mode with new configuration");
     }
   } else {
     processNormalMode();
