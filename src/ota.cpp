@@ -33,7 +33,7 @@ bool ota_is_available() {
   result = (ESP.getFlashChipSize() >= (2 * 1024 * 1024));
 #endif
   ota_available = result;
-  LOG_INFO(CAT_OTA, "Check availablity: %s", result ? "YES" : "NO");
+  LOG_DEBUG(CAT_OTA, "Check availablity: %s", result ? "YES" : "NO");
   return result;
 }
 
@@ -54,7 +54,7 @@ void ota_init(WebServerClass* server) {
   ElegantOTA.begin(server);
   ota_initialized = true;
 
-  LOG_INFO(CAT_OTA, "OTA initialized at /update");
+  LOG_DEBUG(CAT_OTA, "OTA initialized at /update");
 }
 
 // ========== ota_loop() НЕ НУЖЕН для ElegantOTA 2.2.x ==========
