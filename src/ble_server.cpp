@@ -4,7 +4,6 @@
  */
 
 #include "ble_server.h"
-
 #include "logger.h"
 #include "settings.h"
 
@@ -12,6 +11,10 @@
 
 #include <WiFi.h>
 #include <WiFiProv.h>
+
+// ============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+// ============================================================================
 
 static const char* getProvEventName(arduino_event_id_t event_id) {
   switch (event_id) {
@@ -34,9 +37,9 @@ static const char* getProvEventName(arduino_event_id_t event_id) {
     case ARDUINO_EVENT_WIFI_STA_GOT_IP6:
       return "WIFI_STA_GOT_IP6";
     case ARDUINO_EVENT_WIFI_STA_LOST_IP:
-      return "WIFI_STA_LOST_IP";  // event 10
+      return "WIFI_STA_LOST_IP";
     case ARDUINO_EVENT_WIFI_AP_START:
-      return "WIFI_AP_START";  // event 11
+      return "WIFI_AP_START";
     case ARDUINO_EVENT_WIFI_AP_STOP:
       return "WIFI_AP_STOP";
     case ARDUINO_EVENT_WIFI_AP_STACONNECTED:
@@ -102,38 +105,35 @@ static const char* getProvEventName(arduino_event_id_t event_id) {
   }
 }
 
-static ProvConfigCallback g_configCallback = nullptr;
-static BleConnectionCallback g_connCallback = nullptr;
-static BleWifiConfig g_receivedConfig;
-static bool g_credentialsReceived = false;
-static bool g_clientConnected = false;  // ← ФЛАГ РЕАЛЬНОГО ПОДКЛЮЧЕНИЯ
+// ============================================================================
+// UUID ДЛЯ BLE-СЕРВИСА
+// ============================================================================
 
 static const uint8_t PROV_UUID[16] = {0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b,
                                       0xf4, 0xbf, 0xea, 0x4a, 0x82, 0x03,
                                       0x04, 0x90, 0x1a, 0x02};
 
 // ============================================================================
+// ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ (скрытые)
+// ============================================================================
+
+static ProvConfigCallback g_configCallback = nullptr;
+static void* g_context = nullptr;
+static BleWifiConfig g_receivedConfig;
+static bool g_credentialsReceived = false;
+
+// ============================================================================
 // ОБРАБОТЧИК СОБЫТИЙ
 // ============================================================================
 
-void SysProvEvent(arduino_event_t* sys_event) {
-  
+static void SysProvEvent(arduino_event_t* sys_event) {
   const char* eventName =
       getProvEventName((arduino_event_id_t)sys_event->event_id);
-  LOG_DEBUG(CAT_PROVISIONING, "BLE event callback: %s", eventName);
-  // Serial.printf("\nBLE event: %s\n", eventName);
-   switch (sys_event->event_id) {
-      
+  LOG_DEBUG(CAT_PROVISIONING, "BLE event: %s", eventName);
 
+  switch (sys_event->event_id) {
     case ARDUINO_EVENT_PROV_CRED_RECV: {
-      // LOG_DEBUG(CAT_PROVISIONING,"WiFi credentials received");
-
-      // Если получили креденшелы — значит клиент реально подключён
-      g_clientConnected = true;
-
-      if (g_connCallback) {
-        g_connCallback(true);  // сообщаем о подключении!
-      }
+      LOG_DEBUG(CAT_PROVISIONING, "WiFi credentials received");
 
       if (sys_event->event_info.prov_cred_recv.ssid) {
         memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
@@ -144,55 +144,45 @@ void SysProvEvent(arduino_event_t* sys_event) {
                 (char*)sys_event->event_info.prov_cred_recv.password,
                 sizeof(g_receivedConfig.wifiPassword) - 1);
         g_credentialsReceived = true;
-        // LOG_INFO(CAT_PROVISIONING, "SSID: %s", g_receivedConfig.wifiSsid);
+        LOG_INFO(CAT_PROVISIONING, "SSID: %s", g_receivedConfig.wifiSsid);
       }
       break;
     }
 
     case ARDUINO_EVENT_PROV_CRED_FAIL: {
-      // LOG_WARN(CAT_PROVISIONING, "Credentials failed");
-      
-      g_clientConnected = false;
-      if (g_connCallback) {
-        g_connCallback(false);
-      }
+      LOG_WARN(CAT_PROVISIONING, "Credentials failed");
+
       if (g_configCallback) {
-        g_configCallback(nullptr);
+        g_configCallback(nullptr, g_context);
       }
-      
       break;
     }
 
     case ARDUINO_EVENT_PROV_CRED_SUCCESS: {
-      // LOG_DEBUG(CAT_PROVISIONING,"Provisioning successful");
-      g_clientConnected = false;
+      LOG_INFO(CAT_PROVISIONING, "Provisioning successful");
+
       if (g_credentialsReceived && g_configCallback) {
-        g_configCallback(&g_receivedConfig);
+        g_configCallback(&g_receivedConfig, g_context);
         g_credentialsReceived = false;
       }
       break;
     }
 
     case ARDUINO_EVENT_PROV_END: {
-      // LOG_DEBUG(CAT_PROVISIONING, "Provisioning ended");
-      g_clientConnected = false;
-      if (g_connCallback) {
-        g_connCallback(false);
-      }
-      break;
-    }
-    case ARDUINO_EVENT_WIFI_SCAN_DONE: {
-      
-      uint16_t number = sys_event->event_info.wifi_scan_done.number;
-      uint8_t status = sys_event->event_info.wifi_scan_done.status;
-      Serial.printf("\nWiFi scan completed: %d networks found (status=%d)\n", number,status);
+      LOG_DEBUG(CAT_PROVISIONING, "Provisioning ended");
       break;
     }
 
-    default: {
-      // LOG_DEBUG(CAT_PROVISIONING, "BLE event: %d (%s)",sys_event->event_id, eventName);
+    case ARDUINO_EVENT_WIFI_SCAN_DONE: {
+      uint16_t number = sys_event->event_info.wifi_scan_done.number;
+      uint8_t status = sys_event->event_info.wifi_scan_done.status;
+      LOG_DEBUG(CAT_PROVISIONING, "WiFi scan: %d networks (status=%d)", number,
+                status);
       break;
     }
+
+    default:
+      break;
   }
 }
 
@@ -207,8 +197,8 @@ BleProvisioningServer::BleProvisioningServer(const char* deviceName) {
   } else {
     strncpy(_deviceName, "PROV_123", sizeof(_deviceName) - 1);
   }
+
   g_credentialsReceived = false;
-  g_clientConnected = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 }
 
@@ -217,20 +207,16 @@ BleProvisioningServer::~BleProvisioningServer() {
 }
 
 bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
-                                  ProvStatusCallback statusCallback,
-                                  BleConnectionCallback connCallback) {
+                                  void* context) {
   if (_active)
     return true;
 
   g_configCallback = configCallback;
-  g_connCallback = connCallback;
+  g_context = context;
   g_credentialsReceived = false;
-  g_clientConnected = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 
-  (void)statusCallback;
-
-  LOG_DEBUG(CAT_PROVISIONING, "Starting BLE Provisioning server");
+  LOG_INFO(CAT_PROVISIONING, "Starting BLE Provisioning server");
   LOG_DEBUG(CAT_PROVISIONING, "Device name: %s", _deviceName);
   LOG_DEBUG(CAT_PROVISIONING, "PIN: %s", BLE_PROVISIONING_PIN);
   LOG_INFO(CAT_PROVISIONING, "Use ESP BLE Prov app");
@@ -243,10 +229,8 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
                           _deviceName, NULL, (uint8_t*)PROV_UUID, true);
 
   _active = true;
-  // LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning started, waiting for client");
 
-  
-
+  LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning started, waiting for client");
   return true;
 }
 
@@ -256,22 +240,20 @@ void BleProvisioningServer::stop() {
 
   _active = false;
   g_credentialsReceived = false;
-  g_clientConnected = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 
   WiFi.removeEvent(SysProvEvent);
+  LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning stopped");
 }
 
 bool BleProvisioningServer::isActive() const {
   return _active;
 }
 
-// @deprecated Не используется
 const char* BleProvisioningServer::getDeviceName() const {
   return _deviceName;
 }
 
-// @deprecated Не используется
 void BleProvisioningServer::setDeviceName(const char* name) {
   if (name && strlen(name) < sizeof(_deviceName)) {
     strncpy(_deviceName, name, sizeof(_deviceName) - 1);

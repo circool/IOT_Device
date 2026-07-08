@@ -20,7 +20,14 @@ static BleProvisioningServer* g_bleServer = nullptr;
 // КОЛБЭКИ ДЛЯ BLE-СЕРВЕРА
 // ============================================================================
 
-static void onBleConfigReceived(const BleWifiConfig* bleConfig) {
+/**
+ * @brief Колбэк при получении WiFi-конфигурации через BLE
+ * @param bleConfig Указатель на полученный конфиг (nullptr при ошибке)
+ * @param context Пользовательский контекст (не используется)
+ */
+static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
+  (void)context;  // Подавляем warning о неиспользуемом параметре
+
   auto& prov = ProvisioningManager::getInstance();
 
   if (prov.isCompleted()) {
@@ -46,18 +53,6 @@ static void onBleConfigReceived(const BleWifiConfig* bleConfig) {
   prov.onDataReceived(data);
 }
 
-static void onBleStatusChanged(uint8_t status) {
-  ProvisioningManager::getInstance().onBleStatus(status);
-}
-
-static void onBleConnectionChanged(bool connected) {
-  if (connected) {
-    LOG_INFO(CAT_PROVISIONING, "BLE client connected");
-  } else {
-    LOG_INFO(CAT_PROVISIONING, "BLE client disconnected");
-  }
-}
-
 // ============================================================================
 // РЕАЛИЗАЦИЯ МЕТОДОВ КЛАССА
 // ============================================================================
@@ -67,12 +62,12 @@ ProvisioningManager& ProvisioningManager::getInstance() {
   return instance;
 }
 
-bool ProvisioningManager::begin(ProvisioningCallback callback, void* userData) {
+bool ProvisioningManager::begin(ProvisioningCallback callback, void* context) {
   if (_started)
     return false;
 
   _callback = callback;
-  _userData = userData;
+  _context = context;
   _started = true;
   _state = ProvisioningState::IDLE;
   _retryCount = 0;
@@ -84,8 +79,9 @@ bool ProvisioningManager::begin(ProvisioningCallback callback, void* userData) {
     LOG_INFO(CAT_PROVISIONING, "Config already exists, skipping provisioning");
     _state = ProvisioningState::COMPLETED;
     _completedBy = ProvisioningMethod::NONE;
-    if (_callback)
-      _callback(ProvisioningMethod::NONE);
+    if (_callback) {
+      _callback(ProvisioningMethod::NONE, _context);
+    }
     return true;
   }
 
@@ -105,8 +101,9 @@ void ProvisioningManager::update() {
     if (isApComplete()) {
       _state = ProvisioningState::COMPLETED;
       _completedBy = ProvisioningMethod::AP;
-      if (_callback)
-        _callback(ProvisioningMethod::AP);
+      if (_callback) {
+        _callback(ProvisioningMethod::AP, _context);
+      }
       return;
     }
   }
@@ -137,20 +134,6 @@ const ProvisioningData* ProvisioningManager::getData() const {
   return &_data;
 }
 
-// void ProvisioningManager::reset() {
-//   if (g_bleServer) {
-//     g_bleServer->stop();
-//     delete g_bleServer;
-//     g_bleServer = nullptr;
-//   }
-//   _started = false;
-//   _state = ProvisioningState::IDLE;
-//   _retryCount = 0;
-//   _completedBy = ProvisioningMethod::NONE;
-//   _apStarted = false;
-//   memset(&_data, 0, sizeof(_data));
-// }
-
 void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
   LOG_INFO(CAT_PROVISIONING, "Data received");
 
@@ -160,7 +143,7 @@ void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
   _completedBy = ProvisioningMethod::BLE;
 
   if (_callback) {
-    _callback(ProvisioningMethod::BLE);
+    _callback(ProvisioningMethod::BLE, _context);
   }
 }
 
@@ -186,7 +169,7 @@ void ProvisioningManager::onBleStatus(uint8_t status) {
         _state = ProvisioningState::FAILED;
         _completedBy = ProvisioningMethod::FAILED;
         if (_callback) {
-          _callback(ProvisioningMethod::FAILED);
+          _callback(ProvisioningMethod::FAILED, _context);
         }
       }
       break;
@@ -206,10 +189,8 @@ void ProvisioningManager::selectProvisioningMethod() {
   LOG_INFO(CAT_PROVISIONING, "Starting AP + BLE provisioning");
 
 #if defined(ESP32) && !defined(ESP8266)
-  
-  startBleProvisioning();  
-  startApProvisioning();   
-
+  startBleProvisioning();
+  startApProvisioning();
   _state = ProvisioningState::ACTIVE;
   return;
 #endif
@@ -221,8 +202,8 @@ void ProvisioningManager::startBleProvisioning() {
 
   g_bleServer = new BleProvisioningServer(deviceId);
 
-  if (g_bleServer->begin(onBleConfigReceived, onBleStatusChanged,
-                         onBleConnectionChanged)) {
+  // Обновлённый вызов: только configCallback и context
+  if (g_bleServer->begin(onBleConfigReceived, nullptr)) {
     LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning started");
   } else {
     LOG_ERROR(CAT_PROVISIONING, "Failed to start BLE provisioning");
@@ -236,8 +217,9 @@ void ProvisioningManager::startBleProvisioning() {
       LOG_ERROR(CAT_PROVISIONING, "BLE start failed, provisioning FAILED");
       _state = ProvisioningState::FAILED;
       _completedBy = ProvisioningMethod::FAILED;
-      if (_callback)
-        _callback(ProvisioningMethod::FAILED);
+      if (_callback) {
+        _callback(ProvisioningMethod::FAILED, _context);
+      }
     }
   }
 }
@@ -249,11 +231,8 @@ void ProvisioningManager::startApProvisioning() {
 
   _apStarted = true;
 
-  // Запускаем AP через WiFiManager
   const char* deviceId = ConfigManager::getInstance().getDeviceId();
   wifi_start_ap(deviceId);
-
-  // Web в режиме настройки
   web_init(true);
 }
 
@@ -263,29 +242,42 @@ bool ProvisioningManager::isApComplete() {
 }
 
 // ============================================================================
+// СТАТИЧЕСКАЯ ФУНКЦИЯ-ОБРАБОТЧИК ДЛЯ MAIN
+// ============================================================================
+
+/**
+ * @brief Обработчик завершения провизионинга
+ * @param method Метод завершения (BLE/AP/FAILED)
+ * @param context Пользовательский контекст (не используется)
+ */
+static void onProvisioningComplete(ProvisioningMethod method, void* context) {
+  (void)context;
+
+  auto& prov = ProvisioningManager::getInstance();
+
+  if (method == ProvisioningMethod::FAILED) {
+    LOG_ERROR(CAT_PROVISIONING, "Provisioning FAILED permanently!");
+    return;
+  }
+
+  if (method == ProvisioningMethod::NONE) {
+    LOG_DEBUG(CAT_PROVISIONING, "Provisioning skipped (config exists)");
+    return;
+  }
+
+  // Только логируем получение данных
+  const auto* data = prov.getData();
+  if (data && strlen(data->wifiSsid) > 0) {
+    LOG_INFO(CAT_PROVISIONING, "Data received: SSID='%s'", data->wifiSsid);
+  }
+}
+
+// ============================================================================
 // ПРОСТЫЕ ФУНКЦИИ-ОБЁРТКИ ДЛЯ MAIN
 // ============================================================================
 
 void startProvisioning() {
-  ProvisioningManager::getInstance().begin([](ProvisioningMethod method) {
-    auto& prov = ProvisioningManager::getInstance();
-
-    if (method == ProvisioningMethod::FAILED) {
-      LOG_ERROR(CAT_PROVISIONING, "Provisioning FAILED permanently!");
-      return;
-    }
-
-    if (method == ProvisioningMethod::NONE) {
-      LOG_DEBUG(CAT_PROVISIONING, "Provisioning skipped (config exists)");
-      return;
-    }
-
-    // Только логируем получение данных
-    const auto* data = prov.getData();
-    if (data && strlen(data->wifiSsid) > 0) {
-      LOG_INFO(CAT_PROVISIONING, "Data received: SSID='%s'", data->wifiSsid);
-    }
-  });
+  ProvisioningManager::getInstance().begin(onProvisioningComplete, nullptr);
 }
 
 bool isProvisioningComplete() {
