@@ -153,9 +153,7 @@ void ProvisioningManager::onBleStatus(uint8_t status) {
     return;
   }
 
-  // Используем числовое значение вместо ARDUINO_EVENT_PROV_CRED_FAIL
-  // для совместимости с ESP8266 (эта константа недоступна)
-  if (status == 1) {  // ARDUINO_EVENT_PROV_CRED_FAIL
+  if (status == ARDUINO_EVENT_PROV_CRED_FAIL) {  
     LOG_WARN(CAT_PROVISIONING, "BLE credentials failed (attempt %d/%d)",
              _retryCount + 1, MAX_RETRIES);
 
