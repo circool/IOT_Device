@@ -63,6 +63,7 @@ bool g_normalMode = false;
 void initNormalMode();
 void processNormalMode();
 void checkResetButton();
+void processWebCommands();
 
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ОБЪЕКТЫ
@@ -239,10 +240,6 @@ static void publishMqttStatus() {
   if (!mqttManager.isConnected())
     return;
 
-  // ========================================================================
-  // ПУБЛИКАЦИЯ СОСТОЯНИЯ УСТРОЙСТВА
-  // ========================================================================
-
 #if DEVICE_TYPE == 1
   static bool lastFanState = false;
   bool currentFanState = fan.getState();
@@ -284,7 +281,7 @@ static void publishMqttStatus() {
     lastLowHum = g_configManager.getLowHum();
     lastHighHum = g_configManager.getHighHum();
   }
-#endif  // DEVICE_TYPE == 1
+#endif
 
 #if DEVICE_TYPE == 3
   static bool lastSwitchState = false;
@@ -293,11 +290,7 @@ static void publishMqttStatus() {
     mqttManager.publishState(currentSwitchState);
     lastSwitchState = currentSwitchState;
   }
-#endif  // DEVICE_TYPE == 3
-
-  // ========================================================================
-  // ОБЩИЕ ПАРАМЕТРЫ (для TYPE 1 и TYPE 3)
-  // ========================================================================
+#endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   static int lastDelaySeconds = -1;
@@ -313,10 +306,6 @@ static void publishMqttStatus() {
   }
 #endif
 
-  // ========================================================================
-  // ПОКАЗАНИЯ ДАТЧИКА (для TYPE 1 и TYPE 2)
-  // ========================================================================
-
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (sensor_isOk()) {
     static float lastTemp = 0, lastHum = 0;
@@ -330,10 +319,6 @@ static void publishMqttStatus() {
     }
   }
 #endif
-
-  // ========================================================================
-  // ПЕРВИЧНАЯ ПУБЛИКАЦИЯ ВСЕХ НАСТРОЕК (при первом подключении)
-  // ========================================================================
 
   static bool initialConfigPublished = false;
   static unsigned long lastHeartbeat = 0;
@@ -367,10 +352,6 @@ static void publishMqttStatus() {
     LOG_DEBUG(CAT_MQTT, "Initial config published");
   }
 
-  // ========================================================================
-  // HEARTBEAT (периодическая публикация статуса)
-  // ========================================================================
-
   if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
     mqttManager.publishOnline();
 
@@ -385,6 +366,142 @@ static void publishMqttStatus() {
 #endif  // MQTT_ENABLED == 1
 
 // ============================================================================
+// ОБРАБОТКА КОМАНД ОТ WEB
+// ============================================================================
+
+void processWebCommands() {
+#if WEB_ENABLED == 1
+  // ==== 1. НОВЫЕ НАСТРОЙКИ ====
+  if (g_webConfigPending) {
+    LOG_INFO(CAT_MAIN, "Applying new config from Web...");
+
+    auto& cfg = ConfigManager::getInstance();
+
+    bool valid = true;
+
+    if (strlen(g_webPendingConfig.wifiSsid) > 0) {
+      if (!cfg.setWifiSsid(g_webPendingConfig.wifiSsid)) {
+        LOG_ERROR(CAT_MAIN, "Invalid WiFi SSID: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+    if (strlen(g_webPendingConfig.wifiPassword) > 0) {
+      if (!cfg.setWifiPassword(g_webPendingConfig.wifiPassword)) {
+        LOG_ERROR(CAT_MAIN, "Invalid WiFi password: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+#if MQTT_ENABLED == 1
+    if (strlen(g_webPendingConfig.mqttBroker) > 0) {
+      if (!cfg.setMqttBroker(g_webPendingConfig.mqttBroker)) {
+        LOG_ERROR(CAT_MAIN, "Invalid MQTT broker: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+    if (!cfg.setMqttPort(g_webPendingConfig.mqttPort)) {
+      LOG_ERROR(CAT_MAIN, "Invalid MQTT port: %s", cfg.getLastError());
+      valid = false;
+    }
+
+    if (strlen(g_webPendingConfig.mqttUser) > 0) {
+      if (!cfg.setMqttUser(g_webPendingConfig.mqttUser)) {
+        LOG_ERROR(CAT_MAIN, "Invalid MQTT user: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+    if (strlen(g_webPendingConfig.mqttPassword) > 0) {
+      if (!cfg.setMqttPassword(g_webPendingConfig.mqttPassword)) {
+        LOG_ERROR(CAT_MAIN, "Invalid MQTT password: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+    if (strlen(g_webPendingConfig.mqttClientId) > 0) {
+      if (!cfg.setMqttClientId(g_webPendingConfig.mqttClientId)) {
+        LOG_ERROR(CAT_MAIN, "Invalid MQTT Client ID: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+#endif
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+    if (!cfg.setSensorInterval(g_webPendingConfig.sensorInterval)) {
+      LOG_ERROR(CAT_MAIN, "Invalid sensor interval: %s", cfg.getLastError());
+      valid = false;
+    }
+#endif
+
+#if DEVICE_TYPE == 1
+    if (!cfg.setLowTemp(g_webPendingConfig.lowTemp)) {
+      LOG_ERROR(CAT_MAIN, "Invalid low temp: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setHighTemp(g_webPendingConfig.highTemp)) {
+      LOG_ERROR(CAT_MAIN, "Invalid high temp: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setLowHum(g_webPendingConfig.lowHum)) {
+      LOG_ERROR(CAT_MAIN, "Invalid low hum: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setHighHum(g_webPendingConfig.highHum)) {
+      LOG_ERROR(CAT_MAIN, "Invalid high hum: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setSpeedPercent(g_webPendingConfig.speedPercent)) {
+      LOG_ERROR(CAT_MAIN, "Invalid speed: %s", cfg.getLastError());
+      valid = false;
+    }
+    cfg.setAdaptiveMode(g_webPendingConfig.adaptiveMode);
+    cfg.setSensorControlMode(g_webPendingConfig.sensorControlMode);
+#endif
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    if (!cfg.setDelaySeconds(g_webPendingConfig.delaySeconds)) {
+      LOG_ERROR(CAT_MAIN, "Invalid delay seconds: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setMaxOnTime(g_webPendingConfig.maxOnTime)) {
+      LOG_ERROR(CAT_MAIN, "Invalid max on time: %s", cfg.getLastError());
+      valid = false;
+    }
+    cfg.setBootState(g_webPendingConfig.bootState);
+#endif
+
+    if (!valid) {
+      LOG_ERROR(CAT_MAIN, "Invalid config from Web, rejecting");
+      g_webConfigPending = false;
+      return;
+    }
+
+    // Сохраняем в EEPROM
+    if (cfg.save()) {
+      LOG_INFO(CAT_MAIN, "Config saved successfully!");
+      g_webConfigPending = false;
+
+      // Перезагружаемся после применения
+      g_webRestartPending = true;
+    } else {
+      LOG_ERROR(CAT_MAIN, "Failed to save config: %s", cfg.getLastError());
+      g_webConfigPending = false;
+    }
+  }
+
+  // ==== 2. ПЕРЕЗАГРУЗКА ====
+  if (g_webRestartPending) {
+    LOG_INFO(CAT_MAIN, "Restarting due to Web command...");
+    g_webRestartPending = false;
+    delay(500);
+    ESP.restart();
+  }
+#endif
+}
+
+// ============================================================================
 // NORMAL MODE ФУНКЦИИ
 // ============================================================================
 
@@ -393,13 +510,11 @@ void initNormalMode() {
   LOG_INFO(CAT_MAIN, "NORMAL MODE");
   LOG_INFO(CAT_MAIN, "========================================");
 
-  // принудительно выйти из AP режима
   if (apMode) {
     wifi_stop_ap();
     LOG_INFO(CAT_WIFI, "AP mode disabled");
   }
 
-  // ========== ДАТЧИК ==========
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   sensor_init();
 #if DEVICE_TYPE == 1
@@ -412,20 +527,17 @@ void initNormalMode() {
 #endif
 #endif
 
-  // ========== ВЕНТИЛЯТОР ==========
 #if DEVICE_TYPE == 1
   fan.init(SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
            g_configManager.getSpeedPercent());
   fan.setAdaptiveMode(g_configManager.getAdaptiveMode());
 #endif
 
-  // ========== ВЫКЛЮЧАТЕЛЬ ==========
 #if DEVICE_TYPE == 3
   switchActuator.init(SWITCH_PIN, RELAY_ON_LEVEL,
                       g_configManager.getBootState());
 #endif
 
-  // ========== MQTT ==========
 #if MQTT_ENABLED == 1
   mqttManager.begin(
       g_mqttClient, g_configManager.getMqttBroker(),
@@ -434,7 +546,6 @@ void initNormalMode() {
   registerMqttCallbacks();
 #endif
 
-  // ========== WIFI ==========
 #if SCANING_WIFI_ENABLED == 1
 #ifdef ESP8266
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
@@ -447,7 +558,6 @@ void initNormalMode() {
 #endif
   wifi_begin();
 
-  // ========== WEB ==========
 #if WEB_ENABLED == 1
 #if DEVICE_TYPE == 1
   web_registerStatusProvider(&statusProvider);
@@ -471,7 +581,6 @@ void initNormalMode() {
 }
 
 void processNormalMode() {
-  // ========== ДАТЧИК ==========
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   bool sensorDataChanged = sensor_update();
 #if DEVICE_TYPE == 1
@@ -496,25 +605,20 @@ void processNormalMode() {
 #endif
 #endif
 
-  // ========== ВЕНТИЛЯТОР ==========
 #if DEVICE_TYPE == 1
   fan.update();
 #endif
 
-  // ========== ВЫКЛЮЧАТЕЛЬ ==========
 #if DEVICE_TYPE == 3
   switchActuator.update();
 #endif
 
-  // ========== WIFI ==========
   wifi_monitor();
 
-  // ========== OTA LOOP ==========
 #if OTA_ENABLED == 1
   ota_loop();
 #endif
 
-  // ========== MQTT ==========
 #if MQTT_ENABLED == 1
   if (wifi_is_connected()) {
     mqttManager.process();
@@ -522,10 +626,8 @@ void processNormalMode() {
   }
 #endif
 
-  // ========== WEB ==========
   web_update();
 
-  // ========== LED ==========
   if (apMode) {
     led_setMode(LED_MODE_MORZE_S);
   } else if (!wifi_is_connected()) {
@@ -601,42 +703,30 @@ void setup() {
   LOG_INFO(CAT_MAIN, "==========================================");
   LOG_INFO(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
 
-  // ========== ИНИЦИАЛИЗАЦИЯ ПОДСИСТЕМ ==========
   led_init();
   led_setMode(LED_MODE_MORZE_E);
 
   wdt_init();
-  g_configManager.begin();  
+  g_configManager.begin();
 
 #if SCANING_WIFI_ENABLED == 1
   wdt_stop();
-  const ConfigData* cfg = g_configManager.get();  
+  const ConfigData* cfg = g_configManager.get();
   const char* targetSsid = (cfg != nullptr) ? cfg->wifiSsid : nullptr;
   wifi_scan_and_log(targetSsid);
   wdt_start();
 #endif
 
-  g_configManager.print();  
+  g_configManager.print();
 
-  // ================================================================
-  // ПРОВЕРКА КОНФИГУРАЦИИ
-  // ================================================================
-
-  bool hasValidConfig =
-      g_configManager.isValid();  
-  bool hasWifi = (strlen(g_configManager.getWifiSsid()) >
-                  0);  
+  bool hasValidConfig = g_configManager.isValid();
+  bool hasWifi = (strlen(g_configManager.getWifiSsid()) > 0);
 
 #if IS_MQTT_ENABLED
-  bool hasMqtt = (strlen(g_configManager.getMqttBroker()) >
-                  0);  
+  bool hasMqtt = (strlen(g_configManager.getMqttBroker()) > 0);
 #else
   bool hasMqtt = true;
 #endif
-
-  // ================================================================
-  // ВЫБОР РЕЖИМА РАБОТЫ
-  // ================================================================
 
 #if USE_BLE_PROVISIONING == 1
   if (hasValidConfig && hasWifi) {
@@ -681,6 +771,9 @@ void loop() {
   wdt_feed();
   checkResetButton();
 
+  // ==== ОБРАБОТКА КОМАНД ОТ WEB ====
+  processWebCommands();
+
   if (!g_normalMode) {
     ProvisioningManager::getInstance().update();
 
@@ -703,11 +796,10 @@ void loop() {
         LOG_INFO(CAT_MAIN, "Saving config: SSID='%s'", data->wifiSsid);
 
         auto& cfg = ConfigManager::getInstance();
-        cfg.setWifiSsid(data->wifiSsid);  
-        cfg.setWifiPassword(
-            data->wifiPassword);  
+        cfg.setWifiSsid(data->wifiSsid);
+        cfg.setWifiPassword(data->wifiPassword);
 
-        if (cfg.save()) {  
+        if (cfg.save()) {
           LOG_INFO(CAT_MAIN, "Config saved successfully!");
         } else {
           LOG_ERROR(CAT_MAIN, "Failed to save config!");
@@ -723,7 +815,7 @@ void loop() {
       g_normalMode = true;
       initNormalMode();
 
-      LOG_INFO(CAT_MAIN, "System running in NORMAL mode with new configuration");
+      LOG_INFO(CAT_MAIN,"System running in NORMAL mode with new configuration");
     }
   } else {
     processNormalMode();

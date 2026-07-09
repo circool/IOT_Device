@@ -87,11 +87,6 @@ void web_saveConfig();
  */
 void web_init(bool setupMode = false);
 
-/**
- * @brief Инициализация веб-сервера в режиме точки доступа (AP)
- * @note Создаёт WiFi сеть для первоначальной настройки
- */
-// void web_initAP();
 
 /**
  * @brief Периодическая обработка HTTP-запросов
@@ -109,6 +104,27 @@ void handleToggle();
 #if DEVICE_TYPE == 1
 void handleSensorControlMode();
 #endif
+
+// ============================================================================
+// ГЛОБАЛЬНЫЕ ФЛАГИ ДЛЯ КОММУНИКАЦИИ С MAIN
+// ============================================================================
+/**
+ * @brief Флаг: есть новые настройки от Web
+ * @note Устанавливается в web.cpp, обрабатывается в main.cpp
+ */
+extern volatile bool g_webConfigPending;
+
+/**
+ * @brief Флаг: команда перезагрузки от Web
+ * @note Устанавливается в web.cpp, обрабатывается в main.cpp
+ */
+extern volatile bool g_webRestartPending;
+
+/**
+ * @brief Временный буфер с новыми настройками
+ * @note Заполняется в web.cpp, применяется в main.cpp
+ */
+extern ConfigData g_webPendingConfig;
 
 #else  // WEB_ENABLED == 0
 
