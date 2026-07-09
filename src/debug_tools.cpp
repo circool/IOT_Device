@@ -1,6 +1,12 @@
 #include "debug_tools.h"
 #include "logger.h"
-#include <qrcode.h>
+#ifdef ESP8266
+#include <ESP8266WiFi.h>
+#include <user_interface.h>  
+#elif defined(ESP32)
+#include <WiFi.h>
+#include <esp_chip_info.h>
+#endif
 
 const char* getResetReason() {
 #ifdef ESP8266
@@ -119,6 +125,7 @@ void print_system_info() {
   LOG_INFO(CAT_ALL, "Free heap: %u bytes", ESP.getFreeHeap());
 
   uint32_t flashSize = ESP.getFlashChipSize();
+
   uint32_t realFlashSize = ESP.getFlashChipRealSize();
   LOG_INFO(CAT_ALL, "Flash: %u MB (%d MHz, mode %d)",
            realFlashSize / (1024 * 1024), ESP.getFlashChipSpeed() / 1000000,
@@ -131,6 +138,7 @@ void print_system_info() {
   LOG_INFO(CAT_ALL, "Sketch size: %u bytes", ESP.getSketchSize());
   LOG_INFO(CAT_ALL, "Free sketch space: %u bytes", ESP.getFreeSketchSpace());
   LOG_INFO(CAT_ALL, "Free heap: %u bytes", ESP.getFreeHeap());
+  LOG_INFO(CAT_ALL, "Flash chip size: %u bytes", flashSize);
   LOG_INFO(CAT_ALL, "Firmware ver. %s", VERSION);
   LOG_INFO(CAT_ALL, "Reset reason: %s", getResetReason());
 }

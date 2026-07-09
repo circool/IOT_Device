@@ -690,7 +690,7 @@ void web_saveConfig() {
 // ========== ИНИЦИАЛИЗАЦИЯ ==========
 
 void web_init(bool setupMode) {
-  LOG_DEBUG(CAT_WEB, "web_init() called, setupMode=%d", setupMode);
+  LOG_DEBUG(CAT_WEB, "Begining initialisation web server with %s mode", setupMode ? "setup":"full");
   g_setupMode = setupMode;
 
   if (setupMode) {

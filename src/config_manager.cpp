@@ -802,14 +802,14 @@ void ConfigManager::readFromEEPROM() {
       LOG_INFO(CAT_CONFIG, "Config loaded from EEPROM");
       return;
     } else {
-      LOG_WARN(CAT_CONFIG, "CRC mismatch! Using defaults.");
+      LOG_WARN(CAT_CONFIG, "CRC mismatch!");
     }
   } else {
-    LOG_WARN(CAT_CONFIG, "Magic mismatch! Using defaults.");
+    LOG_WARN(CAT_CONFIG, "Magic mismatch!");
   }
 
   _configValid = false;
-  LOG_WARN(CAT_CONFIG, "Using defaults (EEPROM invalid)");
+  LOG_WARN(CAT_CONFIG, "Using defaults (EEPROM config invalid)");
 }
 
 bool ConfigManager::validateAndApply(const ConfigData& raw) {
@@ -949,43 +949,43 @@ void ConfigManager::setError(const char* msg) {
 }
 
 void ConfigManager::print() const {
-  LOG_INFO(CAT_CONFIG, "=== Config ===");
+  LOG_DEBUG(CAT_CONFIG, "=== Config ===");
 
 #if WIFI_ENABLED == 1
-  LOG_INFO(CAT_CONFIG, "WiFi SSID: '%s'", _config.wifiSsid);
-  LOG_INFO(CAT_CONFIG, "WiFi Password: %s",
-           _config.wifiPassword[0] ? "***" : "(empty)");
+  LOG_DEBUG(CAT_CONFIG, "WiFi SSID: '%s'", _config.wifiSsid);
+  LOG_DEBUG(CAT_CONFIG, "WiFi Password: %s",
+            _config.wifiPassword[0] ? "***" : "(empty)");
 #endif
 
 #if MQTT_ENABLED == 1
-  LOG_INFO(CAT_CONFIG, "MQTT Broker: '%s:%d'", _config.mqttBroker,
-           _config.mqttPort);
-  LOG_INFO(CAT_CONFIG, "MQTT User: '%s'", _config.mqttUser);
-  LOG_INFO(CAT_CONFIG, "MQTT Client ID: '%s'", _config.mqttClientId);
+  LOG_DEBUG(CAT_CONFIG, "MQTT Broker: '%s:%d'", _config.mqttBroker,
+            _config.mqttPort);
+  LOG_DEBUG(CAT_CONFIG, "MQTT User: '%s'", _config.mqttUser);
+  LOG_DEBUG(CAT_CONFIG, "MQTT Client ID: '%s'", _config.mqttClientId);
 #endif
 
 #if DEVICE_TYPE == 1
-  LOG_INFO(CAT_CONFIG, "Temp range: %.1f - %.1f°C", _config.lowTemp,
-           _config.highTemp);
-  LOG_INFO(CAT_CONFIG, "Hum range: %.1f - %.1f%%", _config.lowHum,
-           _config.highHum);
-  LOG_INFO(CAT_CONFIG, "Sensor mode: %s",
-           _config.sensorControlMode ? "ON" : "OFF");
-  LOG_INFO(CAT_CONFIG, "Speed: %d%%", _config.speedPercent);
-  LOG_INFO(CAT_CONFIG, "Adaptive: %s", _config.adaptiveMode ? "ON" : "OFF");
+  LOG_DEBUG(CAT_CONFIG, "Temp range: %.1f - %.1f°C", _config.lowTemp,
+            _config.highTemp);
+  LOG_DEBUG(CAT_CONFIG, "Hum range: %.1f - %.1f%%", _config.lowHum,
+            _config.highHum);
+  LOG_DEBUG(CAT_CONFIG, "Sensor mode: %s",
+            _config.sensorControlMode ? "ON" : "OFF");
+  LOG_DEBUG(CAT_CONFIG, "Speed: %d%%", _config.speedPercent);
+  LOG_DEBUG(CAT_CONFIG, "Adaptive: %s", _config.adaptiveMode ? "ON" : "OFF");
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  LOG_INFO(CAT_CONFIG, "Delay: %d sec", _config.delaySeconds);
-  LOG_INFO(CAT_CONFIG, "MaxOnTime: %u sec", _config.maxOnTime);
-  LOG_INFO(CAT_CONFIG, "Boot state: %s", _config.bootState ? "ON" : "OFF");
+  LOG_DEBUG(CAT_CONFIG, "Delay: %d sec", _config.delaySeconds);
+  LOG_DEBUG(CAT_CONFIG, "MaxOnTime: %u sec", _config.maxOnTime);
+  LOG_DEBUG(CAT_CONFIG, "Boot state: %s", _config.bootState ? "ON" : "OFF");
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  LOG_INFO(CAT_CONFIG, "Sensor interval: %d sec", _config.sensorInterval);
+  LOG_DEBUG(CAT_CONFIG, "Sensor interval: %d sec", _config.sensorInterval);
 #endif
 
-  LOG_INFO(CAT_CONFIG, "CRC: 0x%04X", _config.crc);
-  LOG_INFO(CAT_CONFIG, "Valid: %s", _configValid ? "YES" : "NO");
-  LOG_INFO(CAT_CONFIG, "=================");
+  LOG_DEBUG(CAT_CONFIG, "CRC: 0x%04X", _config.crc);
+  LOG_DEBUG(CAT_CONFIG, "Valid: %s", _configValid ? "YES" : "NO");
+  LOG_DEBUG(CAT_CONFIG, "=================");
 }

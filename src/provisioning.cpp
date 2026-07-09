@@ -11,22 +11,21 @@
 #include "wifi_manager.h"
 
 // ============================================================================
-// ГЛОБАЛЬНЫЙ УКАЗАТЕЛЬ НА BLE-СЕРВЕР
+// ГЛОБАЛЬНЫЙ УКАЗАТЕЛЬ НА BLE-СЕРВЕР (только если BLE включён)
 // ============================================================================
 
+#if USE_BLE_PROVISIONING == 1
 static BleProvisioningServer* g_bleServer = nullptr;
+#endif
 
 // ============================================================================
-// КОЛБЭКИ ДЛЯ BLE-СЕРВЕРА
+// КОЛБЭК ДЛЯ BLE-СЕРВЕРА (только если BLE включён)
 // ============================================================================
 
-/**
- * @brief Колбэк при получении WiFi-конфигурации через BLE
- * @param bleConfig Указатель на полученный конфиг (nullptr при ошибке)
- * @param context Пользовательский контекст (не используется)
- */
+#if USE_BLE_PROVISIONING == 1
+
 static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
-  (void)context;  // Подавляем warning о неиспользуемом параметре
+  (void)context;
 
   auto& prov = ProvisioningManager::getInstance();
 
@@ -52,6 +51,8 @@ static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
 
   prov.onDataReceived(data);
 }
+
+#endif  // USE_BLE_PROVISIONING == 1
 
 // ============================================================================
 // РЕАЛИЗАЦИЯ МЕТОДОВ КЛАССА
@@ -95,7 +96,6 @@ void ProvisioningManager::update() {
     return;
   }
 
-  // AP режим — обновляем веб-интерфейс
   if (_apStarted && wifi_is_ap_mode()) {
     web_update();
     if (isApComplete()) {
@@ -153,30 +153,25 @@ void ProvisioningManager::onBleStatus(uint8_t status) {
     return;
   }
 
-  switch (status) {
-    case ARDUINO_EVENT_PROV_CRED_FAIL: {
-      LOG_WARN(CAT_PROVISIONING, "BLE credentials failed (attempt %d/%d)",
-               _retryCount + 1, MAX_RETRIES);
+  // Используем числовое значение вместо ARDUINO_EVENT_PROV_CRED_FAIL
+  // для совместимости с ESP8266 (эта константа недоступна)
+  if (status == 1) {  // ARDUINO_EVENT_PROV_CRED_FAIL
+    LOG_WARN(CAT_PROVISIONING, "BLE credentials failed (attempt %d/%d)",
+             _retryCount + 1, MAX_RETRIES);
 
-      _retryCount++;
+    _retryCount++;
 
-      if (_retryCount < MAX_RETRIES) {
-        LOG_INFO(CAT_PROVISIONING, "Waiting for new BLE connection attempt");
-        _state = ProvisioningState::ACTIVE;
-      } else {
-        LOG_ERROR(CAT_PROVISIONING,
-                  "Max retries exceeded, provisioning FAILED");
-        _state = ProvisioningState::FAILED;
-        _completedBy = ProvisioningMethod::FAILED;
-        if (_callback) {
-          _callback(ProvisioningMethod::FAILED, _context);
-        }
+    if (_retryCount < MAX_RETRIES) {
+      LOG_INFO(CAT_PROVISIONING, "Waiting for new BLE connection attempt");
+      _state = ProvisioningState::ACTIVE;
+    } else {
+      LOG_ERROR(CAT_PROVISIONING, "Max retries exceeded, provisioning FAILED");
+      _state = ProvisioningState::FAILED;
+      _completedBy = ProvisioningMethod::FAILED;
+      if (_callback) {
+        _callback(ProvisioningMethod::FAILED, _context);
       }
-      break;
     }
-
-    default:
-      break;
   }
 }
 
@@ -187,22 +182,30 @@ void ProvisioningManager::onBleStatus(uint8_t status) {
 void ProvisioningManager::selectProvisioningMethod() {
 #if USE_BLE_PROVISIONING == 1
   LOG_INFO(CAT_PROVISIONING, "Starting AP + BLE provisioning");
-
 #if defined(ESP32) && !defined(ESP8266)
   startBleProvisioning();
   startApProvisioning();
   _state = ProvisioningState::ACTIVE;
-  return;
+#else
+  LOG_WARN(CAT_PROVISIONING,
+           "BLE not supported on this platform, using AP only");
+  startApProvisioning();
+  _state = ProvisioningState::ACTIVE;
 #endif
+#else
+  LOG_DEBUG(CAT_PROVISIONING, "BLE disabled, starting AP provisioning only");
+  startApProvisioning();
+  _state = ProvisioningState::ACTIVE;
 #endif
 }
 
 void ProvisioningManager::startBleProvisioning() {
+#if USE_BLE_PROVISIONING == 1
+#if defined(ESP32) && !defined(ESP8266)
   const char* deviceId = ConfigManager::getInstance().getDeviceId();
 
   g_bleServer = new BleProvisioningServer(deviceId);
 
-  // Обновлённый вызов: только configCallback и context
   if (g_bleServer->begin(onBleConfigReceived, nullptr)) {
     LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning started");
   } else {
@@ -222,6 +225,13 @@ void ProvisioningManager::startBleProvisioning() {
       }
     }
   }
+#else
+  LOG_WARN(CAT_PROVISIONING, "BLE not supported on this platform");
+#endif
+#else
+  // BLE отключён — ничего не делаем
+  LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning disabled");
+#endif
 }
 
 void ProvisioningManager::startApProvisioning() {
@@ -245,11 +255,6 @@ bool ProvisioningManager::isApComplete() {
 // СТАТИЧЕСКАЯ ФУНКЦИЯ-ОБРАБОТЧИК ДЛЯ MAIN
 // ============================================================================
 
-/**
- * @brief Обработчик завершения провизионинга
- * @param method Метод завершения (BLE/AP/FAILED)
- * @param context Пользовательский контекст (не используется)
- */
 static void onProvisioningComplete(ProvisioningMethod method, void* context) {
   (void)context;
 
@@ -265,7 +270,6 @@ static void onProvisioningComplete(ProvisioningMethod method, void* context) {
     return;
   }
 
-  // Только логируем получение данных
   const auto* data = prov.getData();
   if (data && strlen(data->wifiSsid) > 0) {
     LOG_INFO(CAT_PROVISIONING, "Data received: SSID='%s'", data->wifiSsid);

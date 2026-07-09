@@ -3,6 +3,7 @@
 #include "logger.h"
 #include "web.h"
 
+
 #if WIFI_ENABLED == 1
 bool apMode = false;
 
@@ -12,10 +13,12 @@ bool wifi_is_ap_mode() {
     return true;
 
 // Проверяем реальное состояние WiFi
-#if defined(ESP32) || defined(ESP8266)
+#if defined(ESP32)
   wifi_mode_t mode = WiFi.getMode();
-  // LOG_DEBUG(CAT_WIFI, "wifi_is_ap_mode(): WiFi mode is %d", mode);
   return (mode == WIFI_MODE_AP || mode == WIFI_MODE_APSTA);
+#elif defined(ESP8266)
+  uint8_t mode = WiFi.getMode();
+  return (mode == WIFI_AP || mode == WIFI_AP_STA);
 #else
   return false;
 #endif

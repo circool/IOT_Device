@@ -56,8 +56,12 @@
 // ============================================================================
 
 #ifndef MQTT_ENABLED
+#if defined(ESP8266)
+// ESP8266 — MQTT включён по умолчанию (основной транспорт)
+#define MQTT_ENABLED 1
+#define ZIGBEE_ENABLED 0
 // Если не задан явно, включаем MQTT по умолчанию (для ESP32/ESP32-C3)
-#if defined(ESP32) && !defined(CONFIG_IDF_TARGET_ESP32C6)
+#elif defined(ESP32) && !defined(CONFIG_IDF_TARGET_ESP32C6)
 #define MQTT_ENABLED 1
 #define ZIGBEE_ENABLED 0
 #else

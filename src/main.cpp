@@ -76,9 +76,17 @@ SwitchActuator switchActuator;
 
 #if WEB_ENABLED == 1
 #if DEVICE_TYPE == 1
+#if MQTT_ENABLED == 1
 static FanWebStatusProvider statusProvider(&fan, nullptr, &mqttManager);
+#else
+static FanWebStatusProvider statusProvider(&fan, nullptr, nullptr);
+#endif
 #elif DEVICE_TYPE == 3
+#if MQTT_ENABLED == 1
 static SwitchWebStatusProvider statusProvider(&switchActuator, &mqttManager);
+#else
+static SwitchWebStatusProvider statusProvider(&switchActuator, nullptr);
+#endif
 #endif
 #endif
 
