@@ -736,6 +736,7 @@ void setup() {
   } else {
     LOG_WARN(CAT_MAIN, "No WiFi config.");
     g_normalMode = false;
+    led_setMode(LED_MODE_MORZE_S);
     startProvisioning();
   }
 
