@@ -68,7 +68,7 @@ class ActuatorBase {
   void* callbackContext;  // Контекст (this для производного класса)
 
   bool isEmergencyStop() const { return _emergencyStop; }
-  void clearEmergencyStop() { _emergencyStop = false; }
+  // void clearEmergencyStop() { _emergencyStop = false; }
 
  protected:
   void checkMaxOnTime();  // Проверка превышения максимального времени работы

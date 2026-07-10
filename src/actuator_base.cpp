@@ -37,7 +37,7 @@ void ActuatorBase::init(uint8_t pin, uint8_t relayOnLevel, bool bootState) {
     _startTime = 0;
   }
 
-  LOG_INFO(CAT_ACTUATOR, "Init: pin=%d, state=%s, bootState=%s", _pin,
+  XLOG_INFO(CAT_ACTUATOR, "Init: pin=%d, state=%s, bootState=%s", _pin,
            _state ? "ON" : "OFF", bootState ? "ON" : "OFF");
 }
 
@@ -51,7 +51,7 @@ void ActuatorBase::set(bool on, bool manual) {
 
     if (_delayActive) {
       _delayActive = false;
-      LOG_INFO(CAT_ACTUATOR, "Manual - delay cancelled");
+      XLOG_INFO(CAT_ACTUATOR, "Manual - delay cancelled");
     }
   }
 
@@ -70,10 +70,10 @@ void ActuatorBase::set(bool on, bool manual) {
 
   if (_state) {
     _startTime = millis();
-    LOG_INFO(CAT_ACTUATOR, "ON");
+    XLOG_INFO(CAT_ACTUATOR, "ON");
   } else {
     _startTime = 0;
-    LOG_INFO(CAT_ACTUATOR, "OFF");
+    XLOG_INFO(CAT_ACTUATOR, "OFF");
   }
 }
 
@@ -95,7 +95,7 @@ void ActuatorBase::update() {
 }
 
 void ActuatorBase::forceStop() {
-  LOG_INFO(CAT_ACTUATOR, "Force stop!");
+  XLOG_INFO(CAT_ACTUATOR, "Force stop!");
   set(false, true);
   _emergencyStop = true;
   if (onForceStopCallback)
@@ -121,13 +121,13 @@ bool ActuatorBase::delayTimer(bool start) {
     if (delaySec > 0 && !_delayActive && !_state) {
       _delayActive = true;
       _delayTimer = millis() + delaySec * 1000UL;
-      LOG_INFO(CAT_ACTUATOR, "Delay start: %d sec", delaySec);
+      XLOG_INFO(CAT_ACTUATOR, "Delay start: %d sec", delaySec);
     }
     return false;
   } else {
     if (_delayActive && millis() >= _delayTimer) {
       _delayActive = false;
-      LOG_INFO(CAT_ACTUATOR, "Delay expired");
+      XLOG_INFO(CAT_ACTUATOR, "Delay expired");
       return true;
     }
     return false;

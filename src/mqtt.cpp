@@ -40,7 +40,7 @@ bool MQTTManager::begin(Client& client,
                         const char* user,
                         const char* password) {
   if (strlen(broker) == 0) {
-    LOG_INFO(CAT_MQTT, "No broker configured");
+    XLOG_INFO(CAT_MQTT, "No broker configured");
     return false;
   }
 
@@ -71,7 +71,7 @@ bool MQTTManager::begin(Client& client,
 
   _initialized = true;
 
-  LOG_DEBUG(CAT_MQTT, "Initialized for %s", _clientId);
+  XLOG_DEBUG(CAT_MQTT, "Initialized for %s", _clientId);
   return true;
 }
 
@@ -116,10 +116,10 @@ void MQTTManager::reconnect() {
 
   static bool firstAttempt = true;
   if (firstAttempt) {
-    LOG_DEBUG(CAT_MQTT, "Connecting to broker...");
+    XLOG_DEBUG(CAT_MQTT, "Connecting to broker...");
     firstAttempt = false;
   } else {
-    LOG_DEBUG(CAT_MQTT, "Reconnecting...");
+    XLOG_DEBUG(CAT_MQTT, "Reconnecting...");
   }
 
   bool connected;
@@ -132,12 +132,12 @@ void MQTTManager::reconnect() {
   }
 
   if (connected) {
-    LOG_INFO(CAT_MQTT, "Connected to" ANSI_BOLD "%s." ANSI_RESET, _broker);
+    XLOG_INFO(CAT_MQTT, "Connected to " ANSI_BOLD "%s." ANSI_RESET, _broker);
     firstAttempt = true;
     publishOnline();
     subscribe();
   } else {
-    LOG_ERROR(CAT_MQTT, "Failed, state=%d", _mqttClient.state());
+    XLOG_ERROR(CAT_MQTT, "Failed, state=%d", _mqttClient.state());
   }
 }
 
@@ -244,7 +244,7 @@ void MQTTManager::subscribe() {
   _mqttClient.subscribe(_topics.highHumControl);
 #endif
 
-  LOG_DEBUG(CAT_MQTT, "Subscribed to control topics");
+  XLOG_DEBUG(CAT_MQTT, "Subscribed to control topics");
 }
 
 // ============================================================================
@@ -265,7 +265,7 @@ void MQTTManager::callback(char* topic, byte* payload, unsigned int length) {
 }
 
 void MQTTManager::handleCommand(const char* topic, const String& payload) {
-  LOG_INFO(CAT_MQTT, "Command: %s = %s", topic, payload.c_str());
+  XLOG_INFO(CAT_MQTT, "Command: %s = %s", topic, payload.c_str());
 
   // Команда сброса
 #if MQTT_RESET_ENABLED == 1

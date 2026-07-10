@@ -24,7 +24,7 @@ void wdt_init() {
 
 #if defined(ESP8266)
   ESP.wdtEnable(WDT_TIMER_MS);
-  LOG_DEBUG(CAT_WDT, "ESP8266 WDT enabled, timeout=%d ms", WDT_TIMER_MS);
+  XLOG_DEBUG(CAT_WDT, "ESP8266 WDT enabled, timeout=%d ms", WDT_TIMER_MS);
 
 #elif defined(ESP32)
 // Определяем тип чипа
@@ -40,12 +40,12 @@ void wdt_init() {
   };
   esp_task_wdt_init(&twdt_config);
 
-  LOG_DEBUG(CAT_WDT, "ESP32-C3/S3/C6 task WDT initialized, timeout=%d ms",
+  XLOG_DEBUG(CAT_WDT, "ESP32-C3/S3/C6 task WDT initialized, timeout=%d ms",
             WDT_TIMER_MS);
 #else
   // ===== СТАРЫЙ API для классического ESP32 =====
   esp_task_wdt_init(WDT_TIMER_MS / 1000, true);
-  LOG_DEBUG(CAT_WDT, "ESP32 task WDT initialized, timeout=%d ms", WDT_TIMER_MS);
+  XLOG_DEBUG(CAT_WDT, "ESP32 task WDT initialized, timeout=%d ms", WDT_TIMER_MS);
 #endif
 
   esp_task_wdt_add(NULL);
@@ -91,7 +91,7 @@ void wdt_stop() {
 #endif
 
   wdt_stopped = true;
-  LOG_INFO(CAT_WDT, "Stopped");
+  XLOG_INFO(CAT_WDT, "Stopped");
 }
 
 void wdt_start() {
@@ -110,7 +110,7 @@ void wdt_start() {
   esp_task_wdt_add(NULL);
 #endif
   wdt_stopped = false;
-  LOG_INFO(CAT_WDT, "Started");
+  XLOG_INFO(CAT_WDT, "Started");
 }
 
 #endif

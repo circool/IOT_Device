@@ -61,16 +61,16 @@ void ConfigManager::begin() {
   if (_initialized)
     return;
 
-  LOG_INFO(CAT_CONFIG, "Initializing ConfigManager...");
+  XLOG_INFO(CAT_CONFIG, "Initializing ConfigManager...");
 
   EEPROM.begin(EEPROM_SIZE);
-  LOG_DEBUG(CAT_CONFIG, "EEPROM size: %d bytes", EEPROM.length());
+  XLOG_DEBUG(CAT_CONFIG, "EEPROM size: %d bytes", EEPROM.length());
 
   initDeviceId();
   readFromEEPROM();
 
   _initialized = true;
-  LOG_INFO(CAT_CONFIG, "ConfigManager initialized (valid: %s)",
+  XLOG_INFO(CAT_CONFIG, "ConfigManager initialized (valid: %s)",
            _configValid ? "YES" : "NO");
 }
 
@@ -91,14 +91,14 @@ const char* ConfigManager::getLastError() const {
 // ============================================================================
 
 bool ConfigManager::save() {
-  LOG_INFO(CAT_CONFIG, "Saving configuration to EEPROM...");
+  XLOG_INFO(CAT_CONFIG, "Saving configuration to EEPROM...");
 
   // Обновляем CRC
   _config.crc = 0;
   _config.crc = calculateCRC(_config);
   _config.magic = MAGIC_VALUE;
 
-  LOG_DEBUG(CAT_CONFIG, "Calculated CRC: 0x%04X", _config.crc);
+  XLOG_DEBUG(CAT_CONFIG, "Calculated CRC: 0x%04X", _config.crc);
 
   // Запись в EEPROM
   uint8_t* ptr = reinterpret_cast<uint8_t*>(&_config);
@@ -107,7 +107,7 @@ bool ConfigManager::save() {
   }
 
   if (!EEPROM.commit()) {
-    LOG_ERROR(CAT_CONFIG, "EEPROM commit FAILED!");
+    XLOG_ERROR(CAT_CONFIG, "EEPROM commit FAILED!");
     setError("EEPROM write failed");
     return false;
   }
@@ -123,11 +123,11 @@ bool ConfigManager::save() {
   uint16_t calcVerifyCrc = calculateCRC(verify);
 
   if (verify.magic == MAGIC_VALUE && calcVerifyCrc == _config.crc) {
-    LOG_INFO(CAT_CONFIG, "Verification PASSED");
+    XLOG_INFO(CAT_CONFIG, "Verification PASSED");
     _configValid = true;
     return true;
   } else {
-    LOG_ERROR(CAT_CONFIG, "Verification FAILED!");
+    XLOG_ERROR(CAT_CONFIG, "Verification FAILED!");
     setError("CRC verification failed after save");
     return false;
   }
@@ -135,7 +135,7 @@ bool ConfigManager::save() {
 
 bool ConfigManager::reset() {
   led_setMode(LED_MODE_MORZE_I);
-  LOG_INFO(CAT_CONFIG, "Resetting configuration to defaults...");
+  XLOG_INFO(CAT_CONFIG, "Resetting configuration to defaults...");
 
   EEPROM.end();
   delay(50);
@@ -151,9 +151,9 @@ bool ConfigManager::reset() {
   if (ok) {
     setDefaults();
     _configValid = false;
-    LOG_INFO(CAT_CONFIG, "Reset SUCCESSFUL");
+    XLOG_INFO(CAT_CONFIG, "Reset SUCCESSFUL");
   } else {
-    LOG_WARN(CAT_CONFIG, "Reset FAILED");
+    XLOG_WARN(CAT_CONFIG, "Reset FAILED");
     setError("EEPROM erase failed");
   }
 
@@ -687,7 +687,7 @@ bool ConfigManager::setZigbeeChannel(uint8_t channel) {
 // ============================================================================
 
 void ConfigManager::setDefaults() {
-  LOG_DEBUG(CAT_CONFIG, "Setting defaults");
+  XLOG_DEBUG(CAT_CONFIG, "Setting defaults");
 
   memset(&_config, 0, sizeof(ConfigData));
   _config.magic = MAGIC_VALUE;
@@ -731,15 +731,15 @@ void ConfigManager::setDefaults() {
 
 #if MQTT_ENABLED == 1
   snprintf(_config.mqttClientId, sizeof(_config.mqttClientId), "%s", _deviceId);
-  LOG_DEBUG(CAT_CONFIG, "Generated MQTT Client ID: %s", _config.mqttClientId);
+  XLOG_DEBUG(CAT_CONFIG, "Generated MQTT Client ID: %s", _config.mqttClientId);
 #endif
 
-  LOG_DEBUG(CAT_CONFIG, "Defaults set");
+  XLOG_DEBUG(CAT_CONFIG, "Defaults set");
 }
 
 void ConfigManager::loadFromCredentials() {
 #if HAS_CREDENTIALS
-  LOG_DEBUG(CAT_CONFIG, "Loading factory settings");
+  XLOG_DEBUG(CAT_CONFIG, "Loading factory settings");
 
 #if WIFI_ENABLED == 1
   if (strlen(SSID_NAME) > 0) {
@@ -772,7 +772,7 @@ void ConfigManager::loadFromCredentials() {
 }
 
 void ConfigManager::readFromEEPROM() {
-  LOG_INFO(CAT_CONFIG, "Reading from EEPROM...");
+  XLOG_INFO(CAT_CONFIG, "Reading from EEPROM...");
 
   ConfigData raw;
   memset(&raw, 0, sizeof(ConfigData));
@@ -782,7 +782,7 @@ void ConfigManager::readFromEEPROM() {
     ptr[i] = EEPROM.read(i);
   }
 
-  LOG_DEBUG(CAT_CONFIG, "Read magic: 0x%04X (expected 0x%04X)", raw.magic,
+  XLOG_DEBUG(CAT_CONFIG, "Read magic: 0x%04X (expected 0x%04X)", raw.magic,
             MAGIC_VALUE);
 
   setDefaults();
@@ -792,24 +792,24 @@ void ConfigManager::readFromEEPROM() {
     raw.crc = 0;
     uint16_t calcCrc = calculateCRC(raw);
 
-    LOG_DEBUG(CAT_CONFIG, "CRC: saved 0x%04X, calculated 0x%04X", savedCrc,
+    XLOG_DEBUG(CAT_CONFIG, "CRC: saved 0x%04X, calculated 0x%04X", savedCrc,
               calcCrc);
 
     if (calcCrc == savedCrc) {
-      LOG_DEBUG(CAT_CONFIG, "CRC VALID, applying EEPROM config...");
+      XLOG_DEBUG(CAT_CONFIG, "CRC VALID, applying EEPROM config...");
       validateAndApply(raw);
       _configValid = true;
-      LOG_INFO(CAT_CONFIG, "Config loaded from EEPROM");
+      XLOG_INFO(CAT_CONFIG, "Config loaded from EEPROM");
       return;
     } else {
-      LOG_WARN(CAT_CONFIG, "CRC mismatch!");
+      XLOG_WARN(CAT_CONFIG, "CRC mismatch!");
     }
   } else {
-    LOG_WARN(CAT_CONFIG, "Magic mismatch!");
+    XLOG_WARN(CAT_CONFIG, "Magic mismatch!");
   }
 
   _configValid = false;
-  LOG_WARN(CAT_CONFIG, "Using defaults (EEPROM config invalid)");
+  XLOG_WARN(CAT_CONFIG, "Using defaults (EEPROM config invalid)");
 }
 
 bool ConfigManager::validateAndApply(const ConfigData& raw) {
@@ -818,13 +818,13 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
 #if WIFI_ENABLED == 1
   if (strlen(raw.wifiSsid) > 0) {
     if (!setWifiSsid(raw.wifiSsid)) {
-      LOG_WARN(CAT_CONFIG, "Failed to set WiFi SSID: %s", _lastError);
+      XLOG_WARN(CAT_CONFIG, "Failed to set WiFi SSID: %s", _lastError);
       ok = false;
     }
   }
   if (strlen(raw.wifiPassword) > 0) {
     if (!setWifiPassword(raw.wifiPassword)) {
-      LOG_WARN(CAT_CONFIG, "Failed to set WiFi password: %s", _lastError);
+      XLOG_WARN(CAT_CONFIG, "Failed to set WiFi password: %s", _lastError);
       ok = false;
     }
   }
@@ -832,29 +832,29 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
 #if MQTT_ENABLED == 1
   if (strlen(raw.mqttBroker) > 0) {
     if (!setMqttBroker(raw.mqttBroker)) {
-      LOG_WARN(CAT_CONFIG, "Failed to set MQTT broker: %s", _lastError);
+      XLOG_WARN(CAT_CONFIG, "Failed to set MQTT broker: %s", _lastError);
       ok = false;
     }
   }
   if (!setMqttPort(raw.mqttPort)) {
-    LOG_WARN(CAT_CONFIG, "Failed to set MQTT port: %s", _lastError);
+    XLOG_WARN(CAT_CONFIG, "Failed to set MQTT port: %s", _lastError);
     ok = false;
   }
   if (strlen(raw.mqttUser) > 0) {
     if (!setMqttUser(raw.mqttUser)) {
-      LOG_WARN(CAT_CONFIG, "Failed to set MQTT user: %s", _lastError);
+      XLOG_WARN(CAT_CONFIG, "Failed to set MQTT user: %s", _lastError);
       ok = false;
     }
   }
   if (strlen(raw.mqttPassword) > 0) {
     if (!setMqttPassword(raw.mqttPassword)) {
-      LOG_WARN(CAT_CONFIG, "Failed to set MQTT password: %s", _lastError);
+      XLOG_WARN(CAT_CONFIG, "Failed to set MQTT password: %s", _lastError);
       ok = false;
     }
   }
   if (strlen(raw.mqttClientId) > 0) {
     if (!setMqttClientId(raw.mqttClientId)) {
-      LOG_WARN(CAT_CONFIG, "Failed to set MQTT client ID: %s", _lastError);
+      XLOG_WARN(CAT_CONFIG, "Failed to set MQTT client ID: %s", _lastError);
       ok = false;
     }
   }
@@ -863,30 +863,30 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (!setSensorInterval(raw.sensorInterval)) {
-    LOG_WARN(CAT_CONFIG, "Failed to set sensor interval: %s", _lastError);
+    XLOG_WARN(CAT_CONFIG, "Failed to set sensor interval: %s", _lastError);
     ok = false;
   }
 #endif
 
 #if DEVICE_TYPE == 1
   if (!setLowTemp(raw.lowTemp)) {
-    LOG_WARN(CAT_CONFIG, "Failed to set low temp: %s", _lastError);
+    XLOG_WARN(CAT_CONFIG, "Failed to set low temp: %s", _lastError);
     ok = false;
   }
   if (!setHighTemp(raw.highTemp)) {
-    LOG_WARN(CAT_CONFIG, "Failed to set high temp: %s", _lastError);
+    XLOG_WARN(CAT_CONFIG, "Failed to set high temp: %s", _lastError);
     ok = false;
   }
   if (!setLowHum(raw.lowHum)) {
-    LOG_WARN(CAT_CONFIG, "Failed to set low hum: %s", _lastError);
+    XLOG_WARN(CAT_CONFIG, "Failed to set low hum: %s", _lastError);
     ok = false;
   }
   if (!setHighHum(raw.highHum)) {
-    LOG_WARN(CAT_CONFIG, "Failed to set high hum: %s", _lastError);
+    XLOG_WARN(CAT_CONFIG, "Failed to set high hum: %s", _lastError);
     ok = false;
   }
   if (!setSpeedPercent(raw.speedPercent)) {
-    LOG_WARN(CAT_CONFIG, "Failed to set speed percent: %s", _lastError);
+    XLOG_WARN(CAT_CONFIG, "Failed to set speed percent: %s", _lastError);
     ok = false;
   }
   setAdaptiveMode(raw.adaptiveMode);
@@ -895,11 +895,11 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   if (!setDelaySeconds(raw.delaySeconds)) {
-    LOG_WARN(CAT_CONFIG, "Failed to set delay seconds: %s", _lastError);
+    XLOG_WARN(CAT_CONFIG, "Failed to set delay seconds: %s", _lastError);
     ok = false;
   }
   if (!setMaxOnTime(raw.maxOnTime)) {
-    LOG_WARN(CAT_CONFIG, "Failed to set max on time: %s", _lastError);
+    XLOG_WARN(CAT_CONFIG, "Failed to set max on time: %s", _lastError);
     ok = false;
   }
   setBootState(raw.bootState);
@@ -908,7 +908,7 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
 #if ZIGBEE_ENABLED == 1
   if (strlen(raw.zigbeeNetworkKey) > 0) {
     if (!setZigbeeNetworkKey(raw.zigbeeNetworkKey)) {
-      LOG_WARN(CAT_CONFIG, "Failed to set Zigbee network key: %s", _lastError);
+      XLOG_WARN(CAT_CONFIG, "Failed to set Zigbee network key: %s", _lastError);
       ok = false;
     }
   }
@@ -940,7 +940,7 @@ void ConfigManager::initDeviceId() {
   snprintf(_deviceId, sizeof(_deviceId), "%s_0000", DEVICE_PREFIX);
 #endif
 
-  LOG_DEBUG(CAT_CONFIG, "Device ID initialized: %s", _deviceId);
+  XLOG_DEBUG(CAT_CONFIG, "Device ID initialized: %s", _deviceId);
 }
 
 void ConfigManager::setError(const char* msg) {
@@ -949,43 +949,43 @@ void ConfigManager::setError(const char* msg) {
 }
 
 void ConfigManager::print() const {
-  LOG_DEBUG(CAT_CONFIG, "=== Config ===");
+  XLOG_DEBUG(CAT_CONFIG, "=== Config ===");
 
 #if WIFI_ENABLED == 1
-  LOG_DEBUG(CAT_CONFIG, "WiFi SSID: '%s'", _config.wifiSsid);
-  LOG_DEBUG(CAT_CONFIG, "WiFi Password: %s",
+  XLOG_DEBUG(CAT_CONFIG, "WiFi SSID: '%s'", _config.wifiSsid);
+  XLOG_DEBUG(CAT_CONFIG, "WiFi Password: %s",
             _config.wifiPassword[0] ? "***" : "(empty)");
 #endif
 
 #if MQTT_ENABLED == 1
-  LOG_DEBUG(CAT_CONFIG, "MQTT Broker: '%s:%d'", _config.mqttBroker,
+  XLOG_DEBUG(CAT_CONFIG, "MQTT Broker: '%s:%d'", _config.mqttBroker,
             _config.mqttPort);
-  LOG_DEBUG(CAT_CONFIG, "MQTT User: '%s'", _config.mqttUser);
-  LOG_DEBUG(CAT_CONFIG, "MQTT Client ID: '%s'", _config.mqttClientId);
+  XLOG_DEBUG(CAT_CONFIG, "MQTT User: '%s'", _config.mqttUser);
+  XLOG_DEBUG(CAT_CONFIG, "MQTT Client ID: '%s'", _config.mqttClientId);
 #endif
 
 #if DEVICE_TYPE == 1
-  LOG_DEBUG(CAT_CONFIG, "Temp range: %.1f - %.1f°C", _config.lowTemp,
+  XLOG_DEBUG(CAT_CONFIG, "Temp range: %.1f - %.1f°C", _config.lowTemp,
             _config.highTemp);
-  LOG_DEBUG(CAT_CONFIG, "Hum range: %.1f - %.1f%%", _config.lowHum,
+  XLOG_DEBUG(CAT_CONFIG, "Hum range: %.1f - %.1f%%", _config.lowHum,
             _config.highHum);
-  LOG_DEBUG(CAT_CONFIG, "Sensor mode: %s",
+  XLOG_DEBUG(CAT_CONFIG, "Sensor mode: %s",
             _config.sensorControlMode ? "ON" : "OFF");
-  LOG_DEBUG(CAT_CONFIG, "Speed: %d%%", _config.speedPercent);
-  LOG_DEBUG(CAT_CONFIG, "Adaptive: %s", _config.adaptiveMode ? "ON" : "OFF");
+  XLOG_DEBUG(CAT_CONFIG, "Speed: %d%%", _config.speedPercent);
+  XLOG_DEBUG(CAT_CONFIG, "Adaptive: %s", _config.adaptiveMode ? "ON" : "OFF");
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  LOG_DEBUG(CAT_CONFIG, "Delay: %d sec", _config.delaySeconds);
-  LOG_DEBUG(CAT_CONFIG, "MaxOnTime: %u sec", _config.maxOnTime);
-  LOG_DEBUG(CAT_CONFIG, "Boot state: %s", _config.bootState ? "ON" : "OFF");
+  XLOG_DEBUG(CAT_CONFIG, "Delay: %d sec", _config.delaySeconds);
+  XLOG_DEBUG(CAT_CONFIG, "MaxOnTime: %u sec", _config.maxOnTime);
+  XLOG_DEBUG(CAT_CONFIG, "Boot state: %s", _config.bootState ? "ON" : "OFF");
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  LOG_DEBUG(CAT_CONFIG, "Sensor interval: %d sec", _config.sensorInterval);
+  XLOG_DEBUG(CAT_CONFIG, "Sensor interval: %d sec", _config.sensorInterval);
 #endif
 
-  LOG_DEBUG(CAT_CONFIG, "CRC: 0x%04X", _config.crc);
-  LOG_DEBUG(CAT_CONFIG, "Valid: %s", _configValid ? "YES" : "NO");
-  LOG_DEBUG(CAT_CONFIG, "=================");
+  XLOG_DEBUG(CAT_CONFIG, "CRC: 0x%04X", _config.crc);
+  XLOG_DEBUG(CAT_CONFIG, "Valid: %s", _configValid ? "YES" : "NO");
+  XLOG_DEBUG(CAT_CONFIG, "=================");
 }

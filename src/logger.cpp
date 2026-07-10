@@ -14,9 +14,10 @@ void Logger::begin(LogLevel level, uint16_t categories, bool useColor) {
   _initialized = true;
 
   Serial.begin(MONITOR_SPEED);
-  delay(1000);
+  
+  delay(100);
 
-  log(LOG_LEVEL_INFO, CAT_CONFIG,
+  log(XLOG_LEVEL_INFO, CAT_CONFIG,
       "\n\n\nLogger initialized (level=%d, categories=0x%04X)", (int)level,
       categories);
 }
@@ -86,13 +87,13 @@ void Logger::log(LogLevel level, LogCategory category, const String& message) {
 
 const char* Logger::levelToString(LogLevel level) const {
   switch (level) {
-    case LOG_LEVEL_ERROR:
+    case XLOG_LEVEL_ERROR:
       return "ERROR";
-    case LOG_LEVEL_WARN:
+    case XLOG_LEVEL_WARN:
       return "WARN ";
-    case LOG_LEVEL_INFO:
+    case XLOG_LEVEL_INFO:
       return "INFO ";
-    case LOG_LEVEL_DEBUG:
+    case XLOG_LEVEL_DEBUG:
       return "DEBUG";
     default:
       return "?????";
@@ -129,6 +130,8 @@ const char* Logger::categoryToString(LogCategory category) const {
       return "MAIN";
     case CAT_PROVISIONING:
       return "PROV";
+    case CAT_BLE:
+      return "BLE";
     default:
       return "???";
   }
@@ -136,13 +139,13 @@ const char* Logger::categoryToString(LogCategory category) const {
 
 const char* Logger::getColorForLevel(LogLevel level) const {
   switch (level) {
-    case LOG_LEVEL_ERROR:
+    case XLOG_LEVEL_ERROR:
       return ANSI_BRIGHT_RED;
-    case LOG_LEVEL_WARN:
+    case XLOG_LEVEL_WARN:
       return ANSI_BRIGHT_MAGENTA;
-    case LOG_LEVEL_INFO:
+    case XLOG_LEVEL_INFO:
       return ANSI_RESET;
-    case LOG_LEVEL_DEBUG:
+    case XLOG_LEVEL_DEBUG:
       return ANSI_BLUE;
     default:
       return ANSI_RESET;

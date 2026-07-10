@@ -50,7 +50,7 @@ class BleProvisioningServer {
   /**
    * @brief Конструктор
    * @param deviceName Имя устройства (отображается в BLE)
-   * @note Если deviceName не указан, используется "PROV_123"
+   * @note Если deviceName не указан, используется BLE_DEVICE_NAME
    */
   explicit BleProvisioningServer(const char* deviceName = nullptr);
 
@@ -68,7 +68,7 @@ class BleProvisioningServer {
    *
    * @return true — сервер запущен, false — ошибка
    *
-   * @note Использует PIN из BLE_PROVISIONING_PIN (по умолчанию "12345678")
+   * @note Использует PIN из BLE_PROVISIONING_PIN (по умолчанию "abcf1234")
    * @note При успешном запуске устройство становится видимым в BLE
    */
   bool begin(ProvConfigCallback configCallback, void* context = nullptr);
@@ -81,23 +81,24 @@ class BleProvisioningServer {
 
   /**
    * @brief Проверить активность BLE-сервера
+   * @deprecated Не используется
    * @return true — сервер активен
    */
-  bool isActive() const;
+  // bool isActive() const;
 
   /**
    * @brief Получить имя устройства
    * @deprecated Не используется
    * @return Строка с именем устройства
    */
-  const char* getDeviceName() const;
+  // const char* getDeviceName() const;
 
   /**
    * @brief Установить имя устройства
    * @deprecated Не используется
    * @param name Новое имя устройства (максимум 31 символ)
    */
-  void setDeviceName(const char* name);
+  // void setDeviceName(const char* name);
 
  private:
   bool _active = false; /**< Флаг активности сервера */
@@ -120,9 +121,9 @@ class BleProvisioningServer {
 
   bool begin(ProvConfigCallback, void* = nullptr) { return false; }
   void stop() {}
-  bool isActive() const { return false; }
-  const char* getDeviceName() const { return "No BLE"; }
-  void setDeviceName(const char* name) { (void)name; }
+  // bool isActive() const { return false; } //@deprecated Не используется
+  // const char* getDeviceName() const { return "No BLE"; }
+  // void setDeviceName(const char* name) { (void)name; }
 };
 
 #endif  // ESP32

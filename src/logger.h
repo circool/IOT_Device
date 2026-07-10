@@ -11,27 +11,27 @@
 // ОТЛАДКА И ЛОГИРОВАНИЕ
 // ============================================================================
 
-#ifndef LOG_LEVEL
-#define LOG_LEVEL 3  // 0=ERROR, 1=WARN, 2=INFO, 3=DEBUG
+#ifndef XLOG_LEVEL
+#define XLOG_LEVEL 3  // 0=ERROR, 1=WARN, 2=INFO, 3=DEBUG
 #endif
 
-#ifndef LOG_CATEGORIES
-#define LOG_CATEGORIES 0xFFFF  // Все категории
+#ifndef XLOG_CATEGORIES
+#define XLOG_CATEGORIES 0xFFFF  // Все категории
 #endif
 
-#ifndef LOG_USE_COLOR
-#define LOG_USE_COLOR 1
+#ifndef XLOG_USE_COLOR
+#define XLOG_USE_COLOR 1
 #endif
 
 /**
  * @brief Уровни логирования
  */
 enum LogLevel : uint8_t {
-  LOG_LEVEL_NONE = 0,
-  LOG_LEVEL_ERROR = 1,
-  LOG_LEVEL_WARN = 2,
-  LOG_LEVEL_INFO = 3,
-  LOG_LEVEL_DEBUG = 4
+  XLOG_LEVEL_NONE = 0,
+  XLOG_LEVEL_ERROR = 1,
+  XLOG_LEVEL_WARN = 2,
+  XLOG_LEVEL_INFO = 3,
+  XLOG_LEVEL_DEBUG = 4
 };
 
 /**
@@ -53,6 +53,7 @@ enum LogCategory : uint16_t {
   CAT_AP = 1 << 11,            // 2048
   CAT_MAIN = 1 << 12,          // 4096
   CAT_PROVISIONING = 1 << 13,  // 8192
+  CAT_BLE = 1 << 14,            // 
   CAT_ALL = 0xFFFF
 };
 
@@ -116,7 +117,7 @@ class Logger {
    * @param categories Битовая маска разрешённых категорий
    * @param useColor Использовать ANSI-цвета (если терминал поддерживает)
    */
-  void begin(LogLevel level = LOG_LEVEL_INFO,
+  void begin(LogLevel level = XLOG_LEVEL_INFO,
              uint16_t categories = CAT_ALL,
              bool useColor = true);
 
@@ -165,7 +166,7 @@ class Logger {
   const char* categoryToString(LogCategory category) const;
   const char* getColorForLevel(LogLevel level) const;
 
-  LogLevel _currentLevel = LOG_LEVEL_INFO;
+  LogLevel _currentLevel = XLOG_LEVEL_INFO;
   uint16_t _enabledCategories = CAT_ALL;
   bool _useColor = true;
   bool _initialized = false;
@@ -175,16 +176,16 @@ class Logger {
 // УДОБНЫЕ МАКРОСЫ
 // ============================================================================
 
-#define LOG_ERROR(cat, fmt, ...) \
-  Logger::getInstance().log(LOG_LEVEL_ERROR, cat, fmt, ##__VA_ARGS__)
-#define LOG_WARN(cat, fmt, ...) \
-  Logger::getInstance().log(LOG_LEVEL_WARN, cat, fmt, ##__VA_ARGS__)
-#define LOG_INFO(cat, fmt, ...) \
-  Logger::getInstance().log(LOG_LEVEL_INFO, cat, fmt, ##__VA_ARGS__)
-#define LOG_DEBUG(cat, fmt, ...) \
-  Logger::getInstance().log(LOG_LEVEL_DEBUG, cat, fmt, ##__VA_ARGS__)
+#define XLOG_ERROR(cat, fmt, ...) \
+  Logger::getInstance().log(XLOG_LEVEL_ERROR, cat, fmt, ##__VA_ARGS__)
+#define XLOG_WARN(cat, fmt, ...) \
+  Logger::getInstance().log(XLOG_LEVEL_WARN, cat, fmt, ##__VA_ARGS__)
+#define XLOG_INFO(cat, fmt, ...) \
+  Logger::getInstance().log(XLOG_LEVEL_INFO, cat, fmt, ##__VA_ARGS__)
+#define XLOG_DEBUG(cat, fmt, ...) \
+  Logger::getInstance().log(XLOG_LEVEL_DEBUG, cat, fmt, ##__VA_ARGS__)
 
 // Проверка, нужно ли логировать (для дорогих операций)
-#define LOG_ENABLED(level, cat) Logger::getInstance().isEnabled(level, cat)
+#define XLOG_ENABLED(level, cat) Logger::getInstance().isEnabled(level, cat)
 
 #endif  // LOGGER_H

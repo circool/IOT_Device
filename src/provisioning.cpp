@@ -30,17 +30,17 @@ static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
   auto& prov = ProvisioningManager::getInstance();
 
   if (prov.isCompleted()) {
-    LOG_WARN(CAT_PROVISIONING, "Already completed, ignoring BLE");
+    XLOG_DEBUG(CAT_PROVISIONING, "Already completed, ignoring BLE");
     return;
   }
 
   if (!bleConfig) {
-    LOG_ERROR(CAT_PROVISIONING, "BLE config is null!");
+    XLOG_ERROR(CAT_PROVISIONING, "BLE config is null!");
     prov.onBleStatus(ARDUINO_EVENT_PROV_CRED_FAIL);
     return;
   }
 
-  LOG_INFO(CAT_PROVISIONING, "WiFi config received via BLE: %s",
+  XLOG_INFO(CAT_PROVISIONING, "WiFi config received via BLE: %s",
            bleConfig->wifiSsid);
 
   ProvisioningData data;
@@ -77,7 +77,7 @@ bool ProvisioningManager::begin(ProvisioningCallback callback, void* context) {
   memset(&_data, 0, sizeof(_data));
 
   if (ConfigManager::getInstance().isValid()) {
-    LOG_INFO(CAT_PROVISIONING, "Config already exists, skipping provisioning");
+    XLOG_INFO(CAT_PROVISIONING, "Config already exists, skipping provisioning");
     _state = ProvisioningState::COMPLETED;
     _completedBy = ProvisioningMethod::NONE;
     if (_callback) {
@@ -109,9 +109,10 @@ void ProvisioningManager::update() {
   }
 }
 
-bool ProvisioningManager::isActive() const {
-  return _started && (_state == ProvisioningState::ACTIVE);
-}
+// @deprecated Не используется
+// bool ProvisioningManager::isActive() const {
+//   return _started && (_state == ProvisioningState::ACTIVE);
+// }
 
 bool ProvisioningManager::isCompleted() const {
   return _state == ProvisioningState::COMPLETED ||
@@ -135,7 +136,7 @@ const ProvisioningData* ProvisioningManager::getData() const {
 }
 
 void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
-  LOG_INFO(CAT_PROVISIONING, "Data received");
+  XLOG_DEBUG(CAT_PROVISIONING, "Provisioning data received");
 
   memcpy(&_data, &data, sizeof(ProvisioningData));
 
@@ -152,18 +153,18 @@ void ProvisioningManager::onBleStatus(uint8_t status) {
       _state == ProvisioningState::FAILED) {
     return;
   }
-
+#if USE_BLE_PROVISIONING == 1
   if (status == ARDUINO_EVENT_PROV_CRED_FAIL) {  
-    LOG_WARN(CAT_PROVISIONING, "BLE credentials failed (attempt %d/%d)",
+    XLOG_WARN(CAT_PROVISIONING, "BLE credentials failed (attempt %d/%d)",
              _retryCount + 1, MAX_RETRIES);
 
     _retryCount++;
 
     if (_retryCount < MAX_RETRIES) {
-      LOG_INFO(CAT_PROVISIONING, "Waiting for new BLE connection attempt");
+      XLOG_INFO(CAT_PROVISIONING, "Waiting for new BLE connection attempt");
       _state = ProvisioningState::ACTIVE;
     } else {
-      LOG_ERROR(CAT_PROVISIONING, "Max retries exceeded, provisioning FAILED");
+      XLOG_DEBUG(CAT_PROVISIONING, "Max retries exceeded, provisioning FAILED");
       _state = ProvisioningState::FAILED;
       _completedBy = ProvisioningMethod::FAILED;
       if (_callback) {
@@ -171,6 +172,11 @@ void ProvisioningManager::onBleStatus(uint8_t status) {
       }
     }
   }
+#else
+  // Если BLE отключён, игнорируем статус
+  (void)status;
+  XLOG_DEBUG(CAT_PROVISIONING, "BLE status received but BLE is disabled");
+#endif
 }
 
 // ============================================================================
@@ -178,20 +184,30 @@ void ProvisioningManager::onBleStatus(uint8_t status) {
 // ============================================================================
 
 void ProvisioningManager::selectProvisioningMethod() {
-#if USE_BLE_PROVISIONING == 1
-  LOG_INFO(CAT_PROVISIONING, "Starting AP + BLE provisioning");
-#if defined(ESP32) && !defined(ESP8266)
-  startBleProvisioning();
-  startApProvisioning();
-  _state = ProvisioningState::ACTIVE;
-#else
-  LOG_WARN(CAT_PROVISIONING,
-           "BLE not supported on this platform, using AP only");
-  startApProvisioning();
-  _state = ProvisioningState::ACTIVE;
+#if USE_BLE_PROVISIONING == 0 && USE_AP_PROVISIONING == 0
+  XLOG_WARN(CAT_PROVISIONING, "Provisioning disabled.");
+  return;
 #endif
-#else
-  LOG_DEBUG(CAT_PROVISIONING, "BLE disabled, starting AP provisioning only");
+#if USE_BLE_PROVISIONING == 1 && USE_AP_PROVISIONING == 1
+  XLOG_INFO(CAT_PROVISIONING, "Starting AP + BLE provisioning");
+#elif USE_BLE_PROVISIONING == 1
+  XLOG_INFO(CAT_PROVISIONING, "Starting BLE provisioning");
+#elif USE_AP_PROVISIONING == 1
+  XLOG_INFO(CAT_PROVISIONING, "Starting AP provisioning");
+#endif
+
+// Порядок BLE -> AP важен!
+#if USE_BLE_PROVISIONING == 1
+
+#ifdef ESP32
+  startBleProvisioning();
+  ProvisioningState::ACTIVE;
+#elif defined(ESP8266)
+  XLOG_WARN(CAT_PROVISIONING, "ESP 8266 not supported BLE!");
+#endif
+#endif  // USE_BLE_PROVISIONING == 1
+
+#if USE_AP_PROVISIONING == 1
   startApProvisioning();
   _state = ProvisioningState::ACTIVE;
 #endif
@@ -205,17 +221,17 @@ void ProvisioningManager::startBleProvisioning() {
   g_bleServer = new BleProvisioningServer(deviceId);
 
   if (g_bleServer->begin(onBleConfigReceived, nullptr)) {
-    LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning started");
+    // XLOG_DEBUG(CAT_PROVISIONING, "BLE provisioning started sussefull.");
   } else {
-    LOG_ERROR(CAT_PROVISIONING, "Failed to start BLE provisioning");
+    XLOG_ERROR(CAT_PROVISIONING, "Failed to start BLE provisioning");
     delete g_bleServer;
     g_bleServer = nullptr;
 
     if (!_apStarted) {
-      LOG_WARN(CAT_PROVISIONING, "BLE failed, falling back to AP");
+      XLOG_WARN(CAT_PROVISIONING, "BLE failed, falling back to AP");
       startApProvisioning();
     } else {
-      LOG_ERROR(CAT_PROVISIONING, "BLE start failed, provisioning FAILED");
+      XLOG_ERROR(CAT_PROVISIONING, "BLE start failed, provisioning FAILED");
       _state = ProvisioningState::FAILED;
       _completedBy = ProvisioningMethod::FAILED;
       if (_callback) {
@@ -224,18 +240,20 @@ void ProvisioningManager::startBleProvisioning() {
     }
   }
 #else
-  LOG_WARN(CAT_PROVISIONING, "BLE not supported on this platform");
+  XLOG_WARN(CAT_PROVISIONING, "BLE not supported on this platform");
 #endif
 #else
   // BLE отключён — ничего не делаем
-  LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning disabled");
+  XLOG_DEBUG(CAT_PROVISIONING, "BLE provisioning disabled");
 #endif
 }
 
 void ProvisioningManager::startApProvisioning() {
-  LOG_INFO(CAT_PROVISIONING, "Starting AP provisioning");
-  LOG_INFO(CAT_PROVISIONING, "Connect to WiFi '%s' and visit 192.168.4.1",
-           ConfigManager::getInstance().getDeviceId());
+  // XLOG_DEBUG(CAT_PROVISIONING, "Starting AP provisioning...");
+  // XLOG_DEBUG(CAT_PROVISIONING,
+  //            "Find AP '" ANSI_BOLD "%s'" ANSI_RESET
+  //            ", connect and visit " ANSI_BOLD "192.168.4.1",
+  //            ConfigManager::getInstance().getDeviceId());
 
   _apStarted = true;
 
@@ -259,18 +277,18 @@ static void onProvisioningComplete(ProvisioningMethod method, void* context) {
   auto& prov = ProvisioningManager::getInstance();
 
   if (method == ProvisioningMethod::FAILED) {
-    LOG_ERROR(CAT_PROVISIONING, "Provisioning FAILED permanently!");
+    XLOG_ERROR(CAT_PROVISIONING, "Provisioning FAILED permanently!");
     return;
   }
 
   if (method == ProvisioningMethod::NONE) {
-    LOG_DEBUG(CAT_PROVISIONING, "Provisioning skipped (config exists)");
+    XLOG_DEBUG(CAT_PROVISIONING, "Provisioning skipped (config exists)");
     return;
   }
 
   const auto* data = prov.getData();
   if (data && strlen(data->wifiSsid) > 0) {
-    LOG_INFO(CAT_PROVISIONING, "Data received: SSID='%s'", data->wifiSsid);
+    XLOG_DEBUG(CAT_PROVISIONING, "Provisioning complete - received SSID='%s'",data->wifiSsid);
   }
 }
 

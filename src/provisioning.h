@@ -91,8 +91,9 @@ class ProvisioningManager {
   /**
    * @brief Проверить, активен ли процесс настройки
    * @return true — активен
+   * @deprecated Не используется
    */
-  bool isActive() const;
+  // bool isActive() const;
 
   /**
    * @brief Проверить, завершён ли процесс

@@ -16,7 +16,7 @@
 
 // ========== СТАТИЧЕСКИЕ ПЕРЕМЕННЫЕ ==========
 static bool ota_available = false;
-static bool ota_initialized = false;
+// static bool ota_initialized = false;
 static WebServerClass* ota_server = nullptr;
 
 // ========== РЕАЛИЗАЦИЯ ==========
@@ -33,17 +33,17 @@ bool ota_is_available() {
   result = (ESP.getFlashChipSize() >= (2 * 1024 * 1024));
 #endif
   ota_available = result;
-  LOG_DEBUG(CAT_OTA, "Check availablity: %s", result ? "YES" : "NO");
+  XLOG_DEBUG(CAT_OTA, "Check availablity: %s", result ? "YES" : "NO");
   return result;
 }
 
 void ota_init(WebServerClass* server) {
   if (!ota_available) {
-    LOG_WARN(CAT_OTA, "OTA not available - insufficient flash memory");
+    XLOG_WARN(CAT_OTA, "OTA not available - insufficient flash memory");
     return;
   }
   if (!server) {
-    LOG_ERROR(CAT_OTA, "WebServer is null!");
+    XLOG_ERROR(CAT_OTA, "WebServer is null!");
     return;
   }
 
@@ -52,9 +52,9 @@ void ota_init(WebServerClass* server) {
   // ElegantOTA 2.2.x — достаточно вызвать begin()
   // Все остальное обрабатывается через server.handleClient()
   ElegantOTA.begin(server);
-  ota_initialized = true;
+  // ota_initialized = true;
 
-  LOG_DEBUG(CAT_OTA, "OTA initialized at /update");
+  XLOG_DEBUG(CAT_OTA, "OTA initialized at /update");
 }
 
 // ========== ota_loop() НЕ НУЖЕН для ElegantOTA 2.2.x ==========

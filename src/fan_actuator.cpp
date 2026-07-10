@@ -75,7 +75,7 @@ void FanActuator::update() {
         _base.set(false, false);
         applySpeed(0);
         _startingPulseActive = false;
-        LOG_DEBUG(CAT_FAN, "Start pulse done, speed 0% -> OFF");
+        XLOG_DEBUG(CAT_FAN, "Start pulse done, speed 0% -> OFF");
       } else {
         applySpeed(_currentSpeed);
         _startingPulseActive = false;
@@ -86,7 +86,7 @@ void FanActuator::update() {
           _baseHum = sensor_getHumidity();
           _lastAdaptiveCheck = millis();
         }
-        LOG_DEBUG(CAT_FAN, "Start pulse done, speed=%d%%", _currentSpeed);
+        XLOG_DEBUG(CAT_FAN, "Start pulse done, speed=%d%%", _currentSpeed);
       }
     }
     return;
@@ -122,7 +122,7 @@ void FanActuator::setSpeed(int percent, bool manual) {
     applySpeed(percent);
   }
 
-  LOG_DEBUG(CAT_FAN, "Speed set to %d%%", percent);
+  XLOG_DEBUG(CAT_FAN, "Speed set to %d%%", percent);
 }
 
 int FanActuator::getSpeed() const {
@@ -167,7 +167,7 @@ void FanActuator::onSetPhysicalCallback(void* context, bool on) {
     self->_adaptiveActive = false;
     self->_startingPulseActive = false;
     self->_currentSpeed = g_configManager.getSpeedPercent();
-    LOG_INFO(CAT_FAN, "OFF - restored speed to %d%%", self->_currentSpeed);
+    XLOG_INFO(CAT_FAN, "OFF - restored speed to %d%%", self->_currentSpeed);
   }
 }
 
@@ -188,13 +188,13 @@ void FanActuator::onManualCommandCallback(void* context) {
 
   if (g_configManager.getDelaySeconds() != 0) {
     g_configManager.setDelaySeconds(0);
-    LOG_INFO(CAT_FAN, "Manual command - delaySeconds temporarily disabled");
+    XLOG_INFO(CAT_FAN, "Manual command - delaySeconds temporarily disabled");
   }
 
 #if DEVICE_TYPE == 1
   if (g_configManager.getSensorControlMode()) {
     g_configManager.setSensorControlMode(false);
-    LOG_INFO(CAT_FAN, "Manual command - switching to MANUAL mode");
+    XLOG_INFO(CAT_FAN, "Manual command - switching to MANUAL mode");
   }
 #endif
 }

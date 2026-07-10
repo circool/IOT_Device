@@ -58,8 +58,8 @@
 extern bool apMode;
 bool wifi_is_ap_mode();
 
-#ifndef SCANING_WIFI_ENABLED
-#define SCANING_WIFI_ENABLED 0
+#ifndef SCANNING_WIFI_ENABLED
+#define SCANNING_WIFI_ENABLED 0
 #endif
 
 /** @brief Включить веб-интерфейс */
@@ -197,7 +197,7 @@ inline int wifi_scan_and_log(const char* /*targetSsid*/) {
  */
 static bool wifi_is_connecting = false;
 
-void wifi_start_ap_mode() {};
+// void wifi_start_ap_mode() {};
 
 #endif  // WIFI_ENABLED == 1
 

@@ -267,7 +267,7 @@ inline void sendConfigPage(WebSendCallback send,
     send(refresh, context);
   }
 
-#if LOG_LEVEL > 3
+#if XLOG_LEVEL > 3
   send(F("<meta http-equiv='Cache-Control' content='no-cache, no-store, "
          "must-revalidate'>"),
        context);

@@ -296,18 +296,18 @@ String web_buildStatusHtml() {
 
 #if DEVICE_TYPE == 1
 void handleToggle() {
-  LOG_INFO(CAT_WEB, "Toggle button pressed");
+  XLOG_INFO(CAT_WEB, "Toggle button pressed");
 }
 
 void handleSensorControlMode() {
   g_configManager.setSensorControlMode(true);
-  LOG_INFO(CAT_WEB, "Sensor control mode enabled");
+  XLOG_INFO(CAT_WEB, "Sensor control mode enabled");
 }
 #endif
 
 #if DEVICE_TYPE == 3
 void handleToggle() {
-  LOG_INFO(CAT_WEB, "Toggle button pressed");
+  XLOG_INFO(CAT_WEB, "Toggle button pressed");
 }
 #endif
 
@@ -520,7 +520,7 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
 // ============================================================================
 
 void web_saveConfig() {
-  LOG_INFO(CAT_WEB, "Processing config form...");
+  XLOG_INFO(CAT_WEB, "Processing config form...");
 
   // ========================================================================
   // 1. КОПИРУЕМ ТЕКУЩУЮ КОНФИГУРАЦИЮ КАК БАЗУ
@@ -746,7 +746,7 @@ void web_saveConfig() {
   // ========================================================================
 
   g_webConfigPending = true;
-  LOG_INFO(CAT_WEB, "Config parsed, pending for main to apply");
+  XLOG_INFO(CAT_WEB, "Config parsed, pending for main to apply");
 
   // ========================================================================
   // 4. ПОКАЗЫВАЕМ СТРАНИЦУ УСПЕХА (без перезагрузки)
@@ -781,15 +781,14 @@ void web_saveConfig() {
 // ============================================================================
 
 void web_init(bool setupMode) {
-  LOG_DEBUG(CAT_WEB, "Beginning initialisation web server with %s mode",
-            setupMode ? "setup" : "full");
+  
   g_setupMode = setupMode;
 
   if (setupMode) {
-    LOG_DEBUG(CAT_WEB, "Initializing in SETUP mode");
+    // XLOG_DEBUG(CAT_WEB, "Initializing web server in SETUP mode");
 
     server.on("/", []() {
-      LOG_DEBUG(CAT_WEB, "GET / - Config page (setup mode)");
+      XLOG_DEBUG(CAT_WEB, "GET / - Config page (setup mode)");
       web_sendConfigPage("", "");
     });
 
@@ -797,7 +796,7 @@ void web_init(bool setupMode) {
     server.on("/favicon.ico", []() { server.send(404); });
 
   } else {
-    LOG_DEBUG(CAT_WEB, "Initializing in NORMAL mode");
+    // XLOG_DEBUG(CAT_WEB, "Initializing web server in NORMAL mode");
 
     int refreshInterval = DEFAULT_WEB_REFRESH;
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
@@ -809,19 +808,19 @@ void web_init(bool setupMode) {
 #ifdef ESP32
       server.client().setNoDelay(true);
 #endif
-      LOG_DEBUG(CAT_WEB, "GET / - serving status page");
+      XLOG_DEBUG(CAT_WEB, "GET / - serving status page");
       web_sendStatusPage(refreshInterval);
     });
 #else
     server.on("/", []() {
-      LOG_DEBUG(CAT_WEB, "GET / - redirect to config");
+      XLOG_DEBUG(CAT_WEB, "GET / - redirect to config");
       server.sendHeader("Location", "/config", true);
       server.send(302, "text/plain", "");
     });
 #endif
 
     server.on("/config", []() {
-      LOG_DEBUG(CAT_WEB, "GET /config - serving config page");
+      XLOG_DEBUG(CAT_WEB, "GET /config - serving config page");
       web_sendConfigPage("", "");
     });
 
@@ -859,7 +858,7 @@ void web_init(bool setupMode) {
   }
 
   server.begin();
-  LOG_DEBUG(CAT_WEB, "Web server started (mode: %s)",
+  XLOG_DEBUG(CAT_WEB, "Web server started. (Mode: %s)",
             setupMode ? "SETUP" : "NORMAL");
 }
 

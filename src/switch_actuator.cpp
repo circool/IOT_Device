@@ -34,6 +34,6 @@ void SwitchActuator::onSetPhysicalCallback(void* context, bool on) {
 }
 
 void SwitchActuator::onForceStopCallback(void* context) {
-  LOG_INFO(CAT_ACTUATOR, "Force stop due to maxOnTime");
+  XLOG_INFO(CAT_ACTUATOR, "Force stop due to maxOnTime");
   // TODO: что теперь с реле?
 }

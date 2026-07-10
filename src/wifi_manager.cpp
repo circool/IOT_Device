@@ -30,7 +30,7 @@ static unsigned long wifi_lost_time = 0;
 
 void wifi_begin() {
   if (strlen(g_configManager.getWifiSsid()) == 0) {
-    LOG_WARN(CAT_WIFI, "No SSID configured");
+    XLOG_WARN(CAT_WIFI, "No SSID configured");
     return;
   }
 
@@ -39,7 +39,7 @@ void wifi_begin() {
   if (wifi_is_connecting)
     return;
 
-  LOG_INFO(CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET,
+  XLOG_INFO(CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET,
            g_configManager.getWifiSsid());
 
   WiFi.mode(WIFI_STA);
@@ -56,7 +56,7 @@ void wifi_check() {
   if (status == WL_CONNECTED) {
     wifi_is_connecting = false;
     wifi_lost_time = 0;
-    LOG_INFO(CAT_WIFI, "Connected! IP: " ANSI_BOLD "%s" ANSI_RESET,
+    XLOG_INFO(CAT_WIFI, "Connected! IP: " ANSI_BOLD "%s" ANSI_RESET,
              WiFi.localIP().toString().c_str());
 
 // Выход из AP режима при успешном подключении
@@ -64,13 +64,13 @@ void wifi_check() {
     if (apMode) {
       WiFi.softAPdisconnect(true);
       apMode = false;
-      LOG_INFO(CAT_WIFI, "Exited AP mode, back to client mode");
+      XLOG_INFO(CAT_WIFI, "Exited AP mode, back to client mode");
       WiFi.mode(WIFI_STA);
     }
 #endif
 
   } else if (millis() - wifi_connect_start_time > WIFI_CONNECT_TIMEOUT_MS) {
-    LOG_INFO(CAT_WIFI, "Connection timeout! (%d)", WIFI_CONNECT_TIMEOUT_MS);
+    XLOG_INFO(CAT_WIFI, "Connection timeout! (%d)", WIFI_CONNECT_TIMEOUT_MS);
     wifi_is_connecting = false;
     WiFi.disconnect();
   }
@@ -82,7 +82,7 @@ void wifi_monitor() {
       return;
 
     if (!wifi_is_connecting) {
-      LOG_INFO(CAT_WIFI,
+      XLOG_INFO(CAT_WIFI,
                "AP mode active, attempting to connect to WiFi in background");
       wifi_begin();
     }
@@ -92,7 +92,7 @@ void wifi_monitor() {
 
   if (!wifi_is_connected()) {
     if (!wifi_is_connecting) {
-      LOG_INFO(CAT_WIFI, "WiFi lost, attempting to reconnect");
+      XLOG_INFO(CAT_WIFI, "WiFi lost, attempting to reconnect");
       wifi_begin();
     }
   }
@@ -103,9 +103,9 @@ void wifi_monitor() {
   if (!apMode && !wifi_is_connected() && !wifi_is_connecting) {
     if (wifi_lost_time == 0) {
       wifi_lost_time = millis();
-      LOG_INFO(CAT_WIFI, "WiFi lost, starting fallback timer");
+      XLOG_INFO(CAT_WIFI, "WiFi lost, starting fallback timer");
     } else if (millis() - wifi_lost_time > AP_FALLBACK_TIMEOUT_MS) {
-      LOG_INFO(CAT_WIFI, "WiFi lost for %d ms, switching to AP mode",
+      XLOG_INFO(CAT_WIFI, "WiFi lost for %d ms, switching to AP mode",
                AP_FALLBACK_TIMEOUT_MS);
 
       WiFi.disconnect(true);
@@ -125,18 +125,19 @@ void wifi_monitor() {
 }
 
 void wifi_start_ap(const char* ssid) {
-  WiFi.mode(WIFI_AP_STA);
-
+  WiFi.mode(WIFI_AP);
 #ifdef ESP8266
-  IPAddress apIP;
+      IPAddress apIP;
   apIP.fromString(AP_IP_ADDRESS);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
 #endif
 
   WiFi.softAP(ssid);
-
-  LOG_INFO(CAT_WIFI, "AP started: SSID=" ANSI_BOLD "%s" ANSI_RESET ", IP=%s",
-           ssid, AP_IP_ADDRESS);
+  XLOG_DEBUG(CAT_WIFI,
+             "AP started." ANSI_RESET  " (Find WiFi " ANSI_BOLD "%s" ANSI_RESET
+             ", connect and visit " ANSI_BOLD "%s" ANSI_RESET ").",
+             ssid, AP_IP_ADDRESS);
+  // XLOG_DEBUG(CAT_WIFI, "AP started: SSID=" ANSI_BOLD "%s" ANSI_RESET ", IP=%s",ssid, AP_IP_ADDRESS);
 }
 
 void wifi_stop_ap() {
@@ -149,24 +150,24 @@ int wifi_scan_and_log(const char* targetSsid) {
 
   // Защита от реентерабельности
   if (is_scanning) {
-    LOG_WARN(CAT_WIFI, "Scan already in progress, skipping");
+    XLOG_WARN(CAT_WIFI, "Scan already in progress, skipping");
     return -1;
   }
 
   // Не сканируем, если в процессе подключения к другой сети
   if (wifi_is_connecting) {
-    LOG_WARN(CAT_WIFI, "Cannot scan while connecting to WiFi");
+    XLOG_WARN(CAT_WIFI, "Cannot scan while connecting to WiFi");
     return -1;
   }
 
   is_scanning = true;
 
-  LOG_INFO(CAT_WIFI, "Scanning WiFi networks...");
+  XLOG_INFO(CAT_WIFI, "Scanning WiFi networks...");
 
   int networksFound = WiFi.scanNetworks();
 
   if (networksFound == WIFI_SCAN_FAILED) {
-    LOG_ERROR(CAT_WIFI, "WiFi scan failed");
+    XLOG_ERROR(CAT_WIFI, "WiFi scan failed");
     WiFi.scanDelete();
     is_scanning = false;
     return -1;
@@ -174,20 +175,89 @@ int wifi_scan_and_log(const char* targetSsid) {
 
   bool markTarget = (targetSsid != nullptr && strlen(targetSsid) > 0);
 
+  // Заголовок таблицы
+  XLOG_DEBUG(CAT_WIFI, "%-32s %-8s %-8s %-12s %s", "SSID", "RSSI", "CH", "AUTH",
+             "TARGET");
+  XLOG_DEBUG(CAT_WIFI,
+             "------------------------------------------------------------");
+
   for (int i = 0; i < networksFound; i++) {
     String ssid = WiFi.SSID(i);
     int32_t rssi = WiFi.RSSI(i);
+    int channel = WiFi.channel(i);
 
-    if (markTarget && ssid == targetSsid) {
-      LOG_DEBUG(CAT_WIFI,
-                "%s (RSSI: %d) " ANSI_BRIGHT_GREEN "<<< TARGET" ANSI_RESET,
-                ssid.c_str(), rssi);
-    } else {
-      LOG_DEBUG(CAT_WIFI, "%s (RSSI: %d)", ssid.c_str(), rssi);
+    // === ОПРЕДЕЛЕНИЕ ТИПА ШИФРОВАНИЯ ===
+    String authType;
+
+#ifdef ESP8266
+    // ESP8266: используем ENC_TYPE_* константы
+    uint8_t encryption = WiFi.encryptionType(i);
+    switch (encryption) {
+      case ENC_TYPE_NONE:
+        authType = "Open";
+        break;
+      case ENC_TYPE_TKIP:
+        authType = "WPA";
+        break;
+      case ENC_TYPE_CCMP:
+        authType = "WPA2";
+        break;
+      case ENC_TYPE_AUTO:
+        authType = "Auto";
+        break;
+      default:
+        authType = "Unknown";
+        break;
     }
+#elif defined(ESP32)
+    // ESP32: используем wifi_auth_mode_t
+    wifi_auth_mode_t encryption = WiFi.encryptionType(i);
+    switch (encryption) {
+      case WIFI_AUTH_OPEN:
+        authType = "Open";
+        break;
+      case WIFI_AUTH_WEP:
+        authType = "WEP";
+        break;
+      case WIFI_AUTH_WPA_PSK:
+        authType = "WPA";
+        break;
+      case WIFI_AUTH_WPA2_PSK:
+        authType = "WPA2";
+        break;
+      case WIFI_AUTH_WPA_WPA2_PSK:
+        authType = "WPA/WPA2";
+        break;
+      case WIFI_AUTH_WPA2_ENTERPRISE:
+        authType = "WPA2-Ent";
+        break;
+      case WIFI_AUTH_WPA3_PSK:
+        authType = "WPA3";
+        break;
+      case WIFI_AUTH_WPA2_WPA3_PSK:
+        authType = "WPA2/WPA3";
+        break;
+      case WIFI_AUTH_WAPI_PSK:
+        authType = "WAPI";
+        break;
+      default:
+        authType = "Unknown";
+        break;
+    }
+#else
+    // Fallback
+    authType = "?";
+#endif
+
+    // Формируем строку с пометкой TARGET
+    String targetMark = (markTarget && ssid == targetSsid) ? "<<<" : "";
+
+    // Вывод с информацией
+    XLOG_DEBUG(CAT_WIFI, "%-32s %-4d dBm  %-3d  %-12s  %s", ssid.c_str(), rssi,
+               channel, authType.c_str(), targetMark.c_str());
   }
 
-  LOG_INFO(CAT_WIFI, "Scan complete: %d network(s) found", networksFound);
+  XLOG_INFO(CAT_WIFI, "Scan complete: %d network(s) found", networksFound);
 
   WiFi.scanDelete();
   is_scanning = false;

@@ -48,6 +48,7 @@ static WiFiClient g_mqttClient;
 
 #if ZIGBEE_ENABLED == 1
 #include "zigbee.h"
+
 #endif
 
 // ============================================================================
@@ -126,7 +127,7 @@ static void onMqttSensorControlMode(bool enabled, void* context) {
   FanActuator* fan = (FanActuator*)context;
 
   if (enabled && !sensor_isOk()) {
-    LOG_WARN(CAT_MQTT, "Cannot enable sensor mode - sensor not available");
+    XLOG_WARN(CAT_MQTT, "Cannot enable sensor mode - sensor not available");
     mqttManager.publishSensorControlMode(false);
     return;
   }
@@ -141,7 +142,7 @@ static void onMqttAdaptiveMode(bool enabled, void* context) {
   FanActuator* fan = (FanActuator*)context;
 
   if (enabled && !g_configManager.getSensorControlMode()) {
-    LOG_WARN(CAT_MQTT, "Cannot enable adaptive - sensor mode is OFF");
+    XLOG_WARN(CAT_MQTT, "Cannot enable adaptive - sensor mode is OFF");
     return;
   }
 
@@ -192,7 +193,7 @@ static void onMqttMaxOnTime(uint32_t seconds, void* /*context*/) {
 
 #if MQTT_RESET_ENABLED == 1
 static void onMqttReset(void* context) {
-  LOG_INFO(CAT_MQTT, "Reset via MQTT");
+  XLOG_INFO(CAT_MQTT, "Reset via MQTT");
   mqttManager.disconnect();
   g_configManager.reset();
   delay(1000);
@@ -349,7 +350,7 @@ static void publishMqttStatus() {
 #endif
 
     initialConfigPublished = true;
-    LOG_DEBUG(CAT_MQTT, "Initial config published");
+    XLOG_DEBUG(CAT_MQTT, "Initial config published");
   }
 
   if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
@@ -373,7 +374,7 @@ void processWebCommands() {
 #if WEB_ENABLED == 1
   // ==== 1. НОВЫЕ НАСТРОЙКИ ====
   if (g_webConfigPending) {
-    LOG_INFO(CAT_MAIN, "Applying new config from Web...");
+    XLOG_INFO(CAT_MAIN, "Applying new config from Web...");
 
     auto& cfg = ConfigManager::getInstance();
 
@@ -381,14 +382,14 @@ void processWebCommands() {
 
     if (strlen(g_webPendingConfig.wifiSsid) > 0) {
       if (!cfg.setWifiSsid(g_webPendingConfig.wifiSsid)) {
-        LOG_ERROR(CAT_MAIN, "Invalid WiFi SSID: %s", cfg.getLastError());
+        XLOG_ERROR(CAT_MAIN, "Invalid WiFi SSID: %s", cfg.getLastError());
         valid = false;
       }
     }
 
     if (strlen(g_webPendingConfig.wifiPassword) > 0) {
       if (!cfg.setWifiPassword(g_webPendingConfig.wifiPassword)) {
-        LOG_ERROR(CAT_MAIN, "Invalid WiFi password: %s", cfg.getLastError());
+        XLOG_ERROR(CAT_MAIN, "Invalid WiFi password: %s", cfg.getLastError());
         valid = false;
       }
     }
@@ -396,33 +397,33 @@ void processWebCommands() {
 #if MQTT_ENABLED == 1
     if (strlen(g_webPendingConfig.mqttBroker) > 0) {
       if (!cfg.setMqttBroker(g_webPendingConfig.mqttBroker)) {
-        LOG_ERROR(CAT_MAIN, "Invalid MQTT broker: %s", cfg.getLastError());
+        XLOG_ERROR(CAT_MAIN, "Invalid MQTT broker: %s", cfg.getLastError());
         valid = false;
       }
     }
 
     if (!cfg.setMqttPort(g_webPendingConfig.mqttPort)) {
-      LOG_ERROR(CAT_MAIN, "Invalid MQTT port: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Invalid MQTT port: %s", cfg.getLastError());
       valid = false;
     }
 
     if (strlen(g_webPendingConfig.mqttUser) > 0) {
       if (!cfg.setMqttUser(g_webPendingConfig.mqttUser)) {
-        LOG_ERROR(CAT_MAIN, "Invalid MQTT user: %s", cfg.getLastError());
+        XLOG_ERROR(CAT_MAIN, "Invalid MQTT user: %s", cfg.getLastError());
         valid = false;
       }
     }
 
     if (strlen(g_webPendingConfig.mqttPassword) > 0) {
       if (!cfg.setMqttPassword(g_webPendingConfig.mqttPassword)) {
-        LOG_ERROR(CAT_MAIN, "Invalid MQTT password: %s", cfg.getLastError());
+        XLOG_ERROR(CAT_MAIN, "Invalid MQTT password: %s", cfg.getLastError());
         valid = false;
       }
     }
 
     if (strlen(g_webPendingConfig.mqttClientId) > 0) {
       if (!cfg.setMqttClientId(g_webPendingConfig.mqttClientId)) {
-        LOG_ERROR(CAT_MAIN, "Invalid MQTT Client ID: %s", cfg.getLastError());
+        XLOG_ERROR(CAT_MAIN, "Invalid MQTT Client ID: %s", cfg.getLastError());
         valid = false;
       }
     }
@@ -430,30 +431,30 @@ void processWebCommands() {
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     if (!cfg.setSensorInterval(g_webPendingConfig.sensorInterval)) {
-      LOG_ERROR(CAT_MAIN, "Invalid sensor interval: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Invalid sensor interval: %s", cfg.getLastError());
       valid = false;
     }
 #endif
 
 #if DEVICE_TYPE == 1
     if (!cfg.setLowTemp(g_webPendingConfig.lowTemp)) {
-      LOG_ERROR(CAT_MAIN, "Invalid low temp: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Invalid low temp: %s", cfg.getLastError());
       valid = false;
     }
     if (!cfg.setHighTemp(g_webPendingConfig.highTemp)) {
-      LOG_ERROR(CAT_MAIN, "Invalid high temp: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Invalid high temp: %s", cfg.getLastError());
       valid = false;
     }
     if (!cfg.setLowHum(g_webPendingConfig.lowHum)) {
-      LOG_ERROR(CAT_MAIN, "Invalid low hum: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Invalid low hum: %s", cfg.getLastError());
       valid = false;
     }
     if (!cfg.setHighHum(g_webPendingConfig.highHum)) {
-      LOG_ERROR(CAT_MAIN, "Invalid high hum: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Invalid high hum: %s", cfg.getLastError());
       valid = false;
     }
     if (!cfg.setSpeedPercent(g_webPendingConfig.speedPercent)) {
-      LOG_ERROR(CAT_MAIN, "Invalid speed: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Invalid speed: %s", cfg.getLastError());
       valid = false;
     }
     cfg.setAdaptiveMode(g_webPendingConfig.adaptiveMode);
@@ -462,38 +463,39 @@ void processWebCommands() {
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
     if (!cfg.setDelaySeconds(g_webPendingConfig.delaySeconds)) {
-      LOG_ERROR(CAT_MAIN, "Invalid delay seconds: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Invalid delay seconds: %s", cfg.getLastError());
       valid = false;
     }
     if (!cfg.setMaxOnTime(g_webPendingConfig.maxOnTime)) {
-      LOG_ERROR(CAT_MAIN, "Invalid max on time: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Invalid max on time: %s", cfg.getLastError());
       valid = false;
     }
     cfg.setBootState(g_webPendingConfig.bootState);
 #endif
 
     if (!valid) {
-      LOG_ERROR(CAT_MAIN, "Invalid config from Web, rejecting");
+      XLOG_ERROR(CAT_MAIN, "Invalid config from Web, rejecting");
       g_webConfigPending = false;
       return;
     }
 
     // Сохраняем в EEPROM
     if (cfg.save()) {
-      LOG_INFO(CAT_MAIN, "Config saved successfully!");
+      XLOG_INFO(CAT_MAIN, "Config saved successfully!");
       g_webConfigPending = false;
 
       // Перезагружаемся после применения
       g_webRestartPending = true;
+    
     } else {
-      LOG_ERROR(CAT_MAIN, "Failed to save config: %s", cfg.getLastError());
+      XLOG_ERROR(CAT_MAIN, "Failed to save config: %s", cfg.getLastError());
       g_webConfigPending = false;
     }
   }
 
   // ==== 2. ПЕРЕЗАГРУЗКА ====
   if (g_webRestartPending) {
-    LOG_INFO(CAT_MAIN, "Restarting due to Web command...");
+    XLOG_INFO(CAT_MAIN, "Restarting due to Web command...");
     g_webRestartPending = false;
     delay(500);
     ESP.restart();
@@ -506,14 +508,19 @@ void processWebCommands() {
 // ============================================================================
 
 void initNormalMode() {
-  LOG_INFO(CAT_MAIN, "========================================");
-  LOG_INFO(CAT_MAIN, "NORMAL MODE");
-  LOG_INFO(CAT_MAIN, "========================================");
+  XLOG_INFO(CAT_MAIN, "========================================");
+  XLOG_INFO(CAT_MAIN, "NORMAL MODE");
+  XLOG_INFO(CAT_MAIN, "========================================");
 
   if (apMode) {
     wifi_stop_ap();
-    LOG_INFO(CAT_WIFI, "AP mode disabled");
+    XLOG_INFO(CAT_WIFI, "AP mode disabled");
   }
+#if ZIGBEE_ENABLED == 1
+  // Инициализация ZigBee
+  XLOG_INFO(CAT_MAIN, "Initializing ZigBee...");
+  zigbeeManager.begin(g_configManager.getDeviceId());
+#endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   sensor_init();
@@ -522,7 +529,7 @@ void initNormalMode() {
     g_configManager.setSensorControlMode(false);
     g_configManager.setAdaptiveMode(false);
     fan.setAdaptiveMode(false);
-    LOG_WARN(CAT_SENSOR, "Sensor not found - switching to MANUAL mode");
+    XLOG_WARN(CAT_SENSOR, "Sensor not found - switching to MANUAL mode");
   }
 #endif
 #endif
@@ -546,7 +553,7 @@ void initNormalMode() {
   registerMqttCallbacks();
 #endif
 
-#if SCANING_WIFI_ENABLED == 1
+#if SCANNING_WIFI_ENABLED == 1
 #ifdef ESP8266
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
   WiFi.setPhyMode(WIFI_PHY_MODE_11G);
@@ -568,16 +575,16 @@ void initNormalMode() {
 #if OTA_ENABLED == 1
   if (ota_is_available()) {
     ota_init(&server);
-    LOG_INFO(CAT_MAIN, "OTA initialized");
+    XLOG_INFO(CAT_MAIN, "OTA initialized");
   } else {
-    LOG_WARN(CAT_MAIN, "OTA not available");
+    XLOG_WARN(CAT_MAIN, "OTA not available");
   }
 #endif
 
   web_init();
 #endif
 
-  LOG_INFO(CAT_MAIN, "System initialized successfully!");
+  XLOG_INFO(CAT_MAIN, "System initialized successfully!");
 }
 
 void processNormalMode() {
@@ -596,10 +603,10 @@ void processNormalMode() {
 
     if (shouldBeOn && !fan.getState()) {
       fan.set(true, false);
-      LOG_INFO(CAT_SENSOR, "Auto ON: T=%.1f°C H=%.1f%%", temp, hum);
+      XLOG_INFO(CAT_SENSOR, "Auto ON: T=%.1f°C H=%.1f%%", temp, hum);
     } else if (shouldBeOff && fan.getState()) {
       fan.set(false, false);
-      LOG_INFO(CAT_SENSOR, "Auto OFF: T=%.1f°C H=%.1f%%", temp, hum);
+      XLOG_INFO(CAT_SENSOR, "Auto OFF: T=%.1f°C H=%.1f%%", temp, hum);
     }
   }
 #endif
@@ -626,6 +633,11 @@ void processNormalMode() {
   }
 #endif
 
+#if ZIGBEE_ENABLED == 1
+  zigbeeManager.process();
+  // TODO: добавить публикацию статуса в ZigBee
+#endif
+
   web_update();
 
   if (apMode) {
@@ -649,7 +661,7 @@ void checkResetButton() {
   pinMode(RESET_PIN, INPUT_PULLUP);
   delay(50);
   if (digitalRead(RESET_PIN) == LOW) {
-    LOG_INFO(CAT_MAIN, "Reset button pressed...");
+    XLOG_INFO(CAT_MAIN, "Reset button pressed...");
 
     LedMode prevMode = led_getMode();
     unsigned long pressStart = millis();
@@ -667,12 +679,12 @@ void checkResetButton() {
       led_update();
 
       if (pressedMs >= 3000) {
-        LOG_INFO(CAT_MAIN, "Auto-reset triggered!");
+        XLOG_INFO(CAT_MAIN, "Auto-reset triggered!");
         led_setMode(LED_MODE_OFF);
         led_update();
 
         if (g_configManager.reset()) {
-          LOG_INFO(CAT_CONFIG, "Config cleared, restarting...");
+          XLOG_INFO(CAT_CONFIG, "Config cleared, restarting...");
           ESP.restart();
         }
         return;
@@ -682,7 +694,7 @@ void checkResetButton() {
       wdt_feed();
     }
 
-    LOG_INFO(CAT_MAIN, "Reset cancelled (released after %d ms)",
+    XLOG_INFO(CAT_MAIN, "Reset cancelled (released after %d ms)",
              millis() - pressStart);
     wdt_start();
     led_setMode(prevMode);
@@ -694,22 +706,28 @@ void checkResetButton() {
 // ============================================================================
 
 void setup() {
-  delay(2000);
-  Logger::getInstance().begin((LogLevel)LOG_LEVEL, LOG_CATEGORIES,
-                              LOG_USE_COLOR);
-  LOG_INFO(CAT_MAIN, "SYSTEM START");
-  LOG_INFO(CAT_MAIN, "=== SYSTEM INFO ===");
-  print_system_info();
-  LOG_INFO(CAT_MAIN, "==========================================");
-  LOG_INFO(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
 
+// Задержка для отладки - чтобы успеть включить монитор после прошивки
+#if XLOG_LEVEL > 0
+  delay(2000);
+#endif
+
+  Logger::getInstance().begin(
+      (LogLevel)XLOG_LEVEL, XLOG_CATEGORIES, XLOG_USE_COLOR);
+  XLOG_INFO(CAT_MAIN, "SYSTEM START");
+  XLOG_INFO(CAT_MAIN, "=== SYSTEM INFO ===");
+  print_system_info();
+  XLOG_INFO(CAT_MAIN, "==========================================");
+  XLOG_INFO(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
+  XLOG_INFO(CAT_MAIN, "BLE Prov: %s", USE_BLE_PROVISIONING ? "ENABLED":"NONE");
+  XLOG_INFO(CAT_MAIN, "AP Prov: %s", USE_AP_PROVISIONING ? "ENABLED" : "NONE");
   led_init();
   led_setMode(LED_MODE_MORZE_E);
 
   wdt_init();
   g_configManager.begin();
 
-#if SCANING_WIFI_ENABLED == 1
+#if SCANNING_WIFI_ENABLED == 1
   wdt_stop();
   const ConfigData* cfg = g_configManager.get();
   const char* targetSsid = (cfg != nullptr) ? cfg->wifiSsid : nullptr;
@@ -728,99 +746,92 @@ void setup() {
   bool hasMqtt = true;
 #endif
 
-#if USE_BLE_PROVISIONING == 1
-  if (hasValidConfig && hasWifi) {
-    LOG_INFO(CAT_MAIN, "WiFi configured. Entering NORMAL mode.");
+  if (hasValidConfig && hasWifi && hasMqtt) {
+    XLOG_INFO(CAT_MAIN, "Config found and corrected. Entering NORMAL mode.");
     g_normalMode = true;
     initNormalMode();
   } else {
-    LOG_WARN(CAT_MAIN, "No WiFi config.");
+#if USE_BLE_PROVISIONING == 1 || USE_AP_PROVISIONING == 1
     g_normalMode = false;
+    XLOG_INFO(CAT_MAIN, "Starting provisioning mode");
     led_setMode(LED_MODE_MORZE_S);
     startProvisioning();
-  }
-
-#elif USE_AP_PROVISIONING == 1
-  if (hasValidConfig && hasWifi && hasMqtt) {
-    LOG_INFO(CAT_MAIN, "Full config found. Entering NORMAL mode.");
-    g_normalMode = true;
-    initNormalMode();
-  } else {
-    LOG_INFO(CAT_MAIN, "Incomplete config. Starting AP provisioning.");
-    g_normalMode = false;
-    startProvisioning();
-  }
-
 #else
-  if (hasValidConfig && hasWifi) {
+// Нет провизионинга (ZigBee или отключен)
+#if ZIGBEE_ENABLED == 1
+    XLOG_INFO(CAT_MAIN, "Using ZigBee mode (no provisioning needed)");
     g_normalMode = true;
-    initNormalMode();
-  } else {
+#else
+    XLOG_ERROR(CAT_MAIN, "No valid config and no provisioning method!");
+    led_setMode(LED_MODE_OFF);
     g_normalMode = false;
-    startProvisioning();
-  }
 #endif
 
-  LOG_DEBUG(CAT_MAIN, "Setup complete");
+#endif
+  }
+    XLOG_DEBUG(CAT_MAIN, "Setup complete");
 }
 
-// ============================================================================
-// LOOP (ОРКЕСТРАТОР)
-// ============================================================================
+  // ============================================================================
+  // LOOP (ОРКЕСТРАТОР)
+  // ============================================================================
 
-void loop() {
-  wdt_feed();
-  checkResetButton();
+  void loop() {
+    wdt_feed();
+    checkResetButton();
 
-  // ==== ОБРАБОТКА КОМАНД ОТ WEB ====
-  processWebCommands();
+    // ==== ОБРАБОТКА КОМАНД ОТ WEB ====
+    processWebCommands();
 
-  if (!g_normalMode) {
-    ProvisioningManager::getInstance().update();
+    if (!g_normalMode) {
+      ProvisioningManager::getInstance().update();
 
-    if (isProvisioningComplete()) {
-      auto& prov = ProvisioningManager::getInstance();
-      auto method = prov.getCompletedBy();
+      if (isProvisioningComplete()) {
+        auto& prov = ProvisioningManager::getInstance();
+        auto method = prov.getCompletedBy();
 
-      if (method == ProvisioningMethod::FAILED) {
-        LOG_WARN(CAT_MAIN, "Provisioning FAILED! Rebooting ...");
-        wdt_stop();
-        ESP.restart();
-        return;
-      }
-
-      LOG_INFO(CAT_MAIN, "Provisioning completed via %s",
-               method == ProvisioningMethod::BLE ? "BLE" : "AP");
-
-      const auto* data = prov.getData();
-      if (data && strlen(data->wifiSsid) > 0) {
-        LOG_INFO(CAT_MAIN, "Saving config: SSID='%s'", data->wifiSsid);
-
-        auto& cfg = ConfigManager::getInstance();
-        cfg.setWifiSsid(data->wifiSsid);
-        cfg.setWifiPassword(data->wifiPassword);
-
-        if (cfg.save()) {
-          LOG_INFO(CAT_MAIN, "Config saved successfully!");
-        } else {
-          LOG_ERROR(CAT_MAIN, "Failed to save config!");
+        if (method == ProvisioningMethod::FAILED) {
+          XLOG_WARN(CAT_MAIN, "Provisioning FAILED! Rebooting ...");
+          wdt_stop();
+          ESP.restart();
           return;
         }
+
+        XLOG_INFO(CAT_MAIN, "Provisioning completed via %s",
+                  method == ProvisioningMethod::BLE ? "BLE" : "AP");
+
+        const auto* data = prov.getData();
+        if (data && strlen(data->wifiSsid) > 0) {
+          XLOG_INFO(CAT_MAIN, "Saving config: SSID='%s'", data->wifiSsid);
+
+          auto& cfg = ConfigManager::getInstance();
+          cfg.setWifiSsid(data->wifiSsid);
+          cfg.setWifiPassword(data->wifiPassword);
+
+          if (cfg.save()) {
+            XLOG_INFO(CAT_MAIN, "Config saved successfully! Restarting...");
+            ESP.restart();
+
+          } else {
+            XLOG_ERROR(CAT_MAIN, "Failed to save config!");
+            return;
+          }
+        }
+
+        if (apMode) {
+          wifi_stop_ap();
+          XLOG_INFO(CAT_WIFI, "AP mode disabled");
+        }
+
+        g_normalMode = true;
+        initNormalMode();
+
+        XLOG_INFO(CAT_MAIN,
+                  "System running in NORMAL mode with new configuration");
       }
-
-      if (apMode) {
-        wifi_stop_ap();
-        LOG_INFO(CAT_WIFI, "AP mode disabled");
-      }
-
-      g_normalMode = true;
-      initNormalMode();
-
-      LOG_INFO(CAT_MAIN,"System running in NORMAL mode with new configuration");
+    } else {
+      processNormalMode();
     }
-  } else {
-    processNormalMode();
-  }
 
-  led_update();
-}
+    led_update();
+  }

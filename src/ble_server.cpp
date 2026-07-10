@@ -127,14 +127,14 @@ static bool g_credentialsReceived = false;
 // ============================================================================
 
 static void SysProvEvent(arduino_event_t* sys_event) {
-  const char* eventName =
-      getProvEventName((arduino_event_id_t)sys_event->event_id);
-  LOG_DEBUG(CAT_PROVISIONING, "BLE event: %s", eventName);
+  const char* eventName = getProvEventName((arduino_event_id_t)sys_event->event_id);
+  // XLOG_DEBUG(CAT_BLE, "BLE event: %s", eventName);
+  // Serial.print("BLE event: ");
+  // Serial.println(getProvEventName((arduino_event_id_t)sys_event->event_id));
 
   switch (sys_event->event_id) {
     case ARDUINO_EVENT_PROV_CRED_RECV: {
-      LOG_DEBUG(CAT_PROVISIONING, "WiFi credentials received");
-
+      
       if (sys_event->event_info.prov_cred_recv.ssid) {
         memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
         strncpy(g_receivedConfig.wifiSsid,
@@ -144,14 +144,20 @@ static void SysProvEvent(arduino_event_t* sys_event) {
                 (char*)sys_event->event_info.prov_cred_recv.password,
                 sizeof(g_receivedConfig.wifiPassword) - 1);
         g_credentialsReceived = true;
-        LOG_INFO(CAT_PROVISIONING, "SSID: %s", g_receivedConfig.wifiSsid);
+        XLOG_DEBUG(CAT_BLE, "WiFi credentials received (SSID: %s)",
+                  g_receivedConfig.wifiSsid);
+        // Serial.print("SSID: ");
+        // Serial.println(g_receivedConfig.wifiSsid);
+        // Serial.print("Password: ");
+        // Serial.println("***");
       }
       break;
     }
 
     case ARDUINO_EVENT_PROV_CRED_FAIL: {
-      LOG_WARN(CAT_PROVISIONING, "Credentials failed");
-
+      XLOG_WARN(CAT_BLE, "Credentials failed");
+      // Serial.print("BLE event: ");
+      // Serial.println(getProvEventName((arduino_event_id_t)sys_event->event_id));
       if (g_configCallback) {
         g_configCallback(nullptr, g_context);
       }
@@ -159,7 +165,9 @@ static void SysProvEvent(arduino_event_t* sys_event) {
     }
 
     case ARDUINO_EVENT_PROV_CRED_SUCCESS: {
-      LOG_INFO(CAT_PROVISIONING, "Provisioning successful");
+      XLOG_DEBUG(CAT_BLE, "Provisioning successful");
+      // Serial.print("BLE event: ");
+      // Serial.println(getProvEventName((arduino_event_id_t)sys_event->event_id));
 
       if (g_credentialsReceived && g_configCallback) {
         g_configCallback(&g_receivedConfig, g_context);
@@ -169,15 +177,17 @@ static void SysProvEvent(arduino_event_t* sys_event) {
     }
 
     case ARDUINO_EVENT_PROV_END: {
-      LOG_DEBUG(CAT_PROVISIONING, "Provisioning ended");
+      XLOG_DEBUG(CAT_BLE, "Provisioning ended");
+      // Serial.print("BLE event: ");
+      // Serial.println(getProvEventName((arduino_event_id_t)sys_event->event_id));
       break;
     }
 
     case ARDUINO_EVENT_WIFI_SCAN_DONE: {
       uint16_t number = sys_event->event_info.wifi_scan_done.number;
       uint8_t status = sys_event->event_info.wifi_scan_done.status;
-      LOG_DEBUG(CAT_PROVISIONING, "WiFi scan: %d networks (status=%d)", number,
-                status);
+      // XLOG_DEBUG(CAT_BLE, "WiFi scan: %d networks (status=%d)", number,status);
+      // Serial.printf("WiFi scan: %d networks (status=%d)\n", number, status);
       break;
     }
 
@@ -216,49 +226,59 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
   g_credentialsReceived = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 
-  LOG_INFO(CAT_PROVISIONING, "Starting BLE Provisioning server");
-  LOG_DEBUG(CAT_PROVISIONING, "Device name: %s", _deviceName);
-  LOG_DEBUG(CAT_PROVISIONING, "PIN: %s", BLE_PROVISIONING_PIN);
-  LOG_INFO(CAT_PROVISIONING, "Use ESP BLE Prov app");
+  // XLOG_DEBUG(CAT_BLE, "Starting BLE Provisioning server");
+  // XLOG_DEBUG(CAT_BLE, "Device name: %s", _deviceName);
+  // XLOG_DEBUG(CAT_BLE, "PIN: %s", BLE_PROVISIONING_PIN);
+
+  // Serial.println("Starting BLE Provisioning server");
+  // Serial.printf("Device name: %s\n", _deviceName);
+  // Serial.printf("PIN: %s\n", BLE_PROVISIONING_PIN);
+  // Serial.println("Use ESP BLE Prov app");
 
   WiFi.onEvent(SysProvEvent);
 
-  WiFiProv.beginProvision(WIFI_PROV_SCHEME_BLE,
-                          WIFI_PROV_SCHEME_HANDLER_FREE_BLE,
-                          WIFI_PROV_SECURITY_1, BLE_PROVISIONING_PIN,
-                          _deviceName, NULL, (uint8_t*)PROV_UUID, true);
+  WiFiProv.beginProvision(
+      WIFI_PROV_SCHEME_BLE,
+      // WIFI_PROV_SCHEME_HANDLER_FREE_BLE,
+      WIFI_PROV_SCHEME_HANDLER_FREE_BTDM,
+       WIFI_PROV_SECURITY_1,
+      BLE_PROVISIONING_PIN, _deviceName, NULL, (uint8_t*)PROV_UUID, true);
 
   _active = true;
 
-  LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning started, waiting for client");
+  XLOG_DEBUG(CAT_BLE,
+             "BLE provisioning started." ANSI_RESET
+             " (Use ESP BLE Prov app, find device " ANSI_BOLD "%s " ANSI_RESET
+             "and use PIN " ANSI_BOLD "%s" ANSI_RESET ").",
+             _deviceName, BLE_PROVISIONING_PIN);
   return true;
 }
 
 void BleProvisioningServer::stop() {
   if (!_active)
     return;
-
+  // Serial.println("Stopping BLE prov");
   _active = false;
   g_credentialsReceived = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 
   WiFi.removeEvent(SysProvEvent);
-  LOG_DEBUG(CAT_PROVISIONING, "BLE provisioning stopped");
+  XLOG_DEBUG(CAT_BLE, "BLE provisioning stopped");
 }
 
-bool BleProvisioningServer::isActive() const {
-  return _active;
-}
+// bool BleProvisioningServer::isActive() const {
+//   return _active;
+// }
 
-const char* BleProvisioningServer::getDeviceName() const {
-  return _deviceName;
-}
+// const char* BleProvisioningServer::getDeviceName() const {
+//   return _deviceName;
+// }
 
-void BleProvisioningServer::setDeviceName(const char* name) {
-  if (name && strlen(name) < sizeof(_deviceName)) {
-    strncpy(_deviceName, name, sizeof(_deviceName) - 1);
-    _deviceName[sizeof(_deviceName) - 1] = '\0';
-  }
-}
+// void BleProvisioningServer::setDeviceName(const char* name) {
+//   if (name && strlen(name) < sizeof(_deviceName)) {
+//     strncpy(_deviceName, name, sizeof(_deviceName) - 1);
+//     _deviceName[sizeof(_deviceName) - 1] = '\0';
+//   }
+// }
 
 #endif  // ESP32

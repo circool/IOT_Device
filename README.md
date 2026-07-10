@@ -288,15 +288,15 @@ board_build.flash_mode = dout     # Режим flash (для ESP8266)
 -DDEBUG_ENABLED=1
 
 # Детальное логирование компонентов (работает только при DEBUG_ENABLED=1)
--DLOG_SENSOR=1            # Логи датчика
--DLOG_CONFIG=1            # Логи конфигурации
--DLOG_FAN=1               # Логи вентилятора
--DLOG_MQTT=1              # Логи MQTT
--DLOG_WIFI=1              # Логи WiFi
--DLOG_WEB=1               # Логи веб-сервера
--DLOG_AP=1                # Логи режима точки доступа
--DLOG_OTA=1               # Логи OTA обновлений
--DLOG_LED=1               # Логи LED индикации
+-DXLOG_SENSOR=1            # Логи датчика
+-DXLOG_CONFIG=1            # Логи конфигурации
+-DXLOG_FAN=1               # Логи вентилятора
+-DXLOG_MQTT=1              # Логи MQTT
+-DXLOG_WIFI=1              # Логи WiFi
+-DXLOG_WEB=1               # Логи веб-сервера
+-DXLOG_AP=1                # Логи режима точки доступа
+-DXLOG_OTA=1               # Логи OTA обновлений
+-DXLOG_LED=1               # Логи LED индикации
 ```
 
 **Пример включения полной отладки:**
@@ -304,9 +304,9 @@ board_build.flash_mode = dout     # Режим flash (для ESP8266)
 build_flags =
     ${common.build_flags}
     -DDEBUG_ENABLED=1
-    -DLOG_SENSOR=1
-    -DLOG_MQTT=1
-    -DLOG_WIFI=1
+    -DXLOG_SENSOR=1
+    -DXLOG_MQTT=1
+    -DXLOG_WIFI=1
 ```
 
 #### Настройка MQTT функционала
@@ -398,7 +398,7 @@ build_flags =
 -DWIFI_OUTPUT_POWER=15.0          # Мощность передатчика (0-20.5 dBm)
 
 # Включить сканирование сетей при старте (только для отладки)
-; -DSCANING_WIFI_ENABLED=1
+; -DSCANNING_WIFI_ENABLED=1
 ```
 
 #### Примеры готовых конфигураций
@@ -421,9 +421,9 @@ build_flags =
 build_flags =
     ${common.build_flags}
     -DDEBUG_ENABLED=1
-    -DLOG_SENSOR=1
-    -DLOG_MQTT=1
-    -DLOG_WIFI=1
+    -DXLOG_SENSOR=1
+    -DXLOG_MQTT=1
+    -DXLOG_WIFI=1
     -DMQTT_PUBLISH_RSSI=1
     -DWEB_SHOW_RSSI=1
 ```
@@ -616,10 +616,10 @@ lib_deps =
 // В platformio.ini
 build_flags = 
     -DDEBUG_ENABLED=1           // Включить отладку
-    -DLOG_SENSOR=1              // Логи датчика
-    -DLOG_MQTT=1                // Логи MQTT
-    -DLOG_WIFI=1                // Логи WiFi
-    -DLOG_WEB=1                 // Логи Web
+    -DXLOG_SENSOR=1              // Логи датчика
+    -DXLOG_MQTT=1                // Логи MQTT
+    -DXLOG_WIFI=1                // Логи WiFi
+    -DXLOG_WEB=1                 // Логи Web
 ```
 
 ## TODO
