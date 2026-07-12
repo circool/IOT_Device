@@ -10,7 +10,7 @@
 #include <esp_task_wdt.h>
 #endif
 
-#if WDT_ENABLED == 1
+#if FEATURE_WDT_ENABLED == 1
 static bool wdt_initialized = false;
 static bool wdt_stopped = false;
 
@@ -18,7 +18,7 @@ void wdt_init() {
   if (wdt_initialized)
     return;
 
-#if WDT_ENABLED == 0
+#if FEATURE_WDT_ENABLED == 0
   return;
 #endif
 
@@ -55,7 +55,7 @@ void wdt_init() {
 }
 
 void wdt_feed() {
-#if WDT_ENABLED == 0
+#if FEATURE_WDT_ENABLED == 0
   return;
 #endif
 
@@ -75,7 +75,7 @@ void wdt_feed() {
 }
 
 void wdt_stop() {
-#if WDT_ENABLED == 0
+#if FEATURE_WDT_ENABLED == 0
   return;
 #endif
 
@@ -95,7 +95,7 @@ void wdt_stop() {
 }
 
 void wdt_start() {
-#if WDT_ENABLED == 0
+#if FEATURE_WDT_ENABLED == 0
   return;
 #endif
 

@@ -7,17 +7,17 @@
 // WATCHDOG (WDT)
 // ============================================================================
 
-/** @brief Включить аппаратный сторожевой таймер */
-#ifndef WDT_ENABLED
-#define WDT_ENABLED 1
-
+/** @brief Включить аппаратный сторожевой таймер по умолчанию*/
+#ifndef FEATURE_WDT_ENABLED
+#define FEATURE_WDT_ENABLED 1
 #endif
 
 #ifndef WDT_TIMER_MS
 #define WDT_TIMER_MS 5000
 #endif
 
-#if WDT_ENABLED == 1
+#if FEATURE_WDT_ENABLED == 1
+
 /** @brief Таймаут WDT в миллисекундах */
 #ifndef WDT_TIMER_MS
 #define WDT_TIMER_MS 5000
@@ -28,6 +28,11 @@
 #ifndef LOOP_WATCHDOG_MULTIPLIER
 #define LOOP_WATCHDOG_MULTIPLIER 3
 #endif
+
+void wdt_init();
+void wdt_feed();
+void wdt_start();
+void wdt_stop();
 
 #else
 
@@ -42,13 +47,13 @@
 // WATCHDOG FUNCTIONS
 // ============================================================================
 
-#if WDT_ENABLED == 1
+#if FEATURE_WDT_ENABLED == 1
 
-/**
- * @brief Инициализация сторожевого таймера (Watchdog Timer)
- * @note Вызывается один раз в setup()
- */
-void wdt_init();
+    /**
+     * @brief Инициализация сторожевого таймера (Watchdog Timer)
+     * @note Вызывается один раз в setup()
+     */
+    void wdt_init();
 
 /**
  * @brief Сброс сторожевого таймера (кормление WDT)
@@ -68,7 +73,7 @@ void wdt_stop();
  */
 void wdt_start();
 
-#else  // WDT_ENABLED == 0
+#else  // FEATURE_WDT_ENABLED == 0
 
 /**
  * @brief Заглушка: инициализация WDT (отключена)
@@ -90,6 +95,6 @@ inline void wdt_stop() {}
  */
 inline void wdt_start() {}
 
-#endif  // WDT_ENABLED == 1
+#endif  // FEATURE_WDT_ENABLED == 1
 
 #endif  // WDT_H
