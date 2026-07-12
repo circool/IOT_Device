@@ -2,15 +2,7 @@
 #include <Arduino.h>
 #include "logger.h"
 
-#if STATUS_LED_PIN > 0
-
-#ifndef LED_INVERTED
-#ifdef ESP32
-#define LED_INVERTED 0
-#else
-#define LED_INVERTED 1
-#endif
-#endif
+#if FEATURE_LED_ENABLED == 1
 
 static LedMode currentMode = LED_MODE_OFF;
 

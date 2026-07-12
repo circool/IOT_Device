@@ -1,12 +1,21 @@
 #ifndef LED_H
 #define LED_H
 
-#include "config_manager.h"
+// #include "config_manager.h"
 #include "settings.h"
 
 /** @brief Пин светодиода индикации (0 = отключён) */
 #ifndef STATUS_LED_PIN
 #define STATUS_LED_PIN 0
+#endif
+
+/** @brief Определение настроек инверсии по платформе  */
+#ifndef LED_INVERTED
+#ifdef ESP32
+#define LED_INVERTED 0
+#else
+#define LED_INVERTED 1
+#endif
 #endif
 
 enum LedMode {
@@ -18,7 +27,7 @@ enum LedMode {
   LED_SLOW_BLINK,    // ███_█_█_ (аварийное отключение)
 };
 
-#if STATUS_LED_PIN > 0
+#if FEATURE_LED_ENABLED == 1
 void led_init();
 void led_update();
 void led_setMode(LedMode mode);
