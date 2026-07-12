@@ -2,6 +2,8 @@
 #define LOGGER_H
 
 #include <Arduino.h>
+#include "settings.h"
+
 
 #ifndef MONITOR_SPEED
 #define MONITOR_SPEED 115200
