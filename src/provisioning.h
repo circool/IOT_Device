@@ -12,19 +12,62 @@
 
 #include <Arduino.h>
 
-// ============================================================================
-// ПЕРЕЧИСЛЕНИЯ
-// ============================================================================
+#ifndef USE_BLE_PROVISIONING
+#endif
 
 /**
- * @brief Метод завершения провизионинга
+ * @brief Режим провизионинга
+ * @values
+ *   - 0: Нет (отключён) — для ZigBee или заводской прошивки
+ *   - 1: Только BLE
+ *   - 2: Только AP (WiFi точка доступа + веб-интерфейс)
+ *   - 3: BLE + AP (комбинированный)
+ * @details
+ *   - ESP8266 (без BLE) → автоматически 2 (AP)
+ *   - Остальные платформы → автоматически 3 (BLE+AP)
+ *   - При TRANSPORT_TYPE=1 (ZigBee) принудительно устанавливается в 0
+ * @note Производные флаги USE_BLE_PROVISIONING и USE_AP_PROVISIONING
+ *       вычисляются в provisioning.h на основе этого значения
  */
-enum class ProvisioningMethod : uint8_t {
-  NONE = 0,  /**< Провизионинг не выполнялся (конфиг уже был) */
-  BLE = 1,   /**< Настройка выполнена через BLE */
-  AP = 2,    /**< Настройка выполнена через AP (веб-интерфейс) */
-  FAILED = 3 /**< Провизионинг завершился с критической ошибкой */
-};
+#ifndef PROVISIONING_METHOD
+#if PLATFORM_ESP8266
+#define PROVISIONING_METHOD 2
+#else
+#define PROVISIONING_METHOD 3
+#endif
+#endif
+
+#if PROVISIONING_METHOD == 0 
+#define USE_BLE_PROVISIONING 0
+#define USE_AP_PROVISIONING 0
+
+#elif PROVISIONING_METHOD == 1
+#define USE_BLE_PROVISIONING 1
+#define USE_AP_PROVISIONING 0
+
+#elif PROVISIONING_METHOD == 2
+#define USE_BLE_PROVISIONING 0
+#define USE_AP_PROVISIONING 1
+
+#elif PROVISIONING_METHOD == 3
+#define USE_BLE_PROVISIONING 1
+#define USE_AP_PROVISIONING 1
+
+#endif
+
+      // ============================================================================
+      // ПЕРЕЧИСЛЕНИЯ
+      // ============================================================================
+
+      /**
+       * @brief Метод завершения провизионинга
+       */
+      enum class ProvisioningMethod : uint8_t {
+        NONE = 0,  /**< Провизионинг не выполнялся (конфиг уже был) */
+        BLE = 1,   /**< Настройка выполнена через BLE */
+        AP = 2,    /**< Настройка выполнена через AP (веб-интерфейс) */
+        FAILED = 3 /**< Провизионинг завершился с критической ошибкой */
+      };
 
 /**
  * @brief Состояние процесса провизионинга
