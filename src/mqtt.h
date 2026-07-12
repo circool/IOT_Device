@@ -19,11 +19,11 @@
 // НАСТРОЙКИ
 // ============================================================================
 
-#ifndef MQTT_ENABLED
-#define MQTT_ENABLED 1
+#ifndef FEATURE_MQTT_ENABLED
+#define FEATURE_MQTT_ENABLED 1
 #endif
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
 
 /** @brief По умолчанию публиковать причину перезагрузки */
 #ifndef MQTT_PUBLISH_RESET_REASON
@@ -45,8 +45,25 @@
 #define MQTT_PUBLISH_VERSION 1
 #endif
 
+/** @brief MQTT порт по умолчанию */
+#ifndef MQTT_PORT
+#define MQTT_PORT 1883
+#endif
 
+/** @brief MQTT брокер по умолчанию (заводской) */
+#ifndef MQTT_ADDRESS
+#define MQTT_ADDRESS ""
+#endif
 
+/** @brief MQTT пользователь по умолчанию (заводской) */
+#ifndef MQTT_USER
+#define MQTT_USER ""
+#endif
+
+/** @brief MQTT пароль по умолчанию (заводской) */
+#ifndef MQTT_PASSWORD
+#define MQTT_PASSWORD ""
+#endif
 
 /** @brief Задержка между попытками переподключения */
 #ifndef MQTT_RECONNECT_DELAY_MS
@@ -309,6 +326,6 @@ class MQTTManager {
 
 extern MQTTManager mqttManager;
 
-#endif  // MQTT_ENABLED == 1
+#endif  // FEATURE_MQTT_ENABLED == 1
 
 #endif  // MQTT_H

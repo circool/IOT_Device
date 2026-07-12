@@ -7,7 +7,7 @@
 #include "config_manager.h"
 #include "logger.h"
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
 
 // ============================================================================
 // КОНСТРУКТОР / ДЕСТРУКТОР
@@ -552,4 +552,4 @@ void MQTTManager::publishResetReason(const char* reason) {
 
 MQTTManager mqttManager;
 
-#endif  // MQTT_ENABLED == 1
+#endif  // FEATURE_MQTT_ENABLED == 1
