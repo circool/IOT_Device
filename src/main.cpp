@@ -20,11 +20,7 @@
 #include <ESP8266WiFi.h>
 #endif
 
-
-
 static WiFiClient g_mqttClient;
-
-
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 #include "sensor.h"
@@ -38,15 +34,12 @@ static WiFiClient g_mqttClient;
 #include "switch_actuator.h"
 #endif
 
-
-
 #if FEATURE_MQTT_ENABLED == 1
 #include "mqtt.h"
 #endif
 
 #if FEATURE_ZIGBEE_ENABLED == 1
 #include "zigbee.h"
-
 #endif
 
 // ============================================================================
@@ -63,6 +56,11 @@ void initNormalMode();
 void processNormalMode();
 void checkResetButton();
 void processWebCommands();
+int calculateAdaptiveSpeed(float temp,
+                           float hum,
+                           float baseTemp,
+                           float baseHum,
+                           float humRate);
 
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ОБЪЕКТЫ
@@ -94,8 +92,6 @@ static SwitchWebStatusProvider statusProvider(&switchActuator, nullptr);
 // ФУНКЦИИ-ОБРАБОТЧИКИ КОЛБЭКОВ
 // ============================================================================
 
-
-
 #if FEATURE_MQTT_ENABLED == 1
 
 #if DEVICE_TYPE == 1
@@ -103,11 +99,21 @@ static SwitchWebStatusProvider statusProvider(&switchActuator, nullptr);
 static void onMqttState(bool state, void* context) {
   FanActuator* fan = (FanActuator*)context;
   fan->set(state, true);
+
+  // Обновляем конфиг при ручной команде
+  if (state) {
+    // Если включили вручную — отключаем сенсорный режим
+    g_configManager.setSensorControlMode(false);
+    g_configManager.setAdaptiveMode(false);
+    fan->setAdaptiveMode(false);
+  }
 }
 
 static void onMqttSpeed(int speed, void* context) {
   FanActuator* fan = (FanActuator*)context;
 
+  // Если адаптивный режим был включён — отключаем его при ручной установке
+  // скорости
   if (g_configManager.getAdaptiveMode()) {
     g_configManager.setAdaptiveMode(false);
     fan->setAdaptiveMode(false);
@@ -134,7 +140,15 @@ static void onMqttSensorControlMode(bool enabled, void* context) {
 
   g_configManager.setSensorControlMode(enabled);
   if (!enabled) {
+    g_configManager.setAdaptiveMode(false);
     fan->setAdaptiveMode(false);
+  } else {
+    // При включении сенсорного режима, если вентилятор выключен, включаем его
+    // Это позволяет датчику управлять вентилятором с момента включения режима
+    if (!fan->getState()) {
+      // Не включаем принудительно, датчик сам решит при следующем обновлении
+      XLOG_INFO(CAT_MQTT, "Sensor mode enabled, waiting for sensor data");
+    }
   }
 }
 
@@ -168,10 +182,28 @@ static void onMqttHighHum(float value, void* /*context*/) {
 
 static void onMqttDelaySec(int seconds, void* /*context*/) {
   g_configManager.setDelaySeconds(seconds);
+  // Обновляем актуатор
+#if DEVICE_TYPE == 1
+  fan.updateConfig(g_configManager.getAdaptiveMode(),
+                   g_configManager.getDelaySeconds(),
+                   g_configManager.getMaxOnTime());
+#elif DEVICE_TYPE == 3
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
+#endif
 }
 
 static void onMqttMaxOnTime(uint32_t seconds, void* /*context*/) {
   g_configManager.setMaxOnTime(seconds);
+  // Обновляем актуатор
+#if DEVICE_TYPE == 1
+  fan.updateConfig(g_configManager.getAdaptiveMode(),
+                   g_configManager.getDelaySeconds(),
+                   g_configManager.getMaxOnTime());
+#elif DEVICE_TYPE == 3
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
+#endif
 }
 
 #elif DEVICE_TYPE == 3
@@ -183,10 +215,14 @@ static void onMqttState(bool state, void* context) {
 
 static void onMqttDelaySec(int seconds, void* /*context*/) {
   g_configManager.setDelaySeconds(seconds);
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
 }
 
 static void onMqttMaxOnTime(uint32_t seconds, void* /*context*/) {
   g_configManager.setMaxOnTime(seconds);
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
 }
 
 #endif  // DEVICE_TYPE
@@ -372,7 +408,6 @@ static void publishMqttStatus() {
 
 void processWebCommands() {
 #if FEATURE_WEB_ENABLED == 1
-  // ==== 1. НОВЫЕ НАСТРОЙКИ ====
   if (g_webConfigPending) {
     XLOG_INFO(CAT_MAIN, "Applying new config from Web...");
 
@@ -479,21 +514,16 @@ void processWebCommands() {
       return;
     }
 
-    // Сохраняем в EEPROM
     if (cfg.save()) {
       XLOG_INFO(CAT_MAIN, "Config saved successfully!");
       g_webConfigPending = false;
-
-      // Перезагружаемся после применения
       g_webRestartPending = true;
-    
     } else {
       XLOG_ERROR(CAT_MAIN, "Failed to save config: %s", cfg.getLastError());
       g_webConfigPending = false;
     }
   }
 
-  // ==== 2. ПЕРЕЗАГРУЗКА ====
   if (g_webRestartPending) {
     XLOG_INFO(CAT_MAIN, "Restarting due to Web command...");
     g_webRestartPending = false;
@@ -502,6 +532,36 @@ void processWebCommands() {
   }
 #endif
 }
+
+#if DEVICE_TYPE == 1
+// ============================================================================
+// БИЗНЕС-ЛОГИКА: АДАПТИВНАЯ СКОРОСТЬ
+// ============================================================================
+
+int calculateAdaptiveSpeed(float temp,
+                           float hum,
+                           float baseTemp,
+                           float baseHum,
+                           float humRate) {
+  float deltaTemp = temp - baseTemp;
+  float deltaHum = hum - baseHum;
+
+  int step = ADAPTIVE_STEP_SIZE;
+
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 2 ||
+      deltaHum > ADAPTIVE_EPSILON_HUM * 2)
+    step *= 2;
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 3 ||
+      deltaHum > ADAPTIVE_EPSILON_HUM * 3)
+    step *= 3;
+
+  float mult = 1.0 + (humRate / ADAPTIVE_SPEED_SENSITIVITY);
+  mult = constrain(mult, 0.5, 3.0);
+  step = step * mult;
+
+  return constrain(step, 5, 60);
+}
+#endif
 
 // ============================================================================
 // NORMAL MODE ФУНКЦИИ
@@ -516,8 +576,8 @@ void initNormalMode() {
     wifi_stop_ap();
     XLOG_INFO(CAT_WIFI, "AP mode disabled");
   }
+
 #if FEATURE_ZIGBEE_ENABLED == 1
-  // Инициализация ZigBee
   XLOG_INFO(CAT_MAIN, "Initializing ZigBee...");
   zigbeeManager.begin(g_configManager.getDeviceId());
 #endif
@@ -536,13 +596,14 @@ void initNormalMode() {
 
 #if DEVICE_TYPE == 1
   fan.init(SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
-           g_configManager.getSpeedPercent());
-  fan.setAdaptiveMode(g_configManager.getAdaptiveMode());
+           g_configManager.getSpeedPercent(), g_configManager.getAdaptiveMode(),
+           g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
 #endif
 
 #if DEVICE_TYPE == 3
-  switchActuator.init(SWITCH_PIN, RELAY_ON_LEVEL,
-                      g_configManager.getBootState());
+  switchActuator.init(
+      SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
+      g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
 #endif
 
 #if FEATURE_MQTT_ENABLED == 1
@@ -563,6 +624,7 @@ void initNormalMode() {
   delay(100);
 #endif
 #endif
+
   wifi_begin();
 
 #if FEATURE_WEB_ENABLED == 1
@@ -590,7 +652,34 @@ void initNormalMode() {
 void processNormalMode() {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   bool sensorDataChanged = sensor_update();
+#endif
+
+  // ============================================================
+  // БИЗНЕС-ЛОГИКА: УПРАВЛЕНИЕ ВЕНТИЛЯТОРОМ (TYPE 1)
+  // ============================================================
 #if DEVICE_TYPE == 1
+
+  // --- Обновляем конфигурацию актуатора ---
+  fan.updateConfig(g_configManager.getAdaptiveMode(),
+                   g_configManager.getDelaySeconds(),
+                   g_configManager.getMaxOnTime());
+
+  // --- Проверка аварийной остановки ---
+  if (fan.isEmergencyStop()) {
+    XLOG_WARN(CAT_MAIN,
+              "Emergency stop detected - disabling sensor and adaptive modes");
+    g_configManager.setSensorControlMode(false);
+    g_configManager.setAdaptiveMode(false);
+    fan.setAdaptiveMode(false);
+#if FEATURE_MQTT_ENABLED == 1
+    // Публикуем обновлённое состояние в MQTT
+    mqttManager.publishSensorControlMode(false);
+    mqttManager.publishAdaptiveMode(false);
+#endif
+
+  }
+
+  // --- Сенсорный режим ---
   if (g_configManager.getSensorControlMode() && sensor_isOk() &&
       sensorDataChanged) {
     float temp = sensor_getTemperature();
@@ -608,17 +697,101 @@ void processNormalMode() {
       fan.set(false, false);
       XLOG_INFO(CAT_SENSOR, "Auto OFF: T=%.1f°C H=%.1f%%", temp, hum);
     }
+
+    // --- Адаптивный режим (работает ТОЛЬКО когда вентилятор включён) ---
+    if (fan.getAdaptiveMode() && fan.getState() &&
+        g_configManager.getSensorControlMode()) {
+      static float baseTemp = 0;
+      static float baseHum = 0;
+      static bool baseInitialized = false;
+      static unsigned long lastAdaptiveCheck = 0;
+
+      if (!baseInitialized) {
+        baseTemp = temp;
+        baseHum = hum;
+        baseInitialized = true;
+        lastAdaptiveCheck = millis();
+      }
+
+      if (millis() - lastAdaptiveCheck >=
+          g_configManager.getSensorInterval() * 1000UL) {
+        lastAdaptiveCheck = millis();
+
+        float humRate = sensor_getHumRate();
+        int newSpeed =
+            calculateAdaptiveSpeed(temp, hum, baseTemp, baseHum, humRate);
+        int currentSpeed = fan.getSpeed();
+
+        // Проверяем, нужно ли увеличивать скорость
+        float deltaTemp = temp - baseTemp;
+        float deltaHum = hum - baseHum;
+
+        if (deltaTemp > ADAPTIVE_EPSILON_TEMP ||
+            deltaHum > ADAPTIVE_EPSILON_HUM) {
+          int targetSpeed = currentSpeed + newSpeed;
+          if (targetSpeed > 100)
+            targetSpeed = 100;
+          if (targetSpeed != currentSpeed) {
+            fan.setSpeed(targetSpeed, false);
+            XLOG_DEBUG(CAT_SENSOR, "Adaptive speed: %d%% (T=%.1f°C H=%.1f%%)",
+                       targetSpeed, temp, hum);
+            // Обновляем базовые значения для следующего цикла
+            baseTemp = temp;
+            baseHum = hum;
+          }
+        } else {
+          // Если условия нормализовались, плавно снижаем скорость до базовой
+          int baseSpeed = g_configManager.getSpeedPercent();
+          if (currentSpeed > baseSpeed) {
+            int targetSpeed = currentSpeed - ADAPTIVE_STEP_SIZE;
+            if (targetSpeed < baseSpeed)
+              targetSpeed = baseSpeed;
+            fan.setSpeed(targetSpeed, false);
+            XLOG_DEBUG(CAT_SENSOR, "Adaptive speed down: %d%% -> %d%%",
+                       currentSpeed, targetSpeed);
+            baseTemp = temp;
+            baseHum = hum;
+          }
+        }
+      }
+    } else {
+      // Если адаптивный режим выключен или вентилятор выключен — сбрасываем
+      // базовые значения
+      static bool wasAdaptive = false;
+      if (wasAdaptive) {
+        wasAdaptive = false;
+      }
+      if (!fan.getAdaptiveMode() || !fan.getState()) {
+        // Сбрасываем базовые значения при следующем включении
+        static bool baseInitialized = false;
+        baseInitialized = false;
+      }
+    }
   }
-#endif
-#endif
 
-#if DEVICE_TYPE == 1
+  // --- Вызов update() актуатора (стартовый импульс, таймеры) ---
   fan.update();
+
+#elif DEVICE_TYPE == 3
+
+  // --- Обновляем конфигурацию актуатора ---
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
+
+  // --- Проверка аварийной остановки ---
+  if (switchActuator.isEmergencyStop()) {
+    XLOG_WARN(CAT_MAIN, "Emergency stop detected on switch");
+  }
+
+  // --- Вызов update() актуатора ---
+  switchActuator.update(g_configManager.getDelaySeconds(),
+                        g_configManager.getMaxOnTime());
+
 #endif
 
-#if DEVICE_TYPE == 3
-  switchActuator.update();
-#endif
+  // ============================================================
+  // ОБЩАЯ ЧАСТЬ (WiFi, MQTT, WEB, LED)
+  // ============================================================
 
   wifi_monitor();
 
@@ -635,7 +808,6 @@ void processNormalMode() {
 
 #if FEATURE_ZIGBEE_ENABLED == 1
   zigbeeManager.process();
-  // TODO: добавить публикацию статуса в ZigBee
 #endif
 
   web_update();
@@ -653,21 +825,17 @@ void processNormalMode() {
   }
 }
 
-
-
 // ============================================================================
 // SETUP
 // ============================================================================
 
 void setup() {
-
-// Задержка для отладки - чтобы успеть включить монитор после прошивки
 #if XLOG_LEVEL > 0
   delay(2000);
 #endif
 
-  Logger::getInstance().begin(
-      (LogLevel)XLOG_LEVEL, XLOG_CATEGORIES, XLOG_USE_COLOR);
+  Logger::getInstance().begin((LogLevel)XLOG_LEVEL, XLOG_CATEGORIES,
+                              XLOG_USE_COLOR);
   XLOG_INFO(CAT_MAIN, "SYSTEM START");
   XLOG_DEBUG(CAT_MAIN, "=== SYSTEM INFO ===");
   print_system_info();
@@ -676,6 +844,16 @@ void setup() {
   XLOG_DEBUG(CAT_MAIN, "BLE Prov: %s",
              USE_BLE_PROVISIONING ? "ENABLED" : "NONE");
   XLOG_DEBUG(CAT_MAIN, "AP Prov: %s", USE_AP_PROVISIONING ? "ENABLED" : "NONE");
+#if TRANSPORT_TYPE == 0
+  const char* transportType = "MQTT";
+#elif TRANSPORT_TYPE == 1
+  const char* transportType = "ZIGBEE";
+#elif TRANSPORT_TYPE == 2
+  const char* transportType = "MATTER";
+#else
+  const char* transportType = "UNKNOWN";
+#endif
+  XLOG_DEBUG(CAT_MAIN, "Transport: %s", transportType);
   led_init();
   led_setMode(LED_MODE_MORZE_E);
   resetBtn_init();
@@ -712,7 +890,6 @@ void setup() {
     led_setMode(LED_MODE_MORZE_S);
     startProvisioning();
 #else
-// Нет провизионинга (ZigBee или отключен)
 #if FEATURE_ZIGBEE_ENABLED == 1
     XLOG_INFO(CAT_MAIN, "Using ZigBee mode (no provisioning needed)");
     g_normalMode = true;
@@ -721,99 +898,91 @@ void setup() {
     led_setMode(LED_MODE_OFF);
     g_normalMode = false;
 #endif
-
 #endif
   }
 
   XLOG_DEBUG(CAT_MAIN, "Setup complete");
 }
 
-  // ============================================================================
-  // LOOP (ОРКЕСТРАТОР)
-  // ============================================================================
+// ============================================================================
+// LOOP (ОРКЕСТРАТОР)
+// ============================================================================
 
-  void loop() {
-    wdt_feed();
-    
+void loop() {
+  wdt_feed();
 
-    // ==== ОБРАБОТКА КОМАНД ОТ WEB ====
-    processWebCommands();
+  processWebCommands();
 
-    if (!g_normalMode) {
-      ProvisioningManager::getInstance().update();
+  if (!g_normalMode) {
+    ProvisioningManager::getInstance().update();
 
-      if (isProvisioningComplete()) {
-        auto& prov = ProvisioningManager::getInstance();
-        auto method = prov.getCompletedBy();
+    if (isProvisioningComplete()) {
+      auto& prov = ProvisioningManager::getInstance();
+      auto method = prov.getCompletedBy();
 
-        if (method == ProvisioningMethod::FAILED) {
-          XLOG_WARN(CAT_MAIN, "Provisioning FAILED! Rebooting ...");
-          wdt_stop();
+      if (method == ProvisioningMethod::FAILED) {
+        XLOG_WARN(CAT_MAIN, "Provisioning FAILED! Rebooting ...");
+        wdt_stop();
+        ESP.restart();
+        return;
+      }
+
+      XLOG_INFO(CAT_MAIN, "Provisioning completed via %s",
+                method == ProvisioningMethod::BLE ? "BLE" : "AP");
+
+      const auto* data = prov.getData();
+      if (data && strlen(data->wifiSsid) > 0) {
+        XLOG_INFO(CAT_MAIN, "Saving config: SSID='%s'", data->wifiSsid);
+
+        auto& cfg = ConfigManager::getInstance();
+        cfg.setWifiSsid(data->wifiSsid);
+        cfg.setWifiPassword(data->wifiPassword);
+
+        if (cfg.save()) {
+          XLOG_INFO(CAT_MAIN, "Config saved successfully! Restarting...");
           ESP.restart();
+        } else {
+          XLOG_ERROR(CAT_MAIN, "Failed to save config!");
           return;
         }
-
-        XLOG_INFO(CAT_MAIN, "Provisioning completed via %s",
-                  method == ProvisioningMethod::BLE ? "BLE" : "AP");
-
-        const auto* data = prov.getData();
-        if (data && strlen(data->wifiSsid) > 0) {
-          XLOG_INFO(CAT_MAIN, "Saving config: SSID='%s'", data->wifiSsid);
-
-          auto& cfg = ConfigManager::getInstance();
-          cfg.setWifiSsid(data->wifiSsid);
-          cfg.setWifiPassword(data->wifiPassword);
-
-          if (cfg.save()) {
-            XLOG_INFO(CAT_MAIN, "Config saved successfully! Restarting...");
-            ESP.restart();
-
-          } else {
-            XLOG_ERROR(CAT_MAIN, "Failed to save config!");
-            return;
-          }
-        }
-
-        if (apMode) {
-          wifi_stop_ap();
-          XLOG_INFO(CAT_WIFI, "AP mode disabled");
-        }
-
-        g_normalMode = true;
-        initNormalMode();
-
-        XLOG_INFO(CAT_MAIN,
-                  "System running in NORMAL mode with new configuration");
       }
-    } else {
-      processNormalMode();
-    }
 
-    led_update();
-    ResetButtonStage btnState = resetBtn_getState();
+      if (apMode) {
+        wifi_stop_ap();
+        XLOG_INFO(CAT_WIFI, "AP mode disabled");
+      }
 
-    switch (btnState) {
-      case PRESSED:
-        led_setMode(LED_MODE_MORZE_E);
-        break;
-      case STAGE_1S:
-        led_setMode(LED_MODE_MORZE_I);
-        break;
-      case STAGE_2S:
-        led_setMode(LED_MODE_MORZE_S);
-        break;
-      case STAGE_3S:
-        XLOG_INFO(CAT_MAIN, "!!! RESET TRIGGERED !!!");
-        wdt_stop();
-        if (g_configManager.reset()) {
-          // led_setMode(LED_MODE_OFF);
-          // led_update();
-          // delay(500);
-          ESP.restart();
-        }
-        break;
-      case RELEASED:
-        // Ничего не делаем — LED восстановится в processNormalMode()
-        break;
+      g_normalMode = true;
+      initNormalMode();
+
+      XLOG_INFO(CAT_MAIN,
+                "System running in NORMAL mode with new configuration");
     }
+  } else {
+    processNormalMode();
   }
+
+  led_update();
+  ResetButtonStage btnState = resetBtn_getState();
+
+  switch (btnState) {
+    case PRESSED:
+      led_setMode(LED_MODE_MORZE_E);
+      break;
+    case STAGE_1S:
+      led_setMode(LED_MODE_MORZE_I);
+      break;
+    case STAGE_2S:
+      led_setMode(LED_MODE_MORZE_S);
+      break;
+    case STAGE_3S:
+      XLOG_INFO(CAT_MAIN, "!!! RESET TRIGGERED !!!");
+      wdt_stop();
+      if (g_configManager.reset()) {
+        ESP.restart();
+      }
+      break;
+    case RELEASED:
+      break;
+  }
+}

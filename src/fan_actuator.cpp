@@ -6,6 +6,8 @@
 #endif
 
 #if DEVICE_TYPE == 1
+
+
 static int percentToPWMValue(int percent) {
   if (percent <= 0)
     return 0;
@@ -20,14 +22,10 @@ FanActuator::FanActuator()
       _currentSpeed(0),
       _adaptiveMode(false),
       _pwmActive(false),
-      _adaptiveActive(false),
-      _baseTemp(0),
-      _baseHum(0),
-      _lastAdaptiveCheck(0),
+      _delaySeconds(0),
+      _maxOnTime(0),
       _startingPulseActive(false),
-      _startingPulseStart(0),
-      _rampUpActive(false),
-      _lastRampUpTime(0) {
+      _startingPulseStart(0) {
   _base.onSetPhysicalCallback = FanActuator::onSetPhysicalCallback;
   _base.onForceStopCallback = FanActuator::onForceStopCallback;
   _base.onManualCommandCallback = FanActuator::onManualCommandCallback;
@@ -37,19 +35,20 @@ FanActuator::FanActuator()
 void FanActuator::init(uint8_t pin,
                        uint8_t relayOnLevel,
                        bool bootState,
-                       uint16_t defaultSpeed) {
+                       uint16_t defaultSpeed,
+                       bool adaptiveMode,
+                       int delaySeconds,
+                       uint32_t maxOnTime) {
   _pin = pin;
   _relayOnLevel = relayOnLevel;
   _currentSpeed = defaultSpeed;
-  _adaptiveMode = g_configManager.getAdaptiveMode();
+  _adaptiveMode = adaptiveMode;
+  _delaySeconds = delaySeconds;
+  _maxOnTime = maxOnTime;
   _pwmActive = false;
-  _adaptiveActive = false;
   _startingPulseActive = false;
 
 #ifdef ESP32
-  // Используем правильный API для всех ESP32
-  // ledcSetup - настройка канала ШИМ
-  // ledcAttachPin - привязка пина к каналу
   ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcAttachPin(_pin, 0);
 #elif defined(ESP8266)
@@ -57,7 +56,7 @@ void FanActuator::init(uint8_t pin,
   analogWriteRange(255);
 #endif
 
-  _base.init(pin, relayOnLevel, bootState);
+  _base.init(pin, relayOnLevel, bootState, delaySeconds, maxOnTime);
 }
 
 void FanActuator::set(bool on, bool manual) {
@@ -69,6 +68,7 @@ bool FanActuator::getState() const {
 }
 
 void FanActuator::update() {
+  // Стартовый импульс
   if (_startingPulseActive) {
     if (millis() - _startingPulseStart >= PWM_STARTING) {
       if (_currentSpeed <= 0) {
@@ -79,46 +79,27 @@ void FanActuator::update() {
       } else {
         applySpeed(_currentSpeed);
         _startingPulseActive = false;
-        if (_adaptiveMode && sensor_isOk() &&
-            g_configManager.getSensorControlMode()) {
-          _adaptiveActive = true;
-          _baseTemp = sensor_getTemperature();
-          _baseHum = sensor_getHumidity();
-          _lastAdaptiveCheck = millis();
-        }
         XLOG_DEBUG(CAT_FAN, "Start pulse done, speed=%d%%", _currentSpeed);
       }
     }
     return;
   }
 
-  _base.update();
-
-  if (_adaptiveMode && getState() && g_configManager.getSensorControlMode() &&
-      sensor_isOk()) {
-    adaptiveUpdate();
-  }
+  // Передаём текущие настройки в базовый класс
+  _base.update(_delaySeconds, _maxOnTime);
 }
 
 void FanActuator::setSpeed(int percent, bool manual) {
+  (void)manual;
+
   if (percent < 0)
     percent = 0;
   if (percent > 100)
     percent = 100;
 
-  if (manual) {
-    if (_adaptiveMode) {
-      g_configManager.setAdaptiveMode(false);
-      _adaptiveMode = false;
-      _adaptiveActive = false;
-    }
-    if (getState()) {
-      applySpeed(percent);
-    }
-  }
-
   _currentSpeed = percent;
-  if (!manual && getState() && !_startingPulseActive) {
+
+  if (getState() && !_startingPulseActive) {
     applySpeed(percent);
   }
 
@@ -131,18 +112,21 @@ int FanActuator::getSpeed() const {
 
 void FanActuator::setAdaptiveMode(bool enabled) {
   _adaptiveMode = enabled;
-  if (!enabled) {
-    _adaptiveActive = false;
-  } else if (getState() && sensor_isOk()) {
-    _adaptiveActive = true;
-    _baseTemp = sensor_getTemperature();
-    _baseHum = sensor_getHumidity();
-    _lastAdaptiveCheck = millis();
-  }
+  XLOG_DEBUG(CAT_FAN, "Adaptive mode: %s", enabled ? "ON" : "OFF");
 }
 
 bool FanActuator::getAdaptiveMode() const {
   return _adaptiveMode;
+}
+
+void FanActuator::updateConfig(bool adaptiveMode,
+                               int delaySeconds,
+                               uint32_t maxOnTime) {
+  _adaptiveMode = adaptiveMode;
+  _delaySeconds = delaySeconds;
+  _maxOnTime = maxOnTime;
+  // XLOG_DEBUG(CAT_FAN, "Config updated: adaptive=%s, delay=%d, maxOnTime=%lu",
+  //            adaptiveMode ? "ON" : "OFF", delaySeconds, maxOnTime);
 }
 
 // Статические колбэки
@@ -164,10 +148,8 @@ void FanActuator::onSetPhysicalCallback(void* context, bool on) {
     }
   } else {
     self->applySpeed(0);
-    self->_adaptiveActive = false;
     self->_startingPulseActive = false;
-    self->_currentSpeed = g_configManager.getSpeedPercent();
-    XLOG_INFO(CAT_FAN, "OFF - restored speed to %d%%", self->_currentSpeed);
+    XLOG_INFO(CAT_FAN, "OFF");
   }
 }
 
@@ -175,28 +157,16 @@ void FanActuator::onForceStopCallback(void* context) {
   FanActuator* self = (FanActuator*)context;
   if (!self)
     return;
-  g_configManager.setSensorControlMode(false);
-  g_configManager.setAdaptiveMode(false);
-  self->_adaptiveMode = false;
-  self->_adaptiveActive = false;
+  // Только логируем — оркестратор сам решит, что делать
+  XLOG_INFO(CAT_FAN, "Force stop triggered");
 }
 
 void FanActuator::onManualCommandCallback(void* context) {
   FanActuator* self = (FanActuator*)context;
   if (!self)
     return;
-
-  if (g_configManager.getDelaySeconds() != 0) {
-    g_configManager.setDelaySeconds(0);
-    XLOG_INFO(CAT_FAN, "Manual command - delaySeconds temporarily disabled");
-  }
-
-#if DEVICE_TYPE == 1
-  if (g_configManager.getSensorControlMode()) {
-    g_configManager.setSensorControlMode(false);
-    XLOG_INFO(CAT_FAN, "Manual command - switching to MANUAL mode");
-  }
-#endif
+  // Только логируем — оркестратор сам решит, что делать
+  XLOG_INFO(CAT_FAN, "Manual command received");
 }
 
 // Приватные методы PWM
@@ -246,59 +216,4 @@ void FanActuator::disablePWM() {
   _pwmActive = false;
 }
 
-void FanActuator::adaptiveUpdate() {
-  if (!sensor_isOk()) {
-    if (_adaptiveActive) {
-      _adaptiveActive = false;
-      if (getState() && !_startingPulseActive) {
-        setSpeed(100, false);
-      }
-    }
-    return;
-  }
-
-  if (!_adaptiveActive) {
-    _adaptiveActive = true;
-    _baseTemp = sensor_getTemperature();
-    _baseHum = sensor_getHumidity();
-    _lastAdaptiveCheck = millis();
-    return;
-  }
-
-  if (millis() - _lastAdaptiveCheck <
-      g_configManager.getSensorInterval() * 1000UL)
-    return;
-  _lastAdaptiveCheck = millis();
-
-  float deltaTemp = sensor_getTemperature() - _baseTemp;
-  float deltaHum = sensor_getHumidity() - _baseHum;
-  int step = calculateAdaptiveStep(deltaTemp, deltaHum, sensor_getHumRate());
-
-  if (deltaTemp > ADAPTIVE_EPSILON_TEMP || deltaHum > ADAPTIVE_EPSILON_HUM) {
-    int newSpeed = _currentSpeed + step;
-    if (newSpeed > 100)
-      newSpeed = 100;
-    if (newSpeed != _currentSpeed) {
-      setSpeed(newSpeed, false);
-      _baseTemp = sensor_getTemperature();
-      _baseHum = sensor_getHumidity();
-    }
-  }
-}
-
-int FanActuator::calculateAdaptiveStep(float deltaTemp,
-                                       float deltaHum,
-                                       float humRate) {
-  int step = ADAPTIVE_STEP_SIZE;
-  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 2 ||
-      deltaHum > ADAPTIVE_EPSILON_HUM * 2)
-    step *= 2;
-  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 3 ||
-      deltaHum > ADAPTIVE_EPSILON_HUM * 3)
-    step *= 3;
-  float mult = 1.0 + (humRate / ADAPTIVE_SPEED_SENSITIVITY);
-  mult = constrain(mult, 0.5, 3.0);
-  step = step * mult;
-  return constrain(step, 5, 60);
-}
 #endif

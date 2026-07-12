@@ -18,13 +18,21 @@ class SwitchActuator {
    * @param pin GPIO для управления реле
    * @param relayOnLevel Уровень включения (HIGH/LOW)
    * @param bootState Состояние при старте (true=вкл)
+   * @param delaySeconds Задержка отложенного включения (сек)
+   * @param maxOnTime Таймер аварийного отключения (сек)
    */
-  void init(uint8_t pin, uint8_t relayOnLevel, bool bootState);
+  void init(uint8_t pin,
+            uint8_t relayOnLevel,
+            bool bootState,
+            int delaySeconds,
+            uint32_t maxOnTime);
 
   /**
    * @brief Периодический вызов в loop()
+   * @param delaySeconds Текущая задержка отложенного включения (сек)
+   * @param maxOnTime Текущее время аварийного отключения (сек)
    */
-  void update();
+  void update(int delaySeconds, uint32_t maxOnTime);
 
   /**
    * @brief Установить состояние
@@ -38,12 +46,18 @@ class SwitchActuator {
    */
   bool getState() const;
 
+  /**
+   * @brief Обновить конфигурацию во время работы
+   * @param delaySeconds Новая задержка отложенного включения (сек)
+   * @param maxOnTime Новое время аварийного отключения (сек)
+   */
+  void updateConfig(int delaySeconds, uint32_t maxOnTime);
+
   // Прокси-методы для доступа к таймерам базового класса
   unsigned long getStartTime() const { return _base.getStartTime(); }
   bool isDelayActive() const { return _base.isDelayActive(); }
   unsigned long getDelayTimer() const { return _base.getDelayTimer(); }
   bool isEmergencyStop() const { return _base.isEmergencyStop(); }
-  // void clearEmergencyStop() { _base.clearEmergencyStop(); }
 
   // Статические колбэки
   static void onSetPhysicalCallback(void* context, bool on);
@@ -53,6 +67,8 @@ class SwitchActuator {
   ActuatorBase _base;  // Делегирование базовому классу
   uint8_t _pin;
   uint8_t _relayOnLevel;
+  int _delaySeconds;
+  uint32_t _maxOnTime;
 };
 
 #endif

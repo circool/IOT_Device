@@ -2,7 +2,7 @@
 #define ACTUATOR_BASE_H
 
 #include <Arduino.h>
-#include "config_manager.h"
+#include "settings.h"
 
 /** @brief Пин управления реле/вентилятором */
 #ifndef SWITCH_PIN
@@ -41,8 +41,14 @@ class ActuatorBase {
    * @param pin Номер GPIO для управления реле
    * @param relayOnLevel Уровень сигнала для включения (HIGH или LOW)
    * @param bootState true — включить при старте, false — выключить
+   * @param delaySeconds Начальная задержка отложенного включения (сек)
+   * @param maxOnTime Начальное время аварийного отключения (сек)
    */
-  void init(uint8_t pin, uint8_t relayOnLevel, bool bootState);
+  void init(uint8_t pin,
+            uint8_t relayOnLevel,
+            bool bootState,
+            int delaySeconds,
+            uint32_t maxOnTime);
 
   /**
    * @brief Установить состояние вентилятора
@@ -61,8 +67,10 @@ class ActuatorBase {
   /**
    * @brief Периодический вызов в loop()
    * Проверяет таймер отложенного включения и максимальное время работы
+   * @param delaySeconds Текущая задержка отложенного включения (сек)
+   * @param maxOnTime Текущее время аварийного отключения (сек)
    */
-  void update();
+  void update(int delaySeconds, uint32_t maxOnTime);
 
   /**
    * @brief Принудительно выключить при превышении maxOnTime
@@ -88,8 +96,19 @@ class ActuatorBase {
   // void clearEmergencyStop() { _emergencyStop = false; }
 
  protected:
-  void checkMaxOnTime();  // Проверка превышения максимального времени работы
-  bool delayTimer(bool start);  // Управление таймером отложенного включения
+  /**
+   * @brief Проверка превышения максимального времени работы
+   * @param maxOnTime Текущее время аварийного отключения (сек)
+   */
+  void checkMaxOnTime(uint32_t maxOnTime);
+
+  /**
+   * @brief Управление таймером отложенного включения
+   * @param start true — запустить, false — проверить
+   * @param delaySeconds Текущая задержка отложенного включения (сек)
+   * @return true — таймер сработал (только при start=false)
+   */
+  bool delayTimer(bool start, int delaySeconds);
 
   uint8_t _pin;               // Номер GPIO
   uint8_t _relayOnLevel;      // Уровень включения (HIGH/LOW)

@@ -2,6 +2,7 @@
 #include "logger.h"
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+
 ActuatorBase::ActuatorBase()
     : onSetPhysicalCallback(nullptr),
       onForceStopCallback(nullptr),
@@ -15,7 +16,14 @@ ActuatorBase::ActuatorBase()
       _delayTimer(0),
       _emergencyStop(false) {}
 
-void ActuatorBase::init(uint8_t pin, uint8_t relayOnLevel, bool bootState) {
+void ActuatorBase::init(uint8_t pin,
+                        uint8_t relayOnLevel,
+                        bool bootState,
+                        int delaySeconds,
+                        uint32_t maxOnTime) {
+  (void)delaySeconds;
+  (void)maxOnTime;
+
   _pin = pin;
   _relayOnLevel = relayOnLevel;
 
@@ -38,7 +46,7 @@ void ActuatorBase::init(uint8_t pin, uint8_t relayOnLevel, bool bootState) {
   }
 
   XLOG_INFO(CAT_ACTUATOR, "Init: pin=%d, state=%s, bootState=%s", _pin,
-           _state ? "ON" : "OFF", bootState ? "ON" : "OFF");
+            _state ? "ON" : "OFF", bootState ? "ON" : "OFF");
 }
 
 void ActuatorBase::set(bool on, bool manual) {
@@ -81,16 +89,16 @@ bool ActuatorBase::getState() const {
   return _state;
 }
 
-void ActuatorBase::update() {
-  checkMaxOnTime();
+void ActuatorBase::update(int delaySeconds, uint32_t maxOnTime) {
+  checkMaxOnTime(maxOnTime);
 
-  bool timerExpired = delayTimer(false);
+  bool timerExpired = delayTimer(false, delaySeconds);
   if (timerExpired && !_state) {
     set(true, true);
   }
 
-  if (!_state && !_delayActive && g_configManager.getDelaySeconds() > 0) {
-    delayTimer(true);
+  if (!_state && !_delayActive && delaySeconds > 0) {
+    delayTimer(true, delaySeconds);
   }
 }
 
@@ -102,26 +110,25 @@ void ActuatorBase::forceStop() {
     onForceStopCallback(callbackContext);
 }
 
-void ActuatorBase::checkMaxOnTime() {
+void ActuatorBase::checkMaxOnTime(uint32_t maxOnTime) {
   if (!_state)
     return;
-  if (g_configManager.getMaxOnTime() == 0)
+  if (maxOnTime == 0)
     return;
   if (_startTime == 0)
     return;
 
-  if ((millis() - _startTime) > g_configManager.getMaxOnTime() * 1000UL) {
+  if ((millis() - _startTime) > maxOnTime * 1000UL) {
     forceStop();
   }
 }
 
-bool ActuatorBase::delayTimer(bool start) {
+bool ActuatorBase::delayTimer(bool start, int delaySeconds) {
   if (start) {
-    uint16_t delaySec = g_configManager.getDelaySeconds();
-    if (delaySec > 0 && !_delayActive && !_state) {
+    if (delaySeconds > 0 && !_delayActive && !_state) {
       _delayActive = true;
-      _delayTimer = millis() + delaySec * 1000UL;
-      XLOG_INFO(CAT_ACTUATOR, "Delay start: %d sec", delaySec);
+      _delayTimer = millis() + delaySeconds * 1000UL;
+      XLOG_INFO(CAT_ACTUATOR, "Delay start: %d sec", delaySeconds);
     }
     return false;
   } else {
@@ -133,4 +140,5 @@ bool ActuatorBase::delayTimer(bool start) {
     return false;
   }
 }
+
 #endif
