@@ -1,11 +1,16 @@
 #include <Arduino.h>
+#include "settings.h"
+
 #include "config_manager.h"
 #include "debug_tools.h"
 #include "led.h"
 #include "logger.h"
 #include "ota.h"
-#include "settings.h"
+#include "provisioning.h"
+#include "reset_btn.h"
 #include "wdt_manager.h"
+#include "web.h"
+#include "web_status_provider.h"
 #include "wifi_manager.h"
 
 #ifdef ESP32
@@ -15,17 +20,11 @@
 #include <ESP8266WiFi.h>
 #endif
 
-// ============================================================================
-// PROVISIONING
-// ============================================================================
 
-#include "provisioning.h"
 
 static WiFiClient g_mqttClient;
 
-#if OTA_ENABLED == 1
-#include "ota.h"
-#endif
+
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 #include "sensor.h"
@@ -39,22 +38,21 @@ static WiFiClient g_mqttClient;
 #include "switch_actuator.h"
 #endif
 
-#include "web.h"
-#include "web_status_provider.h"
 
-#if MQTT_ENABLED == 1
+
+#if FEATURE_MQTT_ENABLED == 1
 #include "mqtt.h"
 #endif
 
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
 #include "zigbee.h"
 
 #endif
 
 // ============================================================================
-// ГЛОБАЛЬНЫЙ ФЛАГ РЕЖИМА
+// ГЛОБАЛЬНЫЕ
 // ============================================================================
-
+static unsigned long g_lastResetBtnCallback = 0;
 bool g_normalMode = false;
 
 // ============================================================================
@@ -76,15 +74,15 @@ FanActuator fan;
 SwitchActuator switchActuator;
 #endif
 
-#if WEB_ENABLED == 1
+#if FEATURE_WEB_ENABLED == 1
 #if DEVICE_TYPE == 1
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
 static FanWebStatusProvider statusProvider(&fan, nullptr, &mqttManager);
 #else
 static FanWebStatusProvider statusProvider(&fan, nullptr, nullptr);
 #endif
 #elif DEVICE_TYPE == 3
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
 static SwitchWebStatusProvider statusProvider(&switchActuator, &mqttManager);
 #else
 static SwitchWebStatusProvider statusProvider(&switchActuator, nullptr);
@@ -93,10 +91,12 @@ static SwitchWebStatusProvider statusProvider(&switchActuator, nullptr);
 #endif
 
 // ============================================================================
-// СТАТИЧЕСКИЕ ФУНКЦИИ-ОБРАБОТЧИКИ ДЛЯ MQTT КОЛБЭКОВ
+// ФУНКЦИИ-ОБРАБОТЧИКИ КОЛБЭКОВ
 // ============================================================================
 
-#if MQTT_ENABLED == 1
+
+
+#if FEATURE_MQTT_ENABLED == 1
 
 #if DEVICE_TYPE == 1
 
@@ -364,14 +364,14 @@ static void publishMqttStatus() {
   }
 }
 
-#endif  // MQTT_ENABLED == 1
+#endif  // FEATURE_MQTT_ENABLED == 1
 
 // ============================================================================
 // ОБРАБОТКА КОМАНД ОТ WEB
 // ============================================================================
 
 void processWebCommands() {
-#if WEB_ENABLED == 1
+#if FEATURE_WEB_ENABLED == 1
   // ==== 1. НОВЫЕ НАСТРОЙКИ ====
   if (g_webConfigPending) {
     XLOG_INFO(CAT_MAIN, "Applying new config from Web...");
@@ -394,7 +394,7 @@ void processWebCommands() {
       }
     }
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
     if (strlen(g_webPendingConfig.mqttBroker) > 0) {
       if (!cfg.setMqttBroker(g_webPendingConfig.mqttBroker)) {
         XLOG_ERROR(CAT_MAIN, "Invalid MQTT broker: %s", cfg.getLastError());
@@ -516,7 +516,7 @@ void initNormalMode() {
     wifi_stop_ap();
     XLOG_INFO(CAT_WIFI, "AP mode disabled");
   }
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   // Инициализация ZigBee
   XLOG_INFO(CAT_MAIN, "Initializing ZigBee...");
   zigbeeManager.begin(g_configManager.getDeviceId());
@@ -545,7 +545,7 @@ void initNormalMode() {
                       g_configManager.getBootState());
 #endif
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   mqttManager.begin(
       g_mqttClient, g_configManager.getMqttBroker(),
       g_configManager.getMqttPort(), g_configManager.getMqttClientId(),
@@ -565,14 +565,14 @@ void initNormalMode() {
 #endif
   wifi_begin();
 
-#if WEB_ENABLED == 1
+#if FEATURE_WEB_ENABLED == 1
 #if DEVICE_TYPE == 1
   web_registerStatusProvider(&statusProvider);
 #elif DEVICE_TYPE == 3
   web_registerStatusProvider(&statusProvider);
 #endif
 
-#if OTA_ENABLED == 1
+#if FEATURE_OTA_ENABLED == 1
   if (ota_is_available()) {
     ota_init(&server);
     XLOG_INFO(CAT_MAIN, "OTA initialized");
@@ -622,18 +622,18 @@ void processNormalMode() {
 
   wifi_monitor();
 
-#if OTA_ENABLED == 1
+#if FEATURE_OTA_ENABLED == 1
   ota_loop();
 #endif
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   if (wifi_is_connected()) {
     mqttManager.process();
     publishMqttStatus();
   }
 #endif
 
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   zigbeeManager.process();
   // TODO: добавить публикацию статуса в ZigBee
 #endif
@@ -644,7 +644,7 @@ void processNormalMode() {
     led_setMode(LED_MODE_MORZE_S);
   } else if (!wifi_is_connected()) {
     led_setMode(LED_MODE_MORZE_E);
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   } else if (!mqttManager.isConnected()) {
     led_setMode(LED_MODE_MORZE_I);
 #endif
@@ -653,53 +653,7 @@ void processNormalMode() {
   }
 }
 
-// ============================================================================
-// КНОПКА СБРОСА
-// ============================================================================
 
-void checkResetButton() {
-  pinMode(RESET_PIN, INPUT_PULLUP);
-  delay(50);
-  if (digitalRead(RESET_PIN) == LOW) {
-    XLOG_INFO(CAT_MAIN, "Reset button pressed...");
-
-    LedMode prevMode = led_getMode();
-    unsigned long pressStart = millis();
-    wdt_stop();
-    while (digitalRead(RESET_PIN) == LOW) {
-      unsigned long pressedMs = millis() - pressStart;
-
-      if (pressedMs < 1000) {
-        led_setMode(LED_MODE_MORZE_E);
-      } else if (pressedMs < 2000) {
-        led_setMode(LED_MODE_MORZE_I);
-      } else {
-        led_setMode(LED_MODE_MORZE_S);
-      }
-      led_update();
-
-      if (pressedMs >= 3000) {
-        XLOG_INFO(CAT_MAIN, "Auto-reset triggered!");
-        led_setMode(LED_MODE_OFF);
-        led_update();
-
-        if (g_configManager.reset()) {
-          XLOG_INFO(CAT_CONFIG, "Config cleared, restarting...");
-          ESP.restart();
-        }
-        return;
-      }
-
-      delay(10);
-      wdt_feed();
-    }
-
-    XLOG_INFO(CAT_MAIN, "Reset cancelled (released after %d ms)",
-             millis() - pressStart);
-    wdt_start();
-    led_setMode(prevMode);
-  }
-}
 
 // ============================================================================
 // SETUP
@@ -758,7 +712,7 @@ void setup() {
     startProvisioning();
 #else
 // Нет провизионинга (ZigBee или отключен)
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
     XLOG_INFO(CAT_MAIN, "Using ZigBee mode (no provisioning needed)");
     g_normalMode = true;
 #else
@@ -769,7 +723,8 @@ void setup() {
 
 #endif
   }
-    XLOG_DEBUG(CAT_MAIN, "Setup complete");
+
+  XLOG_DEBUG(CAT_MAIN, "Setup complete");
 }
 
   // ============================================================================
@@ -778,7 +733,7 @@ void setup() {
 
   void loop() {
     wdt_feed();
-    checkResetButton();
+    
 
     // ==== ОБРАБОТКА КОМАНД ОТ WEB ====
     processWebCommands();
@@ -834,4 +789,30 @@ void setup() {
     }
 
     led_update();
+    ResetButtonStage btnState = resetBtn_getState();
+
+    switch (btnState) {
+      case PRESSED:
+        led_setMode(LED_MODE_MORZE_E);
+        break;
+      case STAGE_1S:
+        led_setMode(LED_MODE_MORZE_I);
+        break;
+      case STAGE_2S:
+        led_setMode(LED_MODE_MORZE_S);
+        break;
+      case STAGE_3S:
+        XLOG_INFO(CAT_MAIN, "!!! RESET TRIGGERED !!!");
+        wdt_stop();
+        if (g_configManager.reset()) {
+          // led_setMode(LED_MODE_OFF);
+          // led_update();
+          // delay(500);
+          ESP.restart();
+        }
+        break;
+      case RELEASED:
+        // Ничего не делаем — LED восстановится в processNormalMode()
+        break;
+    }
   }
