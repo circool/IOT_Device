@@ -4,6 +4,23 @@
 #include <Arduino.h>
 #include "config_manager.h"
 
+/** @brief Пин управления реле/вентилятором */
+#ifndef SWITCH_PIN
+#ifdef ESP8266
+#define SWITCH_PIN 14
+#elif defined(ESP32)
+#define SWITCH_PIN 4
+#endif
+#endif
+
+/**
+ * @brief Уровень сигнала для включения реле
+ * @values HIGH или LOW
+ */
+#ifndef RELAY_ON_LEVEL
+#define RELAY_ON_LEVEL LOW
+#endif
+
 /**
  * @brief Базовый класс для управления исполнительным механизмом
  * (вентилятор/выключатель)
