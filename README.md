@@ -173,11 +173,11 @@ pio run -e esp32 -t upload
 #define RESET_PIN 0      // Кнопка сброса
 
 // Функционал
-#define WIFI_ENABLED 1
-#define MQTT_ENABLED 1
-#define WEB_ENABLED 1
-#define OTA_ENABLED 1
-#define WDT_ENABLED 1
+#define FEATURE_WIFI_ENABLED 1
+#define FEATURE_MQTT_ENABLED 1
+#define FEATURE_WEB_ENABLED 1
+#define FEATURE_OTA_ENABLED 1
+#define FEATURE_WDT_ENABLED 1
 
 // Тайминги
 #define WDT_TIMER_MS 5000           // Watchdog таймер
@@ -269,16 +269,16 @@ board_build.flash_mode = dout     # Режим flash (для ESP8266)
 
 ```ini
 # Основные модули (по умолчанию ВСЕ включены)
--DWIFI_ENABLED=1          # WiFi поддержка
--DMQTT_ENABLED=1          # MQTT клиент
--DWEB_ENABLED=1           # Веб-сервер
--DOTA_ENABLED=1           # OTA обновления
--DWDT_ENABLED=1           # Watchdog Timer
+-DFEATURE_WIFI_ENABLED=1          # WiFi поддержка
+-DFEATURE_MQTT_ENABLED=1          # MQTT клиент
+-DFEATURE_WEB_ENABLED=1           # Веб-сервер
+-DFEATURE_OTA_ENABLED=1           # OTA обновления
+-DFEATURE_WDT_ENABLED=1           # Watchdog Timer
 
 # Отключение ненужного функционала (экономия памяти)
-; -DMQTT_ENABLED=0        # Пример отключения MQTT
-; -DWIFI_ENABLED=0        # Полностью отключить WiFi
-; -DWDT_ENABLED=0         # Отключить Watchdog (только для отладки)
+; -DFEATURE_MQTT_ENABLED=0        # Пример отключения MQTT
+; -DFEATURE_WIFI_ENABLED=0        # Полностью отключить WiFi
+; -DFEATURE_WDT_ENABLED=0         # Отключить Watchdog (только для отладки)
 ```
 
 #### Настройка отладки (логирование)
@@ -312,7 +312,7 @@ build_flags =
 #### Настройка MQTT функционала
 
 ```ini
-# MQTT возможности (требуют MQTT_ENABLED=1)
+# MQTT возможности (требуют FEATURE_MQTT_ENABLED=1)
 -DMQTT_RESET_ENABLED=1            # Разрешить сброс через MQTT
 -DMQTT_PUBLISH_RSSI=1             # Публиковать RSSI WiFi
 -DMQTT_PUBLISH_RESET_REASON=1     # Публиковать причину перезагрузки
@@ -326,7 +326,7 @@ build_flags =
 #### Настройка веб-интерфейса
 
 ```ini
-# WEB возможности (требуют WEB_ENABLED=1)
+# WEB возможности (требуют FEATURE_WEB_ENABLED=1)
 -DWEB_STATUS_ENABLED=1            # Страница статуса
 -DWEB_SHOW_RSSI=1                 # Отображать RSSI на странице
 -DWEB_RESET_ENABLED=1             # Кнопка сброса в веб-интерфейсе
@@ -340,7 +340,7 @@ build_flags =
 #### Настройки Watchdog (WDT)
 
 ```ini
-# Параметры Watchdog (требуют WDT_ENABLED=1)
+# Параметры Watchdog (требуют FEATURE_WDT_ENABLED=1)
 -DWDT_TIMER_MS=5000               # Таймаут WDT (мс)
 -DLOOP_WATCHDOG_MULTIPLIER=3      # Множитель для основного цикла
 ```
@@ -356,7 +356,7 @@ build_flags =
 -DDHT_TYPE=DHT11                  # Тип DHT (DHT11, DHT22, DHT21)
 
 # Интервал опроса датчика (сек)
--DSENSOR_DURATION=10
+-DDEFAULT_SENSOR_DURATION=10
 ```
 
 #### Настройки ШИМ (для вентилятора)
@@ -387,13 +387,13 @@ build_flags =
 
 # Таймер отложенного включения
 -DDEFAULT_DELAY_SECONDS=60        # Задержка по умолчанию (сек)
--DBOOT_SWITCH_STATE=0             # Состояние при старте (0=выкл, 1=вкл)
+-DDEFAULT_BOOT_SWITCH_STATE=0             # Состояние при старте (0=выкл, 1=вкл)
 ```
 
 #### Настройки WiFi
 
 ```ini
-# Параметры WiFi (требуют WIFI_ENABLED=1)
+# Параметры WiFi (требуют FEATURE_WIFI_ENABLED=1)
 -DWIFI_CONNECT_TIMEOUT_MS=30000   # Таймаут подключения (мс)
 -DWIFI_OUTPUT_POWER=15.0          # Мощность передатчика (0-20.5 dBm)
 
@@ -410,7 +410,7 @@ build_flags =
     -DDEVICE_TYPE=2
     -DWIFI_ENABLED=0
     -DMQTT_ENABLED=0
-    -DWEB_ENABLED=0
+    -FEATURE_WEB_ENABLED=0
     -DSENSOR_TYPE=1
     -DSTATUS_LED_PIN=0
 ```
@@ -437,7 +437,7 @@ build_flags =
     -DSWITCH_PIN=14
     -DDEFAULT_DELAY_SECONDS=30
     -DMAX_ON_TIME_SEC=1800
-    -DBOOT_SWITCH_STATE=0
+    -DDEFAULT_BOOT_SWITCH_STATE=0
 ```
 
 **4. Тихий режим с адаптацией:**
@@ -457,7 +457,7 @@ build_flags =
 #### Важные замечания
 
 1. **Приоритет флагов:** Специфичные для платформы флаги переопределяют общие
-2. **Экономия памяти:** Отключайте ненужный функционал (`MQTT_ENABLED=0`, `WEB_ENABLED=0`) для ESP8266 (особенно важно при ограниченной flash)
+2. **Экономия памяти:** Отключайте ненужный функционал (`FEATURE_MQTT_ENABLED=0`, `WEB_ENABLED=0`) для ESP8266 (особенно важно при ограниченной flash)
 3. **Частота ШИМ:** Для твердотельных реле оптимальна 5-10 Гц. Более высокая частота может вызвать перегрев реле
 4. **ESP8266 нюансы:**
    - Требуется `-Wno-sign-compare` и `-Wno-uninitialized` для подавления предупреждений
@@ -476,7 +476,7 @@ build_flags =
 - Тип устройства (`DEVICE_TYPE`)
 - Назначение пинов (`SWITCH_PIN`, `STATUS_LED_PIN`)
 - Частота ШИМ (`PWM_FREQUENCY`)
-- Включение/отключение модулей (`MQTT_ENABLED`, `WEB_ENABLED`)
+- Включение/отключение модулей (`FEATURE_MQTT_ENABLED`, `WEB_ENABLED`)
 ```
 
 ### Файл credentials.h (опционально)
@@ -597,7 +597,7 @@ board = esp32dev
 build_flags = 
     -DDEVICE_TYPE=1
     -DMQTT_ENABLED=1
-    -DWEB_ENABLED=1
+    -FEATURE_WEB_ENABLED=1
 lib_deps = 
     knolleary/PubSubClient @ ^2.8
     adafruit/Adafruit AHTX0 @ ^2.0.5
@@ -608,7 +608,7 @@ lib_deps =
 ### Предупреждение относительно OTA
 
 **ESP8266 с 1MB flash (ESP-01, ESP-07) не поддерживают OTA!**
-Несмотря на то, что веб-интерфейс ElegantOTA показывает успешную загрузку, после перезагрузки устройство останется на старой прошивке. Для OTA требуется минимум **2MB flash**. Используйте модули с 4MB (NodeMCU, Wemos D1 mini, ESP-12F) или установите константу/флаг `OTA_ENABLED=0` / `-DOTA_ENABLED=0` для исключения OTA.
+Несмотря на то, что веб-интерфейс ElegantOTA показывает успешную загрузку, после перезагрузки устройство останется на старой прошивке. Для OTA требуется минимум **2MB flash**. Используйте модули с 4MB (NodeMCU, Wemos D1 mini, ESP-12F) или установите константу/флаг `FEATURE_OTA_ENABLED=0` / `-DFEATURE_OTA_ENABLED=0` для исключения OTA.
 
 ### Отладка
 
