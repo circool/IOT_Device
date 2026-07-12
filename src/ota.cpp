@@ -3,7 +3,7 @@
 #include "logger.h"
 #include "wifi_manager.h"
 
-#if OTA_ENABLED == 1
+#if FEATURE_OTA_ENABLED == 1
 
 // Системные заголовки
 #ifdef ESP32

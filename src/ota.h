@@ -4,11 +4,11 @@
 #include <Arduino.h>
 #include "web.h"
 
-#ifndef OTA_ENABLED
-#define OTA_ENABLED 1
+#ifndef FEATURE_OTA_ENABLED
+#define FEATURE_OTA_ENABLED 1
 #endif
 
-#if OTA_ENABLED == 1
+#if FEATURE_OTA_ENABLED == 1
 
 void ota_init(WebServerClass* server);
 bool ota_is_available();
