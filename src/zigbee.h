@@ -6,9 +6,9 @@
 
 /**
  * @brief Включить поддержку ZigBee
- * @note Определяется в settings.h на основе ZIGBEE_ENABLED
+ * @note Определяется в settings.h на основе FEATURE_ZIGBEE_ENABLED
  */
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
 
 #include <functional>
 
@@ -218,7 +218,7 @@ class ZigBeeManager {
 
 extern ZigBeeManager zigbeeManager;
 
-#else  // ZIGBEE_ENABLED == 0
+#else  // FEATURE_ZIGBEE_ENABLED == 0
 
 // ============================================================================
 // ЗАГЛУШКА ДЛЯ РЕЖИМА БЕЗ ZIGBEE
@@ -284,6 +284,6 @@ class ZigBeeManager {
 
 extern ZigBeeManager zigbeeManager;
 
-#endif  // ZIGBEE_ENABLED == 1
+#endif  // FEATURE_ZIGBEE_ENABLED == 1
 
 #endif  // ZIGBEE_H
