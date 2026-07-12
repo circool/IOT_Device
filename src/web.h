@@ -9,7 +9,7 @@
 // НАСТРОЙКИ WEB ИНТЕРФЕЙСА
 // ============================================================================
 
-#if WEB_ENABLED == 1
+#if FEATURE_WEB_ENABLED == 1
 /** @brief Показывать страницу состояния (иначе сразу /config) */
 #ifndef WEB_STATUS_ENABLED
 #define WEB_STATUS_ENABLED 1
@@ -39,7 +39,7 @@ typedef ESP8266WebServer WebServerClass;
 typedef WebServer WebServerClass;
 #endif
 
-#if WEB_ENABLED == 1
+#if FEATURE_WEB_ENABLED == 1
 
 /**
  * @brief Глобальный экземпляр веб-сервера
@@ -126,7 +126,7 @@ extern volatile bool g_webRestartPending;
  */
 extern ConfigData g_webPendingConfig;
 
-#else  // WEB_ENABLED == 0
+#else  // FEATURE_WEB_ENABLED == 0
 
 // Заглушки
 inline void web_registerStatusProvider(IWebStatusProvider* provider) {
@@ -144,9 +144,9 @@ inline void web_sendStatusPage(int) {}
 #endif
 
 inline void web_saveConfig() {}
-inline void web_init() {}
+inline void web_init(bool setupMode) {}
 inline void web_update() {}
 
-#endif  // WEB_ENABLED == 1
+#endif  // FEATURE_WEB_ENABLED == 1
 
 #endif  // WEB_H

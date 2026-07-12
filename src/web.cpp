@@ -10,7 +10,7 @@
 #include "web_templates.h"
 #include "wifi_manager.h"
 
-#if WEB_ENABLED == 1
+#if FEATURE_WEB_ENABLED == 1
 
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ФЛАГИ ДЛЯ КОММУНИКАЦИИ С MAIN (определение)
@@ -564,7 +564,7 @@ void web_saveConfig() {
   }
 
   // --- MQTT ---
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   if (server.hasArg("mqttBroker")) {
     String broker = server.arg("mqttBroker");
     if (broker.length() > 0 &&
@@ -866,4 +866,4 @@ void web_update() {
   server.handleClient();
 }
 
-#endif  // WEB_ENABLED == 1
+#endif  // FEATURE_WEB_ENABLED == 1
