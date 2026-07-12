@@ -13,8 +13,9 @@
 #include <Arduino.h>
 #include "config_manager.h"
 #include "ota.h"
+#include "sensor.h"
 
-#if WEB_ENABLED == 1
+#if FEATURE_WEB_ENABLED == 1
 
 // ============================================================================
 // HTML-ШАБЛОНЫ (хранятся в PROGMEM)
@@ -330,7 +331,7 @@ inline void sendConfigPage(WebSendCallback send,
          "password</div>"),
        context);
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   send(F("<h3>MQTT setup</h3>"), context);
   send(F("<div class='row'><div><label>MQTT Broker:</label>"), context);
   send(F("<input type='text' name='mqttBroker' required value='"), context);
@@ -518,7 +519,7 @@ inline void sendConfigPage(WebSendCallback send,
   send(F("<input type='submit' value='Save and reboot'>"), context);
   send(F("</form>"), context);
 
-#if OTA_ENABLED == 1
+#if FEATURE_OTA_ENABLED == 1
   send(ota_getButtonHtml(), context);
 #endif
 
@@ -529,6 +530,6 @@ inline void sendConfigPage(WebSendCallback send,
   send(FPSTR(HTML_PAGE_END), context);
 }
 
-#endif  // WEB_ENABLED
+#endif  // FEATURE_WEB_ENABLED
 
 #endif  // WEB_TEMPLATES_H
