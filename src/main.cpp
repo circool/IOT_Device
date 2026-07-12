@@ -677,7 +677,7 @@ void setup() {
   XLOG_INFO(CAT_MAIN, "AP Prov: %s", USE_AP_PROVISIONING ? "ENABLED" : "NONE");
   led_init();
   led_setMode(LED_MODE_MORZE_E);
-
+  resetBtn_init();
   wdt_init();
   g_configManager.begin();
 
