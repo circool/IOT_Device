@@ -423,7 +423,7 @@ XLOG_DEBUG(CAT_MODULE, "Отладочная информация: %.2f", data);
 
 ## Поддерживаемые платформы и режимы
 Платы с поддержкой ZigBee по умолчанию используют протокол ZigBee, но допускают и MQTT
-Для определения типа ZigBee/MQTT служит клюи `ZIGBEE_ENABLED`, причем ключ `ZIGBEE_ENABLED=1` переопределяет `PROVISIONING_METHOD=0`
+Для определения типа ZigBee/MQTT служит клюи `FEATURE_ZIGBEE_ENABLED`, причем ключ `FEATURE_ZIGBEE_ENABLED=1` переопределяет `PROVISIONING_METHOD=0`
 
 | Платформа         | BLE | AP | PROVISIONING_METHOD  |
 |-------------------|-----|----|--------------------- |
@@ -434,8 +434,8 @@ XLOG_DEBUG(CAT_MODULE, "Отладочная информация: %.2f", data);
 | ESP32-C3          | ✅  | ✅ | 1 / 2 / 3              |
 | ESP32-C6 MQTT     | ✅  | ✅ | 1 / 2 / 3              |
 | ESP32-H2 MQTT     | ✅  | ✅ | 1 / 2 / 3              |
-| ESP32-C6 ZigBee   | ❌  | ✅ | 0 или ZIGBEE_ENABLED=1 |
-| ESP32-H2 ZigBee   | ❌  | ✅ | 0 или ZIGBEE_ENABLED=1 |
+| ESP32-C6 ZigBee   | ❌  | ✅ | 0 или FEATURE_ZIGBEE_ENABLED=1 |
+| ESP32-H2 ZigBee   | ❌  | ✅ | 0 или FEATURE_ZIGBEE_ENABLED=1 |
 |-------------------|-----|----|---------------------   |
 
 ## AP-Provisioning
@@ -724,7 +724,193 @@ WEB-интерфейс предоставляет прямой доступ к �
 Конфигуратор констант и их валидатор. Устанавливает правильные зависимости между слоями и задает значения констант по умолчанию.
 Все константы описанные в этом слое предваряются директивами `#ifndef` и являются вторичными по отношению к установленным в `platformio.ini`
 
+#### Полная таблица ключей `settings.h`
+
+| Ключ | Тип | Дефолт | Описание | Зависимости |
+|------|-----|--------|----------|-------------|
+| **Версия и тип устройства** |||||
+| `VERSION` | string | `"1.0"` | Версия прошивки (формат X.Y.Z) | — |
+| `DEVICE_TYPE` | int | `1` | Тип устройства: 1=Fan, 2=Sensor, 3=Switch | — |
+| `DEVICE_PREFIX` | string | авто | Префикс для MQTT/AP (fan/sensor/switch) | `DEVICE_TYPE` |
+| **Транспорт** |||||
+| `TRANSPORT_TYPE` | int | авто | 0=MQTT, 1=ZigBee, 2=Matter | `FEATURE_WIFI_ENABLED` |
+| **Функциональные возможности** |||||
+| `FEATURE_LOGGER_ENABLED` | int | `1` | Включить логирование | — |
+| `FEATURE_LED_ENABLED` | int | `0` | Включить светодиодную индикацию | — |
+| `FEATURE_SENSOR_ENABLED` | int | `1` | Включить поддержку датчика | `DEVICE_TYPE` (1 или 2) |
+| `FEATURE_WIFI_ENABLED` | int | `1` | Включить WiFi | `TRANSPORT_TYPE` |
+| `FEATURE_WEB_ENABLED` | int | `1` | Включить веб-интерфейс | `FEATURE_WIFI_ENABLED` |
+| `FEATURE_OTA_ENABLED` | int | `1` | Включить OTA-обновления | `FEATURE_WEB_ENABLED` |
+| `FEATURE_WDT_ENABLED` | int | `1` | Включить Watchdog Timer | — |
+| `FEATURE_SCANNING_WIFI_ENABLED` | int | `0` | Сканировать WiFi при старте (отладка) | `FEATURE_WIFI_ENABLED`, `TRANSPORT_TYPE` (только MQTT) |
+| `FEATURE_RESET_BUTTON_ENABLED` | int | `1` | Включить сброс по кнопке | — |
+| **Provisioning** |||||
+| `PROVISIONING_METHOD` | int | авто | 0=Нет, 1=BLE, 2=AP, 3=BLE+AP | `TRANSPORT_TYPE` (≠ ZigBee) |
+
+#### Логика автоматического выбора дефолтов
+
+| Ключ | Условие | Дефолт |
+|------|---------|--------|
+| `DEVICE_PREFIX` | `DEVICE_TYPE == 1` | `"fan"` |
+| | `DEVICE_TYPE == 2` | `"sensor"` |
+| | `DEVICE_TYPE == 3` | `"switch"` |
+| `TRANSPORT_TYPE` | `CONFIG_IDF_TARGET_ESP32C6` или `CONFIG_IDF_TARGET_ESP32H2` | `1` (ZigBee) |
+| | Остальные платформы | `0` (MQTT) |
+| `PROVISIONING_METHOD` | `ESP8266` | `2` (AP) |
+| | Остальные платформы | `3` (BLE+AP) |
+| | `TRANSPORT_TYPE == 1` (ZigBee) | `0` (Нет) |
+
+---
+
+#### Проверки зависимостей (выполняются на этапе препроцессора)
+
+| Проверка | Условие | Действие |
+|----------|---------|----------|
+| **OTA требует WEB** | `FEATURE_OTA_ENABLED == 1 && FEATURE_WEB_ENABLED == 0` | `#error` |
+| **WEB требует WiFi** | `FEATURE_WEB_ENABLED == 1 && FEATURE_WIFI_ENABLED == 0` | `#error` |
+| **TYPE 1 требует датчик** | `DEVICE_TYPE == 1 && FEATURE_SENSOR_ENABLED == 0` | `#error` |
+| **TYPE 2 требует датчик** | `DEVICE_TYPE == 2 && FEATURE_SENSOR_ENABLED == 0` | `#error` |
+| **TYPE 3 не требует датчик** | `DEVICE_TYPE == 3 && FEATURE_SENSOR_ENABLED == 1` | `#warning` + принудительное отключение |
+| **TRANSPORT_TYPE валидность** | `< 0 или > 2` | `#error` |
+| **ZigBee требует C6/H2** | `TRANSPORT_TYPE == 1` без `CONFIG_IDF_TARGET_ESP32C6/H2` | `#error` |
+| **ZigBee отключает WiFi** | `TRANSPORT_TYPE == 1 && FEATURE_WIFI_ENABLED == 1` | `#warning` + принудительное отключение |
+| **ZigBee отключает Provisioning** | `TRANSPORT_TYPE == 1` | `#warning` + принудительная установка `PROVISIONING_METHOD=0` |
+| **ZigBee отключает WEB** | `TRANSPORT_TYPE == 1 && FEATURE_WEB_ENABLED == 1` | `#warning` + принудительное отключение |
+| **ZigBee отключает OTA** | `TRANSPORT_TYPE == 1 && FEATURE_OTA_ENABLED == 1` | `#warning` + принудительное отключение |
+| **Matter экспериментальный** | `TRANSPORT_TYPE == 2` без C6/H2 | `#warning` |
+| **ESP8266 не поддерживает BLE** | `PROVISIONING_METHOD == 1/3 && ESP8266` | `#warning` + принудительная установка `PROVISIONING_METHOD=2` |
+| **PROVISIONING_METHOD валидность** | `< 0 или > 3` | `#warning` + принудительная установка `0` |
+| **DEVICE_TYPE валидность** | `< 1 или > 3` | `#error` |
+
+### config_manager.h/cpp
+
+**Менеджер настроек и конфигурации.** Хранит значения в EEPROM, управляет загрузкой/сохранением, валидацией параметров и дефолтными значениями. Загружает заводские настройки из `credentials.h`.
+
+**Определяет:** `TEMP_MIN/MAX`, `HUM_MIN/MAX`, `SENSOR_INTERVAL_MIN/MAX`, `DELAY_SECONDS_MIN/MAX`, `MAX_ON_TIME_MIN/MAX`, все `DEFAULT_*`, `MAGIC_VALUE`, `EEPROM_SIZE`, креденшелы из `credentials.h`
+
+---
+
+### logger.h/cpp
+
+**Система логирования.** Вывод отладочной информации в Serial с фильтрацией по уровню (NONE/ERROR/WARN/INFO/DEBUG) и категориям (модулям). Поддерживает цветной вывод.
+
+**Определяет:** `XLOG_LEVEL`, `XLOG_CATEGORIES`, `XLOG_USE_COLOR`, `MONITOR_SPEED`
+
+---
+
+### led.h/cpp
+
+**Светодиодная индикация.** Отображает статус устройства: подключение к WiFi/MQTT, режим настройки, аварийное отключение.
+
+**Определяет:** `STATUS_LED_PIN`, `LED_INVERTED`
+
+---
+
+### sensor.h/cpp
+
+**Датчик температуры и влажности.** Чтение показаний с AHT10 (I2C) или DHT11/DHT22 (GPIO). Возвращает температуру, влажность, скорость изменения влажности и статус ошибки.
+
+**Определяет:** `SENSOR_TYPE`, `I2C_SDA_PIN`, `I2C_SCL_PIN`, `SENSOR_PIN`
+
+---
+
+### actuator_base.h/cpp
+
+**Базовый класс исполнительного механизма.** Управление реле/вентилятором: включение/выключение, таймер отложенного включения, таймер аварийного отключения. Используется как основа для `FanActuator` и `SwitchActuator`.
+
+**Определяет:** `SWITCH_PIN`, `RELAY_ON_LEVEL`
+
+---
+
+### fan_actuator.h/cpp
+
+**Управление вентилятором (тип 1).** ШИМ-управление скоростью, адаптивный тихий режим, стартовый импульс для надежного запуска. Наследует `ActuatorBase`.
+
+**Определяет:** `PWM_FREQUENCY`, `PWM_RESOLUTION`, `PWM_STARTING`, `ADAPTIVE_STEP_SIZE`, `ADAPTIVE_SPEED_SENSITIVITY`, `ADAPTIVE_EPSILON_TEMP`, `ADAPTIVE_EPSILON_HUM`
+
+---
+
+### switch_actuator.h/cpp
+
+**Управление выключателем (тип 3).** Простое включение/выключение реле без ШИМ. Наследует `ActuatorBase`.
+
+---
+
+### wifi_manager.h/cpp
+
+**WiFi-подключение.** Управление подключением к WiFi сети (STA-режим), запуск точки доступа (AP-режим) для настройки, мониторинг соединения, fallback в AP при потере связи.
+
+**Определяет:** `WIFI_CONNECT_TIMEOUT_MS`, `AP_FALLBACK_TIMEOUT_MS`
+
+---
+
+### mqtt.h/cpp
+
+**MQTT-клиент.** Подключение к брокеру, публикация состояния и показаний датчиков, прием команд управления. Формирует топики на основе префикса устройства.
+
+**Определяет:** `MQTT_PORT`, `MQTT_PUBLISH_RSSI`, `MQTT_PUBLISH_VERSION`, `MQTT_PUBLISH_RESET_REASON`, `MQTT_RESET_ENABLED`, `MQTT_IGNORE_PUBLISH_NORMAL_RESET_REASONS`, `STATE_PUBLISH_INTERVAL_MS`, `MQTT_RECONNECT_DELAY_MS`, `MQTT_KEEPALIVE_SEC`
+
+---
+
+### zigbee.h/cpp
+
+**ZigBee-протокол (перспективный).** Реализация ZigBee-стека для ESP32-C6/H2. Представляет устройство как конечные точки с кластерами On/Off, Level Control, Temperature/Humidity Measurement.
+
+---
+
+### provisioning.h/cpp
+
+**Менеджер комиссионинга.** Управляет процессом первоначальной настройки устройства. Выбирает метод (BLE/AP) на основе `PROVISIONING_METHOD`, собирает данные от обоих каналов, передает их в оркестратор через колбэк.
+
+**Определяет:** `BLE_PROVISIONING_PIN`, `BLE_DEVICE_NAME`, `AP_IP_ADDRESS`, `USE_BLE_PROVISIONING`, `USE_AP_PROVISIONING` (производные от `PROVISIONING_METHOD`)
+
+---
+
+### ble_server.h/cpp
+
+**BLE-сервер провизионинга.** Реализует ESP BLE Provisioning для ESP32. Принимает WiFi SSID и пароль через приложение ESP BLE Prov, передает данные в `ProvisioningManager` через колбэк.
+
+---
+
+### web.h/cpp
+
+**Веб-интерфейс.** HTTP-сервер для управления и настройки устройства. Страницы: состояние (`/`), настройки (`/config`), OTA-обновление (`/update`). Работает в STA-режиме (обычный) и AP-режиме (настройка).
+
+**Определяет:** `WEB_STATUS_ENABLED`, `WEB_SHOW_RSSI`, `WEB_RESET_ENABLED`, `DEFAULT_WEB_REFRESH`, `WEB_SERVER_TIMEOUT_MS`
+
+---
+
+### ota.h/cpp
+
+**OTA-обновления.** Обновление прошивки "по воздуху" через веб-интерфейс (`/update`). Использует библиотеку ElegantOTA. Требует минимум 2MB Flash.
+
+**Определяет:** `OTA_PORT` (если нужен)
+
+---
+
+### wdt_manager.h/cpp
+
+**Watchdog таймер.** Аппаратный сторожевой таймер, защищающий от зависаний. Автоматически перезагружает устройство при сбое. Таймаут настраивается через `WDT_TIMER_MS`.
+
+**Определяет:** `WDT_TIMER_MS`
+
+---
+
+### reset_btn.h
+**Определяет:** `RESET_PIN` (дефолт для кнопки сброса)
+
+### main.cpp
+
+**Оркестратор.** Точка входа в программу. Единственный, кто знает о всех модулях. Получает данные через колбэки от транспортов, управляет LED, переключает режимы (настройка/нормальный), вызывает `.update()` и `.loop()` всех модулей. Единственный, кто вызывает `ConfigManager::save()` и `ESP.restart()`.
+
+
+
+
+
+
+
 ## Архитекрура слоев
+```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                                    MAIN.CPP                                         │
 │                                 (оркестратор)                                       │
@@ -845,7 +1031,7 @@ WEB-интерфейс предоставляет прямой доступ к �
 │  │   оркестратора    │ │                   │ │                   │                  │
 │  └───────────────────┘ └───────────────────┘ └───────────────────┘                  │
 └─────────────────────────────────────────────────────────────────────────────────────┘
-
+```
 
 ## Предстоит исправить
 
@@ -859,6 +1045,7 @@ WEB-интерфейс предоставляет прямой доступ к �
 | **Нет `IWebStatusProvider` интерфейса** | Web зависит от конкретных классов (FanActuator, MQTTManager), а не от абстракции | Средняя (есть в плане) |
 
 ### Желаемая архитектура
+```
 ┌─────────────────────────────────────────────────────────────────────────────────────┐
 │                              main.cpp (оркестратор)                                 │
 │                                                                                     │
@@ -1067,4 +1254,4 @@ WEB-интерфейс предоставляет прямой доступ к �
 │  │    только из      │                                                              │
 │  │    оркестратора   │                                                              │
 │  └───────────────────┘                                                              │
-└─────────────────────────────────────────────────────────────────────────────────────┘
+└─────────────────────────────────────────────────────────────────────────────────────┘```
