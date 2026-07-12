@@ -4,10 +4,10 @@
  */
 
 #include "ble_server.h"
-#include "logger.h"
-#include "settings.h"
+#include "logger.h"    
+#include "settings.h"  
 
-#if defined(ESP32) && !defined(ESP8266)
+#ifdef ESP32
 
 #include <WiFi.h>
 #include <WiFiProv.h>

@@ -18,6 +18,10 @@
 
 #include <Arduino.h>
 
+#ifndef BLE_PROVISIONING_PIN
+#define BLE_PROVISIONING_PIN "abcd1234"
+#endif
+
 /**
  * @brief Структура WiFi-настроек, получаемых через BLE
  * @note BLE Provisioning передаёт только SSID и пароль
