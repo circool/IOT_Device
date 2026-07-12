@@ -3,8 +3,7 @@
 #include "logger.h"
 #include "web.h"
 
-
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
 bool apMode = false;
 
 bool wifi_is_ap_mode() {

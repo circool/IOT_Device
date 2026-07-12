@@ -13,6 +13,16 @@
 // НАСТРОЙКИ WIFI
 // ============================================================================
 
+/** @brief WiFi SSID по умолчанию (заводской) */
+#ifndef SSID_NAME
+#define SSID_NAME ""
+#endif
+
+/** @brief WiFi пароль по умолчанию (заводской) */
+#ifndef WIFI_PASSWORD
+#define WIFI_PASSWORD ""
+#endif
+
 /** @brief Включить режим точки доступа (AP) для настройки */
 #ifndef AP_ENABLED
 #define AP_ENABLED 1
@@ -49,11 +59,11 @@
 #endif
 
 /** @brief Включить поддержку WiFi */
-#ifndef WIFI_ENABLED
-#define WIFI_ENABLED 1
+#ifndef FEATURE_WIFI_ENABLED
+#define FEATURE_WIFI_ENABLED 1
 #endif
 
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
 
 extern bool apMode;
 bool wifi_is_ap_mode();
@@ -63,8 +73,8 @@ bool wifi_is_ap_mode();
 #endif
 
 /** @brief Включить веб-интерфейс */
-#ifndef WEB_ENABLED
-#define WEB_ENABLED 1
+#ifndef FEATURE_WEB_ENABLED
+#define FEATURE_WEB_ENABLED 1
 #endif
 
 /**
@@ -132,7 +142,7 @@ int wifi_scan_and_log(const char* targetSsid);
 void wifi_start_ap(const char* ssid);
 void wifi_stop_ap();
 
-#else  // WIFI_ENABLED == 0
+#else  // FEATURE_WIFI_ENABLED == 0
 
 /**
  * @brief Заглушка: инициализация WiFi (отключена)
@@ -199,6 +209,6 @@ static bool wifi_is_connecting = false;
 
 // void wifi_start_ap_mode() {};
 
-#endif  // WIFI_ENABLED == 1
+#endif  // FEATURE_WIFI_ENABLED == 1
 
 #endif  // WIFI_H
