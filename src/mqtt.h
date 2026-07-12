@@ -13,7 +13,6 @@
 
 #include <Arduino.h>
 #include <PubSubClient.h>
-#include "config_manager.h"
 
 // ============================================================================
 // НАСТРОЙКИ

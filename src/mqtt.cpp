@@ -4,7 +4,6 @@
  */
 
 #include "mqtt.h"
-#include "config_manager.h"
 #include "logger.h"
 
 #if FEATURE_MQTT_ENABLED == 1
