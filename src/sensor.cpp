@@ -3,12 +3,6 @@
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
-#include "config_manager.h"
-
-#if MQTT_ENABLED == 1
-#include "mqtt.h"
-#endif
-
 // ========== СТАТИЧЕСКИЕ ПЕРЕМЕННЫЕ (СКРЫТЫЕ) ==========
 static float _currentTemp = 0;
 static float _currentHum = 0;
@@ -21,6 +15,10 @@ static float _humRate = 0;
 static unsigned long _lastHumTime = 0;
 static float _lastHumValue = 0;
 
+// Минимальный интервал опроса (зависит от типа датчика)
+// Устанавливается в sensor_init() на основе констант из sensor.h
+static unsigned long _minIntervalMs = 0;
+
 #if SENSOR_TYPE == 1
 static Adafruit_AHTX0 _aht;
 #elif SENSOR_TYPE == 2
@@ -28,13 +26,29 @@ static DHT _dht(SENSOR_PIN, DHT_TYPE);
 #endif
 
 // ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
-static bool isSensorValueValid(float temp, float hum) {
-  if (temp < TEMP_MIN || temp > TEMP_MAX)
+
+/**
+ * @brief Проверить, прошло ли достаточно времени для следующего опроса
+ */
+static bool isReadyToRead() {
+  return (millis() - _lastSensorRead) >= _minIntervalMs;
+}
+
+/**
+ * @brief Проверить, что показания не содержат явного мусора
+ * @note Проверяем только NaN и влажность вне физического диапазона.
+ *       Температуру не проверяем — пусть бизнес-логика решает, что с ней
+ * делать.
+ */
+static bool isSensorDataValid(float temp, float hum) {
+  // Ошибка библиотеки — не число
+  if (isnan(temp) || isnan(hum)) {
     return false;
-  if (hum < 0 || hum > 100)
+  }
+  // Влажность физически не может быть < 0 или > 100%
+  if (hum < 0.0f || hum > 100.0f) {
     return false;
-  if (temp == 0.0 && hum == 0.0)
-    return false;
+  }
   return true;
 }
 
@@ -43,19 +57,34 @@ static bool isSensorValueValid(float temp, float hum) {
 void sensor_init() {
 #if SENSOR_TYPE == 1
   Wire.begin(I2C_SDA_PIN, I2C_SCL_PIN);
+  _minIntervalMs = AHT_MIN_INTERVAL_MS;
+
   _sensorOk = _aht.begin();
   if (_sensorOk) {
-    strcpy(_sensorError, "Waiting for first valid reading");
-    XLOG_DEBUG(CAT_SENSOR, "AHT10 found, waiting for first valid reading...");
+    _sensorError[0] = '\0';
+    XLOG_INFO(CAT_SENSOR, "AHT10 found (min interval: %lu ms)", _minIntervalMs);
+
+    // Попытка первого чтения для получения валидных данных
     sensors_event_t humidity, temperature;
     if (_aht.getEvent(&humidity, &temperature)) {
-      _currentTemp = temperature.temperature;
-      _currentHum = humidity.relative_humidity;
-      _sensorError[0] = '\0';
-      _lastSensorRead = millis();
-
-      XLOG_INFO(CAT_SENSOR, "First reading: T=%.2f°C, H=%.2f%%", _currentTemp,
-               _currentHum);
+      if (isSensorDataValid(temperature.temperature,
+                            humidity.relative_humidity)) {
+        _currentTemp = temperature.temperature;
+        _currentHum = humidity.relative_humidity;
+        _lastSensorRead = millis();
+        XLOG_INFO(CAT_SENSOR, "First reading: T=%.2f°C, H=%.2f%%", _currentTemp,
+                  _currentHum);
+      } else {
+        _sensorOk = false;
+        strcpy(_sensorError,
+               "First reading out of range (NaN or invalid humidity)");
+        XLOG_WARN(CAT_SENSOR, "%s", _sensorError);
+      }
+    } else {
+      // Датчик найден, но не отвечает на чтение
+      _sensorOk = false;
+      strcpy(_sensorError, "AHT10 not responding to read");
+      XLOG_WARN(CAT_SENSOR, "%s", _sensorError);
     }
   } else {
     strcpy(_sensorError, "AHT10 not found");
@@ -63,12 +92,36 @@ void sensor_init() {
   }
 
 #elif SENSOR_TYPE == 2
-  _dht.begin();
-  delay(2000);
-  _sensorOk = false;
-  strcpy(_sensorError, "Waiting for first valid reading");
-  XLOG_INFO(CAT_SENSOR, "DHT initialized, waiting for first valid reading...");
+// Выбор интервала в зависимости от типа DHT
+#if DHT_TYPE == DHT11
+  _minIntervalMs = DHT11_MIN_INTERVAL_MS;
+#elif DHT_TYPE == DHT22
+  _minIntervalMs = DHT22_MIN_INTERVAL_MS;
+#else
+  _minIntervalMs = DHT22_MIN_INTERVAL_MS;  // fallback
+#endif
 
+  _dht.begin();
+  delay(1000);
+
+  // DHT не имеет метода begin() с возвратом статуса.
+  // Попытка первого чтения для проверки наличия датчика.
+  float t = _dht.readTemperature();
+  float h = _dht.readHumidity();
+  if (!isnan(t) && !isnan(h) && h >= 0 && h <= 100) {
+    _sensorOk = true;
+    _currentTemp = t;
+    _currentHum = h;
+    _lastSensorRead = millis();
+    _sensorError[0] = '\0';
+    XLOG_INFO(CAT_SENSOR,
+              "DHT found: T=%.2f°C, H=%.2f%% (min interval: %lu ms)",
+              _currentTemp, _currentHum, _minIntervalMs);
+  } else {
+    _sensorOk = false;
+    strcpy(_sensorError, "DHT not found or not responding");
+    XLOG_ERROR(CAT_SENSOR, "DHT not found! Sensor will be disabled.");
+  }
 #endif
 
   _humRate = 0;
@@ -77,20 +130,19 @@ void sensor_init() {
 }
 
 bool sensor_update() {
-  // Если датчик не найден при инициализации — не пытаемся читать
-  if (strcmp(_sensorError, "AHT10 not found") == 0) {
+  // Если датчик не найден при инициализации — не пытаемся читать повторно
+  if (!_sensorOk && strstr(_sensorError, "not found") != nullptr) {
     return false;
   }
 
-  // Проверка интервала опроса
-  if (millis() - _lastSensorRead <
-      g_configManager.getSensorInterval() * 1000UL) {
+  // Проверка минимального интервала опроса (паспортные характеристики)
+  if (!isReadyToRead()) {
     return false;
   }
   _lastSensorRead = millis();
 
-  bool readSuccess = false;
   float temp = 0, hum = 0;
+  bool readSuccess = false;
 
 #if SENSOR_TYPE == 1
   sensors_event_t humidity, temperature;
@@ -99,9 +151,11 @@ bool sensor_update() {
     hum = humidity.relative_humidity;
     readSuccess = true;
   } else {
+    // Временная ошибка чтения — датчик может восстановиться
     _sensorOk = false;
-    strcpy(_sensorError, "AHT10 I2C read failed");
+    strcpy(_sensorError, "AHT10 read failed (I2C error)");
     XLOG_ERROR(CAT_SENSOR, "AHT10 read error!");
+    return false;
   }
 #elif SENSOR_TYPE == 2
   float t = _dht.readTemperature();
@@ -111,62 +165,67 @@ bool sensor_update() {
     hum = h;
     readSuccess = true;
   } else {
+    // DHT вернул NAN — либо нарушен интервал опроса, либо датчик отвалился
     _sensorOk = false;
     strcpy(_sensorError, "DHT read failed (NaN)");
     XLOG_ERROR(CAT_SENSOR, "DHT read error!");
+    return false;
   }
 #endif
 
-  if (readSuccess) {
-    if (isSensorValueValid(temp, hum)) {
-      // расчёт скорости изменения влажности
-      if (_lastHumTime > 0) {
-        float dt = (millis() - _lastHumTime) / 1000.0;
-        if (dt > 0.1) {
-          _humRate = (hum - _lastHumValue) / dt;
-
-          // Limit humidity rate of change to ~5%/s.
-          // This is an empirical limit, ~100x higher than typical room dynamics
-          // (0.01-0.05%/s), but effectively filters sensor spikes and prevents
-          // algorithmic overreaction.
-          if (_humRate > 5.0)
-            _humRate = 5.0;
-          if (_humRate < -5.0)
-            _humRate = -5.0;
-        }
-      } else {
-        _humRate = 0;
-      }
-
-      _lastHumValue = hum;
-      _lastHumTime = millis();
-
-      // Проверяем, изменились ли данные (для возврата true/false)
-      bool changed =
-          (fabs(_currentTemp - temp) > 0.05 || fabs(_currentHum - hum) > 0.05);
-
-      _currentTemp = temp;
-      _currentHum = hum;
-      _sensorOk = true;
-      _sensorError[0] = '\0';
-
-      XLOG_DEBUG(CAT_SENSOR, "T=%.2f°C, H=%.2f%% (rate=%.2f%%/s)", _currentTemp,
-                _currentHum, _humRate);
-
-      return changed;
-    } else {
-      _sensorOk = false;
-      snprintf(_sensorError, sizeof(_sensorError),
-               "Out of range (T=%.1f H=%.1f)", temp, hum);
-      _humRate = 0;
-
-      XLOG_ERROR(CAT_SENSOR, "%s", _sensorError);
-      return false;
-    }
-  } else {
+  if (!readSuccess) {
     _humRate = 0;
     return false;
   }
+
+  // Валидация: только NaN и влажность вне физического диапазона
+  if (!isSensorDataValid(temp, hum)) {
+    // Сохраняем ошибку, но не обновляем кэш
+    _sensorOk = false;
+    if (isnan(temp) || isnan(hum)) {
+      strcpy(_sensorError, "NaN from sensor");
+    } else {
+      snprintf(_sensorError, sizeof(_sensorError),
+               "Invalid data: H=%.1f%% (must be 0-100)", hum);
+    }
+    XLOG_ERROR(CAT_SENSOR, "%s", _sensorError);
+    _humRate = 0;
+    return false;
+  }
+
+  // ========== ДАННЫЕ ВАЛИДНЫ — ОБНОВЛЯЕМ КЭШ ==========
+
+  // расчёт скорости изменения влажности
+  if (_lastHumTime > 0) {
+    float dt = (millis() - _lastHumTime) / 1000.0;
+    if (dt > 0.1) {
+      _humRate = (hum - _lastHumValue) / dt;
+      // Ограничение для фильтрации выбросов
+      if (_humRate > 5.0)
+        _humRate = 5.0;
+      if (_humRate < -5.0)
+        _humRate = -5.0;
+    }
+  } else {
+    _humRate = 0;
+  }
+
+  _lastHumValue = hum;
+  _lastHumTime = millis();
+
+  // Проверяем, изменились ли данные (для возврата true/false)
+  bool changed =
+      (fabs(_currentTemp - temp) > 0.05 || fabs(_currentHum - hum) > 0.05);
+
+  _currentTemp = temp;
+  _currentHum = hum;
+  _sensorOk = true;
+  _sensorError[0] = '\0';
+
+  XLOG_DEBUG(CAT_SENSOR, "T=%.2f°C, H=%.2f%% (rate=%.2f%%/s)", _currentTemp,
+             _currentHum, _humRate);
+
+  return changed;
 }
 
 // ========== ГЕТТЕРЫ ==========

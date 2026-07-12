@@ -7,6 +7,7 @@
 #include "led.h"
 #include "logger.h"
 
+
 #ifdef ESP32
 #include <esp_chip_info.h>
 #include <esp_mac.h>
@@ -165,7 +166,7 @@ bool ConfigManager::reset() {
 // ============================================================================
 
 const char* ConfigManager::getWifiSsid() const {
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   return _config.wifiSsid;
 #else
   return "";
@@ -173,7 +174,7 @@ const char* ConfigManager::getWifiSsid() const {
 }
 
 const char* ConfigManager::getWifiPassword() const {
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   return _config.wifiPassword;
 #else
   return "";
@@ -181,7 +182,7 @@ const char* ConfigManager::getWifiPassword() const {
 }
 
 const char* ConfigManager::getMqttBroker() const {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   return _config.mqttBroker;
 #else
   return "";
@@ -189,7 +190,7 @@ const char* ConfigManager::getMqttBroker() const {
 }
 
 uint16_t ConfigManager::getMqttPort() const {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   return _config.mqttPort;
 #else
   return 1883;
@@ -197,7 +198,7 @@ uint16_t ConfigManager::getMqttPort() const {
 }
 
 const char* ConfigManager::getMqttUser() const {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   return _config.mqttUser;
 #else
   return "";
@@ -205,7 +206,7 @@ const char* ConfigManager::getMqttUser() const {
 }
 
 const char* ConfigManager::getMqttPassword() const {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   return _config.mqttPassword;
 #else
   return "";
@@ -213,7 +214,7 @@ const char* ConfigManager::getMqttPassword() const {
 }
 
 const char* ConfigManager::getMqttClientId() const {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   return _config.mqttClientId;
 #else
   return "";
@@ -224,7 +225,7 @@ uint16_t ConfigManager::getSensorInterval() const {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   return _config.sensorInterval;
 #else
-  return SENSOR_DURATION;
+  return DEFAULT_SENSOR_DURATION;
 #endif
 }
 
@@ -304,12 +305,12 @@ bool ConfigManager::getBootState() const {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   return _config.bootState;
 #else
-  return BOOT_SWITCH_STATE;
+  return DEFAULT_BOOT_SWITCH_STATE;
 #endif
 }
 
 const char* ConfigManager::getZigbeeNetworkKey() const {
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   return _config.zigbeeNetworkKey;
 #else
   return "";
@@ -317,7 +318,7 @@ const char* ConfigManager::getZigbeeNetworkKey() const {
 }
 
 uint16_t ConfigManager::getZigbeePanId() const {
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   return _config.zigbeePanId;
 #else
   return 0;
@@ -325,7 +326,7 @@ uint16_t ConfigManager::getZigbeePanId() const {
 }
 
 uint8_t ConfigManager::getZigbeeChannel() const {
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   return _config.zigbeeChannel;
 #else
   return 15;
@@ -341,7 +342,7 @@ const char* ConfigManager::getDeviceId() const {
 // ============================================================================
 
 bool ConfigManager::setWifiSsid(const char* ssid) {
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   if (!ssid || strlen(ssid) == 0) {
     setError("WiFi SSID cannot be empty");
     return false;
@@ -360,7 +361,7 @@ bool ConfigManager::setWifiSsid(const char* ssid) {
 }
 
 bool ConfigManager::setWifiPassword(const char* password) {
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   if (!password)
     return false;
   if (strlen(password) >= sizeof(_config.wifiPassword)) {
@@ -377,7 +378,7 @@ bool ConfigManager::setWifiPassword(const char* password) {
 }
 
 bool ConfigManager::setMqttBroker(const char* broker) {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   if (!broker || strlen(broker) == 0) {
     setError("MQTT Broker cannot be empty");
     return false;
@@ -396,7 +397,7 @@ bool ConfigManager::setMqttBroker(const char* broker) {
 }
 
 bool ConfigManager::setMqttPort(uint16_t port) {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   if (port < 1 || port > 65535) {
     setError("MQTT Port must be 1-65535");
     return false;
@@ -410,7 +411,7 @@ bool ConfigManager::setMqttPort(uint16_t port) {
 }
 
 bool ConfigManager::setMqttUser(const char* user) {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   if (!user)
     return false;
   if (strlen(user) >= sizeof(_config.mqttUser)) {
@@ -427,7 +428,7 @@ bool ConfigManager::setMqttUser(const char* user) {
 }
 
 bool ConfigManager::setMqttPassword(const char* password) {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   if (!password)
     return false;
   if (strlen(password) >= sizeof(_config.mqttPassword)) {
@@ -444,7 +445,7 @@ bool ConfigManager::setMqttPassword(const char* password) {
 }
 
 bool ConfigManager::setMqttClientId(const char* clientId) {
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   if (!clientId || strlen(clientId) == 0) {
     setError("MQTT Client ID cannot be empty");
     return false;
@@ -642,7 +643,7 @@ bool ConfigManager::setBootState(bool state) {
 }
 
 bool ConfigManager::setZigbeeNetworkKey(const char* key) {
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   if (!key)
     return false;
   if (strlen(key) >= sizeof(_config.zigbeeNetworkKey)) {
@@ -659,7 +660,7 @@ bool ConfigManager::setZigbeeNetworkKey(const char* key) {
 }
 
 bool ConfigManager::setZigbeePanId(uint16_t panId) {
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   _config.zigbeePanId = panId;
   return true;
 #else
@@ -669,7 +670,7 @@ bool ConfigManager::setZigbeePanId(uint16_t panId) {
 }
 
 bool ConfigManager::setZigbeeChannel(uint8_t channel) {
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   if (channel < 11 || channel > 26) {
     setError("Zigbee channel must be 11-26");
     return false;
@@ -693,7 +694,7 @@ void ConfigManager::setDefaults() {
   _config.magic = MAGIC_VALUE;
   _config.crc = 0;
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   _config.mqttPort = MQTT_PORT;
 #endif
 
@@ -716,20 +717,20 @@ void ConfigManager::setDefaults() {
   _config.maxOnTime = 0;
 #endif
 
-  _config.bootState = BOOT_SWITCH_STATE;
+  _config.bootState = DEFAULT_BOOT_SWITCH_STATE;
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  _config.sensorInterval = SENSOR_DURATION;
+  _config.sensorInterval = DEFAULT_SENSOR_DURATION;
 #endif
 
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   _config.zigbeeChannel = 15;
 #endif
 
   loadFromCredentials();
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   snprintf(_config.mqttClientId, sizeof(_config.mqttClientId), "%s", _deviceId);
   XLOG_DEBUG(CAT_CONFIG, "Generated MQTT Client ID: %s", _config.mqttClientId);
 #endif
@@ -741,7 +742,7 @@ void ConfigManager::loadFromCredentials() {
 #if HAS_CREDENTIALS
   XLOG_DEBUG(CAT_CONFIG, "Loading factory settings");
 
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   if (strlen(SSID_NAME) > 0) {
     strncpy(_config.wifiSsid, SSID_NAME, sizeof(_config.wifiSsid) - 1);
     _config.wifiSsid[sizeof(_config.wifiSsid) - 1] = '\0';
@@ -753,7 +754,7 @@ void ConfigManager::loadFromCredentials() {
   }
 #endif
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   if (strlen(MQTT_ADDRESS) > 0) {
     strncpy(_config.mqttBroker, MQTT_ADDRESS, sizeof(_config.mqttBroker) - 1);
     _config.mqttBroker[sizeof(_config.mqttBroker) - 1] = '\0';
@@ -815,7 +816,7 @@ void ConfigManager::readFromEEPROM() {
 bool ConfigManager::validateAndApply(const ConfigData& raw) {
   bool ok = true;
 
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   if (strlen(raw.wifiSsid) > 0) {
     if (!setWifiSsid(raw.wifiSsid)) {
       XLOG_WARN(CAT_CONFIG, "Failed to set WiFi SSID: %s", _lastError);
@@ -829,7 +830,7 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
     }
   }
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   if (strlen(raw.mqttBroker) > 0) {
     if (!setMqttBroker(raw.mqttBroker)) {
       XLOG_WARN(CAT_CONFIG, "Failed to set MQTT broker: %s", _lastError);
@@ -905,7 +906,7 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
   setBootState(raw.bootState);
 #endif
 
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   if (strlen(raw.zigbeeNetworkKey) > 0) {
     if (!setZigbeeNetworkKey(raw.zigbeeNetworkKey)) {
       XLOG_WARN(CAT_CONFIG, "Failed to set Zigbee network key: %s", _lastError);
@@ -951,13 +952,13 @@ void ConfigManager::setError(const char* msg) {
 void ConfigManager::print() const {
   XLOG_DEBUG(CAT_CONFIG, "=== Config ===");
 
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   XLOG_DEBUG(CAT_CONFIG, "WiFi SSID: '%s'", _config.wifiSsid);
   XLOG_DEBUG(CAT_CONFIG, "WiFi Password: %s",
             _config.wifiPassword[0] ? "***" : "(empty)");
 #endif
 
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   XLOG_DEBUG(CAT_CONFIG, "MQTT Broker: '%s:%d'", _config.mqttBroker,
             _config.mqttPort);
   XLOG_DEBUG(CAT_CONFIG, "MQTT User: '%s'", _config.mqttUser);

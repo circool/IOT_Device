@@ -19,74 +19,45 @@
 // КОНСТАНТЫ
 // ============================================================================
 
-/**
- * @brief Префикс устройства (для MQTT топиков и AP SSID)
- * @details Формируется автоматически на основе DEVICE_TYPE
- */
-#if DEVICE_TYPE == 1
-#define DEVICE_PREFIX "fan"
-#elif DEVICE_TYPE == 2
-#define DEVICE_PREFIX "sensor"
-#elif DEVICE_TYPE == 3
-#define DEVICE_PREFIX "switch"
-#else
-#define DEVICE_PREFIX "device"
-#endif
+// /**
+//  * @brief Префикс устройства (для MQTT топиков и AP SSID)
+//  * @details Формируется автоматически на основе DEVICE_TYPE
+//  */
+// #if DEVICE_TYPE == 1
+// #define DEVICE_PREFIX "fan"
+// #elif DEVICE_TYPE == 2
+// #define DEVICE_PREFIX "sensor"
+// #elif DEVICE_TYPE == 3
+// #define DEVICE_PREFIX "switch"
+// #else
+// #define DEVICE_PREFIX "device"
+// #endif
 
-// ============================================================================
-// ПИНЫ ПО УМОЛЧАНИЮ
-// ============================================================================
-
-/** @brief Пин I2C SDA (для AHT10) */
-#ifndef I2C_SDA_PIN
-#ifdef ESP8266
-#define I2C_SDA_PIN 4
-#elif defined(ESP32)
-#define I2C_SDA_PIN 21
-#endif
-#endif
-
-/** @brief Пин I2C SCL (для AHT10) */
-#ifndef I2C_SCL_PIN
-#ifdef ESP8266
-#define I2C_SCL_PIN 5
-#elif defined(ESP32)
-#define I2C_SCL_PIN 22
-#endif
-#endif
-
-/** @brief Пин управления реле/вентилятором */
-#ifndef SWITCH_PIN
-#ifdef ESP8266
-#define SWITCH_PIN 14
-#elif defined(ESP32)
-#define SWITCH_PIN 4
-#endif
-#endif
 
 // ============================================================================
 // НАСТРОЙКИ ДАТЧИКА (для TYPE 1 и 2)
 // ============================================================================
+
+/** Допустимый диапазон времени опроса датчиков */
+#ifndef SENSOR_INTERVAL_MIN
+#define SENSOR_INTERVAL_MIN 1
+#endif
+#ifndef SENSOR_INTERVAL_MAX
+#define SENSOR_INTERVAL_MAX 50
+#endif
 
 /**
  * @brief Тип датчика температуры/влажности
  * @values 1 – AHT10 (I2C)
  *         2 – DHT11/DHT22 (GPIO)
  */
-#ifndef SENSOR_TYPE
-#define SENSOR_TYPE 1
-#endif
+// #ifndef SENSOR_TYPE
+// #define SENSOR_TYPE 1
+// #endif
 
-#if SENSOR_TYPE == 2
-/** @brief Пин для DHT датчика (только для SENSOR_TYPE=2) */
-#ifndef SENSOR_PIN
-#ifdef ESP8266
-#define SENSOR_PIN 4
-#elif defined(ESP32)
-#define SENSOR_PIN 16
-#endif
-#endif
-#endif
+// #if SENSOR_TYPE == 2
+
+// #endif
 
 // ============================================================================
 // ИСПОЛНИТЕЛЬНЫЙ МЕХАНИЗМ (для TYPE 1 и 3)
@@ -130,15 +101,9 @@
 #define HUM_MAX 100.0f
 #endif
 
-/** @brief Минимальный интервал опроса датчика (сек) */
-#ifndef SENSOR_INTERVAL_MIN
-#define SENSOR_INTERVAL_MIN 1
-#endif
 
-/** @brief Максимальный интервал опроса датчика (сек) */
-#ifndef SENSOR_INTERVAL_MAX
-#define SENSOR_INTERVAL_MAX 3600
-#endif
+
+
 
 /** @brief Минимальная задержка включения (сек) */
 #ifndef DELAY_SECONDS_MIN
@@ -213,15 +178,15 @@
 #endif
 
 /** @brief Состояние при старте по умолчанию */
-#ifndef BOOT_SWITCH_STATE
-#define BOOT_SWITCH_STATE true
+#ifndef DEFAULT_BOOT_SWITCH_STATE
+#define DEFAULT_BOOT_SWITCH_STATE true
 #endif
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 /** @brief Интервал опроса датчика по умолчанию (сек) */
-#ifndef SENSOR_DURATION
-#define SENSOR_DURATION 10
+#ifndef DEFAULT_SENSOR_DURATION
+#define DEFAULT_SENSOR_DURATION 10
 #endif
 #endif
 
@@ -264,35 +229,16 @@
 #endif
 #endif
 
-/** @brief WiFi SSID по умолчанию (заводской) */
-#ifndef SSID_NAME
-#define SSID_NAME ""
-#endif
 
-/** @brief WiFi пароль по умолчанию (заводской) */
-#ifndef WIFI_PASSWORD
-#define WIFI_PASSWORD ""
-#endif
 
-/** @brief MQTT брокер по умолчанию (заводской) */
-#ifndef MQTT_ADDRESS
-#define MQTT_ADDRESS ""
-#endif
 
-/** @brief MQTT порт по умолчанию */
-#ifndef MQTT_PORT
-#define MQTT_PORT 1883
-#endif
 
-/** @brief MQTT пользователь по умолчанию (заводской) */
-#ifndef MQTT_USER
-#define MQTT_USER ""
-#endif
 
-/** @brief MQTT пароль по умолчанию (заводской) */
-#ifndef MQTT_PASSWORD
-#define MQTT_PASSWORD ""
-#endif
+
+
+
+
+
 
 // ============================================================================
 // СТРУКТУРА КОНФИГУРАЦИИ
@@ -307,13 +253,13 @@ struct ConfigData {
   uint16_t crc;   /**< CRC16 от всей структуры (кроме самого поля crc) */
 
   // ========== WiFi ==========
-#if WIFI_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   char wifiSsid[32];     /**< Имя WiFi сети (SSID) */
   char wifiPassword[64]; /**< Пароль WiFi */
 #endif
 
   // ========== MQTT ==========
-#if MQTT_ENABLED == 1
+#if FEATURE_MQTT_ENABLED == 1
   char mqttBroker[64];   /**< Адрес MQTT брокера */
   uint16_t mqttPort;     /**< Порт MQTT брокера */
   char mqttUser[32];     /**< Имя пользователя MQTT */
@@ -345,7 +291,7 @@ struct ConfigData {
 #endif
 
   // ========== Zigbee ==========
-#if ZIGBEE_ENABLED == 1
+#if FEATURE_ZIGBEE_ENABLED == 1
   char zigbeeNetworkKey[32]; /**< Сетевой ключ Zigbee */
   uint16_t zigbeePanId;      /**< PAN ID Zigbee сети */
   uint8_t zigbeeChannel;     /**< Канал Zigbee (11-26) */
