@@ -23,7 +23,7 @@ void resetBtn_init() {
   g_isPressed = false;
   g_pressStartTime = 0;
   g_currentStage = RELEASED;
-  XLOG_DEBUG(CAT_RESET_BTN, "Reset button initialized on pin %d", RESET_PIN);
+  XLOG_INFO(CAT_RESET_BTN, "Reset button initialized on pin %d", RESET_PIN);
 }
 
 ResetButtonStage resetBtn_getState() {

@@ -669,12 +669,13 @@ void setup() {
   Logger::getInstance().begin(
       (LogLevel)XLOG_LEVEL, XLOG_CATEGORIES, XLOG_USE_COLOR);
   XLOG_INFO(CAT_MAIN, "SYSTEM START");
-  XLOG_INFO(CAT_MAIN, "=== SYSTEM INFO ===");
+  XLOG_DEBUG(CAT_MAIN, "=== SYSTEM INFO ===");
   print_system_info();
-  XLOG_INFO(CAT_MAIN, "==========================================");
-  XLOG_INFO(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
-  XLOG_INFO(CAT_MAIN, "BLE Prov: %s", USE_BLE_PROVISIONING ? "ENABLED":"NONE");
-  XLOG_INFO(CAT_MAIN, "AP Prov: %s", USE_AP_PROVISIONING ? "ENABLED" : "NONE");
+  XLOG_DEBUG(CAT_MAIN, "==========================================");
+  XLOG_DEBUG(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
+  XLOG_DEBUG(CAT_MAIN, "BLE Prov: %s",
+             USE_BLE_PROVISIONING ? "ENABLED" : "NONE");
+  XLOG_DEBUG(CAT_MAIN, "AP Prov: %s", USE_AP_PROVISIONING ? "ENABLED" : "NONE");
   led_init();
   led_setMode(LED_MODE_MORZE_E);
   resetBtn_init();
