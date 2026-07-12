@@ -1,7 +1,6 @@
 #ifndef WDT_H
 #define WDT_H
 
-#include "config_manager.h"
 
 // ============================================================================
 // WATCHDOG (WDT)
