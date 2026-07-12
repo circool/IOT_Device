@@ -92,6 +92,8 @@ enum LogCategory : uint16_t {
 #define ANSI_BG_YELLOW "\033[43m"
 #define ANSI_BG_BLUE "\033[44m"
 #define ANSI_BOLD "\033[1m"
+#define ANSI_BOLD_RESET "\033[22m"
+
 #define ANSI_DIM "\033[2m"
 #define ANSI_ITALIC "\033[3m"
 #define ANSI_UNDERLINE "\033[4m"

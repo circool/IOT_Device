@@ -247,9 +247,9 @@ bool BleProvisioningServer::begin(ProvConfigCallback configCallback,
   _active = true;
 
   XLOG_DEBUG(CAT_BLE,
-             "BLE provisioning started." ANSI_RESET
-             " (Use ESP BLE Prov app, find device " ANSI_BOLD "%s " ANSI_RESET
-             "and use PIN " ANSI_BOLD "%s" ANSI_RESET ").",
+             "BLE provisioning started." 
+             " Use ESP BLE Prov app, find device " ANSI_BOLD "%s " ANSI_BOLD_RESET
+             "and use PIN " ANSI_BOLD "%s",
              _deviceName, BLE_PROVISIONING_PIN);
   return true;
 }

@@ -133,10 +133,9 @@ void wifi_start_ap(const char* ssid) {
 
   WiFi.softAP(ssid);
   XLOG_DEBUG(CAT_WIFI,
-             "AP started." ANSI_RESET  " (Find WiFi " ANSI_BOLD "%s" ANSI_RESET
-             ", connect and visit " ANSI_BOLD "%s" ANSI_RESET ").",
+             "AP started. Find WiFi " ANSI_BOLD "%s" ANSI_BOLD_RESET
+             ", connect and visit " ANSI_BOLD "%s",
              ssid, AP_IP_ADDRESS);
-  // XLOG_DEBUG(CAT_WIFI, "AP started: SSID=" ANSI_BOLD "%s" ANSI_RESET ", IP=%s",ssid, AP_IP_ADDRESS);
 }
 
 void wifi_stop_ap() {
