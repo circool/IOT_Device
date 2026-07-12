@@ -14,7 +14,7 @@
 // ============================================================================
 
 #ifndef XLOG_LEVEL
-#define XLOG_LEVEL 3  // 0=ERROR, 1=WARN, 2=INFO, 3=DEBUG
+#define XLOG_LEVEL 4  // 0=NONE, 1=ERROR, 2=WARN, 3=INFO, 4=DEBUG
 #endif
 
 #ifndef XLOG_CATEGORIES
@@ -55,7 +55,9 @@ enum LogCategory : uint16_t {
   CAT_AP = 1 << 11,            // 2048
   CAT_MAIN = 1 << 12,          // 4096
   CAT_PROVISIONING = 1 << 13,  // 8192
-  CAT_BLE = 1 << 14,            // 
+  CAT_BLE = 1 << 14,           //
+  CAT_RESET_BTN = 1 << 15,     //
+
   CAT_ALL = 0xFFFF
 };
 

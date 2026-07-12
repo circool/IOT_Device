@@ -14,7 +14,7 @@ void Logger::begin(LogLevel level, uint16_t categories, bool useColor) {
   _initialized = true;
 
   Serial.begin(MONITOR_SPEED);
-  
+
   delay(100);
 
   log(XLOG_LEVEL_INFO, CAT_CONFIG,
@@ -44,7 +44,6 @@ bool Logger::isEnabled(LogLevel level, LogCategory category) const {
   return true;
 }
 
-// ========== ФУНКЦИЯ log() - ИСПРАВЛЕННАЯ ==========
 void Logger::log(LogLevel level,
                  LogCategory category,
                  const char* format,
@@ -63,10 +62,8 @@ void Logger::log(LogLevel level,
   const char* reset = _useColor ? ANSI_RESET : "";
 
   if (_useColor) {
-    snprintf(output, sizeof(output), "%s[%s] [%s] %s%s%s\n",
-             ANSI_RESET,  // сброс перед строкой
-             levelToString(level), categoryToString(category), color, buffer,
-             reset);
+    snprintf(output, sizeof(output), "%s[%s] [%s] %s%s\n", color,
+             levelToString(level), categoryToString(category), buffer, reset);
   } else {
     snprintf(output, sizeof(output), "[%s] [%s] %s\n", levelToString(level),
              categoryToString(category), buffer);
@@ -81,8 +78,13 @@ void Logger::log(LogLevel level, LogCategory category, const String& message) {
   const char* color = _useColor ? getColorForLevel(level) : "";
   const char* reset = _useColor ? ANSI_RESET : "";
 
-  Serial.printf("[%s] [%s] %s%s%s\n", levelToString(level),
-                categoryToString(category), color, message.c_str(), reset);
+  if (_useColor) {
+    Serial.printf("%s[%s] [%s] %s%s\n", color, levelToString(level),
+                  categoryToString(category), message.c_str(), reset);
+  } else {
+    Serial.printf("[%s] [%s] %s\n", levelToString(level),
+                  categoryToString(category), message.c_str());
+  }
 }
 
 const char* Logger::levelToString(LogLevel level) const {
@@ -132,6 +134,8 @@ const char* Logger::categoryToString(LogCategory category) const {
       return "PROV";
     case CAT_BLE:
       return "BLE";
+    case CAT_RESET_BTN:
+      return "RESET_BTN";
     default:
       return "???";
   }
