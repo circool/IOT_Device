@@ -4,13 +4,7 @@
 #include "actuator_base.h"
 #include "sensor.h"
 
-/**
- * @brief Уровень сигнала для включения реле
- * @values HIGH или LOW
- */
-#ifndef RELAY_ON_LEVEL
-#define RELAY_ON_LEVEL LOW
-#endif
+
 
 // ============================================================================
 // ШИМ (PWM) — для TYPE 1
