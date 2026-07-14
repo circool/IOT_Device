@@ -46,6 +46,10 @@
 #ifndef PWM_STARTING
 #define PWM_STARTING 200
 #endif
+/** @brief Минимально допустимая скость (определяется особенностями мотора) */
+#ifndef MIN_SPEED_PERCENT
+#define MIN_SPEED_PERCENT 10  
+#endif
 
 /** @brief Скорость по умолчанию (%) */
 #ifndef DEFAULT_SPEED_PERCENT
