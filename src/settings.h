@@ -131,6 +131,32 @@
 #endif
 
 // ============================================================================
+// 2.1. ПРОИЗВОДНЫЕ ФЛАГИ ТРАНСПОРТА
+// ============================================================================
+
+/**
+ * @brief Включить MQTT (автоматически на основе TRANSPORT_TYPE)
+ */
+#ifndef FEATURE_MQTT_ENABLED
+#if TRANSPORT_TYPE == 0
+#define FEATURE_MQTT_ENABLED 1
+#else
+#define FEATURE_MQTT_ENABLED 0
+#endif
+#endif
+
+/**
+ * @brief Включить ZigBee (автоматически на основе TRANSPORT_TYPE)
+ */
+#ifndef FEATURE_ZIGBEE_ENABLED
+#if TRANSPORT_TYPE == 1
+#define FEATURE_ZIGBEE_ENABLED 1
+#else
+#define FEATURE_ZIGBEE_ENABLED 0
+#endif
+#endif
+
+// ============================================================================
 // 3. ФУНКЦИОНАЛЬНЫЕ ВОЗМОЖНОСТИ (FEATURES)
 // ============================================================================
 
