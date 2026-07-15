@@ -4,6 +4,31 @@
 #include <Arduino.h>
 #include "settings.h"
 
+// ============================================================================
+// НАСТРОЙКИ ДАТЧИКА (для TYPE 1 и 2)
+// ============================================================================
+
+/** Допустимый диапазон времени опроса датчиков */
+#ifndef SENSOR_INTERVAL_MIN
+#define SENSOR_INTERVAL_MIN 1
+#endif
+#ifndef SENSOR_INTERVAL_MAX
+#define SENSOR_INTERVAL_MAX 50
+#endif
+
+/**
+ * @brief Тип датчика температуры/влажности
+ * @values 1 – AHT10 (I2C)
+ *         2 – DHT11/DHT22 (GPIO)
+ */
+#ifndef SENSOR_TYPE
+#define SENSOR_TYPE 1
+#endif
+
+#if SENSOR_TYPE == 2
+
+#endif
+
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
 /**

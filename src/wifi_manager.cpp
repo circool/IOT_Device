@@ -27,24 +27,60 @@ static unsigned long wifi_connect_start_time = 0;
 bool wifi_is_connecting = false;
 static unsigned long wifi_lost_time = 0;
 
+void wifi_manager_init() {
+  XLOG_INFO(CAT_WIFI, "Initializing WiFi manager...");
+
+  // ================================================================
+  // ТОЛЬКО МИНИМАЛЬНАЯ ИНИЦИАЛИЗАЦИЯ — НИКАКОГО WiFi.begin()!
+  // ================================================================
+
+  // Отключаем persistent режим (не сохраняем credentials в NVS)
+  WiFi.persistent(false);
+
+  // Устанавливаем режим STA
+  WiFi.mode(WIFI_STA);
+
+  // Отключаем энергосбережение для стабильности
+  WiFi.setSleep(false);
+
+  // Отключаем авто-переподключение — управляем вручную
+  WiFi.setAutoReconnect(false);
+
+  // Сбрасываем флаги
+  wifi_is_connecting = false;
+  wifi_lost_time = 0;
+  wifi_connect_start_time = 0;
+
+  XLOG_INFO(CAT_WIFI, "WiFi manager initialized (ready to connect)");
+}
+
 void wifi_begin() {
   if (strlen(g_configManager.getWifiSsid()) == 0) {
     XLOG_WARN(CAT_WIFI, "No SSID configured");
     return;
   }
 
-  if (WiFi.status() == WL_CONNECTED)
+  if (WiFi.status() == WL_CONNECTED) {
+    XLOG_DEBUG(CAT_WIFI, "Already connected");
     return;
-  if (wifi_is_connecting)
+  }
+
+  if (wifi_is_connecting) {
+    XLOG_DEBUG(CAT_WIFI, "Already connecting");
     return;
+  }
 
   XLOG_INFO(CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET,
-           g_configManager.getWifiSsid());
+            g_configManager.getWifiSsid());
 
-  WiFi.mode(WIFI_STA);
+  // ================================================================
+  // ЗАПУСКАЕМ ПОДКЛЮЧЕНИЕ — НЕБЛОКИРУЮЩЕЕ!
+  // ================================================================
   WiFi.begin(g_configManager.getWifiSsid(), g_configManager.getWifiPassword());
+
   wifi_is_connecting = true;
   wifi_connect_start_time = millis();
+  wifi_lost_time = 0;
 }
 
 void wifi_check() {
@@ -52,26 +88,43 @@ void wifi_check() {
     return;
 
   wl_status_t status = WiFi.status();
-  if (status == WL_CONNECTED) {
-    wifi_is_connecting = false;
-    wifi_lost_time = 0;
-    XLOG_INFO(CAT_WIFI, "Connected! IP: " ANSI_BOLD "%s" ANSI_RESET,
-             WiFi.localIP().toString().c_str());
 
-// Выход из AP режима при успешном подключении
-#if AP_ENABLED == 1
-    if (apMode) {
-      WiFi.softAPdisconnect(true);
-      apMode = false;
-      XLOG_INFO(CAT_WIFI, "Exited AP mode, back to client mode");
-      WiFi.mode(WIFI_STA);
-    }
-#endif
+  switch (status) {
+    case WL_CONNECTED:
+      wifi_is_connecting = false;
+      wifi_lost_time = 0;
+      XLOG_INFO(CAT_WIFI, "Connected! IP: " ANSI_BOLD "%s" ANSI_RESET,
+                WiFi.localIP().toString().c_str());
 
-  } else if (millis() - wifi_connect_start_time > WIFI_CONNECT_TIMEOUT_MS) {
+      // Выход из AP режима при успешном подключении
+      if (apMode) {
+        WiFi.softAPdisconnect(true);
+        apMode = false;
+        XLOG_INFO(CAT_WIFI, "Exited AP mode, back to client mode");
+        WiFi.mode(WIFI_STA);
+      }
+      break;
+
+    case WL_IDLE_STATUS:
+    case WL_SCAN_COMPLETED:
+    case WL_NO_SSID_AVAIL:
+    case WL_DISCONNECTED:
+      // Промежуточные состояния — просто ждём
+      break;
+
+    case WL_CONNECT_FAILED:
+      XLOG_WARN(CAT_WIFI, "Connection failed, will retry");
+      wifi_is_connecting = false;
+      // Не отключаемся — wifi_monitor() вызовет wifi_begin() снова
+      break;
+
+    default:
+      break;
+  }
+  if (millis() - wifi_connect_start_time > WIFI_CONNECT_TIMEOUT_MS) {
     XLOG_INFO(CAT_WIFI, "Connection timeout! (%d)", WIFI_CONNECT_TIMEOUT_MS);
     wifi_is_connecting = false;
-    WiFi.disconnect();
+    WiFi.disconnect(true, true);
   }
 }
 
@@ -82,7 +135,7 @@ void wifi_monitor() {
 
     if (!wifi_is_connecting) {
       XLOG_INFO(CAT_WIFI,
-               "AP mode active, attempting to connect to WiFi in background");
+                "AP mode active, attempting to connect to WiFi in background");
       wifi_begin();
     }
     wifi_check();
@@ -105,7 +158,7 @@ void wifi_monitor() {
       XLOG_INFO(CAT_WIFI, "WiFi lost, starting fallback timer");
     } else if (millis() - wifi_lost_time > AP_FALLBACK_TIMEOUT_MS) {
       XLOG_INFO(CAT_WIFI, "WiFi lost for %d ms, switching to AP mode",
-               AP_FALLBACK_TIMEOUT_MS);
+                AP_FALLBACK_TIMEOUT_MS);
 
       WiFi.disconnect(true);
       WiFi.mode(WIFI_OFF);
@@ -124,14 +177,32 @@ void wifi_monitor() {
 }
 
 void wifi_start_ap(const char* ssid) {
-  WiFi.mode(WIFI_AP);
+  // WiFi.mode(WIFI_AP);
+
 #ifdef ESP8266
-      IPAddress apIP;
+  IPAddress apIP;
   apIP.fromString(AP_IP_ADDRESS);
+  WiFi.mode(WIFI_AP);
   WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+#elif defined(ESP32)
+  // ================================================================
+  // ESP32-C3 SuperMini: снижаем TX мощность из-за аппаратных проблем
+  // ================================================================
+
+  IPAddress apIP;
+  apIP.fromString(AP_IP_ADDRESS);
+  WiFi.mode(WIFI_AP);
+
+  // Снижаем мощность передачи (решает проблему с AP на некоторых C3)
+  WiFi.setTxPower(WIFI_POWER_8_5dBm);  // или WIFI_POWER_11dBm
+  delay(50);
+
+  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+  delay(50);
 #endif
 
   WiFi.softAP(ssid);
+  apMode = true;
   XLOG_DEBUG(CAT_WIFI,
              "AP started. Find WiFi " ANSI_BOLD "%s" ANSI_BOLD_RESET
              ", connect and visit " ANSI_BOLD "%s",

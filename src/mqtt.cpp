@@ -115,7 +115,10 @@ void MQTTManager::reconnect() {
 
   static bool firstAttempt = true;
   if (firstAttempt) {
-    XLOG_DEBUG(CAT_MQTT, "Connecting to broker...");
+    XLOG_DEBUG(CAT_MQTT,
+               "Connecting to broker " ANSI_BOLD "%s" ANSI_BOLD_RESET
+               ", client " ANSI_BOLD  "%s",
+               _broker, _clientId);
     firstAttempt = false;
   } else {
     XLOG_DEBUG(CAT_MQTT, "Reconnecting...");

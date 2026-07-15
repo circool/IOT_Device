@@ -4,6 +4,7 @@
  */
 
 #include "config_manager.h"
+#include "led.h"
 #include "logger.h"
 
 
@@ -134,7 +135,7 @@ bool ConfigManager::save() {
 }
 
 bool ConfigManager::reset() {
-
+  led_setMode(LED_MODE_MORZE_I);
   XLOG_INFO(CAT_CONFIG, "Resetting configuration to defaults...");
 
   EEPROM.end();

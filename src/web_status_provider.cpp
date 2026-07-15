@@ -3,6 +3,7 @@
 #include "mqtt.h"
 #include "sensor.h"
 #include "switch_actuator.h"
+#include "transport.h"
 #include "wifi_manager.h"
 
 // ============================================================================
@@ -59,7 +60,11 @@ const char* FanWebStatusProvider::getSensorError() const {
 }
 
 bool FanWebStatusProvider::isMqttConnected() const {
-  return _mqtt ? _mqtt->isConnected() : false;
+  if (_mqtt) {
+    return _mqtt->isConnected();
+  }
+  return g_transport ? g_transport->isConnected()
+                     : false;  
 }
 
 int FanWebStatusProvider::getWifiRssi() const {

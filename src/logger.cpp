@@ -1,24 +1,36 @@
+/**
+ * @file logger.cpp
+ * @brief Реализация логгера
+ */
+
 #include "logger.h"
 #include <stdarg.h>
 #include <stdio.h>
+
+// ============================================================================
+// СИНГЛТОН
+// ============================================================================
 
 Logger& Logger::getInstance() {
   static Logger instance;
   return instance;
 }
 
-void Logger::begin(LogLevel level, uint16_t categories, bool useColor) {
+// ============================================================================
+// ПУБЛИЧНЫЕ МЕТОДЫ
+// ============================================================================
+
+void Logger::begin(LogLevel level, uint32_t categories, bool useColor) {
   _currentLevel = level;
   _enabledCategories = categories;
   _useColor = useColor;
   _initialized = true;
 
   Serial.begin(MONITOR_SPEED);
-
   delay(100);
 
   log(XLOG_LEVEL_INFO, CAT_CONFIG,
-      "\n\n\nLogger initialized (level=%d, categories=0x%04X)", (int)level,
+      "\n\n\nLogger initialized (level=%d, categories=0x%08X)", (int)level,
       categories);
 }
 
@@ -26,7 +38,7 @@ void Logger::setLevel(LogLevel level) {
   _currentLevel = level;
 }
 
-void Logger::setCategories(uint16_t categories) {
+void Logger::setCategories(uint32_t categories) {
   _enabledCategories = categories;
 }
 
@@ -87,6 +99,10 @@ void Logger::log(LogLevel level, LogCategory category, const String& message) {
   }
 }
 
+// ============================================================================
+// ПРИВАТНЫЕ МЕТОДЫ
+// ============================================================================
+
 const char* Logger::levelToString(LogLevel level) const {
   switch (level) {
     case XLOG_LEVEL_ERROR:
@@ -136,6 +152,10 @@ const char* Logger::categoryToString(LogCategory category) const {
       return "BLE";
     case CAT_RESET_BTN:
       return "RESET_BTN";
+    case CAT_RESTART:
+      return "RESTART";
+    case CAT_SYSTEM:
+      return "SYSTEM";
     default:
       return "???";
   }

@@ -1,16 +1,21 @@
+/**
+ * @file logger.h
+ * @brief Логирование
+ * @details Единая система логирования с поддержкой уровней, категорий и цветов
+ */
+
 #ifndef LOGGER_H
 #define LOGGER_H
 
 #include <Arduino.h>
 #include "settings.h"
 
-
 #ifndef MONITOR_SPEED
 #define MONITOR_SPEED 115200
 #endif
 
 // ============================================================================
-// ОТЛАДКА И ЛОГИРОВАНИЕ
+// НАСТРОЙКИ ЛОГИРОВАНИЯ
 // ============================================================================
 
 #ifndef XLOG_LEVEL
@@ -18,12 +23,50 @@
 #endif
 
 #ifndef XLOG_CATEGORIES
-#define XLOG_CATEGORIES 0xFFFF  // Все категории
+#define XLOG_CATEGORIES 0xFFFFFFFF  // Все категории
 #endif
 
 #ifndef XLOG_USE_COLOR
 #define XLOG_USE_COLOR 1
 #endif
+
+// ============================================================================
+// ANSI-ЦВЕТА
+// ============================================================================
+
+#define ANSI_BLACK "\033[30m"
+#define ANSI_RED "\033[31m"
+#define ANSI_GREEN "\033[32m"
+#define ANSI_YELLOW "\033[33m"
+#define ANSI_BLUE "\033[34m"
+#define ANSI_MAGENTA "\033[35m"
+#define ANSI_CYAN "\033[36m"
+#define ANSI_WHITE "\033[37m"
+
+#define ANSI_BRIGHT_RED "\033[91m"
+#define ANSI_BRIGHT_GREEN "\033[92m"
+#define ANSI_BRIGHT_YELLOW "\033[93m"
+#define ANSI_BRIGHT_BLUE "\033[94m"
+#define ANSI_BRIGHT_MAGENTA "\033[95m"
+#define ANSI_BRIGHT_CYAN "\033[96m"
+#define ANSI_BRIGHT_WHITE "\033[97m"
+
+#define ANSI_BG_BLACK "\033[40m"
+#define ANSI_BG_RED "\033[41m"
+#define ANSI_BG_GREEN "\033[42m"
+#define ANSI_BG_YELLOW "\033[43m"
+#define ANSI_BG_BLUE "\033[44m"
+
+#define ANSI_BOLD "\033[1m"
+#define ANSI_BOLD_RESET "\033[22m"
+#define ANSI_DIM "\033[2m"
+#define ANSI_ITALIC "\033[3m"
+#define ANSI_UNDERLINE "\033[4m"
+#define ANSI_RESET "\033[0m"
+
+// ============================================================================
+// УРОВНИ ЛОГИРОВАНИЯ
+// ============================================================================
 
 /**
  * @brief Уровни логирования
@@ -36,10 +79,14 @@ enum LogLevel : uint8_t {
   XLOG_LEVEL_DEBUG = 4
 };
 
+// ============================================================================
+// КАТЕГОРИИ ЛОГИРОВАНИЯ
+// ============================================================================
+
 /**
  * @brief Категории (тэги) для фильтрации
  */
-enum LogCategory : uint16_t {
+enum LogCategory : uint32_t {
   CAT_NONE = 0,
   CAT_CONFIG = 1 << 0,         // 1
   CAT_SENSOR = 1 << 1,         // 2
@@ -55,60 +102,21 @@ enum LogCategory : uint16_t {
   CAT_AP = 1 << 11,            // 2048
   CAT_MAIN = 1 << 12,          // 4096
   CAT_PROVISIONING = 1 << 13,  // 8192
-  CAT_BLE = 1 << 14,           //
-  CAT_RESET_BTN = 1 << 15,     //
+  CAT_BLE = 1 << 14,           // 16384
+  CAT_RESET_BTN = 1 << 15,     // 32768
+  CAT_RESTART = 1 << 16,       // 65536
+  CAT_SYSTEM = 1 << 17,        // 131072
 
-  CAT_ALL = 0xFFFF
+  CAT_ALL = 0xFFFFFFFF
 };
 
-/**
- * @brief ANSI-коды для цветного вывода
- *
- * Для монохромных терминалов (PlatformIO, Arduino IDE) игнорируются
- */
-// Цвета текста
-#define ANSI_BLACK "\033[30m"
-#define ANSI_RED "\033[31m"
-#define ANSI_GREEN "\033[32m"
-#define ANSI_YELLOW "\033[33m"
-#define ANSI_BLUE "\033[34m"
-#define ANSI_MAGENTA "\033[35m"
-#define ANSI_CYAN "\033[36m"
-#define ANSI_WHITE "\033[37m"
-
-// Яркие цвета
-#define ANSI_BRIGHT_RED "\033[91m"
-#define ANSI_BRIGHT_GREEN "\033[92m"
-#define ANSI_BRIGHT_YELLOW "\033[93m"
-#define ANSI_BRIGHT_BLUE "\033[94m"
-#define ANSI_BRIGHT_MAGENTA "\033[95m"
-#define ANSI_BRIGHT_CYAN "\033[96m"
-#define ANSI_BRIGHT_WHITE "\033[97m"
-
-// Фоны
-#define ANSI_BG_BLACK "\033[40m"
-#define ANSI_BG_RED "\033[41m"
-#define ANSI_BG_GREEN "\033[42m"
-#define ANSI_BG_YELLOW "\033[43m"
-#define ANSI_BG_BLUE "\033[44m"
-#define ANSI_BOLD "\033[1m"
-#define ANSI_BOLD_RESET "\033[22m"
-
-#define ANSI_DIM "\033[2m"
-#define ANSI_ITALIC "\033[3m"
-#define ANSI_UNDERLINE "\033[4m"
-
-// Сброс
-#define ANSI_RESET "\033[0m"
+// ============================================================================
+// КЛАСС LOGGER
+// ============================================================================
 
 /**
  * @brief Единый логгер для всего проекта
- *
- * Особенности:
- * - Синглтон (один экземпляр)
- * - Поддержка уровней логирования
- * - Поддержка категорий (фильтрация по модулям)
- * - Возможность подключить несколько выводов (Serial, MQTT, файл)
+ * @details Синглтон с поддержкой уровней, категорий и цветного вывода
  */
 class Logger {
  public:
@@ -118,13 +126,13 @@ class Logger {
   static Logger& getInstance();
 
   /**
-   * @brief Инициализация (вызывается один раз в setup)
+   * @brief Инициализация логгера
    * @param level Максимальный уровень для вывода
    * @param categories Битовая маска разрешённых категорий
-   * @param useColor Использовать ANSI-цвета (если терминал поддерживает)
+   * @param useColor Использовать ANSI-цвета
    */
   void begin(LogLevel level = XLOG_LEVEL_INFO,
-             uint16_t categories = CAT_ALL,
+             uint32_t categories = CAT_ALL,
              bool useColor = true);
 
   /**
@@ -135,7 +143,7 @@ class Logger {
   /**
    * @brief Установить разрешённые категории
    */
-  void setCategories(uint16_t categories);
+  void setCategories(uint32_t categories);
 
   /**
    * @brief Включить/выключить цвета
@@ -143,16 +151,12 @@ class Logger {
   void setColorEnabled(bool enabled);
 
   /**
-   * @brief Основной метод логирования
-   * @param level Уровень сообщения
-   * @param category Категория (тэг)
-   * @param format Форматная строка (printf-style)
-   * @param ... Аргументы
+   * @brief Основной метод логирования (printf-стиль)
    */
   void log(LogLevel level, LogCategory category, const char* format, ...);
 
   /**
-   * @brief Логирование без формата (готовая строка)
+   * @brief Логирование готовой строки
    */
   void log(LogLevel level, LogCategory category, const String& message);
 
@@ -167,13 +171,12 @@ class Logger {
   Logger(const Logger&) = delete;
   Logger& operator=(const Logger&) = delete;
 
-  // void output(const char* message);
   const char* levelToString(LogLevel level) const;
   const char* categoryToString(LogCategory category) const;
   const char* getColorForLevel(LogLevel level) const;
 
   LogLevel _currentLevel = XLOG_LEVEL_INFO;
-  uint16_t _enabledCategories = CAT_ALL;
+  uint32_t _enabledCategories = CAT_ALL;
   bool _useColor = true;
   bool _initialized = false;
 };
@@ -184,14 +187,16 @@ class Logger {
 
 #define XLOG_ERROR(cat, fmt, ...) \
   Logger::getInstance().log(XLOG_LEVEL_ERROR, cat, fmt, ##__VA_ARGS__)
+
 #define XLOG_WARN(cat, fmt, ...) \
   Logger::getInstance().log(XLOG_LEVEL_WARN, cat, fmt, ##__VA_ARGS__)
+
 #define XLOG_INFO(cat, fmt, ...) \
   Logger::getInstance().log(XLOG_LEVEL_INFO, cat, fmt, ##__VA_ARGS__)
+
 #define XLOG_DEBUG(cat, fmt, ...) \
   Logger::getInstance().log(XLOG_LEVEL_DEBUG, cat, fmt, ##__VA_ARGS__)
 
-// Проверка, нужно ли логировать (для дорогих операций)
 #define XLOG_ENABLED(level, cat) Logger::getInstance().isEnabled(level, cat)
 
 #endif  // LOGGER_H

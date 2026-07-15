@@ -333,6 +333,14 @@ void web_sendStatusPage(int refreshInterval) {
   const char* deviceId = g_configManager.getDeviceId();
   String statusHtml = web_buildStatusHtml();
 
+  // ================================================================
+  // ЗАЩИТА: если HTML пустой — подставляем заглушку
+  // ================================================================
+  if (statusHtml.length() == 0) {
+    statusHtml = F("<div class='warning'>Device status is loading...</div>");
+    XLOG_WARN(CAT_WEB, "web_buildStatusHtml() returned empty, using fallback");
+  }
+
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
 

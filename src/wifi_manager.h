@@ -84,6 +84,13 @@ bool wifi_is_ap_mode();
 extern bool wifi_is_connecting;
 
 /**
+ * @brief Инициализация WiFi менеджера
+ * @details Вызывается один раз в setup()
+ *          Настраивает WiFi стек и запускает первое подключение
+ */
+void wifi_manager_init();
+
+/**
  * @brief Инициализация подключения к WiFi
  * @note Запускает асинхронное подключение к сохранённой сети
  */

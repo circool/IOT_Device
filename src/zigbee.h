@@ -4,6 +4,7 @@
 #include <Arduino.h>
 #include "config_manager.h"
 
+
 /**
  * @brief Включить поддержку ZigBee
  * @note Определяется в settings.h на основе FEATURE_ZIGBEE_ENABLED

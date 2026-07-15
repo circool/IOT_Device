@@ -34,30 +34,7 @@
 // #endif
 
 
-// ============================================================================
-// НАСТРОЙКИ ДАТЧИКА (для TYPE 1 и 2)
-// ============================================================================
 
-/** Допустимый диапазон времени опроса датчиков */
-#ifndef SENSOR_INTERVAL_MIN
-#define SENSOR_INTERVAL_MIN 1
-#endif
-#ifndef SENSOR_INTERVAL_MAX
-#define SENSOR_INTERVAL_MAX 50
-#endif
-
-/**
- * @brief Тип датчика температуры/влажности
- * @values 1 – AHT10 (I2C)
- *         2 – DHT11/DHT22 (GPIO)
- */
-// #ifndef SENSOR_TYPE
-// #define SENSOR_TYPE 1
-// #endif
-
-// #if SENSOR_TYPE == 2
-
-// #endif
 
 // ============================================================================
 // ИСПОЛНИТЕЛЬНЫЙ МЕХАНИЗМ (для TYPE 1 и 3)
@@ -334,7 +311,7 @@ class ConfigManager {
    *          Читает конфигурацию из EEPROM или устанавливает значения по
    * умолчанию.
    */
-  void begin();
+  void init();
 
   /**
    * @brief Получить текущую конфигурацию (только для чтения)
@@ -498,8 +475,9 @@ class ConfigManager {
    * @brief Установить интервал опроса датчика
    * @param interval Секунды (1-3600)
    * @return true — успешно, false — ошибка валидации
+   * @deprecated Нет необходимости установки этого значения
    */
-  bool setSensorInterval(uint16_t interval);
+  // bool setSensorInterval(uint16_t interval);
 
   /**
    * @brief Установить нижний порог температуры

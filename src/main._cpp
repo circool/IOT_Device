@@ -1,0 +1,1003 @@
+#include <Arduino.h>
+#include "settings.h"
+
+#include "config_manager.h"
+#include "debug_tools.h"
+#include "led.h"
+#include "logger.h"
+#include "ota.h"
+#include "provisioning.h"
+#include "reset_btn.h"
+#include "transport.h"
+#include "transport_factory.h"
+#include "wdt_manager.h"
+#include "web.h"
+#include "web_status_provider.h"
+#include "wifi_manager.h"
+
+#ifdef ESP32
+#include <WiFi.h>
+#include <esp_chip_info.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#endif
+
+// ============================================================================
+// WIFI КЛИЕНТ (для MQTT/ZigBee)
+// ============================================================================
+
+static WiFiClient g_client;
+
+// ============================================================================
+// ТРАНСПОРТ
+// ============================================================================
+Transport* g_transport = nullptr;
+
+// ============================================================================
+// АКТУАТОРЫ
+// ============================================================================
+
+#if DEVICE_TYPE == 1
+#include "fan_actuator.h"
+FanActuator fan;
+#elif DEVICE_TYPE == 3
+#include "switch_actuator.h"
+SwitchActuator switchActuator;
+#endif
+
+// ============================================================================
+// ДАТЧИК
+// ============================================================================
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+#include "sensor.h"
+#endif
+
+// ============================================================================
+// WEB STATUS PROVIDER
+// ============================================================================
+
+#if FEATURE_WEB_ENABLED == 1
+#if DEVICE_TYPE == 1
+static FanWebStatusProvider statusProvider(&fan, nullptr, nullptr);
+#elif DEVICE_TYPE == 3
+static SwitchWebStatusProvider statusProvider(&switchActuator, nullptr);
+#endif
+#endif
+
+// ============================================================================
+// ГЛОБАЛЬНЫЕ ФЛАГИ
+// ============================================================================
+
+static unsigned long g_lastResetBtnCallback = 0;
+bool g_normalMode = false;
+
+// ============================================================================
+// ПРОТОТИПЫ ФУНКЦИЙ
+// ============================================================================
+
+void initNormalMode();
+void processNormalMode();
+void checkResetButton();
+void registerTransportCallbacks();
+void publishTransportStatus();
+void processWebCommands();
+
+// ============================================================================
+// КОЛБЭКИ ДЛЯ ТРАНСПОРТА (брокер/сеть → устройство)
+// ============================================================================
+
+#if DEVICE_TYPE == 1
+
+static void onTransportState(bool state, void* context) {
+  FanActuator* fan = (FanActuator*)context;
+  fan->set(state, true);
+
+  if (state) {
+    // Ручное включение — отключаем сенсорный и адаптивный режимы
+    g_configManager.setSensorControlMode(false);
+    g_configManager.setAdaptiveMode(false);
+    fan->setAdaptiveMode(false);
+  }
+}
+
+static void onTransportSpeed(int speed, void* context) {
+  FanActuator* fan = (FanActuator*)context;
+
+  // Адаптивный режим отключается при ручной установке скорости
+  if (g_configManager.getAdaptiveMode()) {
+    g_configManager.setAdaptiveMode(false);
+    fan->setAdaptiveMode(false);
+  }
+
+  if (speed == 0 || speed < MIN_SPEED_PERCENT) {
+    fan->set(false, true);
+  } else {
+    fan->setSpeed(speed, true);
+    if (fan->getState()) {
+      fan->setSpeed(speed, false);
+    }
+  }
+}
+
+static void onTransportSensorControlMode(bool enabled, void* context) {
+  FanActuator* fan = (FanActuator*)context;
+
+  if (enabled && !sensor_isOk()) {
+    XLOG_WARN(CAT_MQTT, "Cannot enable sensor mode - sensor not available");
+    if (g_transport)
+      g_transport->publishSensorControlMode(false);
+    return;
+  }
+
+  g_configManager.setSensorControlMode(enabled);
+  if (!enabled) {
+    g_configManager.setAdaptiveMode(false);
+    fan->setAdaptiveMode(false);
+  } else {
+    XLOG_INFO(CAT_MQTT, "Sensor mode enabled, waiting for sensor data");
+  }
+}
+
+static void onTransportAdaptiveMode(bool enabled, void* context) {
+  FanActuator* fan = (FanActuator*)context;
+
+  if (enabled && !g_configManager.getSensorControlMode()) {
+    XLOG_WARN(CAT_MQTT, "Cannot enable adaptive - sensor mode is OFF");
+    if (g_transport)
+      g_transport->publishAdaptiveMode(false);
+    return;
+  }
+
+  g_configManager.setAdaptiveMode(enabled);
+  fan->setAdaptiveMode(enabled);
+}
+
+static void onTransportLowTemp(float value, void* /*context*/) {
+  g_configManager.setLowTemp(value);
+}
+
+static void onTransportHighTemp(float value, void* /*context*/) {
+  g_configManager.setHighTemp(value);
+}
+
+static void onTransportLowHum(float value, void* /*context*/) {
+  g_configManager.setLowHum(value);
+}
+
+static void onTransportHighHum(float value, void* /*context*/) {
+  g_configManager.setHighHum(value);
+}
+
+static void onTransportDelaySec(int seconds, void* /*context*/) {
+  g_configManager.setDelaySeconds(seconds);
+#if DEVICE_TYPE == 1
+  fan.updateConfig(g_configManager.getAdaptiveMode(),
+                   g_configManager.getDelaySeconds(),
+                   g_configManager.getMaxOnTime());
+#elif DEVICE_TYPE == 3
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
+#endif
+}
+
+static void onTransportMaxOnTime(uint32_t seconds, void* /*context*/) {
+  g_configManager.setMaxOnTime(seconds);
+#if DEVICE_TYPE == 1
+  fan.updateConfig(g_configManager.getAdaptiveMode(),
+                   g_configManager.getDelaySeconds(),
+                   g_configManager.getMaxOnTime());
+#elif DEVICE_TYPE == 3
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
+#endif
+}
+
+#elif DEVICE_TYPE == 3
+
+static void onTransportState(bool state, void* context) {
+  SwitchActuator* sw = (SwitchActuator*)context;
+  sw->set(state, true);
+}
+
+static void onTransportDelaySec(int seconds, void* /*context*/) {
+  g_configManager.setDelaySeconds(seconds);
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
+}
+
+static void onTransportMaxOnTime(uint32_t seconds, void* /*context*/) {
+  g_configManager.setMaxOnTime(seconds);
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
+}
+
+#endif  // DEVICE_TYPE
+
+#if MQTT_RESET_ENABLED == 1
+static void onTransportReset(void* context) {
+  (void)context;
+  XLOG_INFO(CAT_MQTT, "Reset via transport command");
+  if (g_transport)
+    g_transport->disconnect();
+  g_configManager.reset();
+  delay(1000);
+  ESP.restart();
+}
+#endif
+
+// ============================================================================
+// РЕГИСТРАЦИЯ КОЛБЭКОВ В ТРАНСПОРТЕ
+// ============================================================================
+
+void registerTransportCallbacks() {
+  if (!g_transport)
+    return;
+
+#if DEVICE_TYPE == 1
+  g_transport->onState(onTransportState, &fan);
+  g_transport->onSpeed(onTransportSpeed, &fan);
+  g_transport->onSensorControlMode(onTransportSensorControlMode, &fan);
+  g_transport->onAdaptiveMode(onTransportAdaptiveMode, &fan);
+  g_transport->onLowTemp(onTransportLowTemp, nullptr);
+  g_transport->onHighTemp(onTransportHighTemp, nullptr);
+  g_transport->onLowHum(onTransportLowHum, nullptr);
+  g_transport->onHighHum(onTransportHighHum, nullptr);
+  g_transport->onDelaySec(onTransportDelaySec, nullptr);
+  g_transport->onMaxOnTime(onTransportMaxOnTime, nullptr);
+
+#if MQTT_RESET_ENABLED == 1
+  g_transport->onReset(onTransportReset, nullptr);
+#endif
+
+#elif DEVICE_TYPE == 3
+  g_transport->onState(onTransportState, &switchActuator);
+  g_transport->onDelaySec(onTransportDelaySec, nullptr);
+  g_transport->onMaxOnTime(onTransportMaxOnTime, nullptr);
+
+#if MQTT_RESET_ENABLED == 1
+  g_transport->onReset(onTransportReset, nullptr);
+#endif
+#endif
+}
+
+// ============================================================================
+// ПУБЛИКАЦИЯ СТАТУСА В ТРАНСПОРТ
+// ============================================================================
+
+void publishTransportStatus() {
+  if (!g_transport || !g_transport->isConnected())
+    return;
+
+#if DEVICE_TYPE == 1
+  static bool lastFanState = false;
+  bool currentFanState = fan.getState();
+  if (currentFanState != lastFanState) {
+    g_transport->publishState(currentFanState);
+    lastFanState = currentFanState;
+  }
+
+  static uint16_t lastSpeedPercent = 0;
+  if (fan.getSpeed() != lastSpeedPercent) {
+    g_transport->publishSpeed(fan.getSpeed());
+    lastSpeedPercent = fan.getSpeed();
+  }
+
+  static bool lastSensorControlMode = false;
+  if (g_configManager.getSensorControlMode() != lastSensorControlMode) {
+    g_transport->publishSensorControlMode(
+        g_configManager.getSensorControlMode());
+    lastSensorControlMode = g_configManager.getSensorControlMode();
+  }
+
+  static bool lastAdaptiveMode = false;
+  if (fan.getAdaptiveMode() != lastAdaptiveMode) {
+    g_transport->publishAdaptiveMode(fan.getAdaptiveMode());
+    lastAdaptiveMode = fan.getAdaptiveMode();
+  }
+
+  static float lastLowTemp = 0, lastHighTemp = 0, lastLowHum = 0,
+               lastHighHum = 0;
+  if (fabs(g_configManager.getLowTemp() - lastLowTemp) > 0.01 ||
+      fabs(g_configManager.getHighTemp() - lastHighTemp) > 0.01 ||
+      fabs(g_configManager.getLowHum() - lastLowHum) > 0.01 ||
+      fabs(g_configManager.getHighHum() - lastHighHum) > 0.01) {
+    g_transport->publishThresholds(
+        g_configManager.getLowTemp(), g_configManager.getHighTemp(),
+        g_configManager.getLowHum(), g_configManager.getHighHum());
+    lastLowTemp = g_configManager.getLowTemp();
+    lastHighTemp = g_configManager.getHighTemp();
+    lastLowHum = g_configManager.getLowHum();
+    lastHighHum = g_configManager.getHighHum();
+  }
+#endif
+
+#if DEVICE_TYPE == 3
+  static bool lastSwitchState = false;
+  bool currentSwitchState = switchActuator.getState();
+  if (currentSwitchState != lastSwitchState) {
+    g_transport->publishState(currentSwitchState);
+    lastSwitchState = currentSwitchState;
+  }
+#endif
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+  static int lastDelaySeconds = -1;
+  if (g_configManager.getDelaySeconds() != lastDelaySeconds) {
+    g_transport->publishDelaySec(g_configManager.getDelaySeconds());
+    lastDelaySeconds = g_configManager.getDelaySeconds();
+  }
+
+  static uint32_t lastMaxOnTime = 0;
+  if (g_configManager.getMaxOnTime() != lastMaxOnTime) {
+    g_transport->publishMaxOnTime(g_configManager.getMaxOnTime());
+    lastMaxOnTime = g_configManager.getMaxOnTime();
+  }
+#endif
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+  if (sensor_isOk()) {
+    static float lastTemp = 0, lastHum = 0;
+    const float EPSILON = 0.05;
+    float temp = sensor_getTemperature();
+    float hum = sensor_getHumidity();
+    if (fabs(temp - lastTemp) > EPSILON || fabs(hum - lastHum) > EPSILON) {
+      g_transport->publishSensor(temp, hum);
+      lastTemp = temp;
+      lastHum = hum;
+    }
+  }
+#endif
+
+  static bool initialConfigPublished = false;
+  static unsigned long lastHeartbeat = 0;
+
+  if (!initialConfigPublished) {
+#if DEVICE_TYPE == 1
+    g_transport->publishState(fan.getState());
+    g_transport->publishSpeed(fan.getSpeed());
+    g_transport->publishSensorControlMode(
+        g_configManager.getSensorControlMode());
+    g_transport->publishAdaptiveMode(fan.getAdaptiveMode());
+    g_transport->publishThresholds(
+        g_configManager.getLowTemp(), g_configManager.getHighTemp(),
+        g_configManager.getLowHum(), g_configManager.getHighHum());
+#elif DEVICE_TYPE == 3
+    g_transport->publishState(switchActuator.getState());
+#endif
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    g_transport->publishDelaySec(g_configManager.getDelaySeconds());
+    g_transport->publishMaxOnTime(g_configManager.getMaxOnTime());
+#endif
+
+    g_transport->publishResetReason(getResetReason());
+
+#if MQTT_PUBLISH_VERSION == 1
+    g_transport->publishVersion(VERSION);
+#endif
+
+    initialConfigPublished = true;
+    XLOG_DEBUG(CAT_MQTT, "Initial config published");
+  }
+
+  if (millis() - lastHeartbeat >= STATE_PUBLISH_INTERVAL_MS) {
+    g_transport->publishOnline();
+
+#if MQTT_PUBLISH_RSSI == 1
+    g_transport->publishRSSI(wifi_get_rssi());
+#endif
+
+    lastHeartbeat = millis();
+  }
+}
+
+// ============================================================================
+// БИЗНЕС-ЛОГИКА: АДАПТИВНАЯ СКОРОСТЬ
+// ============================================================================
+
+#if DEVICE_TYPE == 1
+
+static int calculateAdaptiveSpeed(float temp,
+                                  float hum,
+                                  float baseTemp,
+                                  float baseHum,
+                                  float humRate) {
+  float deltaTemp = temp - baseTemp;
+  float deltaHum = hum - baseHum;
+
+  int step = ADAPTIVE_STEP_SIZE;
+
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 2 ||
+      deltaHum > ADAPTIVE_EPSILON_HUM * 2) {
+    step *= 2;
+  }
+  if (deltaTemp > ADAPTIVE_EPSILON_TEMP * 3 ||
+      deltaHum > ADAPTIVE_EPSILON_HUM * 3) {
+    step *= 3;
+  }
+
+  float mult = 1.0 + (humRate / ADAPTIVE_SPEED_SENSITIVITY);
+  mult = constrain(mult, 0.5f, 3.0f);
+  step = (int)(step * mult);
+
+  return constrain(step, 5, 60);
+}
+
+#endif
+
+// ============================================================================
+// ОБРАБОТКА КОМАНД ОТ WEB
+// ============================================================================
+
+void processWebCommands() {
+#if FEATURE_WEB_ENABLED == 1
+  if (g_webConfigPending) {
+    XLOG_INFO(CAT_MAIN, "Applying new config from Web...");
+
+    auto& cfg = ConfigManager::getInstance();
+    bool valid = true;
+
+    if (strlen(g_webPendingConfig.wifiSsid) > 0) {
+      if (!cfg.setWifiSsid(g_webPendingConfig.wifiSsid)) {
+        XLOG_ERROR(CAT_MAIN, "Invalid WiFi SSID: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+    if (strlen(g_webPendingConfig.wifiPassword) > 0) {
+      if (!cfg.setWifiPassword(g_webPendingConfig.wifiPassword)) {
+        XLOG_ERROR(CAT_MAIN, "Invalid WiFi password: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+#if FEATURE_MQTT_ENABLED == 1
+    if (strlen(g_webPendingConfig.mqttBroker) > 0) {
+      if (!cfg.setMqttBroker(g_webPendingConfig.mqttBroker)) {
+        XLOG_ERROR(CAT_MAIN, "Invalid MQTT broker: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+    if (!cfg.setMqttPort(g_webPendingConfig.mqttPort)) {
+      XLOG_ERROR(CAT_MAIN, "Invalid MQTT port: %s", cfg.getLastError());
+      valid = false;
+    }
+
+    if (strlen(g_webPendingConfig.mqttUser) > 0) {
+      if (!cfg.setMqttUser(g_webPendingConfig.mqttUser)) {
+        XLOG_ERROR(CAT_MAIN, "Invalid MQTT user: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+    if (strlen(g_webPendingConfig.mqttPassword) > 0) {
+      if (!cfg.setMqttPassword(g_webPendingConfig.mqttPassword)) {
+        XLOG_ERROR(CAT_MAIN, "Invalid MQTT password: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+
+    if (strlen(g_webPendingConfig.mqttClientId) > 0) {
+      if (!cfg.setMqttClientId(g_webPendingConfig.mqttClientId)) {
+        XLOG_ERROR(CAT_MAIN, "Invalid MQTT Client ID: %s", cfg.getLastError());
+        valid = false;
+      }
+    }
+#endif
+
+
+
+#if DEVICE_TYPE == 1
+    if (!cfg.setLowTemp(g_webPendingConfig.lowTemp)) {
+      XLOG_ERROR(CAT_MAIN, "Invalid low temp: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setHighTemp(g_webPendingConfig.highTemp)) {
+      XLOG_ERROR(CAT_MAIN, "Invalid high temp: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setLowHum(g_webPendingConfig.lowHum)) {
+      XLOG_ERROR(CAT_MAIN, "Invalid low hum: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setHighHum(g_webPendingConfig.highHum)) {
+      XLOG_ERROR(CAT_MAIN, "Invalid high hum: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setSpeedPercent(g_webPendingConfig.speedPercent)) {
+      XLOG_ERROR(CAT_MAIN, "Invalid speed: %s", cfg.getLastError());
+      valid = false;
+    }
+    cfg.setAdaptiveMode(g_webPendingConfig.adaptiveMode);
+    cfg.setSensorControlMode(g_webPendingConfig.sensorControlMode);
+#endif
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+    if (!cfg.setDelaySeconds(g_webPendingConfig.delaySeconds)) {
+      XLOG_ERROR(CAT_MAIN, "Invalid delay seconds: %s", cfg.getLastError());
+      valid = false;
+    }
+    if (!cfg.setMaxOnTime(g_webPendingConfig.maxOnTime)) {
+      XLOG_ERROR(CAT_MAIN, "Invalid max on time: %s", cfg.getLastError());
+      valid = false;
+    }
+    cfg.setBootState(g_webPendingConfig.bootState);
+#endif
+
+    if (!valid) {
+      XLOG_ERROR(CAT_MAIN, "Invalid config from Web, rejecting");
+      g_webConfigPending = false;
+      return;
+    }
+
+    if (cfg.save()) {
+      XLOG_INFO(CAT_MAIN, "Config saved successfully!");
+      g_webConfigPending = false;
+      g_webRestartPending = true;
+    } else {
+      XLOG_ERROR(CAT_MAIN, "Failed to save config: %s", cfg.getLastError());
+      g_webConfigPending = false;
+    }
+  }
+
+  if (g_webRestartPending) {
+    XLOG_INFO(CAT_MAIN, "Restarting due to Web command...");
+    g_webRestartPending = false;
+    delay(500);
+    ESP.restart();
+  }
+#endif
+}
+
+// ============================================================================
+// NORMAL MODE — ИНИЦИАЛИЗАЦИЯ
+// ============================================================================
+
+void initNormalMode() {
+  XLOG_INFO(CAT_MAIN, "========================================");
+  XLOG_INFO(CAT_MAIN, "NORMAL MODE");
+  XLOG_INFO(CAT_MAIN, "========================================");
+
+  if (apMode) {
+    wifi_stop_ap();
+    XLOG_INFO(CAT_WIFI, "AP mode disabled");
+  }
+
+#if FEATURE_ZIGBEE_ENABLED == 1
+  XLOG_INFO(CAT_MAIN, "Initializing ZigBee...");
+  zigbeeManager.begin(g_configManager.getDeviceId());
+#endif
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+  sensor_init();
+#if DEVICE_TYPE == 1
+  if (!sensor_isOk()) {
+    g_configManager.setSensorControlMode(false);
+    g_configManager.setAdaptiveMode(false);
+    fan.setAdaptiveMode(false);
+    XLOG_WARN(CAT_SENSOR, "Sensor not found - switching to MANUAL mode");
+  }
+#endif
+#endif
+
+#if DEVICE_TYPE == 1
+  fan.init(SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
+           g_configManager.getSpeedPercent(), g_configManager.getAdaptiveMode(),
+           g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
+#elif DEVICE_TYPE == 3
+  switchActuator.init(
+      SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
+      g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
+#endif
+
+  // ========================================================================
+  // ИНИЦИАЛИЗАЦИЯ ТРАНСПОРТА
+  // ========================================================================
+
+  g_transport = createTransport();
+
+  if (g_transport) {
+    XLOG_INFO(CAT_MAIN, "Transport: %s", g_transport->getName());
+
+    const ConfigData* cfg = g_configManager.get();
+
+    if (g_transport->begin(&g_client, cfg)) {
+      XLOG_INFO(CAT_MAIN, "Transport initialized successfully");
+      registerTransportCallbacks();
+    } else {
+      XLOG_ERROR(CAT_MAIN, "Failed to initialize transport");
+    }
+  } else {
+    XLOG_ERROR(CAT_MAIN, "No transport available!");
+  }
+
+  // ========================================================================
+  // WEB
+  // ========================================================================
+
+#if FEATURE_WEB_ENABLED == 1
+#if DEVICE_TYPE == 1
+  web_registerStatusProvider(&statusProvider);
+#elif DEVICE_TYPE == 3
+  web_registerStatusProvider(&statusProvider);
+#endif
+
+#if FEATURE_OTA_ENABLED == 1
+  if (ota_is_available()) {
+    ota_init(&server);
+    XLOG_INFO(CAT_MAIN, "OTA initialized");
+  } else {
+    XLOG_WARN(CAT_MAIN, "OTA not available");
+  }
+#endif
+
+  web_init();
+#endif
+
+  XLOG_INFO(CAT_MAIN, "System initialized successfully!");
+}
+
+// ============================================================================
+// NORMAL MODE — ОСНОВНОЙ ЦИКЛ
+// ============================================================================
+
+void processNormalMode() {
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+  bool sensorDataChanged = sensor_update();
+#endif
+
+  // ========================================================================
+  // БИЗНЕС-ЛОГИКА: УПРАВЛЕНИЕ ВЕНТИЛЯТОРОМ (TYPE 1)
+  // ========================================================================
+
+#if DEVICE_TYPE == 1
+
+  fan.updateConfig(g_configManager.getAdaptiveMode(),
+                   g_configManager.getDelaySeconds(),
+                   g_configManager.getMaxOnTime());
+
+  if (fan.isEmergencyStop()) {
+    XLOG_WARN(CAT_MAIN,
+              "Emergency stop detected - disabling sensor and adaptive modes");
+    g_configManager.setSensorControlMode(false);
+    g_configManager.setAdaptiveMode(false);
+    fan.setAdaptiveMode(false);
+    if (g_transport) {
+      g_transport->publishSensorControlMode(false);
+      g_transport->publishAdaptiveMode(false);
+    }
+  }
+
+  if (g_configManager.getSensorControlMode() && sensor_isOk() &&
+      sensorDataChanged) {
+    float temp = sensor_getTemperature();
+    float hum = sensor_getHumidity();
+
+    bool shouldBeOn = (temp >= g_configManager.getHighTemp() ||
+                       hum >= g_configManager.getHighHum());
+    bool shouldBeOff = (temp <= g_configManager.getLowTemp() &&
+                        hum <= g_configManager.getLowHum());
+
+    if (shouldBeOn && !fan.getState()) {
+      fan.set(true, false);
+      XLOG_INFO(CAT_SENSOR, "Auto ON: T=%.1f°C H=%.1f%%", temp, hum);
+    } else if (shouldBeOff && fan.getState()) {
+      fan.set(false, false);
+      XLOG_INFO(CAT_SENSOR, "Auto OFF: T=%.1f°C H=%.1f%%", temp, hum);
+    }
+
+    // --- Адаптивный режим ---
+    if (fan.getAdaptiveMode() && fan.getState() &&
+        g_configManager.getSensorControlMode()) {
+      static float baseTemp = 0;
+      static float baseHum = 0;
+      static bool baseInitialized = false;
+      static unsigned long lastAdaptiveCheck = 0;
+
+      if (!baseInitialized) {
+        baseTemp = temp;
+        baseHum = hum;
+        baseInitialized = true;
+        lastAdaptiveCheck = millis();
+      }
+
+      if (millis() - lastAdaptiveCheck >=
+          g_configManager.getSensorInterval() * 1000UL) {
+        lastAdaptiveCheck = millis();
+
+        float humRate = sensor_getHumRate();
+        int newSpeed =
+            calculateAdaptiveSpeed(temp, hum, baseTemp, baseHum, humRate);
+        int currentSpeed = fan.getSpeed();
+
+        float deltaTemp = temp - baseTemp;
+        float deltaHum = hum - baseHum;
+
+        if (deltaTemp > ADAPTIVE_EPSILON_TEMP ||
+            deltaHum > ADAPTIVE_EPSILON_HUM) {
+          int targetSpeed = currentSpeed + newSpeed;
+          if (targetSpeed > 100)
+            targetSpeed = 100;
+          if (targetSpeed != currentSpeed) {
+            fan.setSpeed(targetSpeed, false);
+            XLOG_DEBUG(CAT_SENSOR, "Adaptive speed: %d%% (T=%.1f°C H=%.1f%%)",
+                       targetSpeed, temp, hum);
+            baseTemp = temp;
+            baseHum = hum;
+          }
+        } else {
+          int baseSpeed = g_configManager.getSpeedPercent();
+          if (currentSpeed > baseSpeed) {
+            int targetSpeed = currentSpeed - ADAPTIVE_STEP_SIZE;
+            if (targetSpeed < baseSpeed)
+              targetSpeed = baseSpeed;
+            fan.setSpeed(targetSpeed, false);
+            XLOG_DEBUG(CAT_SENSOR, "Adaptive speed down: %d%% -> %d%%",
+                       currentSpeed, targetSpeed);
+            baseTemp = temp;
+            baseHum = hum;
+          }
+        }
+      }
+    } else {
+      static bool baseInitialized = false;
+      baseInitialized = false;
+    }
+  }
+
+  fan.update();
+
+#elif DEVICE_TYPE == 3
+
+  switchActuator.updateConfig(g_configManager.getDelaySeconds(),
+                              g_configManager.getMaxOnTime());
+
+  if (switchActuator.isEmergencyStop()) {
+    XLOG_WARN(CAT_MAIN, "Emergency stop detected on switch");
+  }
+
+  switchActuator.update(g_configManager.getDelaySeconds(),
+                        g_configManager.getMaxOnTime());
+
+#endif
+
+  // ========================================================================
+  // ОБЩАЯ ЧАСТЬ (WiFi, Transport, Web)
+  // ========================================================================
+
+  wifi_monitor();
+
+  if (g_transport && wifi_is_connected()) {
+    g_transport->process();
+
+    if (g_transport->isConnected()) {
+      publishTransportStatus();
+    }
+  } else if (g_transport && !wifi_is_connected()) {
+    if (g_transport->isConnected()) {
+      g_transport->disconnect();
+    }
+  }
+
+#if FEATURE_OTA_ENABLED == 1
+  ota_loop();
+#endif
+
+#if FEATURE_ZIGBEE_ENABLED == 1
+  zigbeeManager.process();
+#endif
+
+  web_update();
+}
+
+// ============================================================================
+// SETUP
+// ============================================================================
+
+void setup() {
+#if XLOG_LEVEL > 0
+  delay(2000);
+#endif
+
+  Logger::getInstance().begin((LogLevel)XLOG_LEVEL, XLOG_CATEGORIES,
+                              XLOG_USE_COLOR);
+  XLOG_INFO(CAT_MAIN, "SYSTEM START");
+  XLOG_DEBUG(CAT_MAIN, "=== SYSTEM INFO ===");
+  print_system_info();
+  XLOG_DEBUG(CAT_MAIN, "==========================================");
+  XLOG_DEBUG(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
+  XLOG_DEBUG(CAT_MAIN, "BLE Prov: %s",
+             USE_BLE_PROVISIONING ? "ENABLED" : "NONE");
+  XLOG_DEBUG(CAT_MAIN, "AP Prov: %s", USE_AP_PROVISIONING ? "ENABLED" : "NONE");
+#if TRANSPORT_TYPE == 0
+  const char* transportType = "MQTT";
+#elif TRANSPORT_TYPE == 1
+  const char* transportType = "ZIGBEE";
+#elif TRANSPORT_TYPE == 2
+  const char* transportType = "MATTER";
+#else
+  const char* transportType = "UNKNOWN";
+#endif
+  XLOG_DEBUG(CAT_MAIN, "Transport: %s", transportType);
+
+  led_init();
+  led_setMode(LED_MODE_MORZE_E);
+  resetBtn_init();
+  wdt_init();
+  // g_configManager.begin(); --> init
+  g_configManager.init();
+
+#if SCANNING_WIFI_ENABLED == 1
+  wdt_stop();
+  const ConfigData* cfg = g_configManager.get();
+  const char* targetSsid = (cfg != nullptr) ? cfg->wifiSsid : nullptr;
+  wifi_scan_and_log(targetSsid);
+  wdt_start();
+#endif
+
+  g_configManager.print();
+
+  // ================================================================
+  // ИНИЦИАЛИЗАЦИЯ WIFI (ОДИН РАЗ В setup)
+  // ================================================================
+  wifi_manager_init();
+
+  // ================================================================
+  // ПРОВЕРКА КОНФИГУРАЦИИ — ТОЛЬКО УСТАНОВКА ФЛАГА
+  // ================================================================
+  bool hasValidConfig = g_configManager.isValid();
+  bool hasWifi = (strlen(g_configManager.getWifiSsid()) > 0);
+
+#if FEATURE_MQTT_ENABLED == 1
+  bool hasMqtt = (strlen(g_configManager.getMqttBroker()) > 0);
+#else
+  bool hasMqtt = true;
+#endif
+
+  if (hasValidConfig && hasWifi && hasMqtt) {
+    XLOG_INFO(CAT_MAIN, "Config found. System will initialize in loop.");
+    g_normalMode = true;
+  } else {
+#if USE_BLE_PROVISIONING == 1 || USE_AP_PROVISIONING == 1
+    g_normalMode = false;
+    XLOG_INFO(CAT_MAIN, "Starting provisioning mode");
+    led_setMode(LED_MODE_MORZE_S);
+    startProvisioning();
+#else
+#if FEATURE_ZIGBEE_ENABLED == 1
+    XLOG_INFO(CAT_MAIN, "Using ZigBee mode (no provisioning needed)");
+    g_normalMode = true;
+#else
+    XLOG_ERROR(CAT_MAIN, "No valid config and no provisioning method!");
+    led_setMode(LED_MODE_OFF);
+    g_normalMode = false;
+#endif
+#endif
+  }
+
+  XLOG_DEBUG(CAT_MAIN, "Setup complete");
+}
+
+// ============================================================================
+// LOOP (ОРКЕСТРАТОР)
+// ============================================================================
+void loop() {
+  wdt_feed();
+
+  // ================================================================
+  // КНОПКА СБРОСА
+  // ================================================================
+  ResetButtonStage btnState = resetBtn_getState();
+
+  switch (btnState) {
+    case STAGE_3S:
+      XLOG_INFO(CAT_MAIN, "!!! RESET TRIGGERED !!!");
+      wdt_stop();
+      if (g_configManager.reset()) {
+        ESP.restart();
+      }
+      break;
+    default:
+      break;
+  }
+
+  // ================================================================
+  // WIFI — ПЕРВОЕ ПОДКЛЮЧЕНИЕ В loop()
+  // ================================================================
+  static bool wifi_first_start = true;
+  if (wifi_first_start && !wifi_is_connecting && !wifi_is_connected()) {
+    wifi_first_start = false;
+    XLOG_INFO(CAT_MAIN, "Starting first WiFi connection...");
+    wifi_begin();
+  }
+
+  // ================================================================
+  // ИНИЦИАЛИЗАЦИЯ СИСТЕМЫ — ТОЛЬКО ПОСЛЕ ПОДКЛЮЧЕНИЯ WIFI
+  // ================================================================
+  static bool system_initialized = false;
+  if (g_normalMode && !system_initialized && wifi_is_connected()) {
+    XLOG_INFO(CAT_MAIN, "WiFi connected, initializing system...");
+    wdt_feed();
+    initNormalMode();
+    system_initialized = true;
+    XLOG_INFO(CAT_MAIN, "System initialized after WiFi connection");
+  }
+
+  // ================================================================
+  // ОСТАЛЬНОЙ КОД
+  // ================================================================
+  processWebCommands();
+
+  if (!g_normalMode) {
+    ProvisioningManager::getInstance().update();
+
+    if (isProvisioningComplete()) {
+      auto& prov = ProvisioningManager::getInstance();
+      auto method = prov.getCompletedBy();
+
+      if (method == ProvisioningMethod::FAILED) {
+        XLOG_WARN(CAT_MAIN, "Provisioning FAILED! Rebooting ...");
+        wdt_stop();
+        ESP.restart();
+        return;
+      }
+
+      XLOG_INFO(CAT_MAIN, "Provisioning completed via %s",
+                method == ProvisioningMethod::BLE ? "BLE" : "AP");
+
+      const auto* data = prov.getData();
+      if (data && strlen(data->wifiSsid) > 0) {
+        XLOG_INFO(CAT_MAIN, "Saving config: SSID='%s'", data->wifiSsid);
+
+        auto& cfg = ConfigManager::getInstance();
+        cfg.setWifiSsid(data->wifiSsid);
+        cfg.setWifiPassword(data->wifiPassword);
+
+        if (cfg.save()) {
+          XLOG_INFO(CAT_MAIN, "Config saved successfully! Restarting...");
+          ESP.restart();
+        } else {
+          XLOG_ERROR(CAT_MAIN, "Failed to save config!");
+          return;
+        }
+      }
+
+      if (apMode) {
+        wifi_stop_ap();
+        XLOG_INFO(CAT_WIFI, "AP mode disabled");
+      }
+
+      g_normalMode = true;
+      // Не вызываем initNormalMode() здесь — она вызовется после подключения
+      // WiFi
+      XLOG_INFO(CAT_MAIN,
+                "Provisioning complete, waiting for WiFi connection...");
+    }
+  } else if (system_initialized) {
+    processNormalMode();
+  }
+
+  // ================================================================
+  // LED ИНДИКАЦИЯ
+  // ================================================================
+  // ПРИОРИТЕТ: кнопка сброса → состояние системы
+  if (btnState == PRESSED) {
+    led_setMode(LED_MODE_MORZE_E);
+  } else if (btnState == STAGE_1S) {
+    led_setMode(LED_MODE_MORZE_I);
+  } else if (btnState == STAGE_2S) {
+    led_setMode(LED_MODE_MORZE_S);
+  } else if (apMode) {
+    led_setMode(LED_MODE_MORZE_S);
+  } else if (!wifi_is_connected()) {
+    led_setMode(LED_MODE_MORZE_E);
+  } else if (g_transport && !g_transport->isConnected()) {
+    led_setMode(LED_MODE_MORZE_I);
+  } else {
+    led_setMode(LED_MODE_ON);
+  }
+
+  led_update();
+}
