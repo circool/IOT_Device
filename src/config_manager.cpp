@@ -70,8 +70,7 @@ void ConfigManager::init() {
   readFromEEPROM();
 
   _initialized = true;
-  XLOG_INFO(CAT_CONFIG, "ConfigManager initialized (valid: %s)",
-           _configValid ? "YES" : "NO");
+  XLOG_INFO(CAT_CONFIG, "ConfigManager initialized (valid: %s)", _configValid ? "YES" : "NO");
 }
 
 const ConfigData* ConfigManager::get() const {
@@ -134,9 +133,9 @@ bool ConfigManager::save() {
 }
 
 bool ConfigManager::reset() {
+  XLOG_INFO(CAT_CONFIG, "Resetting configuration...");
 
-  XLOG_INFO(CAT_CONFIG, "Resetting configuration to defaults...");
-
+  // 1. Очищаем EEPROM
   EEPROM.end();
   delay(50);
   EEPROM.begin(EEPROM_SIZE);
@@ -149,7 +148,8 @@ bool ConfigManager::reset() {
   EEPROM.end();
 
   if (ok) {
-    setDefaults();
+    // 2. Очищаем все поля
+    memset(&_config, 0, sizeof(ConfigData));
     _configValid = false;
     XLOG_INFO(CAT_CONFIG, "Reset SUCCESSFUL");
   } else {
@@ -771,6 +771,47 @@ void ConfigManager::loadFromCredentials() {
 #endif
 }
 
+// void ConfigManager::readFromEEPROM_old() {
+//   XLOG_INFO(CAT_CONFIG, "Reading from EEPROM...");
+
+//   ConfigData raw;
+//   memset(&raw, 0, sizeof(ConfigData));
+
+//   uint8_t* ptr = reinterpret_cast<uint8_t*>(&raw);
+//   for (size_t i = 0; i < EEPROM_SIZE; i++) {
+//     ptr[i] = EEPROM.read(i);
+//   }
+
+//   XLOG_DEBUG(CAT_CONFIG, "Read magic: 0x%04X (expected 0x%04X)", raw.magic,
+//             MAGIC_VALUE);
+
+//   setDefaults();
+
+//   if (raw.magic == MAGIC_VALUE) {
+//     uint16_t savedCrc = raw.crc;
+//     raw.crc = 0;
+//     uint16_t calcCrc = calculateCRC(raw);
+
+//     XLOG_DEBUG(CAT_CONFIG, "CRC: saved 0x%04X, calculated 0x%04X", savedCrc,
+//               calcCrc);
+
+//     if (calcCrc == savedCrc) {
+//       XLOG_DEBUG(CAT_CONFIG, "CRC VALID, applying EEPROM config...");
+//       validateAndApply(raw);
+//       _configValid = true;
+//       XLOG_INFO(CAT_CONFIG, "Config loaded from EEPROM");
+//       return;
+//     } else {
+//       XLOG_WARN(CAT_CONFIG, "CRC mismatch!");
+//     }
+//   } else {
+//     XLOG_WARN(CAT_CONFIG, "Magic mismatch!");
+//   }
+
+//   _configValid = false;
+//   XLOG_WARN(CAT_CONFIG, "Using defaults (EEPROM config invalid)");
+// }
+
 void ConfigManager::readFromEEPROM() {
   XLOG_INFO(CAT_CONFIG, "Reading from EEPROM...");
 
@@ -783,9 +824,7 @@ void ConfigManager::readFromEEPROM() {
   }
 
   XLOG_DEBUG(CAT_CONFIG, "Read magic: 0x%04X (expected 0x%04X)", raw.magic,
-            MAGIC_VALUE);
-
-  setDefaults();
+             MAGIC_VALUE);
 
   if (raw.magic == MAGIC_VALUE) {
     uint16_t savedCrc = raw.crc;
@@ -793,11 +832,11 @@ void ConfigManager::readFromEEPROM() {
     uint16_t calcCrc = calculateCRC(raw);
 
     XLOG_DEBUG(CAT_CONFIG, "CRC: saved 0x%04X, calculated 0x%04X", savedCrc,
-              calcCrc);
+               calcCrc);
 
     if (calcCrc == savedCrc) {
-      XLOG_DEBUG(CAT_CONFIG, "CRC VALID, applying EEPROM config...");
-      validateAndApply(raw);
+      // ВАЛИДНЫЙ КОНФИГ — КОПИРУЕМ
+      memcpy(&_config, &raw, sizeof(ConfigData));
       _configValid = true;
       XLOG_INFO(CAT_CONFIG, "Config loaded from EEPROM");
       return;
@@ -808,8 +847,9 @@ void ConfigManager::readFromEEPROM() {
     XLOG_WARN(CAT_CONFIG, "Magic mismatch!");
   }
 
+  // НЕВАЛИДНЫЙ — только флаг, поля не трогаем
   _configValid = false;
-  XLOG_WARN(CAT_CONFIG, "Using defaults (EEPROM config invalid)");
+  XLOG_WARN(CAT_CONFIG, "EEPROM config invalid");
 }
 
 bool ConfigManager::validateAndApply(const ConfigData& raw) {

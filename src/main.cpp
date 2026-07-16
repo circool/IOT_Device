@@ -24,12 +24,18 @@ void setup() {
   system_state_init();
   wdt_init();
   g_configManager.init();
-  g_configManager.print();
+  // g_configManager.print();
   resetBtn_init();
   led_init();
 
-  XLOG_INFO(CAT_MAIN, "Setup complete");
-
+  // Обработка наличия настройки wifi
+  if (strlen(g_configManager.getWifiSsid()) < 1) {
+    XLOG_INFO(CAT_MAIN, "Set provisioning mode due invalid WiFi configuration");
+    system_state_set_bit(STATE_PROVISIONING);
+    g_configManager.print();
+    
+  }
+   XLOG_INFO(CAT_MAIN, "Setup complete");
 }
 
 void loop() {
