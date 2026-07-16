@@ -1,3 +1,5 @@
+
+
 /**
  * @file led.cpp
  * @brief Реализация управления светодиодной индикацией
@@ -6,69 +8,76 @@
 #include "led.h"
 #include <Arduino.h>
 #include "logger.h"
-#include "system_state.h"
 
 #if FEATURE_LED_ENABLED == 1
 
+static LedMode _mode = LED_OFF;
+
 void led_init() {
-  pinMode(STATUS_LED_PIN, OUTPUT);
-  digitalWrite(STATUS_LED_PIN, LED_INVERTED ? HIGH : LOW);
-  XLOG_DEBUG(CAT_LED, "Init pin %d (inverted=%d)", STATUS_LED_PIN,
-             LED_INVERTED);
+    pinMode(STATUS_LED_PIN, OUTPUT);
+    digitalWrite(STATUS_LED_PIN, LED_INVERTED ? HIGH : LOW);
+    XLOG_DEBUG(CAT_LED, "Init pin %d (inverted=%d)", STATUS_LED_PIN, LED_INVERTED);
+}
+
+void led_set_mode(LedMode mode) {
+    if (_mode != mode) {
+        _mode = mode;
+        const char* names[] = {
+            "OFF",
+            "ON (Pramanent)",
+            "Morze E - No WiFi or Reset BTN pressed 1 sec (1 blink)",
+            "Morze I - No MQTT or Reset BTN pressed 2 sec (2 blink)",
+            "Morze S - Privisioning mode or Reset BTN pressed 3 sec (3 blink)",
+            "SLOW blinks"};
+        XLOG_DEBUG(CAT_LED, "Mode: %s", names[mode]);
+    }
 }
 
 void led_update() {
-  static bool lastPhysicalState = false;
-  unsigned long now = millis();
-  bool shouldBeOn = false;
+    static bool lastState = false;
+    unsigned long now = millis();
+    bool shouldBeOn = false;
 
-  // Читаем состояние напрямую из глобальной переменной
-  switch (g_systemState) {
-    case SystemState::INIT:
-    case SystemState::RESTART_PENDING:
-      shouldBeOn = false;
-      break;
+    switch (_mode) {
+        case LED_OFF:
+            shouldBeOn = false;
+            break;
 
-    case SystemState::NORMAL:
-      shouldBeOn = true;
-      break;
+        case LED_ON:
+            shouldBeOn = true;
+            break;
 
-    case SystemState::MODE_1:
-      // 1 точка: █_______ (100 ON, 900 OFF)
-      shouldBeOn = (now % 1000) < 100;
-      break;
+        case LED_MORZE_E:
+            shouldBeOn = (now % 1000) < 100;
+            break;
 
-    case SystemState::MODE_2: {
-      // 2 точки: █_█_____ (100 ON, 100 OFF, 100 ON, 700 OFF)
-      unsigned long phase = now % 1000;
-      shouldBeOn = (phase < 100) || (phase >= 200 && phase < 300);
-      break;
+        case LED_MORZE_I: {
+            unsigned long phase = now % 1000;
+            shouldBeOn = (phase < 100) || (phase >= 200 && phase < 300);
+            break;
+        }
+
+        case LED_MORZE_S: {
+            unsigned long phase = now % 1000;
+            shouldBeOn = (phase < 100) || (phase >= 200 && phase < 300) ||
+                         (phase >= 400 && phase < 500);
+            break;
+        }
+
+        case LED_SLOW_BLINK:
+            shouldBeOn = (now % 2000) < 1000;
+            break;
+
+        default:
+            shouldBeOn = false;
+            break;
     }
 
-    case SystemState::MODE_3: {
-      // 3 точки: █_█_█___ (100 ON, 100 OFF, 100 ON, 100 OFF, 100 ON, 500 OFF)
-      unsigned long phase = now % 1000;
-      shouldBeOn = (phase < 100) || (phase >= 200 && phase < 300) ||
-                   (phase >= 400 && phase < 500);
-      break;
+    if (shouldBeOn != lastState) {
+        lastState = shouldBeOn;
+        digitalWrite(STATUS_LED_PIN, shouldBeOn ? (LED_INVERTED ? LOW : HIGH)
+                                                : (LED_INVERTED ? HIGH : LOW));
     }
-
-    case SystemState::MODE_4:
-      // Медленное мигание: 1 сек горит, 1 сек не горит
-      shouldBeOn = (now % 2000) < 1000;
-      break;
-
-    default:
-      shouldBeOn = false;
-      break;
-  }
-
-  // Обновляем пин только при изменении
-  if (shouldBeOn != lastPhysicalState) {
-    lastPhysicalState = shouldBeOn;
-    digitalWrite(STATUS_LED_PIN, shouldBeOn ? (LED_INVERTED ? LOW : HIGH)
-                                            : (LED_INVERTED ? HIGH : LOW));
-  }
 }
 
 #endif  // FEATURE_LED_ENABLED

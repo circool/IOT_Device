@@ -1,58 +1,70 @@
+/**
+ * @file reset_btn.cpp
+ * @brief Реализация кнопки сброса
+ */
+
 #include "reset_btn.h"
 #include "logger.h"
+#include "system_state.h"
 
 #if FEATURE_RESET_BUTTON_ENABLED == 1
 
-static unsigned long g_pressStartTime = 0;
-static bool g_isPressed = false;
-static ResetButtonStage g_currentStage = RELEASED;
-
-static ResetButtonStage getStageForDuration(unsigned long duration) {
-  if (duration < 1000)
-    return PRESSED;
-  if (duration < 2000)
-    return STAGE_1S;
-  if (duration < 3000)
-    return STAGE_2S;
-  return STAGE_3S;
-}
+static unsigned long _pressStartTime = 0;
+static bool _isPressed = false;
+static ResetButtonStage _stage = RELEASED;
 
 void resetBtn_init() {
   pinMode(RESET_PIN, INPUT_PULLUP);
-  delay(10);
-  g_isPressed = false;
-  g_pressStartTime = 0;
-  g_currentStage = RELEASED;
+  _isPressed = false;
+  _pressStartTime = 0;
+  _stage = RELEASED;
   XLOG_INFO(CAT_RESET_BTN, "Reset button initialized on pin %d", RESET_PIN);
 }
 
-ResetButtonStage resetBtn_getState() {
+void resetBtn_update() {
   bool isPressed = (digitalRead(RESET_PIN) == LOW);
 
-  if (isPressed && !g_isPressed) {
-    g_isPressed = true;
-    g_pressStartTime = millis();
-    g_currentStage = PRESSED;
-    return g_currentStage;
+  if (isPressed && !_isPressed) {
+    _isPressed = true;
+    _pressStartTime = millis();
+    _stage = PRESSED;
+    system_state_set_bit(STATE_BUTTON_PRESSED);
+    XLOG_DEBUG(CAT_RESET_BTN, "Button PRESSED");
+    return;
   }
 
-  if (isPressed && g_isPressed) {
-    unsigned long duration = millis() - g_pressStartTime;
-    ResetButtonStage newStage = getStageForDuration(duration);
-    if (newStage != g_currentStage) {
-      g_currentStage = newStage;
+  if (isPressed && _isPressed) {
+    unsigned long duration = millis() - _pressStartTime;
+    ResetButtonStage newStage;
+
+    if (duration >= 3000) {
+      newStage = STAGE_3S;
+    } else if (duration >= 2000) {
+      newStage = STAGE_2S;
+    } else if (duration >= 1000) {
+      newStage = STAGE_1S;
+    } else {
+      newStage = PRESSED;
     }
-    return g_currentStage;
+
+    if (newStage != _stage) {
+      _stage = newStage;
+      XLOG_DEBUG(CAT_RESET_BTN, "Button stage: %d (%lu ms)", _stage, duration);
+    }
+    return;
   }
 
-  if (!isPressed && g_isPressed) {
-    g_isPressed = false;
-    g_pressStartTime = 0;
-    g_currentStage = RELEASED;
-    return g_currentStage;
+  if (!isPressed && _isPressed) {
+    _isPressed = false;
+    _pressStartTime = 0;
+    _stage = RELEASED;
+    system_state_clear_bit(STATE_BUTTON_PRESSED);
+    XLOG_DEBUG(CAT_RESET_BTN, "Button RELEASED");
   }
-
-  return g_currentStage;
 }
 
-#endif
+ResetButtonStage resetBtn_get_stage() {
+  return _stage;
+}
+
+#endif  // FEATURE_RESET_BUTTON_ENABLED

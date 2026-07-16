@@ -19,13 +19,9 @@ void setup() {
   XLOG_INFO(CAT_MAIN, "========================================");
 
   // ================================================================
-  // 1. СИСТЕМНОЕ СОСТОЯНИЕ — INIT
+  // 1. ИНИЦИАЛИЗАЦИЯ ВСЕХ СЛОЁВ
   // ================================================================
-  system_state_set(SystemState::INIT);
-
-  // ================================================================
-  // 2. ИНИЦИАЛИЗАЦИЯ СЛОЁВ
-  // ================================================================
+  system_state_init();
   wdt_init();
   g_configManager.init();
   g_configManager.print();
@@ -33,50 +29,76 @@ void setup() {
   led_init();
 
   XLOG_INFO(CAT_MAIN, "Setup complete");
+
 }
 
 void loop() {
   wdt_feed();
 
   // ================================================================
-  // 1. СЛОЙ: RESET BUTTON
+  // 1. ОБНОВЛЕНИЕ СОСТОЯНИЙ СЛОЁВ
   // ================================================================
-  ResetButtonStage btn = resetBtn_getState();
+  resetBtn_update();  // обновляет STATE_BUTTON_PRESSED
 
-  if (system_state_get() != SystemState::RESTART_PENDING && btn == STAGE_3S) {
-    XLOG_WARN(CAT_MAIN, "!!! RESET TRIGGERED !!!");
-    wdt_stop();
-    if (g_configManager.reset()) {
-      system_state_set(SystemState::RESTART_PENDING);
-      restart_request(500);
+  // ... WiFi_update() — обновляет STATE_WIFI_OK
+  // ... MQTT_update() — обновляет STATE_MQTT_OK
+  // ... Provisioning_update() — обновляет STATE_PROVISIONING
+  // ... Fan_update() — обновляет STATE_EMERGENCY
+
+  // ================================================================
+  // 2. ПОЛУЧАЕМ ТЕКУЩЕЕ СОСТОЯНИЕ УСТРОЙСТВА
+  // ================================================================
+  uint16_t bits = system_state_get_bits();
+
+  // ================================================================
+  // 3. RESET BUTTON (бизнес-логика) — только если кнопка нажата
+  // ================================================================
+  if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
+    ResetButtonStage stage = resetBtn_get_stage();
+
+    if (stage == STAGE_3S) {
+      XLOG_WARN(CAT_MAIN, "!!! RESET TRIGGERED !!!");
+      wdt_stop();
+      if (g_configManager.reset()) {
+        system_state_set_bit(STATE_RESTART);
+        restart_request(500);
+      }
     }
   }
 
   // ================================================================
-  // 2. СЛОЙ: КНОПКА — обновляет состояние
+  // 4. ОПРЕДЕЛЕНИЕ РЕЖИМА LED (ВСЯ ЛОГИКА ЗДЕСЬ)
   // ================================================================
-  if (system_state_get() != SystemState::RESTART_PENDING) {
-    if (btn == PRESSED) {
-      system_state_set(SystemState::MODE_1);
-    } else if (btn == STAGE_1S) {
-      system_state_set(SystemState::MODE_2);
-    } else if (btn == STAGE_2S) {
-      system_state_set(SystemState::MODE_3);
+  LedMode mode = LED_OFF;
+
+  if (bits & STATE_RESTART) {
+    mode = LED_OFF;
+  } else if (bits & STATE_EMERGENCY) {
+    mode = LED_SLOW_BLINK;
+  } else if (bits & STATE_PROVISIONING) {
+    mode = LED_MORZE_S;
+  } else if (bits & STATE_BUTTON_PRESSED) {
+    ResetButtonStage stage = resetBtn_get_stage();
+    if (stage == STAGE_3S || stage == STAGE_2S) {
+      mode = LED_MORZE_S;
+    } else if (stage == STAGE_1S) {
+      mode = LED_MORZE_I;
+    } else {
+      mode = LED_MORZE_E;
     }
+  } else if (!(bits & STATE_WIFI_OK)) {
+    mode = LED_MORZE_E;  // ← WiFi ПЕРВЫЙ!
+  } else if (!(bits & STATE_MQTT_OK)) {
+    mode = LED_MORZE_I;  // ← MQTT ВТОРОЙ!
+  } else {
+    mode = LED_ON;
   }
 
-  // ================================================================
-  // 3-6. ОСТАЛЬНЫЕ СЛОИ (заглушки)
-  // ================================================================
-  // TODO: добавить при реализации
-
-  // ================================================================
-  // 7. СЛОЙ: LED — читает состояние и обновляет физику
-  // ================================================================
+  led_set_mode(mode);
   led_update();
 
   // ================================================================
-  // 8. СЛОЙ: RESTART MANAGER
+  // 5. RESTART MANAGER
   // ================================================================
   restart_loop();
 }

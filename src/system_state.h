@@ -1,8 +1,6 @@
 /**
  * @file system_state.h
- * @brief Состояния системы
- * @details Единый источник правды для всех слоёв.
- *          LED, Restart Manager и другие слои читают это состояние.
+ * @brief Состояние системы (битовая маска)
  */
 
 #ifndef SYSTEM_STATE_H
@@ -10,41 +8,58 @@
 
 #include <Arduino.h>
 
+// ================================================================
+// БИТОВЫЕ ФЛАГИ СОСТОЯНИЯ УСТРОЙСТВА
+// ================================================================
+
 /**
- * @brief Состояния системы
- * @details Каждое состояние определяет поведение LED индикации
+ * @brief Битовые флаги состояния устройства
+ * @details Каждый флаг — это состояние всего устройства как целого.
+ *          Флаги можно комбинировать (битовая маска).
  */
-enum class SystemState : uint8_t {
-  INIT,           /**< Инициализация (setup) — LED выключен */
-  NORMAL,         /**< Нормальная работа — LED горит постоянно */
-  MODE_1,         /**< Нет WiFi ИЛИ кнопка 0-1с — 1 вспышка/сек */
-  MODE_2,         /**< Нет MQTT ИЛИ кнопка 1-2с — 2 вспышки/сек */
-  MODE_3,         /**< Provisioning (AP/BLE) ИЛИ кнопка 2-3с — 3 вспышки/сек */
-  MODE_4,         /**< Аварийное отключение — медленное мигание */
-  RESTART_PENDING /**< Перезагрузка (ожидание ESP.restart()) — LED выключен */
+enum SystemStateBit : uint16_t {
+  STATE_NONE = 0,
+
+  // ----- СОСТОЯНИЯ УСТРОЙСТВА (влияют на поведение других слоёв) -----
+  STATE_BUTTON_PRESSED = 1 << 0,  // 1    — кнопка нажата
+  STATE_WIFI_OK = 1 << 1,         // 2    — WiFi подключён
+  STATE_MQTT_OK = 1 << 2,         // 4    — MQTT подключён
+  STATE_PROVISIONING = 1 << 3,    // 8    — режим настройки
+  STATE_EMERGENCY = 1 << 4,       // 16   — аварийное отключение
+  STATE_RESTART = 1 << 5,         // 32   — ожидание перезагрузки
+
+  // Маска всех битов
+  STATE_ALL = STATE_BUTTON_PRESSED | STATE_WIFI_OK | STATE_MQTT_OK |
+              STATE_PROVISIONING | STATE_EMERGENCY | STATE_RESTART,
 };
 
-/**
- * @brief Установить состояние системы
- * @param state Новое состояние
- * @details Логирует изменение состояния и обновляет g_systemState.
- *          Используется вместо прямого присвоения g_systemState.
- */
-void system_state_set(SystemState state);
+// ================================================================
+// API
+// ================================================================
 
 /**
- * @brief Получить текущее состояние системы
- * @return Текущее состояние
+ * @brief Инициализация состояния системы
  */
-SystemState system_state_get();
+void system_state_init();
 
 /**
- * @brief Глобальное состояние системы
- * @details Определено в system_state.cpp.
- *          Доступно всем слоям через extern.
- * @note Для чтения используйте system_state_get(),
- *       для записи — system_state_set().
+ * @brief Установить бит (добавить состояние)
  */
-extern SystemState g_systemState;
+void system_state_set_bit(uint16_t bit);
 
-#endif  // SYSTEM_STATE_H
+/**
+ * @brief Снять бит (удалить состояние)
+ */
+void system_state_clear_bit(uint16_t bit);
+
+/**
+ * @brief Проверить наличие бита
+ */
+bool system_state_has_bit(uint16_t bit);
+
+/**
+ * @brief Получить все биты
+ */
+uint16_t system_state_get_bits();
+
+#endif
