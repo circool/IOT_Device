@@ -157,6 +157,17 @@
 #endif
 #endif
 
+/**
+ * @brief Включить Matter (автоматически на основе TRANSPORT_TYPE)
+ */
+#ifndef FEATURE_MATTER_ENABLED
+#if TRANSPORT_TYPE == 2
+#define FEATURE_MATTER_ENABLED 1
+#else
+#define FEATURE_MATTER_ENABLED 0
+#endif
+#endif
+
 // ============================================================================
 // 3. ФУНКЦИОНАЛЬНЫЕ ВОЗМОЖНОСТИ (FEATURES)
 // ============================================================================

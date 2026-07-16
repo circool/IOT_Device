@@ -1,32 +1,23 @@
-/**
- * @file provisioning.cpp
- * @brief Реализация менеджера провизионинга
- */
-
 #include "provisioning.h"
-#include "ble_server.h"
 #include "config_manager.h"
 #include "logger.h"
-#include "web.h"
 #include "wifi_manager.h"
 
-// ============================================================================
-// ГЛОБАЛЬНЫЙ УКАЗАТЕЛЬ НА BLE-СЕРВЕР (только если BLE включён)
-// ============================================================================
+#if USE_BLE_PROVISIONING == 1
+#include "ble_server.h"
+#endif
+
+#if USE_AP_PROVISIONING == 1
+#include "web.h"
+#endif
 
 #if USE_BLE_PROVISIONING == 1
 static BleProvisioningServer* g_bleServer = nullptr;
 #endif
 
-// ============================================================================
-// КОЛБЭК ДЛЯ BLE-СЕРВЕРА (только если BLE включён)
-// ============================================================================
-
 #if USE_BLE_PROVISIONING == 1
-
 static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
   (void)context;
-
   auto& prov = ProvisioningManager::getInstance();
 
   if (prov.isCompleted()) {
@@ -41,22 +32,21 @@ static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
   }
 
   XLOG_INFO(CAT_PROVISIONING, "WiFi config received via BLE: %s",
-           bleConfig->wifiSsid);
+            bleConfig->wifiSsid);
 
   ProvisioningData data;
   memset(&data, 0, sizeof(data));
+  data.type = 0;
+
+#if FEATURE_MQTT_ENABLED == 1
   strncpy(data.wifiSsid, bleConfig->wifiSsid, sizeof(data.wifiSsid) - 1);
   strncpy(data.wifiPassword, bleConfig->wifiPassword,
           sizeof(data.wifiPassword) - 1);
+#endif
 
   prov.onDataReceived(data);
 }
-
-#endif  // USE_BLE_PROVISIONING == 1
-
-// ============================================================================
-// РЕАЛИЗАЦИЯ МЕТОДОВ КЛАССА
-// ============================================================================
+#endif
 
 ProvisioningManager& ProvisioningManager::getInstance() {
   static ProvisioningManager instance;
@@ -73,18 +63,11 @@ bool ProvisioningManager::begin(ProvisioningCallback callback, void* context) {
   _state = ProvisioningState::IDLE;
   _retryCount = 0;
   _completedBy = ProvisioningMethod::NONE;
-  _apStarted = false;
   memset(&_data, 0, sizeof(_data));
 
-  if (ConfigManager::getInstance().isValid()) {
-    XLOG_INFO(CAT_PROVISIONING, "Config already exists, skipping provisioning");
-    _state = ProvisioningState::COMPLETED;
-    _completedBy = ProvisioningMethod::NONE;
-    if (_callback) {
-      _callback(ProvisioningMethod::NONE, _context);
-    }
-    return true;
-  }
+#if USE_AP_PROVISIONING == 1
+  _apStarted = false;
+#endif
 
   selectProvisioningMethod();
   return true;
@@ -96,23 +79,18 @@ void ProvisioningManager::update() {
     return;
   }
 
+#if USE_AP_PROVISIONING == 1
   if (_apStarted && wifi_is_ap_mode()) {
-    web_update();
     if (isApComplete()) {
       _state = ProvisioningState::COMPLETED;
-      _completedBy = ProvisioningMethod::AP;
+      _completedBy = ProvisioningMethod::WIFI;
       if (_callback) {
-        _callback(ProvisioningMethod::AP, _context);
+        _callback(ProvisioningMethod::WIFI, _context);
       }
-      return;
     }
   }
+#endif
 }
-
-// @deprecated Не используется
-// bool ProvisioningManager::isActive() const {
-//   return _started && (_state == ProvisioningState::ACTIVE);
-// }
 
 bool ProvisioningManager::isCompleted() const {
   return _state == ProvisioningState::COMPLETED ||
@@ -136,15 +114,26 @@ const ProvisioningData* ProvisioningManager::getData() const {
 }
 
 void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
+  if (_state == ProvisioningState::COMPLETED) {
+    XLOG_DEBUG(CAT_PROVISIONING, "Already completed, ignoring new data");
+    return;
+  }
+
   XLOG_DEBUG(CAT_PROVISIONING, "Provisioning data received");
-
   memcpy(&_data, &data, sizeof(ProvisioningData));
-
   _state = ProvisioningState::COMPLETED;
-  _completedBy = ProvisioningMethod::BLE;
+
+#if USE_BLE_PROVISIONING == 1
+  if (g_bleServer) {
+    g_bleServer->stop();
+    delete g_bleServer;
+    g_bleServer = nullptr;
+    XLOG_INFO(CAT_BLE, "BLE stopped");
+  }
+#endif
 
   if (_callback) {
-    _callback(ProvisioningMethod::BLE, _context);
+    _callback(_completedBy, _context);
   }
 }
 
@@ -153,11 +142,11 @@ void ProvisioningManager::onBleStatus(uint8_t status) {
       _state == ProvisioningState::FAILED) {
     return;
   }
-#if USE_BLE_PROVISIONING == 1
-  if (status == ARDUINO_EVENT_PROV_CRED_FAIL) {  
-    XLOG_WARN(CAT_PROVISIONING, "BLE credentials failed (attempt %d/%d)",
-             _retryCount + 1, MAX_RETRIES);
 
+#if USE_BLE_PROVISIONING == 1
+  if (status == ARDUINO_EVENT_PROV_CRED_FAIL) {
+    XLOG_WARN(CAT_PROVISIONING, "BLE credentials failed (attempt %d/%d)",
+              _retryCount + 1, MAX_RETRIES);
     _retryCount++;
 
     if (_retryCount < MAX_RETRIES) {
@@ -173,21 +162,16 @@ void ProvisioningManager::onBleStatus(uint8_t status) {
     }
   }
 #else
-  // Если BLE отключён, игнорируем статус
   (void)status;
-  XLOG_DEBUG(CAT_PROVISIONING, "BLE status received but BLE is disabled");
 #endif
 }
-
-// ============================================================================
-// ПРИВАТНЫЕ МЕТОДЫ
-// ============================================================================
 
 void ProvisioningManager::selectProvisioningMethod() {
 #if USE_BLE_PROVISIONING == 0 && USE_AP_PROVISIONING == 0
   XLOG_WARN(CAT_PROVISIONING, "Provisioning disabled.");
   return;
 #endif
+
 #if USE_BLE_PROVISIONING == 1 && USE_AP_PROVISIONING == 1
   XLOG_INFO(CAT_PROVISIONING, "Starting AP + BLE provisioning");
 #elif USE_BLE_PROVISIONING == 1
@@ -196,16 +180,13 @@ void ProvisioningManager::selectProvisioningMethod() {
   XLOG_INFO(CAT_PROVISIONING, "Starting AP provisioning");
 #endif
 
-// Порядок BLE -> AP важен!
 #if USE_BLE_PROVISIONING == 1
-
 #ifdef ESP32
   startBleProvisioning();
-  ProvisioningState::ACTIVE;
 #elif defined(ESP8266)
-  XLOG_WARN(CAT_PROVISIONING, "ESP 8266 not supported BLE!");
+  XLOG_WARN(CAT_PROVISIONING, "ESP8266 does not support BLE");
 #endif
-#endif  // USE_BLE_PROVISIONING == 1
+#endif
 
 #if USE_AP_PROVISIONING == 1
   startApProvisioning();
@@ -213,88 +194,79 @@ void ProvisioningManager::selectProvisioningMethod() {
 #endif
 }
 
-void ProvisioningManager::startBleProvisioning() {
 #if USE_BLE_PROVISIONING == 1
+void ProvisioningManager::startBleProvisioning() {
 #if defined(ESP32) && !defined(ESP8266)
   const char* deviceId = ConfigManager::getInstance().getDeviceId();
-
   g_bleServer = new BleProvisioningServer(deviceId);
 
-  if (g_bleServer->begin(onBleConfigReceived, nullptr)) {
-    // XLOG_DEBUG(CAT_PROVISIONING, "BLE provisioning started sussefull.");
+  if (g_bleServer->begin()) {
+    _state = ProvisioningState::ACTIVE;
+    XLOG_DEBUG(CAT_PROVISIONING, "BLE provisioning started");
   } else {
     XLOG_ERROR(CAT_PROVISIONING, "Failed to start BLE provisioning");
     delete g_bleServer;
     g_bleServer = nullptr;
 
+#if USE_AP_PROVISIONING == 1
     if (!_apStarted) {
       XLOG_WARN(CAT_PROVISIONING, "BLE failed, falling back to AP");
       startApProvisioning();
     } else {
-      XLOG_ERROR(CAT_PROVISIONING, "BLE start failed, provisioning FAILED");
       _state = ProvisioningState::FAILED;
       _completedBy = ProvisioningMethod::FAILED;
       if (_callback) {
         _callback(ProvisioningMethod::FAILED, _context);
       }
     }
-  }
 #else
-  XLOG_WARN(CAT_PROVISIONING, "BLE not supported on this platform");
+    _state = ProvisioningState::FAILED;
+    _completedBy = ProvisioningMethod::FAILED;
+    if (_callback) {
+      _callback(ProvisioningMethod::FAILED, _context);
+    }
 #endif
-#else
-  // BLE отключён — ничего не делаем
-  XLOG_DEBUG(CAT_PROVISIONING, "BLE provisioning disabled");
+  }
 #endif
 }
+#endif
 
+#if USE_AP_PROVISIONING == 1
 void ProvisioningManager::startApProvisioning() {
-  // XLOG_DEBUG(CAT_PROVISIONING, "Starting AP provisioning...");
-  // XLOG_DEBUG(CAT_PROVISIONING,
-  //            "Find AP '" ANSI_BOLD "%s'" ANSI_RESET
-  //            ", connect and visit " ANSI_BOLD "192.168.4.1",
-  //            ConfigManager::getInstance().getDeviceId());
-
   _apStarted = true;
-
   const char* deviceId = ConfigManager::getInstance().getDeviceId();
   wifi_start_ap(deviceId);
   web_init(true);
+  _state = ProvisioningState::ACTIVE;
+  XLOG_INFO(CAT_PROVISIONING, "AP provisioning started: %s", deviceId);
 }
 
 bool ProvisioningManager::isApComplete() {
-  return ConfigManager::getInstance().isValid() &&
-         ConfigManager::getInstance().getWifiSsid()[0] != '\0';
+#if FEATURE_MQTT_ENABLED == 1
+  return strlen(_data.wifiSsid) > 0;
+#else
+  return false;
+#endif
 }
-
-// ============================================================================
-// СТАТИЧЕСКАЯ ФУНКЦИЯ-ОБРАБОТЧИК ДЛЯ MAIN
-// ============================================================================
+#endif
 
 static void onProvisioningComplete(ProvisioningMethod method, void* context) {
   (void)context;
-
   auto& prov = ProvisioningManager::getInstance();
 
   if (method == ProvisioningMethod::FAILED) {
-    XLOG_ERROR(CAT_PROVISIONING, "Provisioning FAILED permanently!");
-    return;
-  }
-
-  if (method == ProvisioningMethod::NONE) {
-    XLOG_DEBUG(CAT_PROVISIONING, "Provisioning skipped (config exists)");
+    XLOG_ERROR(CAT_PROVISIONING, "Provisioning FAILED!");
     return;
   }
 
   const auto* data = prov.getData();
-  if (data && strlen(data->wifiSsid) > 0) {
-    XLOG_DEBUG(CAT_PROVISIONING, "Provisioning complete - received SSID='%s'",data->wifiSsid);
+#if FEATURE_MQTT_ENABLED == 1
+  if (data && data->type == 0 && strlen(data->wifiSsid) > 0) {
+    XLOG_DEBUG(CAT_PROVISIONING, "Provisioning complete - SSID: %s",
+               data->wifiSsid);
   }
+#endif
 }
-
-// ============================================================================
-// ПРОСТЫЕ ФУНКЦИИ-ОБЁРТКИ ДЛЯ MAIN
-// ============================================================================
 
 void startProvisioning() {
   ProvisioningManager::getInstance().begin(onProvisioningComplete, nullptr);
@@ -314,4 +286,8 @@ ProvisioningState getProvisioningState() {
 
 int getProvisioningRetryCount() {
   return ProvisioningManager::getInstance().getRetryCount();
+}
+
+const ProvisioningData* getProvisioningData() {
+  return ProvisioningManager::getInstance().getData();
 }

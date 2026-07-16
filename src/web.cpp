@@ -6,6 +6,7 @@
 #include "web.h"
 #include "config_manager.h"
 #include "logger.h"
+#include "provisioning.h"
 #include "settings.h"
 #include "web_templates.h"
 #include "wifi_manager.h"
@@ -27,6 +28,8 @@ ConfigData g_webPendingConfig;
 WebServerClass server(80);
 static bool g_setupMode = false;
 static IWebStatusProvider* g_statusProvider = nullptr;
+
+
 
 // ============================================================================
 // ПУБЛИЧНЫЕ ФУНКЦИИ
@@ -291,7 +294,7 @@ String web_buildStatusHtml() {
 }
 
 // ============================================================================
-// ОБРАБОТЧИКИ (без изменений)
+// ОБРАБОТЧИКИ 
 // ============================================================================
 
 #if DEVICE_TYPE == 1
@@ -319,6 +322,35 @@ static void webSendContent(const String& chunk, void* context) {
   WebServerClass* srv = (WebServerClass*)context;
   srv->sendContent(chunk);
 }
+
+void web_handleApProvisioning() {
+  String ssid = server.arg("wifiSsid");
+  String password = server.arg("wifiPassword");
+
+  if (ssid.length() > 0) {
+    XLOG_INFO(CAT_WEB, "WiFi credentials received via AP: %s", ssid.c_str());
+
+    ProvisioningData data;
+    memset(&data, 0, sizeof(data));
+    data.type = 0;
+
+#if FEATURE_MQTT_ENABLED == 1
+    strncpy(data.wifiSsid, ssid.c_str(), sizeof(data.wifiSsid) - 1);
+    strncpy(data.wifiPassword, password.c_str(), sizeof(data.wifiPassword) - 1);
+#endif
+
+    ProvisioningManager::getInstance().onDataReceived(data);
+
+    server.send(200, "text/html",
+                "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
+                "<meta http-equiv='refresh' content='3;url=/'>"
+                "</head><body><h2>WiFi saved!</h2>"
+                "<p>Device will reboot in a moment...</p></body></html>");
+  } else {
+    server.send(400, "text/html", "<h2>SSID is required!</h2>");
+  }
+}
+
 
 // ============================================================================
 // ОТПРАВКА СТРАНИЦЫ СТАТУСА
@@ -448,6 +480,26 @@ void web_sendStatusPage(int refreshInterval) {
   server.sendContent(fullHtml);
 #endif
 }
+
+/**
+ * @brief Содержимое страницы WiFi Setup (без html/head/body)
+ * @details Вставляется между HTML_PAGE_START и HTML_PAGE_END
+ * @todo: Сделать версию для 8266
+ */
+const char HTML_AP_CONTENT[] PROGMEM = R"rawliteral(
+<div class='container'>
+    <h1>WiFi Setup</h1>
+    <form method='POST' action='/savewifi'>
+        <label>WiFi SSID</label>
+        <input type='text' name='wifiSsid' required placeholder='Enter WiFi name'>
+        <label>WiFi Password</label>
+        <input type='password' name='wifiPassword' placeholder='Leave empty for open network'>
+        <input type='submit' value='Save and Reboot'>
+    </form>
+    <div class='note'>Device will reboot and connect to your WiFi network.</div>
+</div>
+)rawliteral";
+
 
 // ============================================================================
 // ОТПРАВКА СТРАНИЦЫ КОНФИГУРАЦИИ
@@ -793,16 +845,17 @@ void web_init(bool setupMode) {
   g_setupMode = setupMode;
 
   if (setupMode) {
-    // XLOG_DEBUG(CAT_WEB, "Initializing web server in SETUP mode");
-
     server.on("/", []() {
-      XLOG_DEBUG(CAT_WEB, "GET / - Config page (setup mode)");
-      web_sendConfigPage("", "");
+      String html = FPSTR(HTML_PAGE_START);
+      html += F("<title>WiFi Setup</title>");
+      html += FPSTR(HTML_STYLE);
+      html += F("</head><body>");
+      html += FPSTR(HTML_AP_CONTENT);
+      html += FPSTR(HTML_PAGE_END);
+      server.send(200, "text/html", html);
     });
-
-    server.on("/save", web_saveConfig);
+    server.on("/savewifi", web_handleApProvisioning);
     server.on("/favicon.ico", []() { server.send(404); });
-
   } else {
     // XLOG_DEBUG(CAT_WEB, "Initializing web server in NORMAL mode");
 
@@ -813,10 +866,11 @@ void web_init(bool setupMode) {
 
 #if WEB_STATUS_ENABLED == 1
     server.on("/", [refreshInterval]() {
+      XLOG_DEBUG(CAT_WEB, "GET / - serving status page");
 #ifdef ESP32
       server.client().setNoDelay(true);
 #endif
-      XLOG_DEBUG(CAT_WEB, "GET / - serving status page");
+      
       web_sendStatusPage(refreshInterval);
     });
 #else

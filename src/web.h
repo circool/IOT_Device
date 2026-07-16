@@ -126,6 +126,9 @@ extern volatile bool g_webRestartPending;
  */
 extern ConfigData g_webPendingConfig;
 
+// страница для провизионинга
+void web_handleApProvisioning();
+
 #else  // FEATURE_WEB_ENABLED == 0
 
 // Заглушки

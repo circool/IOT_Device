@@ -2,10 +2,13 @@
 #include "config_manager.h"
 #include "led.h"
 #include "logger.h"
+#include "provisioning.h"
 #include "reset_btn.h"
 #include "restart_manager.h"
 #include "system_state.h"
 #include "wdt_manager.h"
+#include "web.h"
+
 
 void setup() {
   delay(2000);
@@ -18,50 +21,64 @@ void setup() {
   XLOG_INFO(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
   XLOG_INFO(CAT_MAIN, "========================================");
 
-  // ================================================================
-  // 1. ИНИЦИАЛИЗАЦИЯ ВСЕХ СЛОЁВ
-  // ================================================================
   system_state_init();
   wdt_init();
   g_configManager.init();
-  // g_configManager.print();
+  g_configManager.print();
   resetBtn_init();
   led_init();
 
-  // Обработка наличия настройки wifi
   if (strlen(g_configManager.getWifiSsid()) < 1) {
     XLOG_INFO(CAT_MAIN, "Set provisioning mode due invalid WiFi configuration");
     system_state_set_bit(STATE_PROVISIONING);
-    g_configManager.print();
-    
+    startProvisioning();
   }
-   XLOG_INFO(CAT_MAIN, "Setup complete");
+  XLOG_INFO(CAT_MAIN, "Setup complete");
 }
 
 void loop() {
   wdt_feed();
+  resetBtn_update();
 
-  // ================================================================
-  // 1. ОБНОВЛЕНИЕ СОСТОЯНИЙ СЛОЁВ
-  // ================================================================
-  resetBtn_update();  // обновляет STATE_BUTTON_PRESSED
+  if (system_state_has_bit(STATE_PROVISIONING)) {
+    ProvisioningManager::getInstance().update();
 
-  // ... WiFi_update() — обновляет STATE_WIFI_OK
-  // ... MQTT_update() — обновляет STATE_MQTT_OK
-  // ... Provisioning_update() — обновляет STATE_PROVISIONING
-  // ... Fan_update() — обновляет STATE_EMERGENCY
+    if (isProvisioningComplete()) {
+      auto method = getProvisioningMethod();
 
-  // ================================================================
-  // 2. ПОЛУЧАЕМ ТЕКУЩЕЕ СОСТОЯНИЕ УСТРОЙСТВА
-  // ================================================================
+      if (method == ProvisioningMethod::FAILED) {
+        XLOG_ERROR(CAT_MAIN, "Provisioning FAILED!");
+      } else {
+        const auto* data = ProvisioningManager::getInstance().getData();
+
+#if FEATURE_MQTT_ENABLED == 1
+        if (data && strlen(data->wifiSsid) > 0) {
+          XLOG_INFO(CAT_MAIN, "Provisioning complete! SSID: %s",
+                    data->wifiSsid);
+
+          // 1. Применяем дефолты
+          g_configManager.setDefaults();
+
+          // 2. Перезаписываем WiFi
+          g_configManager.setWifiSsid(data->wifiSsid);
+          g_configManager.setWifiPassword(data->wifiPassword);
+
+          // 3. Сохраняем
+          if (g_configManager.save()) {
+            system_state_clear_bit(STATE_PROVISIONING);
+            restart_request(500);
+          } else {
+            XLOG_ERROR(CAT_MAIN, "Failed to save config!");
+          }
+        }
+#endif
+      }
+    }
+  }
   uint16_t bits = system_state_get_bits();
 
-  // ================================================================
-  // 3. RESET BUTTON (бизнес-логика) — только если кнопка нажата
-  // ================================================================
   if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
     ResetButtonStage stage = resetBtn_get_stage();
-
     if (stage == STAGE_3S) {
       XLOG_WARN(CAT_MAIN, "!!! RESET TRIGGERED !!!");
       wdt_stop();
@@ -72,9 +89,6 @@ void loop() {
     }
   }
 
-  // ================================================================
-  // 4. ОПРЕДЕЛЕНИЕ РЕЖИМА LED (ВСЯ ЛОГИКА ЗДЕСЬ)
-  // ================================================================
   LedMode mode = LED_OFF;
 
   if (bits & STATE_RESTART) {
@@ -93,18 +107,16 @@ void loop() {
       mode = LED_MORZE_E;
     }
   } else if (!(bits & STATE_WIFI_OK)) {
-    mode = LED_MORZE_E;  // ← WiFi ПЕРВЫЙ!
+    mode = LED_MORZE_E;
   } else if (!(bits & STATE_MQTT_OK)) {
-    mode = LED_MORZE_I;  // ← MQTT ВТОРОЙ!
+    mode = LED_MORZE_I;
   } else {
     mode = LED_ON;
   }
 
+  web_update();
+
   led_set_mode(mode);
   led_update();
-
-  // ================================================================
-  // 5. RESTART MANAGER
-  // ================================================================
   restart_loop();
 }
