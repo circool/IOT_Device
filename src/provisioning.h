@@ -50,7 +50,7 @@ enum class ProvisioningState : uint8_t {
 struct ProvisioningData {
   uint8_t type;
 
-#if FEATURE_MQTT_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   char wifiSsid[32];
   char wifiPassword[64];
 #endif

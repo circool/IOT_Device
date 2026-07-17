@@ -38,7 +38,7 @@ static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
   memset(&data, 0, sizeof(data));
   data.type = 0;
 
-#if FEATURE_MQTT_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   strncpy(data.wifiSsid, bleConfig->wifiSsid, sizeof(data.wifiSsid) - 1);
   strncpy(data.wifiPassword, bleConfig->wifiPassword,
           sizeof(data.wifiPassword) - 1);
@@ -68,7 +68,7 @@ bool ProvisioningManager::begin(ProvisioningCallback callback, void* context) {
 #if USE_AP_PROVISIONING == 1
   _apStarted = false;
 #endif
-
+  
   selectProvisioningMethod();
   return true;
 }
@@ -128,7 +128,7 @@ void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
     g_bleServer->stop();
     delete g_bleServer;
     g_bleServer = nullptr;
-    XLOG_INFO(CAT_BLE, "BLE stopped");
+    XLOG_DEBUG(CAT_BLE, "BLE stopped");
   }
 #endif
 
@@ -242,7 +242,7 @@ void ProvisioningManager::startApProvisioning() {
 }
 
 bool ProvisioningManager::isApComplete() {
-#if FEATURE_MQTT_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   return strlen(_data.wifiSsid) > 0;
 #else
   return false;
@@ -260,7 +260,7 @@ static void onProvisioningComplete(ProvisioningMethod method, void* context) {
   }
 
   const auto* data = prov.getData();
-#if FEATURE_MQTT_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
   if (data && data->type == 0 && strlen(data->wifiSsid) > 0) {
     XLOG_DEBUG(CAT_PROVISIONING, "Provisioning complete - SSID: %s",
                data->wifiSsid);

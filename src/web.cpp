@@ -334,7 +334,7 @@ void web_handleApProvisioning() {
     memset(&data, 0, sizeof(data));
     data.type = 0;
 
-#if FEATURE_MQTT_ENABLED == 1
+#if FEATURE_WIFI_ENABLED == 1
     strncpy(data.wifiSsid, ssid.c_str(), sizeof(data.wifiSsid) - 1);
     strncpy(data.wifiPassword, password.c_str(), sizeof(data.wifiPassword) - 1);
 #endif
