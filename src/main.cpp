@@ -41,6 +41,7 @@ void loop() {
   wdt_feed();
   resetBtn_update();
 
+  // Провизионинг
   if (system_state_has_bit(STATE_PROVISIONING)) {
     ProvisioningManager::getInstance().update();
 
@@ -78,6 +79,7 @@ void loop() {
   }
   uint16_t bits = system_state_get_bits();
 
+  // Кнопка сброса
   if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
     ResetButtonStage stage = resetBtn_get_stage();
     if (stage == STAGE_3S) {
@@ -90,8 +92,8 @@ void loop() {
     }
   }
 
+  // Индикатор LED
   LedMode mode = LED_OFF;
-
   if (bits & STATE_RESTART) {
     mode = LED_OFF;
   } else if (bits & STATE_EMERGENCY) {
@@ -115,9 +117,11 @@ void loop() {
     mode = LED_ON;
   }
 
+  
+  // Функциональные слои - периодические 
   web_update();
 
   led_set_mode(mode);
-  led_update();
+  led_loop();
   restart_loop();
 }
