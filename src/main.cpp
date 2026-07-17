@@ -8,13 +8,14 @@
 #include "system_state.h"
 #include "wdt_manager.h"
 #include "web.h"
+#include "debug_tools.h"
 
 
 void setup() {
   delay(2000);
   Logger::getInstance().begin((LogLevel)XLOG_LEVEL, XLOG_CATEGORIES,
                               XLOG_USE_COLOR);
-
+  print_system_info();
   XLOG_INFO(CAT_MAIN, "========================================");
   XLOG_INFO(CAT_MAIN, "SYSTEM STARTING...");
   XLOG_INFO(CAT_MAIN, "Version: %s", VERSION);
@@ -50,8 +51,8 @@ void loop() {
         XLOG_ERROR(CAT_MAIN, "Provisioning FAILED!");
       } else {
         const auto* data = ProvisioningManager::getInstance().getData();
-
-#if FEATURE_MQTT_ENABLED == 1
+        
+        #if FEATURE_WIFI_ENABLED == 1
         if (data && strlen(data->wifiSsid) > 0) {
           XLOG_INFO(CAT_MAIN, "Provisioning complete! SSID: %s",
                     data->wifiSsid);
@@ -71,7 +72,7 @@ void loop() {
             XLOG_ERROR(CAT_MAIN, "Failed to save config!");
           }
         }
-#endif
+        #endif
       }
     }
   }
