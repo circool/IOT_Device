@@ -712,7 +712,7 @@ void ConfigManager::setDefaults() {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   _config.delaySeconds = DEFAULT_DELAY_SECONDS;
 
-#if EMERGENCY_ENABLED == 1
+#if FEATURE_EMERGENCY_ENABLED == 1
   _config.maxOnTime = MAX_ON_TIME_SEC;
 #else
   _config.maxOnTime = 0;
