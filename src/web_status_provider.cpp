@@ -1,19 +1,27 @@
 #include "web_status_provider.h"
 #include "fan_actuator.h"
-#include "mqtt.h"
 #include "sensor.h"
 #include "switch_actuator.h"
 #include "transport.h"
 #include "wifi_manager.h"
 
+#if FEATURE_MQTT_ENABLED == 1
+#include "mqtt.h"
+#endif
+
 // ============================================================================
 // FanWebStatusProvider
 // ============================================================================
 
+#if FEATURE_MQTT_ENABLED == 1
 FanWebStatusProvider::FanWebStatusProvider(FanActuator* fan,
                                            Sensor* sensor,
                                            MQTTManager* mqtt)
     : _fan(fan), _sensor(sensor), _mqtt(mqtt) {}
+#else
+FanWebStatusProvider::FanWebStatusProvider(FanActuator* fan, Sensor* sensor)
+    : _fan(fan), _sensor(sensor) {}
+#endif
 
 bool FanWebStatusProvider::isDeviceOn() const {
   return _fan ? _fan->getState() : false;
@@ -60,11 +68,12 @@ const char* FanWebStatusProvider::getSensorError() const {
 }
 
 bool FanWebStatusProvider::isMqttConnected() const {
+#if FEATURE_MQTT_ENABLED == 1
   if (_mqtt) {
     return _mqtt->isConnected();
   }
-  return g_transport ? g_transport->isConnected()
-                     : false;  
+#endif
+  return g_transport ? g_transport->isConnected() : false;
 }
 
 int FanWebStatusProvider::getWifiRssi() const {
@@ -75,9 +84,14 @@ int FanWebStatusProvider::getWifiRssi() const {
 // SwitchWebStatusProvider
 // ============================================================================
 
+#if FEATURE_MQTT_ENABLED == 1
 SwitchWebStatusProvider::SwitchWebStatusProvider(SwitchActuator* sw,
                                                  MQTTManager* mqtt)
     : _switch(sw), _mqtt(mqtt) {}
+#else
+SwitchWebStatusProvider::SwitchWebStatusProvider(SwitchActuator* sw)
+    : _switch(sw) {}
+#endif
 
 bool SwitchWebStatusProvider::isDeviceOn() const {
   return _switch ? _switch->getState() : false;
@@ -100,7 +114,12 @@ unsigned long SwitchWebStatusProvider::getStartTime() const {
 }
 
 bool SwitchWebStatusProvider::isMqttConnected() const {
-  return _mqtt ? _mqtt->isConnected() : false;
+#if FEATURE_MQTT_ENABLED == 1
+  if (_mqtt) {
+    return _mqtt->isConnected();
+  }
+#endif
+  return g_transport ? g_transport->isConnected() : false;
 }
 
 int SwitchWebStatusProvider::getWifiRssi() const {

@@ -39,9 +39,11 @@ class IWebStatusProvider {
  */
 class FanWebStatusProvider : public IWebStatusProvider {
  public:
-  FanWebStatusProvider(class FanActuator* fan,
-                       class Sensor* sensor,
-                       class MQTTManager* mqtt);
+#if FEATURE_MQTT_ENABLED == 1
+  FanWebStatusProvider(class FanActuator* fan, class Sensor* sensor, class MQTTManager* mqtt);
+#else
+  FanWebStatusProvider(class FanActuator* fan, class Sensor* sensor);
+#endif
 
   bool isDeviceOn() const override;
   bool isEmergencyStop() const override;
@@ -63,7 +65,9 @@ class FanWebStatusProvider : public IWebStatusProvider {
  private:
   class FanActuator* _fan;
   class Sensor* _sensor;
-  class MQTTManager* _mqtt;
+#if FEATURE_MQTT_ENABLED == 1
+  MQTTManager* _mqtt;
+#endif
 };
 
 /**
@@ -71,7 +75,11 @@ class FanWebStatusProvider : public IWebStatusProvider {
  */
 class SwitchWebStatusProvider : public IWebStatusProvider {
  public:
+#if FEATURE_MQTT_ENABLED == 1
   SwitchWebStatusProvider(class SwitchActuator* sw, class MQTTManager* mqtt);
+#else
+  SwitchWebStatusProvider(class SwitchActuator* sw);
+#endif
 
   bool isDeviceOn() const override;
   bool isEmergencyStop() const override;
@@ -92,7 +100,9 @@ class SwitchWebStatusProvider : public IWebStatusProvider {
 
  private:
   class SwitchActuator* _switch;
+#if FEATURE_MQTT_ENABLED == 1
   class MQTTManager* _mqtt;
+#endif
 };
 
 #endif  // WEB_STATUS_PROVIDER_H

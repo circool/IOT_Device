@@ -1,7 +1,7 @@
 #include "transport_mqtt.h"
 #include "logger.h"
 
-
+#if FEATURE_MQTT_ENABLED == 1
 // ============================================================================
 // СТАТИЧЕСКИЕ ОБЪЕКТЫ
 // ============================================================================
@@ -344,3 +344,5 @@ Transport* getMQTTTransport() {
   g_initialized = true;
   return &g_mqttTransport;
 }
+
+#endif
