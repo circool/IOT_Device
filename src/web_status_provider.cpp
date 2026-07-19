@@ -9,6 +9,7 @@
 #include "mqtt.h"
 #endif
 
+#if DEVICE_TYPE == 1
 // ============================================================================
 // FanWebStatusProvider
 // ============================================================================
@@ -79,6 +80,9 @@ bool FanWebStatusProvider::isMqttConnected() const {
 int FanWebStatusProvider::getWifiRssi() const {
   return wifi_get_rssi();
 }
+#endif  //DEVICE_TYPE == 1
+
+#if DEVICE_TYPE == 2
 
 // ============================================================================
 // SensorWebStatusProvider (для TYPE 2)
@@ -119,6 +123,9 @@ bool SensorWebStatusProvider::isMqttConnected() const {
 int SensorWebStatusProvider::getWifiRssi() const {
   return wifi_get_rssi();
 }
+#endif  // DEVICE_TYPE == 2
+
+#if DEVICE_TYPE == 3
 
 // ============================================================================
 // SwitchWebStatusProvider
@@ -165,3 +172,4 @@ bool SwitchWebStatusProvider::isMqttConnected() const {
 int SwitchWebStatusProvider::getWifiRssi() const {
   return wifi_get_rssi();
 }
+#endif  // DEVICE_TYPE == 3
