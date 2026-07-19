@@ -53,7 +53,7 @@ void system_state_set_bit(uint16_t bit);
 void system_state_clear_bit(uint16_t bit);
 
 /**
- * @brief Проверить наличие бита
+ * @brief Проверить факт установки бита
  */
 bool system_state_has_bit(uint16_t bit);
 
