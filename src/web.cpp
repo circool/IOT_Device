@@ -12,6 +12,10 @@
 #include "web_templates.h"
 #include "wifi_manager.h"
 
+/**
+ * @todo исправить ошибку [W][WebServer.cpp:435] send(): content length is zero
+ */
+
 #if FEATURE_WEB_ENABLED == 1
 
 // ============================================================================
