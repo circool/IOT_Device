@@ -71,10 +71,47 @@ class FanWebStatusProvider : public IWebStatusProvider {
 };
 
 /**
- * @brief Реализация интерфейса для TYPE 3 (выключатель без датчика)
+ * @brief Реализация интерфейса для TYPE 2 (датчик)
  */
-class SwitchWebStatusProvider : public IWebStatusProvider {
+class SensorWebStatusProvider : public IWebStatusProvider {
  public:
+#if FEATURE_MQTT_ENABLED == 1
+  SensorWebStatusProvider(class MQTTManager* mqtt);
+#else
+  SensorWebStatusProvider();
+#endif
+  bool isDeviceOn() const override { return false; }
+  bool isEmergencyStop() const override { return false; }
+  bool isDelayActive() const override { return false; }
+  unsigned long getDelayTimer() const override { return 0; }
+  unsigned long getStartTime() const override { return 0; }
+
+  // ========== Информация о вентиляторе ==========
+  int getSpeedPercent() const override { return 0; }
+  bool isAdaptiveModeActive() const override { return false; }
+
+  // ========== Информация о датчике ==========
+  bool isSensorOk() const override;
+  float getTemperature() const override;
+  float getHumidity() const override;
+  const char* getSensorError() const override;
+
+  // ========== Информация о подключениях ==========
+  bool isMqttConnected() const override;
+  int getWifiRssi() const override;
+
+ private:
+#if FEATURE_MQTT_ENABLED == 1
+  MQTTManager* _mqtt;
+#endif
+};
+
+
+  /**
+   * @brief Реализация интерфейса для TYPE 3 (выключатель без датчика)
+   */
+  class SwitchWebStatusProvider : public IWebStatusProvider {
+   public:
 #if FEATURE_MQTT_ENABLED == 1
   SwitchWebStatusProvider(class SwitchActuator* sw, class MQTTManager* mqtt);
 #else

@@ -81,6 +81,46 @@ int FanWebStatusProvider::getWifiRssi() const {
 }
 
 // ============================================================================
+// SensorWebStatusProvider (для TYPE 2)
+// ============================================================================
+
+#if FEATURE_MQTT_ENABLED == 1
+SensorWebStatusProvider::SensorWebStatusProvider(MQTTManager* mqtt)
+    : _mqtt(mqtt) {}
+#else
+SensorWebStatusProvider::SensorWebStatusProvider() {}
+#endif
+
+bool SensorWebStatusProvider::isSensorOk() const {
+  return sensor_isOk();
+}
+
+float SensorWebStatusProvider::getTemperature() const {
+  return sensor_getTemperature();
+}
+
+float SensorWebStatusProvider::getHumidity() const {
+  return sensor_getHumidity();
+}
+
+const char* SensorWebStatusProvider::getSensorError() const {
+  return sensor_getError();
+}
+
+bool SensorWebStatusProvider::isMqttConnected() const {
+#if FEATURE_MQTT_ENABLED == 1
+  if (_mqtt) {
+    return _mqtt->isConnected();
+  }
+#endif
+  return g_transport ? g_transport->isConnected() : false;
+}
+
+int SensorWebStatusProvider::getWifiRssi() const {
+  return wifi_get_rssi();
+}
+
+// ============================================================================
 // SwitchWebStatusProvider
 // ============================================================================
 
