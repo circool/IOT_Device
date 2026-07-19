@@ -69,16 +69,18 @@ void Logger::log(LogLevel level,
   vsnprintf(buffer, sizeof(buffer), format, args);
   va_end(args);
 
-  char output[320];
+  char output[340];
   const char* color = _useColor ? getColorForLevel(level) : "";
   const char* reset = _useColor ? ANSI_RESET : "";
 
+  unsigned long uptime = millis();
+
   if (_useColor) {
-    snprintf(output, sizeof(output), "%s[%s] [%s] %s%s\n", color,
+    snprintf(output, sizeof(output), "%s [%6lu] [%s] [%s] %s%s\n", color,uptime, 
              levelToString(level), categoryToString(category), buffer, reset);
   } else {
-    snprintf(output, sizeof(output), "[%s] [%s] %s\n", levelToString(level),
-             categoryToString(category), buffer);
+    snprintf(output, sizeof(output), "[%6lu] [%s] [%s] %s\n", uptime,
+             levelToString(level), categoryToString(category), buffer);
   }
   Serial.print(output);
 }
