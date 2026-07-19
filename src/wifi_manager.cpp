@@ -9,10 +9,13 @@ static bool wifi_reconnecting = false;
 
 void wifi_manager_init() {
   XLOG_INFO(CAT_WIFI, "Initializing WiFi manager...");
-  // WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
-  // WiFi.setSleep(false);
-  WiFi.setAutoReconnect(true);
+
+// Для компенсации неустойчивого соединения на ESP 32C снижаем мощность до 8.5 dBm
+#if PLATFORM_ESP32C3==1
+  WiFi.setTxPower(WIFI_POWER_8_5dBm); 
+#endif
+      WiFi.setAutoReconnect(true);
 }
 
 void wifi_manager_begin() {
@@ -20,53 +23,28 @@ void wifi_manager_begin() {
     XLOG_WARN(CAT_WIFI, "No SSID configured");
     return;
   }
-  XLOG_INFO(CAT_WIFI, "Connecting to %s", g_configManager.getWifiSsid());
-  WiFi.begin(g_configManager.getWifiSsid(), g_configManager.getWifiPassword());
+  XLOG_INFO(CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET "...", g_configManager.getWifiSsid());
+  
+   WiFi.begin(
+      g_configManager.getWifiSsid(), g_configManager.getWifiPassword());
   return;
-
-  // if (WiFi.status() == WL_CONNECTED) {
-  //   XLOG_DEBUG(CAT_WIFI, "Already connected");
-  //   wifi_reconnecting = false;
-  //   return;
-  // }
-
-  // if (wifi_reconnecting) {
-  //   XLOG_DEBUG(CAT_WIFI, "Already reconnecting, waiting...");
-  //   return;
-  // }
-
-  // XLOG_INFO(CAT_WIFI, "Connecting to %s", g_configManager.getWifiSsid());
-  // WiFi.begin(g_configManager.getWifiSsid(), g_configManager.getWifiPassword());
-  // wifi_reconnecting = true;
 }
 
 void wifi_manager_loop() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!system_state_has_bit(STATE_WIFI_OK)) {
-      XLOG_INFO(CAT_WIFI, "Connected! IP: %s, RSSI: %d dBm", WiFi.localIP().toString().c_str(), WiFi.RSSI());
+      XLOG_INFO(CAT_WIFI, "Connected! IP: " ANSI_BOLD "%s" ANSI_BOLD_RESET ", RSSI: " ANSI_BOLD "%d" ANSI_BOLD_RESET " dBm.", WiFi.localIP().toString().c_str(), WiFi.RSSI());
       system_state_set_bit(STATE_WIFI_OK);
     }
-    
-    // wifi_reconnecting = false;  
+     
   } else {
     system_state_clear_bit(STATE_WIFI_OK);
   }
-
-  // if (!system_state_has_bit(STATE_PROVISIONING)) {
-    
-  //   if (WiFi.status() != WL_CONNECTED && !wifi_reconnecting) {
-  //     if (strlen(g_configManager.getWifiSsid()) > 0) {
-  //       XLOG_DEBUG(CAT_WIFI, "WiFi lost, reconnecting...");
-  //       wifi_manager_begin();  
-  //     }
-  //   }
-  // }
 }
 
 int wifi_scan_and_log(const char* targetSsid) {
   static bool is_scanning = false;
 
-  // Защита от реентерабельности
   if (is_scanning) {
     XLOG_WARN(CAT_WIFI, "Scan already in progress, skipping");
     return -1;
@@ -78,7 +56,7 @@ int wifi_scan_and_log(const char* targetSsid) {
   }
 
   is_scanning = true;
-  XLOG_INFO(CAT_WIFI, "Scanning WiFi networks...");
+  XLOG_DEBUG(CAT_WIFI, "Scanning WiFi networks...");
 
   int networksFound = WiFi.scanNetworks();
 
@@ -90,12 +68,8 @@ int wifi_scan_and_log(const char* targetSsid) {
   }
 
   bool markTarget = (targetSsid != nullptr && strlen(targetSsid) > 0);
-
-  // Заголовок таблицы
-  XLOG_DEBUG(CAT_WIFI, "%-32s %-8s %-8s %-12s %s", "SSID", "RSSI", "CH", "AUTH",
-             "TARGET");
-  XLOG_DEBUG(CAT_WIFI,
-             "------------------------------------------------------------");
+  XLOG_DEBUG(CAT_WIFI, "%-32s %-8s %-8s %-12s %s", "SSID", "RSSI", "CH", "AUTH","TARGET");
+  XLOG_DEBUG(CAT_WIFI,"------------------------------------------------------------");
 
   for (int i = 0; i < networksFound; i++) {
     String ssid = WiFi.SSID(i);
@@ -166,7 +140,7 @@ int wifi_scan_and_log(const char* targetSsid) {
                channel, authType.c_str(), targetMark.c_str());
   }
 
-  XLOG_INFO(CAT_WIFI, "Scan complete: %d network(s) found", networksFound);
+  XLOG_DEBUG(CAT_WIFI, "Scan complete: %d network(s) found", networksFound);
   WiFi.scanDelete();
   is_scanning = false;
 
