@@ -9,6 +9,11 @@
 #include <ESP8266WiFi.h>
 #endif
 
+/** @brief Включить поддержку WiFi по умолчанию */
+#ifndef FEATURE_WIFI_ENABLED
+#define FEATURE_WIFI_ENABLED 1
+#endif
+
 // ============================================================================
 // НАСТРОЙКИ WIFI
 // ============================================================================
@@ -23,65 +28,53 @@
 #define WIFI_PASSWORD ""
 #endif
 
-/** @brief Включить режим точки доступа (AP) для настройки */
-#ifndef AP_ENABLED
-#define AP_ENABLED 1
+// /** @brief Таймаут подключения к WiFi (миллисекунды)
+//  * - время за которое должно произойти успешное (первоначальное) подключение к сети .
+//  * При превышении считается что сеть недоступна
+//  */
+// #ifndef WIFI_CONNECT_TIMEOUT_MS
+// #define WIFI_CONNECT_TIMEOUT_MS 9000
+// #endif
+
+
+
+/**
+ * @brief Время без WiFi до перехода в режим AP (мс)
+ * Если устройство потеряло соединение с WiFi дольше этого времени,
+ * запускается провизионинг для настройки.
+ */
+#ifndef WIFI_FALLBACK_TIMEOUT_MS
+#define WIFI_FALLBACK_TIMEOUT_MS 10000
 #endif
 
-/** @brief Таймаут подключения к WiFi (миллисекунды) */
-#ifndef WIFI_CONNECT_TIMEOUT_MS
-#define WIFI_CONNECT_TIMEOUT_MS 6000
-#endif
 
-/** @brief Интервал проверки WiFi соединения (мс) */
-#ifndef WIFI_CHECK_INTERVAL_MS
-#define WIFI_CHECK_INTERVAL_MS 10000
-#endif
-
-// ============================================================================
-// РЕЖИМ ТОЧКИ ДОСТУПА (AP)
-// ============================================================================
-
-#if AP_ENABLED == 1
 /** @brief IP адрес точки доступа */
+#if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
 #ifndef AP_IP_ADDRESS
 #define AP_IP_ADDRESS "192.168.4.1"
 #endif
 
-/**
- * @brief Время без WiFi до перехода в режим AP (мс)
- * Если устройство не может подключиться к WiFi дольше этого времени,
- * запускается собственная точка доступа для настройки.
+/** @brief Веб-интерфейс нужен для провизионинга 
+ * @todo: найти место где можно безопасно переиниировать эту константу
  */
-#ifndef AP_FALLBACK_TIMEOUT_MS
-#define AP_FALLBACK_TIMEOUT_MS 12000
-#endif
+#ifndef FEATURE_WEB_ENABLED
+#define FEATURE_WEB_ENABLED 1
 #endif
 
-/** @brief Включить поддержку WiFi */
-#ifndef FEATURE_WIFI_ENABLED
-#define FEATURE_WIFI_ENABLED 1
-#endif
+#endif  // PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
+
 
 #if FEATURE_WIFI_ENABLED == 1
-
-extern bool apMode;
-bool wifi_is_ap_mode();
 
 #ifndef SCANNING_WIFI_ENABLED
 #define SCANNING_WIFI_ENABLED 0
 #endif
 
-/** @brief Включить веб-интерфейс */
-#ifndef FEATURE_WEB_ENABLED
-#define FEATURE_WEB_ENABLED 1
-#endif
 
-/**
- * @brief Флаг процесса подключения к WiFi
- * @note true — идёт подключение, false — не идёт
- */
-extern bool wifi_is_connecting;
+
+
+
+
 
 /**
  * @brief Инициализация WiFi менеджера
@@ -93,45 +86,39 @@ void wifi_manager_init();
 /**
  * @brief Инициализация подключения к WiFi
  * @note Запускает асинхронное подключение к сохранённой сети
+ * @todo Разобраться чем он отличается от wifi_manager_init и нужен ли вообще
  */
-void wifi_begin();
+void wifi_manager_begin();
+
+
+
+
 
 /**
- * @brief Проверка статуса подключения к WiFi
- * @note Вызывается в loop() для отслеживания прогресса подключения
+ * @brief Периодический вызов в loop()
+ * @details Обновляет состояние подключения и управляет STATE_WIFI_OK
+ * @todo Продумать функциональные обязанности и решить что делать с
+ * wifi_check/wifi_monitor
  */
-void wifi_check();
-
-/**
- * @brief Мониторинг и поддержание WiFi соединения
- * @note Обрабатывает потерю связи, переподключение и fallback в AP режим
- */
-void wifi_monitor();
+void wifi_manager_loop();
 
 /**
  * @brief Получить локальный IP адрес
  * @return IP адрес в виде строки (например, "192.168.1.100")
+ * @todo Продумать над целесообразностью наличия функции из одной строки
  */
 String wifi_get_local_ip();
 
 /**
  * @brief Получить уровень сигнала WiFi
  * @return RSSI в dBm (отрицательное значение, например -55)
+ * @todo Продумать над целесообразностью наличия функции из одной строки
  */
 int wifi_get_rssi();
 
-/**
- * @brief Проверить наличие WiFi соединения
- * @return true — подключён к точке доступа, false — нет соединения
- */
-bool wifi_is_connected();
 
-/**
- * @brief Запустить режим точки доступа (AP)
- * @param ssid Имя WiFi сети (SSID) для точки доступа
- * @note IP адрес точки доступа задаётся макросом AP_IP_ADDRESS
- */
-void wifi_start_ap(const char* ssid);
+
+
 
 /**
  * @brief Выполнить сканирование WiFi сетей и вывести результат в лог
@@ -142,29 +129,25 @@ void wifi_start_ap(const char* ssid);
  *
  * @note Функция синхронная, блокирует выполнение до завершения сканирования
  * (2-5 секунд)
- * @note Защищена от реентерабельности
+ * @note Нужна только на этапе отладки, в продакшн удалить
  */
 int wifi_scan_and_log(const char* targetSsid);
 
-void wifi_start_ap(const char* ssid);
-void wifi_stop_ap();
+
+
 
 #else  // FEATURE_WIFI_ENABLED == 0
 
 /**
  * @brief Заглушка: инициализация WiFi (отключена)
  */
-inline void wifi_begin() {}
+inline void wifi_manager_begin() {}
 
-/**
- * @brief Заглушка: проверка WiFi (отключена)
- */
-inline void wifi_check() {}
 
 /**
  * @brief Заглушка: мониторинг WiFi (отключён)
  */
-inline void wifi_monitor() {}
+// inline void wifi_monitor() {}
 
 /**
  * @brief Заглушка: получить локальный IP
@@ -186,9 +169,9 @@ inline int wifi_get_rssi() {
  * @brief Заглушка: проверить соединение
  * @return false — WiFi отключён
  */
-inline bool wifi_is_connected() {
-  return false;
-}
+// inline bool wifi_is_connected() {
+//   return false;
+// }
 
 /**
  * @brief Заглушка: запустить точку доступа
@@ -198,6 +181,10 @@ inline void wifi_start_ap(const char* ssid) {
   (void)ssid;
 }
 
+/**
+ * @brief Заглушка: остановить точку доступа
+ * @param ssid Не используется
+ */
 inline void wifi_stop_ap(){}
 
 /**
@@ -211,11 +198,30 @@ inline int wifi_scan_and_log(const char* /*targetSsid*/) {
 /**
  * @brief Флаг подключения (заглушка)
  * @note Всегда false, так как WiFi отключён
+ * @deprecated Реализовать в wifi_manager.cpp
  */
-static bool wifi_is_connecting = false;
+// static bool wifi_is_connecting = false;
 
 // void wifi_start_ap_mode() {};
 
 #endif  // FEATURE_WIFI_ENABLED == 1
 
+#if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
+/**
+ * @brief Запустить режим точки доступа (AP)
+ * @param ssid Имя WiFi сети (SSID) для точки доступа
+ * @note IP адрес точки доступа задаётся макросом AP_IP_ADDRESS
+ */
+void wifi_start_ap(const char* ssid);
+
+/**
+ * @brief Остановить режим точки доступа (AP)
+ * @note Оставлен для симметрии с wifi_start_ap
+ */
+void wifi_stop_ap();
+#else
+inline void wifi_start_ap(const char* ssid){};
+inline void wifi_stop_ap(){};
+
+#endif
 #endif  // WIFI_H

@@ -8,6 +8,7 @@
 #include "logger.h"
 #include "provisioning.h"
 #include "settings.h"
+#include "system_state.h"
 #include "web_templates.h"
 #include "wifi_manager.h"
 
@@ -341,13 +342,29 @@ void web_handleApProvisioning() {
 
     ProvisioningManager::getInstance().onDataReceived(data);
 
-    server.send(200, "text/html",
-                "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
-                "<meta http-equiv='refresh' content='3;url=/'>"
-                "</head><body><h2>WiFi saved!</h2>"
-                "<p>Device will reboot in a moment...</p></body></html>");
+    String html = FPSTR(HTML_PAGE_START);
+    html += F("<title>WiFi Saved</title>");
+    html += FPSTR(HTML_STYLE);
+    html += F("</head><body><div class='container' style='max-width:600px;'>");
+    html += F("<div class='success' style='text-align:center;'>");
+    html += F("<h2>WiFi saved!</h2>");
+    html += F("<p>Device will reboot in a moment...</p>");
+    html += F("</div></div>");
+    html += FPSTR(HTML_PAGE_END);
+
+    server.send(200, "text/html", html);
   } else {
-    server.send(400, "text/html", "<h2>SSID is required!</h2>");
+    String html = FPSTR(HTML_PAGE_START);
+    html += F("<title>Error</title>");
+    html += FPSTR(HTML_STYLE);
+    html += F("</head><body><div class='container' style='max-width:600px;'>");
+    html += F("<div class='error' style='text-align:center;'>");
+    html += F("<h2>Error</h2>");
+    html += F("<p>SSID is required!</p>");
+    html += F("</div></div>");
+    html += FPSTR(HTML_PAGE_END);
+
+    server.send(400, "text/html", html);
   }
 }
 
@@ -533,8 +550,9 @@ static void configSendWrapper(const String& chunk, void* context) {
 
 void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
   const ConfigData* cfg = g_configManager.get();
-  bool isApMode = wifi_is_ap_mode();
-  const char* deviceId = g_configManager.getDeviceId();
+  bool isApMode = system_state_has_bit(STATE_PROVISIONING);
+
+      const char* deviceId = g_configManager.getDeviceId();
 
   String currentMode = isApMode ? F("Access Point") : F("Client WiFi");
   String currentSsid = isApMode ? String(deviceId) : String(cfg->wifiSsid);

@@ -1,5 +1,6 @@
 #include "provisioning.h"
 #include "config_manager.h"
+#include "system_state.h"
 #include "logger.h"
 #include "wifi_manager.h"
 
@@ -80,7 +81,7 @@ void ProvisioningManager::update() {
   }
 
 #if USE_AP_PROVISIONING == 1
-  if (_apStarted && wifi_is_ap_mode()) {
+  if (_apStarted && system_state_has_bit(STATE_PROVISIONING)) {
     if (isApComplete()) {
       _state = ProvisioningState::COMPLETED;
       _completedBy = ProvisioningMethod::WIFI;
@@ -238,7 +239,10 @@ void ProvisioningManager::startApProvisioning() {
   wifi_start_ap(deviceId);
   web_init(true);
   _state = ProvisioningState::ACTIVE;
-  XLOG_INFO(CAT_PROVISIONING, "AP provisioning started: %s", deviceId);
+  XLOG_INFO(CAT_PROVISIONING,
+            "AP provisioning started, connect to SSID: " ANSI_BOLD
+            "%s" ANSI_BOLD_RESET " and visit " ANSI_BOLD "%s" ANSI_BOLD_RESET " for set wifi settings.",
+            deviceId, AP_IP_ADDRESS);
 }
 
 bool ProvisioningManager::isApComplete() {

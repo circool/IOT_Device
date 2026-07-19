@@ -9,7 +9,11 @@
 #include "wdt_manager.h"
 #include "web.h"
 #include "debug_tools.h"
+#include "wifi_manager.h"
 
+#if FEATURE_WIFI_ENABLED == 1
+static unsigned long wifi_fail_start = 0;  // ← для отслеживания времени без WiFi
+#endif
 
 void setup() {
   delay(2000);
@@ -29,17 +33,44 @@ void setup() {
   resetBtn_init();
   led_init();
 
+  // Режим первоначальной настройки (провизионинг) или обычная работа
   if (strlen(g_configManager.getWifiSsid()) < 1) {
     XLOG_INFO(CAT_MAIN, "Set provisioning mode due invalid WiFi configuration");
     system_state_set_bit(STATE_PROVISIONING);
+    XLOG_DEBUG(CAT_MAIN, "Calling startProvisioning");
     startProvisioning();
+  } else {
+#if FEATURE_WIFI_ENABLED == 1
+    wifi_manager_init();
+    wifi_manager_begin();
+#endif
   }
+
   XLOG_INFO(CAT_MAIN, "Setup complete");
 }
 
 void loop() {
   wdt_feed();
   resetBtn_update();
+  wifi_manager_loop();
+
+  uint16_t bits = system_state_get_bits();
+  
+  // WiFi
+  if (!(bits & STATE_WIFI_OK) && !(bits & STATE_PROVISIONING)) {
+    if (wifi_fail_start == 0) {
+      wifi_fail_start = millis();
+    } else if (millis() - wifi_fail_start > WIFI_FALLBACK_TIMEOUT_MS) {
+      system_state_set_bit(STATE_PROVISIONING);
+      XLOG_DEBUG(
+          CAT_MAIN,
+          "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
+      startProvisioning();
+      
+    }
+  } else {
+    wifi_fail_start = 0;
+  }
 
   // Провизионинг
   if (system_state_has_bit(STATE_PROVISIONING)) {
@@ -77,13 +108,15 @@ void loop() {
       }
     }
   }
-  uint16_t bits = system_state_get_bits();
+
+
+  // Состояние WiFi
 
   // Кнопка сброса
-  if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
-    ResetButtonStage stage = resetBtn_get_stage();
+  ResetButtonStage stage = resetBtn_get_stage();
+  if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {   
     if (stage == STAGE_3S) {
-      XLOG_WARN(CAT_MAIN, "!!! RESET TRIGGERED !!!");
+      XLOG_WARN(CAT_MAIN, "Reset button triggered.");
       wdt_stop();
       if (g_configManager.reset()) {
         system_state_set_bit(STATE_RESTART);
@@ -93,35 +126,34 @@ void loop() {
   }
 
   // Индикатор LED
-  LedMode mode = LED_OFF;
   if (bits & STATE_RESTART) {
-    mode = LED_OFF;
+    led_set_mode(LED_OFF);
   } else if (bits & STATE_EMERGENCY) {
-    mode = LED_SLOW_BLINK;
+   led_set_mode(LED_SLOW_BLINK);
   } else if (bits & STATE_PROVISIONING) {
-    mode = LED_MORZE_S;
+    led_set_mode(LED_MORZE_S);
   } else if (bits & STATE_BUTTON_PRESSED) {
-    ResetButtonStage stage = resetBtn_get_stage();
     if (stage == STAGE_3S || stage == STAGE_2S) {
-      mode = LED_MORZE_S;
+      led_set_mode(LED_MORZE_S);
     } else if (stage == STAGE_1S) {
-      mode = LED_MORZE_I;
+      led_set_mode(LED_MORZE_I);
     } else {
-      mode = LED_MORZE_E;
+      led_set_mode(LED_MORZE_E);
     }
   } else if (!(bits & STATE_WIFI_OK)) {
-    mode = LED_MORZE_E;
+    led_set_mode(LED_MORZE_E);
   } else if (!(bits & STATE_MQTT_OK)) {
-    mode = LED_MORZE_I;
+    led_set_mode(LED_MORZE_I);
   } else {
-    mode = LED_ON;
+    led_set_mode(LED_ON);
   }
-
-  
-  // Функциональные слои - периодические 
-  web_update();
-
-  led_set_mode(mode);
   led_loop();
+  
+  // Функциональные слои
+  
+
+
+
+  web_update();
   restart_loop();
 }
