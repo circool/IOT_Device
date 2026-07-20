@@ -17,19 +17,18 @@ static FanActuator* fan = nullptr;
 #include "switch_actuator.h"
 static SwitchActuator* switchActuator = nullptr;
 
-#include "sensor.h"
+
 #include "mqtt.h"
 
 
 
 #if FEATURE_WIFI_ENABLED == 1
-static unsigned long wifi_fail_start = 0;   // для отслеживания времени без WiFi
+static unsigned long wifi_fail_start = 0;   
 #endif
 
 #if FEATURE_WEB_ENABLED
-static bool web_started = false;            // для отслеживания состояния cервера web
-
-
+#include "web_status_provider.h"
+static bool web_started = false;            
 static IWebStatusProvider* statusProvider = nullptr;
 #endif
 
@@ -50,14 +49,12 @@ void setup() {
   g_configManager.print();
   resetBtn_init();
   led_init();
-#if SCANNING_WIFI_ENABLED == 1
   wifi_scan_and_log(g_configManager.getWifiSsid());
-#endif
+  
   // Режим первоначальной настройки (провизионинг) или обычная работа
   if (strlen(g_configManager.getWifiSsid()) < 1) {
     XLOG_INFO(CAT_MAIN, "Set provisioning mode due invalid WiFi configuration");
     system_state_set_bit(STATE_PROVISIONING);
-    XLOG_DEBUG(CAT_MAIN, "Calling startProvisioning");
     startProvisioning();
   } else {
 #if FEATURE_WIFI_ENABLED == 1
@@ -67,14 +64,17 @@ void setup() {
   }
 
 #if FEATURE_WEB_ENABLED == 1
-
 #if DEVICE_TYPE == 1
+  fan = new FanActuator();
+  fan->init(SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
+            g_configManager.getSpeedPercent(),
+            g_configManager.getAdaptiveMode(),
+            g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
 #if FEATURE_MQTT_ENABLED == 1
-  statusProvider = new FanWebStatusProvider(fan, nullptr, &mqttManager);
+  statusProvider = new FanWebStatusProvider(fan, &mqttManager);
 #else
-  statusProvider = new FanWebStatusProvider(fan, nullptr);
-#endif
-  // web_registerStatusProvider(statusProvider);
+  statusProvider = new FanWebStatusProvider(fan);
+#endif  // FEATURE_MQTT_ENABLED
 
 #elif DEVICE_TYPE == 2
 
@@ -85,21 +85,19 @@ void setup() {
 #endif  // FEATURE_MQTT_ENABLED
 
 
-
 #elif DEVICE_TYPE == 3
+  switchActuator = new SwitchActuator();
+  switchActuator->init(
+      SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
+      g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
 
 #if FEATURE_MQTT_ENABLED == 1
   statusProvider = new SwitchWebStatusProvider(switchActuator, &mqttManager);
 #else
   statusProvider = new SwitchWebStatusProvider(switchActuator);
 #endif  // FEATURE_MQTT_ENABLED
-  
-
-
 #endif  // DEVICE_TYPE == 3
-  
   web_registerStatusProvider(statusProvider);
-
 #endif // FEATURE_WEB_ENABLED
 
   XLOG_INFO(CAT_MAIN, "Setup complete");
@@ -111,26 +109,22 @@ void loop() {
   wifi_manager_loop();
 
   uint16_t bits = system_state_get_bits();
-  
-  // WiFi
+
+  // Переход в режим провизионинга при потеле соединения WiFi
   if (!(bits & STATE_WIFI_OK) && !(bits & STATE_PROVISIONING)) {
     if (wifi_fail_start == 0) {
       wifi_fail_start = millis();
     } else if (millis() - wifi_fail_start > WIFI_FALLBACK_TIMEOUT_MS) {
       system_state_set_bit(STATE_PROVISIONING);
-      XLOG_DEBUG(
-          CAT_MAIN,
-          "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
-      startProvisioning();
-      
+      XLOG_DEBUG( CAT_MAIN, "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
+      startProvisioning();     
     }
   } else {
     wifi_fail_start = 0;
-#if FEATURE_WEB_ENABLED == 1
+#if FEATURE_WEB_ENABLED == 1 // Для провизионинга в режиме AP нужен сервер
     if (!web_started && (bits & STATE_WIFI_OK)) {
       web_init(false);
       web_started = true;
-      XLOG_INFO(CAT_MAIN, "Web server started (normal mode)");
     }
 #endif
   }
@@ -172,9 +166,6 @@ void loop() {
     }
   }
 
-
-  // Состояние WiFi
-
   // Кнопка сброса
   ResetButtonStage stage = resetBtn_get_stage();
   if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {   
@@ -213,10 +204,6 @@ void loop() {
   led_loop();
   
   // Функциональные слои
-  
-
-
-
-  web_update();
+  web_loop();
   restart_loop();
 }
