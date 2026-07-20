@@ -92,7 +92,7 @@ void web_init(bool setupMode = false);
  * @brief Периодическая обработка HTTP-запросов
  * @note Вызывается в loop()
  */
-void web_update();
+void web_loop();
 
 // ========== ОБРАБОТЧИКИ ДЕЙСТВИЙ ==========
 // Они больше не нужны для Web, но оставлены для совместимости
@@ -148,7 +148,7 @@ inline void web_sendStatusPage(int) {}
 
 inline void web_saveConfig() {}
 inline void web_init(bool setupMode) {}
-inline void web_update() {}
+inline void web_loop() {}
 
 #endif  // FEATURE_WEB_ENABLED == 1
 

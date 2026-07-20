@@ -65,10 +65,11 @@ static String formatRemainingTime(unsigned long remainingMs) {
 static String getCurrentModeText() {
   if (!g_statusProvider)
     return "N/A";
-
+#if DEVICE_TYPE == 1
   if (g_configManager.getSensorControlMode()) {
     return F("<span style='color:#4CAF50;'>SENSOR</span>");
-  }
+  }  
+#endif
 
   if (g_statusProvider->isDelayActive()) {
     unsigned long remaining = g_statusProvider->getDelayTimer() - millis();
@@ -946,7 +947,7 @@ void web_init(bool setupMode) {
             setupMode ? "SETUP" : "NORMAL");
 }
 
-void web_update() {
+void web_loop() {
   server.handleClient();
 }
 
