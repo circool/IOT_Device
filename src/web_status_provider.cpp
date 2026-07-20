@@ -15,13 +15,10 @@
 // ============================================================================
 
 #if FEATURE_MQTT_ENABLED == 1
-FanWebStatusProvider::FanWebStatusProvider(FanActuator* fan,
-                                           Sensor* sensor,
-                                           MQTTManager* mqtt)
-    : _fan(fan), _sensor(sensor), _mqtt(mqtt) {}
+FanWebStatusProvider::FanWebStatusProvider(FanActuator* fan, MQTTManager* mqtt)
+    : _fan(fan), _mqtt(mqtt) {}
 #else
-FanWebStatusProvider::FanWebStatusProvider(FanActuator* fan, Sensor* sensor)
-    : _fan(fan), _sensor(sensor) {}
+FanWebStatusProvider::FanWebStatusProvider(FanActuator* fan) : _fan(fan) {}
 #endif
 
 bool FanWebStatusProvider::isDeviceOn() const {
@@ -80,9 +77,8 @@ bool FanWebStatusProvider::isMqttConnected() const {
 int FanWebStatusProvider::getWifiRssi() const {
   return wifi_get_rssi();
 }
-#endif  //DEVICE_TYPE == 1
 
-#if DEVICE_TYPE == 2
+#elif DEVICE_TYPE == 2
 
 // ============================================================================
 // SensorWebStatusProvider (для TYPE 2)
@@ -123,9 +119,8 @@ bool SensorWebStatusProvider::isMqttConnected() const {
 int SensorWebStatusProvider::getWifiRssi() const {
   return wifi_get_rssi();
 }
-#endif  // DEVICE_TYPE == 2
 
-#if DEVICE_TYPE == 3
+#elif DEVICE_TYPE == 3
 
 // ============================================================================
 // SwitchWebStatusProvider
@@ -172,4 +167,5 @@ bool SwitchWebStatusProvider::isMqttConnected() const {
 int SwitchWebStatusProvider::getWifiRssi() const {
   return wifi_get_rssi();
 }
-#endif  // DEVICE_TYPE == 3
+
+#endif  // DEVICE_TYPE
