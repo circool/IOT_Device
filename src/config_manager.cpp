@@ -222,14 +222,13 @@ const char* ConfigManager::getMqttClientId() const {
 #endif
 }
 
-uint16_t ConfigManager::getSensorInterval() const {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+uint16_t ConfigManager::getSensorInterval() const {
   return _config.sensorInterval;
-#else
-  return DEFAULT_SENSOR_DURATION;
-#endif
 }
+#endif
 
+#if DEVICE_TYPE == 1
 double ConfigManager::getLowTemp() const {
 #if DEVICE_TYPE == 1
   return _config.lowTemp;
@@ -285,7 +284,9 @@ bool ConfigManager::getAdaptiveMode() const {
   return false;
 #endif
 }
+#endif  // #if DEVICE_TYPE == 1
 
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 int ConfigManager::getDelaySeconds() const {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   return _config.delaySeconds;
@@ -302,6 +303,7 @@ uint32_t ConfigManager::getMaxOnTime() const {
 #endif
 }
 
+
 bool ConfigManager::getBootState() const {
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   return _config.bootState;
@@ -309,6 +311,8 @@ bool ConfigManager::getBootState() const {
   return DEFAULT_BOOT_SWITCH_STATE;
 #endif
 }
+#endif  // #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+
 
 const char* ConfigManager::getZigbeeNetworkKey() const {
 #if FEATURE_ZIGBEE_ENABLED == 1

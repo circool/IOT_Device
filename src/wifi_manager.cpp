@@ -43,6 +43,10 @@ void wifi_manager_loop() {
 }
 
 int wifi_scan_and_log(const char* targetSsid) {
+  #if SCANNING_WIFI_ENABLED == 0
+  return -1;
+  #endif
+  
   static bool is_scanning = false;
 
   if (is_scanning) {

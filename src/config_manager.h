@@ -351,6 +351,7 @@ class ConfigManager {
   /** @brief Получить интервал опроса датчика (сек) */
   uint16_t getSensorInterval() const;
 
+#if DEVICE_TYPE == 1
   /** @brief Получить нижний порог температуры (°C) */
   double getLowTemp() const;
 
@@ -366,11 +367,13 @@ class ConfigManager {
   /** @brief Получить состояние сенсорного режима (true=авто) */
   bool getSensorControlMode() const;
 
+
   /** @brief Получить скорость вентилятора (0-100%) */
   uint16_t getSpeedPercent() const;
 
   /** @brief Получить состояние адаптивного режима */
   bool getAdaptiveMode() const;
+#endif  // DEVICE_TYPE == 1
 
   /** @brief Получить задержку отложенного включения (сек) */
   int getDelaySeconds() const;
