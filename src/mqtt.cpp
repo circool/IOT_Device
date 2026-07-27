@@ -5,6 +5,7 @@
 
 #include "mqtt.h"
 #include "logger.h"
+#include "system_state.h"
 
 #if FEATURE_MQTT_ENABLED == 1
 
@@ -135,9 +136,12 @@ void MQTTManager::reconnect() {
 
   if (connected) {
     XLOG_INFO(CAT_MQTT, "Connected to " ANSI_BOLD "%s." ANSI_RESET, _broker);
+    
     firstAttempt = true;
     publishOnline();
     subscribe();
+    system_state_set_bit(STATE_MQTT_OK);
+
   } else {
     XLOG_ERROR(CAT_MQTT, "Failed, state=%d", _mqttClient.state());
   }
