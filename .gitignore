@@ -11,6 +11,7 @@
 .disabled/*
 hidden/*
 doc/*.*
+documentation/*.*
 Fan/fp-info-cache
 build.log
 .openhabignore
