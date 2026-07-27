@@ -1,6 +1,6 @@
 #include "zigbee.h"
 
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
 ZigBeeManager zigbeeManager;
 #else
 ZigBeeManager zigbeeManager;

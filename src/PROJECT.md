@@ -458,8 +458,8 @@ MQTT — основной протокол интеграции устройст
 | ESP32-C3 | ✅ | ✅ | 1 / 2 / 3 |
 | ESP32-C6 MQTT | ✅ | ✅ | 1 / 2 / 3 |
 | ESP32-H2 MQTT | ✅ | ✅ | 1 / 2 / 3 |
-| ESP32-C6 ZigBee | ❌ | ✅ | 0 или TRANSPORT_TYPE == 2=1 |
-| ESP32-H2 ZigBee | ❌ | ✅ | 0 или TRANSPORT_TYPE == 2=1 |
+| ESP32-C6 ZigBee | ❌ | ✅ | 0 или TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE=1 |
+| ESP32-H2 ZigBee | ❌ | ✅ | 0 или TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE=1 |
 
 ### AP-Provisioning
 

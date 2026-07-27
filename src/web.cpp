@@ -16,7 +16,7 @@
  * @todo исправить ошибку [W][WebServer.cpp:435] send(): content length is zero
  */
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ФЛАГИ ДЛЯ КОММУНИКАЦИИ С MAIN (определение)
@@ -339,7 +339,7 @@ void web_handleApProvisioning() {
     memset(&data, 0, sizeof(data));
     data.type = 0;
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
     strncpy(data.wifiSsid, ssid.c_str(), sizeof(data.wifiSsid) - 1);
     strncpy(data.wifiPassword, password.c_str(), sizeof(data.wifiPassword) - 1);
 #endif
@@ -998,4 +998,4 @@ String web_buildResultHtml(const String& action, bool success) {
   return html;
 }
 
-#endif  // TRANSPORT_TYPE == 1
+#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI

@@ -31,7 +31,7 @@ enum class ProvisioningMethod : uint8_t {
 #if USE_BLE_PROVISIONING == 1 || USE_AP_PROVISIONING == 1
   WIFI = 1,
 #endif
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   ZIGBEE = 2,
 #endif
 #if FEATURE_MATTER_ENABLED == 1
@@ -50,12 +50,12 @@ enum class ProvisioningState : uint8_t {
 struct ProvisioningData {
   uint8_t type;
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   char wifiSsid[32];
   char wifiPassword[64];
 #endif
 
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   uint16_t zigbeePanId;
   uint8_t zigbeeChannel;
   char zigbeeNetworkKey[32];

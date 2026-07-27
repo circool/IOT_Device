@@ -15,7 +15,7 @@
 #include "ota.h"
 #include "sensor.h"
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
 // ============================================================================
 // HTML-ШАБЛОНЫ (хранятся в PROGMEM)
@@ -530,6 +530,6 @@ inline void sendConfigPage(WebSendCallback send,
   send(FPSTR(HTML_PAGE_END), context);
 }
 
-#endif  // TRANSPORT_TYPE == 1
+#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
 #endif  // WEB_TEMPLATES_H

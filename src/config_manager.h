@@ -202,7 +202,7 @@ struct ConfigData {
   uint16_t crc;               /**< CRC16 от всей структуры (кроме самого поля crc) */
 
   // ========== WiFi ==========
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   char wifiSsid[32];          /**< Имя WiFi сети (SSID) */
   char wifiPassword[64];      /**< Пароль WiFi */
 #endif
@@ -240,7 +240,7 @@ struct ConfigData {
 #endif
 
   // ========== Zigbee ==========
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   char zigbeeNetworkKey[32]; /**< Сетевой ключ Zigbee */
   uint16_t zigbeePanId;      /**< PAN ID Zigbee сети */
   uint8_t zigbeeChannel;     /**< Канал Zigbee (11-26) */

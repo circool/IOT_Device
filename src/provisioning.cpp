@@ -39,7 +39,7 @@ static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
   memset(&data, 0, sizeof(data));
   data.type = 0;
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   strncpy(data.wifiSsid, bleConfig->wifiSsid, sizeof(data.wifiSsid) - 1);
   strncpy(data.wifiPassword, bleConfig->wifiPassword,
           sizeof(data.wifiPassword) - 1);
@@ -246,7 +246,7 @@ void ProvisioningManager::startApProvisioning() {
 }
 
 bool ProvisioningManager::isApComplete() {
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   return strlen(_data.wifiSsid) > 0;
 #else
   return false;
@@ -264,7 +264,7 @@ static void onProvisioningComplete(ProvisioningMethod method, void* context) {
   }
 
   const auto* data = prov.getData();
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   if (data && data->type == 0 && strlen(data->wifiSsid) > 0) {
     XLOG_DEBUG(CAT_PROVISIONING, "Provisioning complete - SSID: %s",
                data->wifiSsid);

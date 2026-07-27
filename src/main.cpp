@@ -10,25 +10,21 @@
 #include "wdt_manager.h"
 #include "web.h"
 #include "wifi_manager.h"
-
 #include "fan_actuator.h"
 static FanActuator* fan = nullptr;
 
 #include "switch_actuator.h"
 static SwitchActuator* switchActuator = nullptr;
 
-
 #include "mqtt.h"
 
-
-
-#if TRANSPORT_TYPE == 1
-static unsigned long wifi_fail_start = 0;   
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+static unsigned long wifi_fail_start = 0;
 #endif
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 #include "web_status_provider.h"
-static bool web_started = false;            
+static bool web_started = false;
 static IWebStatusProvider* statusProvider = nullptr;
 #endif
 
@@ -51,20 +47,20 @@ void setup() {
   resetBtn_init();
   led_init();
   wifi_scan_and_log(g_configManager.getWifiSsid());
-  
+
   // Режим первоначальной настройки (провизионинг) или обычная работа
   if (strlen(g_configManager.getWifiSsid()) < 1) {
     XLOG_INFO(CAT_MAIN, "Set provisioning mode due invalid WiFi configuration");
     system_state_set_bit(STATE_PROVISIONING);
     startProvisioning();
   } else {
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
     wifi_manager_init();
     wifi_manager_begin();
 #endif
   }
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 #if DEVICE_TYPE == 1
   fan = new FanActuator();
   fan->init(SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
@@ -85,7 +81,6 @@ void setup() {
   statusProvider = new SensorWebStatusProvider();
 #endif  // FEATURE_MQTT_ENABLED
 
-
 #elif DEVICE_TYPE == 3
   switchActuator = new SwitchActuator();
   switchActuator->init(
@@ -99,7 +94,7 @@ void setup() {
 #endif  // FEATURE_MQTT_ENABLED
 #endif  // DEVICE_TYPE == 3
   web_registerStatusProvider(statusProvider);
-#endif  // TRANSPORT_TYPE == 1
+#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
   XLOG_INFO(CAT_MAIN, "Setup complete");
 }
@@ -117,12 +112,14 @@ void loop() {
       wifi_fail_start = millis();
     } else if (millis() - wifi_fail_start > WIFI_FALLBACK_TIMEOUT_MS) {
       system_state_set_bit(STATE_PROVISIONING);
-      XLOG_DEBUG( CAT_MAIN, "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
-      startProvisioning();     
+      XLOG_DEBUG(
+          CAT_MAIN,
+          "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
+      startProvisioning();
     }
   } else {
     wifi_fail_start = 0;
-#if TRANSPORT_TYPE == 1 // Для провизионинга в режиме AP нужен сервер
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI  // Для провизионинга в режиме AP нужен сервер
     if (!web_started && (bits & STATE_WIFI_OK)) {
       web_init(false);
       web_started = true;
@@ -141,8 +138,8 @@ void loop() {
         XLOG_ERROR(CAT_MAIN, "Provisioning FAILED!");
       } else {
         const auto* data = ProvisioningManager::getInstance().getData();
-        
-        #if TRANSPORT_TYPE == 1
+
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
         if (data && strlen(data->wifiSsid) > 0) {
           XLOG_INFO(CAT_MAIN, "Provisioning complete! SSID: %s",
                     data->wifiSsid);
@@ -162,14 +159,14 @@ void loop() {
             XLOG_ERROR(CAT_MAIN, "Failed to save config!");
           }
         }
-        #endif
+#endif
       }
     }
   }
 
   // Кнопка сброса
   ResetButtonStage stage = resetBtn_get_stage();
-  if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {   
+  if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
     if (stage == STAGE_3S) {
       XLOG_WARN(CAT_MAIN, "Reset button triggered.");
       wdt_stop();
@@ -184,7 +181,7 @@ void loop() {
   if (bits & STATE_RESTART) {
     led_set_mode(LED_OFF);
   } else if (bits & STATE_EMERGENCY) {
-   led_set_mode(LED_SLOW_BLINK);
+    led_set_mode(LED_SLOW_BLINK);
   } else if (bits & STATE_PROVISIONING) {
     led_set_mode(LED_MORZE_S);
   } else if (bits & STATE_BUTTON_PRESSED) {
@@ -197,7 +194,7 @@ void loop() {
     }
   } else if (!(bits & STATE_WIFI_OK)) {
     led_set_mode(LED_MORZE_E);
-  #if FEATURE_MQTT_ENABLED
+#if FEATURE_MQTT_ENABLED
   } else if (!(bits & STATE_MQTT_OK)) {
     led_set_mode(LED_MORZE_I);
 #endif  // FEATURE_MQTT_ENABLED
@@ -205,7 +202,7 @@ void loop() {
     led_set_mode(LED_ON);
   }
   led_loop();
-  
+
   // Функциональные слои
   web_loop();
   restart_loop();

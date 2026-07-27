@@ -167,7 +167,7 @@ bool ConfigManager::reset() {
 // ============================================================================
 
 const char* ConfigManager::getWifiSsid() const {
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   return _config.wifiSsid;
 #else
   return "";
@@ -175,7 +175,7 @@ const char* ConfigManager::getWifiSsid() const {
 }
 
 const char* ConfigManager::getWifiPassword() const {
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   return _config.wifiPassword;
 #else
   return "";
@@ -315,7 +315,7 @@ bool ConfigManager::getBootState() const {
 
 
 const char* ConfigManager::getZigbeeNetworkKey() const {
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   return _config.zigbeeNetworkKey;
 #else
   return "";
@@ -323,7 +323,7 @@ const char* ConfigManager::getZigbeeNetworkKey() const {
 }
 
 uint16_t ConfigManager::getZigbeePanId() const {
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   return _config.zigbeePanId;
 #else
   return 0;
@@ -331,7 +331,7 @@ uint16_t ConfigManager::getZigbeePanId() const {
 }
 
 uint8_t ConfigManager::getZigbeeChannel() const {
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   return _config.zigbeeChannel;
 #else
   return 15;
@@ -347,7 +347,7 @@ const char* ConfigManager::getDeviceId() const {
 // ============================================================================
 
 bool ConfigManager::setWifiSsid(const char* ssid) {
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   if (!ssid || strlen(ssid) == 0) {
     setError("WiFi SSID cannot be empty");
     return false;
@@ -366,7 +366,7 @@ bool ConfigManager::setWifiSsid(const char* ssid) {
 }
 
 bool ConfigManager::setWifiPassword(const char* password) {
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   if (!password)
     return false;
   if (strlen(password) >= sizeof(_config.wifiPassword)) {
@@ -648,7 +648,7 @@ bool ConfigManager::setBootState(bool state) {
 }
 
 bool ConfigManager::setZigbeeNetworkKey(const char* key) {
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   if (!key)
     return false;
   if (strlen(key) >= sizeof(_config.zigbeeNetworkKey)) {
@@ -665,7 +665,7 @@ bool ConfigManager::setZigbeeNetworkKey(const char* key) {
 }
 
 bool ConfigManager::setZigbeePanId(uint16_t panId) {
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   _config.zigbeePanId = panId;
   return true;
 #else
@@ -675,7 +675,7 @@ bool ConfigManager::setZigbeePanId(uint16_t panId) {
 }
 
 bool ConfigManager::setZigbeeChannel(uint8_t channel) {
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   if (channel < 11 || channel > 26) {
     setError("Zigbee channel must be 11-26");
     return false;
@@ -729,7 +729,7 @@ void ConfigManager::setDefaults() {
   _config.sensorInterval = DEFAULT_SENSOR_DURATION;
 #endif
 
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   _config.zigbeeChannel = 15;
 #endif
 
@@ -747,7 +747,7 @@ void ConfigManager::loadFromCredentials() {
 #if HAS_CREDENTIALS
   XLOG_DEBUG(CAT_CONFIG, "Loading factory settings");
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   if (strlen(SSID_NAME) > 0) {
     strncpy(_config.wifiSsid, SSID_NAME, sizeof(_config.wifiSsid) - 1);
     _config.wifiSsid[sizeof(_config.wifiSsid) - 1] = '\0';
@@ -861,7 +861,7 @@ void ConfigManager::readFromEEPROM() {
 bool ConfigManager::validateAndApply(const ConfigData& raw) {
   bool ok = true;
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   if (strlen(raw.wifiSsid) > 0) {
     if (!setWifiSsid(raw.wifiSsid)) {
       XLOG_WARN(CAT_CONFIG, "Failed to set WiFi SSID: %s", _lastError);
@@ -951,7 +951,7 @@ bool ConfigManager::validateAndApply(const ConfigData& raw) {
   setBootState(raw.bootState);
 #endif
 
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
   if (strlen(raw.zigbeeNetworkKey) > 0) {
     if (!setZigbeeNetworkKey(raw.zigbeeNetworkKey)) {
       XLOG_WARN(CAT_CONFIG, "Failed to set Zigbee network key: %s", _lastError);
@@ -997,7 +997,7 @@ void ConfigManager::setError(const char* msg) {
 void ConfigManager::print() const {
   XLOG_DEBUG(CAT_CONFIG, "=== Config ===");
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   XLOG_DEBUG(CAT_CONFIG, "WiFi SSID: '%s'", _config.wifiSsid);
   XLOG_DEBUG(CAT_CONFIG, "WiFi Password: %s",
             _config.wifiPassword[0] ? "***" : "(empty)");

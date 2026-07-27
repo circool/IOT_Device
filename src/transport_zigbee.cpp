@@ -1,7 +1,7 @@
 #include "transport_zigbee.h"
 #include "logger.h"
 
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
 
 static Transport g_zigbeeTransport;
 static bool g_initialized = false;
@@ -265,7 +265,7 @@ Transport* getZigbeeTransport() {
   return &g_zigbeeTransport;
 }
 
-#else  // TRANSPORT_TYPE == 2 == 0
+#else  // TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE == 0
 
 Transport* getZigbeeTransport() {
   return nullptr;

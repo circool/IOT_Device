@@ -16,7 +16,7 @@
  * @note В рантайме вызывается один раз при старте
  */
 inline Transport* createTransport() {
-#if TRANSPORT_TYPE == 0  // MQTT
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 #if FEATURE_MQTT_ENABLED == 1
 #include "transport_mqtt.h"
   return getMQTTTransport();
@@ -24,19 +24,15 @@ inline Transport* createTransport() {
   return nullptr;
 #endif
 
-#elif TRANSPORT_TYPE == 1  // ZigBee
-#if TRANSPORT_TYPE == 2
+#elif TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
 #include "transport_zigbee.h"
   return getZigbeeTransport();
-#else
-  return nullptr;
-#endif
 
-#elif TRANSPORT_TYPE == 2  // Matter
-#warning "Matter transport not implemented yet"
+#elif TRANSPORT_TYPE == TRANSPORT_TYPE_THREAD
+#warning "Thread transport not implemented yet"
   return nullptr;
 
-#else
+#else  // TRANSPORT_TYPE_NONE или неизвестный
   return nullptr;
 #endif
 }

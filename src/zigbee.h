@@ -2,14 +2,15 @@
 #define ZIGBEE_H
 
 #include <Arduino.h>
+#include "settings.h"
 #include "config_manager.h"
 
 
 /**
  * @brief Включить поддержку ZigBee
- * @note Определяется в settings.h на основе TRANSPORT_TYPE == 2
+ * @note Определяется в settings.h на основе TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
  */
-#if TRANSPORT_TYPE == 2
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
 
 #include <functional>
 
@@ -219,7 +220,7 @@ class ZigBeeManager {
 
 extern ZigBeeManager zigbeeManager;
 
-#else  // TRANSPORT_TYPE == 2 == 0
+#else  // TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE == 0
 
 // ============================================================================
 // ЗАГЛУШКА ДЛЯ РЕЖИМА БЕЗ ZIGBEE
@@ -285,6 +286,6 @@ class ZigBeeManager {
 
 extern ZigBeeManager zigbeeManager;
 
-#endif  // TRANSPORT_TYPE == 2
+#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
 
 #endif  // ZIGBEE_H

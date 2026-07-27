@@ -20,53 +20,11 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
-// ============================================================================
-// FIXME: МАССОВЫЕ ЗАМЕНЫ В ОСТАЛЬНОМ КОДЕ
-// ============================================================================
-//
-// В связи с изменением семантики TRANSPORT_TYPE, необходимо заменить
-// все использования старых флагов на новую логику:
-//
-// +. @FIXME: заменить FEATURE_WIFI_ENABLED на TRANSPORT_TYPE == 1
-//    - Во всех #if, #ifdef, #ifndef
-//    - Пример: #if FEATURE_WIFI_ENABLED -> #if TRANSPORT_TYPE == 1
-//    - Пример: #ifdef FEATURE_WIFI_ENABLED -> #if TRANSPORT_TYPE == 1
-//
-// +. @FIXME: заменить FEATURE_ZIGBEE_ENABLED на TRANSPORT_TYPE == 2
-//    - Во всех #if, #ifdef, #ifndef
-//    - Пример: #if FEATURE_ZIGBEE_ENABLED -> #if TRANSPORT_TYPE == 2
-//
-// 3. @FIXME: проверить все места, где используется TRANSPORT_TYPE
-//    - Раньше: 0=MQTT, 1=ZigBee, 2=Matter
-//    - Теперь: 0=NONE, 1=WIFI, 2=ZIGBEE, 3=THREAD
-//    - Все сравнения должны быть обновлены!
-//
-// 4. @FIXME: проверить PROVISIONING_METHOD
-//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI)
-//    - Раньше требовал FEATURE_WIFI_ENABLED
-//
-// 5. @FIXME: проверить FEATURE_SCANNING_WIFI_ENABLED
-//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI)
-//    - Раньше требовал FEATURE_WIFI_ENABLED
-//
-// 6. @FIXME: проверить FEATURE_WEB_ENABLED
-//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI)
-//    - Раньше требовал FEATURE_WIFI_ENABLED
-//
-// 7. @FIXME: проверить FEATURE_OTA_ENABLED
-//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI) через FEATURE_WEB_ENABLED
-//    - Косвенно, но проверить
-//
-// 8. @FIXME: проверить FEATURE_MATTER_ENABLED
-//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI) или 3 (THREAD)
-//    - Раньше требовал TRANSPORT_TYPE == 2 (Matter)
-//
-// 9. @FIXME: проверить инициализацию в main.cpp
-//     - WiFiManager::init() -> #if TRANSPORT_TYPE == 1
-//     - MQTTManager::init() -> #if TRANSPORT_TYPE == 1 && FEATURE_MQTT_ENABLED
-//     - WebServer::init() -> #if TRANSPORT_TYPE == 1 && FEATURE_WEB_ENABLED
-//     - ZigbeeManager::init() -> #if TRANSPORT_TYPE == 2
-// ============================================================================
+// Макросы для наглядности
+#define TRANSPORT_TYPE_NONE 0
+#define TRANSPORT_TYPE_WIFI 1
+#define TRANSPORT_TYPE_ZIGBEE 2
+#define TRANSPORT_TYPE_THREAD 3
 
 // ============================================================================
 // 0. ОПРЕДЕЛЕНИЕ ПЛАТФОРМЫ
@@ -166,12 +124,14 @@
  *   - 2: ZIGBEE   — ZigBee (802.15.4 + полный стек)
  *   - 3: THREAD   — Thread (802.15.4 + 6LoWPAN) — для Matter over Thread
  */
+
+
 #ifndef TRANSPORT_TYPE
 // ZigBee по умолчанию для платформ с аппаратной поддержкой
 #if PLATFORM_ESP32C6 || PLATFORM_ESP32H2
-#define TRANSPORT_TYPE 2  // ZIGBEE
+#define TRANSPORT_TYPE TRANSPORT_TYPE_ZIGBEE
 #else
-#define TRANSPORT_TYPE 1  // WIFI
+#define TRANSPORT_TYPE TRANSPORT_TYPE_WIFI
 #endif
 #endif
 
@@ -186,7 +146,7 @@
  */
 #ifndef FEATURE_MQTT_ENABLED
 // По умолчанию включаем, если выбран WiFi
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 #define FEATURE_MQTT_ENABLED 1
 #else
 #define FEATURE_MQTT_ENABLED 0
@@ -195,7 +155,7 @@
 
 /**
  * @brief Выключить веб-интерфейс по умолчанию
- * @details Требует TRANSPORT_TYPE == 1 (WIFI)
+ * @details Требует TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI (WIFI)
  *          Может работать одновременно с FEATURE_MQTT_ENABLED
  */
 #ifndef FEATURE_WEB_STATUS_ENABLED
@@ -204,7 +164,7 @@
 
 /**
  * @brief Включить Matter
- * @details Требует TRANSPORT_TYPE == 1 (WIFI) ИЛИ 3 (THREAD)
+ * @details Требует TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI (WIFI) ИЛИ 3 (THREAD)
  *          Поддерживается на ESP32-C6/H2 (перспективно)
  */
 #ifndef FEATURE_MATTER_ENABLED
@@ -264,7 +224,7 @@
 /**
  * @brief Включить сканирование WiFi при старте (отладка)
  * @details Если 1 — устройство сканирует доступные сети при запуске.
- * @note Требует TRANSPORT_TYPE == 1 (WIFI)
+ * @note Требует TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI (WIFI)
  */
 #ifndef FEATURE_SCANNING_WIFI_ENABLED
 #define FEATURE_SCANNING_WIFI_ENABLED 0
@@ -312,7 +272,7 @@
 // ----------------------------------------------------------------------------
 // 6.2. Проверка платформы для ZigBee и Thread
 // ----------------------------------------------------------------------------
-#if TRANSPORT_TYPE == 2 || TRANSPORT_TYPE == 3
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE || TRANSPORT_TYPE == TRANSPORT_TYPE_THREAD
 #if !PLATFORM_ESP32C6 && !PLATFORM_ESP32H2
 #error \
     "TRANSPORT_TYPE=2 (ZIGBEE) or 3 (THREAD) is only supported on ESP32-C6 and ESP32-H2"
@@ -322,18 +282,19 @@
 // ----------------------------------------------------------------------------
 // 6.3. Проверка: прикладные протоколы требуют WiFi
 // ----------------------------------------------------------------------------
-#if FEATURE_MQTT_ENABLED == 1 && TRANSPORT_TYPE != 1
-#error "FEATURE_MQTT_ENABLED requires TRANSPORT_TYPE=1 (WIFI)"
+#if FEATURE_MQTT_ENABLED == 1 && TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI
+#error "FEATURE_MQTT_ENABLED requires TRANSPORT_TYPE=TRANSPORT_TYPE_WIFI (WIFI)"
 #endif
 
-#if TRANSPORT_TYPE == 1 && TRANSPORT_TYPE != 1
-#error "FEATURE_WEB_ENABLED requires TRANSPORT_TYPE=1 (WIFI)"
+#if FEATURE_WEB_STATUS_ENABLED == 1 && TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI
+#error "FEATURE_WEB_STATUS_ENABLED requires TRANSPORT_TYPE=1 (WIFI)"
 #endif
 
 // Matter требует WiFi или Thread
 #if FEATURE_MATTER_ENABLED == 1
-#if TRANSPORT_TYPE != 1 && TRANSPORT_TYPE != 3
-#error "FEATURE_MATTER_ENABLED requires TRANSPORT_TYPE=1 (WIFI) or 3 (THREAD)"
+#if TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI && TRANSPORT_TYPE != TRANSPORT_TYPE_THREAD
+#error \
+    "FEATURE_MATTER_ENABLED requires TRANSPORT_TYPE=TRANSPORT_TYPE_WIFI or TRANSPORT_TYPE_THREAD"
 #endif
 #endif
 
@@ -411,7 +372,7 @@
 // ----------------------------------------------------------------------------
 // 6.13. Предупреждение: WiFi выбран, но ни один протокол не активен
 // ----------------------------------------------------------------------------
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 #if FEATURE_MQTT_ENABLED == 0 && FEATURE_WEB_STATUS_ENABLED == 0 && \
     FEATURE_MATTER_ENABLED == 0
 #warning "TRANSPORT_TYPE=1 (WIFI) selected but no application protocol (MQTT/WEB/MATTER) is enabled"

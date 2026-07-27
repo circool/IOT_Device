@@ -9,7 +9,7 @@
 // НАСТРОЙКИ WEB ИНТЕРФЕЙСА
 // ============================================================================
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 /** 
  * @brief Показывать страницу состояния (иначе сразу /config) 
  * @deprecated Неочевидная зависимость
@@ -43,7 +43,7 @@ typedef ESP8266WebServer WebServerClass;
 typedef WebServer WebServerClass;
 #endif
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
 /**
  * @brief Глобальный экземпляр веб-сервера
@@ -291,7 +291,7 @@ static void configSend(const String& chunk);
 
     
 
-#else  // TRANSPORT_TYPE == 0
+#else  // TRANSPORT_TYPE == TRANSPORT_TYPE_NONE
 
 // Заглушки
 inline void web_registerStatusProvider(IWebStatusProvider* provider) {
@@ -308,6 +308,6 @@ inline void web_saveConfig() {}
 inline void web_init(bool setupMode) {}
 inline void web_loop() {}
 
-#endif  // TRANSPORT_TYPE == 1
+#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
 #endif  // WEB_H

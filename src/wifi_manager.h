@@ -2,7 +2,7 @@
 #define WIFI_H
 
 #include <Arduino.h>
-
+#include "settings.h"
 #ifdef ESP32
 #include <WiFi.h>
 #elif defined(ESP8266)
@@ -10,7 +10,7 @@
 #endif
 
 /** @brief Включить поддержку WiFi по умолчанию
- * @deprecated TRANSPORT_TYPE == 1
+ * @deprecated TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
  */
 // #ifndef FEATURE_WIFI_ENABLED
 // #define FEATURE_WIFI_ENABLED 1
@@ -66,7 +66,8 @@
 #endif  // PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
 
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+
 #ifndef SCANNING_WIFI_ENABLED
 #define SCANNING_WIFI_ENABLED 0
 #endif
@@ -202,7 +203,7 @@ inline int wifi_scan_and_log(const char* /*targetSsid*/) {
 
 // void wifi_start_ap_mode() {};
 
-#endif  // TRANSPORT_TYPE == 1
+#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
 #if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
 /**

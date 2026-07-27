@@ -4,7 +4,7 @@
 #include "logger.h"
 #include "web.h"
 
-#if TRANSPORT_TYPE == 1
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 static bool wifi_reconnecting = false;
 
 void wifi_manager_init() {
