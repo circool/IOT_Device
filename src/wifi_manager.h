@@ -9,10 +9,12 @@
 #include <ESP8266WiFi.h>
 #endif
 
-/** @brief Включить поддержку WiFi по умолчанию */
-#ifndef FEATURE_WIFI_ENABLED
-#define FEATURE_WIFI_ENABLED 1
-#endif
+/** @brief Включить поддержку WiFi по умолчанию
+ * @deprecated TRANSPORT_TYPE == 1
+ */
+// #ifndef FEATURE_WIFI_ENABLED
+// #define FEATURE_WIFI_ENABLED 1
+// #endif
 
 // ============================================================================
 // НАСТРОЙКИ WIFI
@@ -64,8 +66,7 @@
 #endif  // PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
 
 
-#if FEATURE_WIFI_ENABLED == 1
-
+#if TRANSPORT_TYPE == 1
 #ifndef SCANNING_WIFI_ENABLED
 #define SCANNING_WIFI_ENABLED 0
 #endif
@@ -133,10 +134,7 @@ int wifi_get_rssi();
  */
 int wifi_scan_and_log(const char* targetSsid);
 
-
-
-
-#else  // FEATURE_WIFI_ENABLED == 0
+#else  // TRANSPORT_TYPE != 1
 
 /**
  * @brief Заглушка: инициализация WiFi (отключена)
@@ -204,7 +202,7 @@ inline int wifi_scan_and_log(const char* /*targetSsid*/) {
 
 // void wifi_start_ap_mode() {};
 
-#endif  // FEATURE_WIFI_ENABLED == 1
+#endif  // TRANSPORT_TYPE == 1
 
 #if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
 /**

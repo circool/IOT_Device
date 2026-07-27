@@ -16,7 +16,7 @@
  * @todo исправить ошибку [W][WebServer.cpp:435] send(): content length is zero
  */
 
-#if FEATURE_WEB_ENABLED == 1
+#if TRANSPORT_TYPE == 1
 
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ФЛАГИ ДЛЯ КОММУНИКАЦИИ С MAIN (определение)
@@ -34,8 +34,6 @@ WebServerClass server(80);
 static bool g_setupMode = false;
 static IWebStatusProvider* g_statusProvider = nullptr;
 
-
-
 // ============================================================================
 // ПУБЛИЧНЫЕ ФУНКЦИИ
 // ============================================================================
@@ -45,7 +43,7 @@ void web_registerStatusProvider(IWebStatusProvider* provider) {
 }
 
 // ============================================================================
-// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ 
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================================
 
 static String formatRemainingTime(unsigned long remainingMs) {
@@ -68,7 +66,7 @@ static String getCurrentModeText() {
 #if DEVICE_TYPE == 1
   if (g_configManager.getSensorControlMode()) {
     return F("<span style='color:#4CAF50;'>SENSOR</span>");
-  }  
+  }
 #endif
 
   if (g_statusProvider->isDelayActive()) {
@@ -122,7 +120,7 @@ static String getDelayTimerRemaining() {
 }
 
 // ============================================================================
-// ПОСТРОЕНИЕ HTML СТАТУСА 
+// ПОСТРОЕНИЕ HTML СТАТУСА
 // ============================================================================
 
 String web_buildStatusHtml() {
@@ -300,7 +298,7 @@ String web_buildStatusHtml() {
 }
 
 // ============================================================================
-// ОБРАБОТЧИКИ 
+// ОБРАБОТЧИКИ
 // ============================================================================
 
 #if DEVICE_TYPE == 1
@@ -329,6 +327,7 @@ static void webSendContent(const String& chunk, void* context) {
   srv->sendContent(chunk);
 }
 
+// * @deprecated Перенести в слой provisioning
 void web_handleApProvisioning() {
   String ssid = server.arg("wifiSsid");
   String password = server.arg("wifiPassword");
@@ -340,39 +339,42 @@ void web_handleApProvisioning() {
     memset(&data, 0, sizeof(data));
     data.type = 0;
 
-#if FEATURE_WIFI_ENABLED == 1
+#if TRANSPORT_TYPE == 1
     strncpy(data.wifiSsid, ssid.c_str(), sizeof(data.wifiSsid) - 1);
     strncpy(data.wifiPassword, password.c_str(), sizeof(data.wifiPassword) - 1);
 #endif
 
     ProvisioningManager::getInstance().onDataReceived(data);
 
-    String html = FPSTR(HTML_PAGE_START);
-    html += F("<title>WiFi Saved</title>");
-    html += FPSTR(HTML_STYLE);
-    html += F("</head><body><div class='container' style='max-width:600px;'>");
-    html += F("<div class='success' style='text-align:center;'>");
-    html += F("<h2>WiFi saved!</h2>");
-    html += F("<p>Device will reboot in a moment...</p>");
-    html += F("</div></div>");
-    html += FPSTR(HTML_PAGE_END);
+    // String html = FPSTR(HTML_PAGE_START);
+    // html += F("<title>WiFi Saved</title>");
+    // html += FPSTR(HTML_STYLE);
+    // html += F("</head><body><div class='container' style='max-width:600px;'>");
+    // html += F("<div class='success' style='text-align:center;'>");
+    // html += F("<h2>WiFi saved!</h2>");
+    // html += F("<p>Device will reboot in a moment...</p>");
+    // html += F("</div></div>");
+    // html += FPSTR(HTML_PAGE_END);
 
-    server.send(200, "text/html", html);
+    // server.send(200, "text/html", html);
+    server.send(200, "text/html",
+                web_buildResultHtml("WiFi credentials saved", true));
   } else {
-    String html = FPSTR(HTML_PAGE_START);
-    html += F("<title>Error</title>");
-    html += FPSTR(HTML_STYLE);
-    html += F("</head><body><div class='container' style='max-width:600px;'>");
-    html += F("<div class='error' style='text-align:center;'>");
-    html += F("<h2>Error</h2>");
-    html += F("<p>SSID is required!</p>");
-    html += F("</div></div>");
-    html += FPSTR(HTML_PAGE_END);
+    // String html = FPSTR(HTML_PAGE_START);
+    // html += F("<title>Error</title>");
+    // html += FPSTR(HTML_STYLE);
+    // html += F("</head><body><div class='container' style='max-width:600px;'>");
+    // html += F("<div class='error' style='text-align:center;'>");
+    // html += F("<h2>Error</h2>");
+    // html += F("<p>SSID is required!</p>");
+    // html += F("</div></div>");
+    // html += FPSTR(HTML_PAGE_END);
 
-    server.send(400, "text/html", html);
+    // server.send(400, "text/html", html);
+    server.send(400, "text/html",
+                web_buildResultHtml("WiFi credentials not saved", false));
   }
 }
-
 
 // ============================================================================
 // ОТПРАВКА СТРАНИЦЫ СТАТУСА
@@ -522,7 +524,6 @@ const char HTML_AP_CONTENT[] PROGMEM = R"rawliteral(
 </div>
 )rawliteral";
 
-
 // ============================================================================
 // ОТПРАВКА СТРАНИЦЫ КОНФИГУРАЦИИ
 // ============================================================================
@@ -555,15 +556,18 @@ static void configSendWrapper(const String& chunk, void* context) {
 
 void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
   const ConfigData* cfg = g_configManager.get();
-  bool isApMode = system_state_has_bit(STATE_PROVISIONING);
+  bool isApMode = system_state_has_bit(
+      STATE_PROVISIONING);  // Страница конфигурации для AP provisioninng больше
+                            // не выхывается тут
+  const char* deviceId = g_configManager.getDeviceId();
 
-      const char* deviceId = g_configManager.getDeviceId();
-
-  String currentMode = isApMode ? F("Access Point") : F("Client WiFi");
+  String currentMode =
+      isApMode ? F("Access Point") : F("Client WiFi");  // @deprecated isApMode
   String currentSsid = isApMode ? String(deviceId) : String(cfg->wifiSsid);
-  String currentIp = isApMode ? String(AP_IP_ADDRESS) : wifi_get_local_ip();
+  // String currentIp = isApMode ? String(AP_IP_ADDRESS) :
+  // wifi_get_local_ip();
+  String currentIp = wifi_get_local_ip();
   int refreshSeconds = (successMsg.length() > 0) ? DEFAULT_WEB_REFRESH : 0;
-
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
 
@@ -599,7 +603,7 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
 }
 
 // ============================================================================
-// СОХРАНЕНИЕ КОНФИГУРАЦИИ 
+// СОХРАНЕНИЕ КОНФИГУРАЦИИ
 // ============================================================================
 
 void web_saveConfig() {
@@ -835,28 +839,30 @@ void web_saveConfig() {
   // 4. ПОКАЗЫВАЕМ СТРАНИЦУ УСПЕХА (без перезагрузки)
   // ========================================================================
 
-  String html = R"rawliteral(
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset='UTF-8'>
-    <meta http-equiv='refresh' content='2;url=/'>
-    <title>Config Received</title>
-    <style>
-        body{font-family:Arial;text-align:center;margin-top:50px;background:#f0f0f0;}
-        .success{color:#2e7d32;background:#e8f5e9;padding:20px;border-radius:10px;display:inline-block;}
-    </style>
-</head>
-<body>
-    <div class='success'>
-        <h2>Configuration received</h2>
-        <p>Applying settings...</p>
-    </div>
-</body>
-</html>
-)rawliteral";
+//   String html = R"rawliteral(
+// <!DOCTYPE html>
+// <html>
+// <head>
+//     <meta charset='UTF-8'>
+//     <meta http-equiv='refresh' content='2;url=/'>
+//     <title>Config Received</title>
+//     <style>
+//         body{font-family:Arial;text-align:center;margin-top:50px;background:#f0f0f0;}
+//         .success{color:#2e7d32;background:#e8f5e9;padding:20px;border-radius:10px;display:inline-block;}
+//     </style>
+// </head>
+// <body>
+//     <div class='success'>
+//         <h2>Configuration received</h2>
+//         <p>Applying settings...</p>
+//     </div>
+// </body>
+// </html>
+// )rawliteral";
 
-  server.send(200, "text/html", html);
+  // server.send(200, "text/html", html);
+  server.send(200, "text/html",
+              web_buildResultHtml("Configuration saved", true));
 }
 
 // ============================================================================
@@ -864,7 +870,6 @@ void web_saveConfig() {
 // ============================================================================
 
 void web_init(bool setupMode) {
-  
   g_setupMode = setupMode;
 
   if (setupMode) {
@@ -877,7 +882,11 @@ void web_init(bool setupMode) {
       html += FPSTR(HTML_PAGE_END);
       server.send(200, "text/html", html);
     });
+
+    // * @deprecated Перенести в слой provisioning
     server.on("/savewifi", web_handleApProvisioning);
+
+
     server.on("/favicon.ico", []() { server.send(404); });
   } else {
     // XLOG_DEBUG(CAT_WEB, "Initializing web server in NORMAL mode");
@@ -887,13 +896,13 @@ void web_init(bool setupMode) {
     refreshInterval = g_configManager.getSensorInterval();
 #endif
 
-#if WEB_STATUS_ENABLED == 1
+#if FEATURE_WEB_STATUS_ENABLED == 1
     server.on("/", [refreshInterval]() {
       XLOG_DEBUG(CAT_WEB, "GET / - serving status page");
 #ifdef ESP32
       server.client().setNoDelay(true);
-#endif
-      
+#endif  
+
       web_sendStatusPage(refreshInterval);
     });
 #else
@@ -902,7 +911,7 @@ void web_init(bool setupMode) {
       server.sendHeader("Location", "/config", true);
       server.send(302, "text/plain", "");
     });
-#endif
+#endif // FEATURE_WEB_STATUS_ENABLED == 1
 
     server.on("/config", []() {
       XLOG_DEBUG(CAT_WEB, "GET /config - serving config page");
@@ -915,11 +924,12 @@ void web_init(bool setupMode) {
 #if WEB_RESET_ENABLED == 1
     server.on("/resetall", []() {
       g_configManager.reset();
-      server.send(200, "text/html",
-                  F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta "
-                    "http-equiv='refresh' "
-                    "content='5;url=/'></head><body><h2>Configuration "
-                    "was reset, rebooting...</h2></body></html>"));
+      // server.send(200, "text/html",
+      //             F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta "
+      //               "http-equiv='refresh' "
+      //               "content='5;url=/'></head><body><h2>Configuration "
+      //               "was reset, rebooting...</h2></body></html>"));
+      server.send(200, "text/html",web_buildResultHtml("Configuration was reset, rebooting...", true));
       delay(1000);
       ESP.restart();
     });
@@ -944,11 +954,48 @@ void web_init(bool setupMode) {
 
   server.begin();
   XLOG_DEBUG(CAT_WEB, "Web server started. (Mode: %s)",
-            setupMode ? "SETUP" : "NORMAL");
+             setupMode ? "SETUP" : "NORMAL");
 }
 
 void web_loop() {
   server.handleClient();
 }
 
-#endif  // FEATURE_WEB_ENABLED == 1
+String web_buildResultHtml(const String& action, bool success) {
+  String html = R"rawliteral(<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <meta http-equiv='refresh' content='2;url=/'>
+    <title>)rawliteral";
+
+  html += success ? "Success" : "Error";
+
+  html += R"rawliteral(</title>
+    <style>
+        body{font-family:Arial;text-align:center;margin-top:50px;background:#f0f0f0;}
+        .result{)rawliteral";
+
+  html += success ? "color:#2e7d32;background:#e8f5e9;"
+                  : "color:#c62828;background:#ffebee;";
+
+  html += R"rawliteral(padding:20px;border-radius:10px;display:inline-block;}
+    </style>
+</head>
+<body>
+    <div class='result'>
+        <h2>)rawliteral";
+
+  html += action;
+
+  html += success ? F(" successful</h2><p>Redirecting...</p>")
+                  : F(" failed</h2><p>Please try again.</p>");
+
+  html += R"rawliteral(</div>
+</body>
+</html>)rawliteral";
+
+  return html;
+}
+
+#endif  // TRANSPORT_TYPE == 1

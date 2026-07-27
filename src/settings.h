@@ -8,7 +8,6 @@
  *          Принцип именования:
  *          - FEATURE_XXX_ENABLED — функциональные возможности (1 = включена)
  *          - XXX_TYPE — выбор типа/режима
- *          - XXX_METHOD — выбор метода
  *
  *          Все остальные параметры (пины, пороги, таймауты, дефолты,
  *          производные флаги, креденшелы) определяются в соответствующих
@@ -21,6 +20,53 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+// ============================================================================
+// FIXME: МАССОВЫЕ ЗАМЕНЫ В ОСТАЛЬНОМ КОДЕ
+// ============================================================================
+//
+// В связи с изменением семантики TRANSPORT_TYPE, необходимо заменить
+// все использования старых флагов на новую логику:
+//
+// +. @FIXME: заменить FEATURE_WIFI_ENABLED на TRANSPORT_TYPE == 1
+//    - Во всех #if, #ifdef, #ifndef
+//    - Пример: #if FEATURE_WIFI_ENABLED -> #if TRANSPORT_TYPE == 1
+//    - Пример: #ifdef FEATURE_WIFI_ENABLED -> #if TRANSPORT_TYPE == 1
+//
+// +. @FIXME: заменить FEATURE_ZIGBEE_ENABLED на TRANSPORT_TYPE == 2
+//    - Во всех #if, #ifdef, #ifndef
+//    - Пример: #if FEATURE_ZIGBEE_ENABLED -> #if TRANSPORT_TYPE == 2
+//
+// 3. @FIXME: проверить все места, где используется TRANSPORT_TYPE
+//    - Раньше: 0=MQTT, 1=ZigBee, 2=Matter
+//    - Теперь: 0=NONE, 1=WIFI, 2=ZIGBEE, 3=THREAD
+//    - Все сравнения должны быть обновлены!
+//
+// 4. @FIXME: проверить PROVISIONING_METHOD
+//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI)
+//    - Раньше требовал FEATURE_WIFI_ENABLED
+//
+// 5. @FIXME: проверить FEATURE_SCANNING_WIFI_ENABLED
+//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI)
+//    - Раньше требовал FEATURE_WIFI_ENABLED
+//
+// 6. @FIXME: проверить FEATURE_WEB_ENABLED
+//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI)
+//    - Раньше требовал FEATURE_WIFI_ENABLED
+//
+// 7. @FIXME: проверить FEATURE_OTA_ENABLED
+//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI) через FEATURE_WEB_ENABLED
+//    - Косвенно, но проверить
+//
+// 8. @FIXME: проверить FEATURE_MATTER_ENABLED
+//    - Теперь требует TRANSPORT_TYPE == 1 (WIFI) или 3 (THREAD)
+//    - Раньше требовал TRANSPORT_TYPE == 2 (Matter)
+//
+// 9. @FIXME: проверить инициализацию в main.cpp
+//     - WiFiManager::init() -> #if TRANSPORT_TYPE == 1
+//     - MQTTManager::init() -> #if TRANSPORT_TYPE == 1 && FEATURE_MQTT_ENABLED
+//     - WebServer::init() -> #if TRANSPORT_TYPE == 1 && FEATURE_WEB_ENABLED
+//     - ZigbeeManager::init() -> #if TRANSPORT_TYPE == 2
+// ============================================================================
 
 // ============================================================================
 // 0. ОПРЕДЕЛЕНИЕ ПЛАТФОРМЫ
@@ -107,39 +153,40 @@
 #endif
 
 // ============================================================================
-// 2. ТРАНСПОРТ (ВЫБОР ПРОТОКОЛА)
+// 2. ТРАНСПОРТ (ФИЗИЧЕСКИЙ НОСИТЕЛЬ)
 // ============================================================================
 
 /**
- * @brief Тип транспортного протокола
- * @values
- *   - 0: MQTT (поверх WiFi)
- *   - 1: ZigBee (только ESP32-C6/H2)
- *   - 2: Matter (перспективный, только ESP32-C6/H2)
- * @details
- *   - MQTT: требует FEATURE_WIFI_ENABLED=1, доступен на всех платформах
- *   - ZigBee: требует FEATURE_WIFI_ENABLED=0, только ESP32-C6/H2
- *   - Matter: требует FEATURE_WIFI_ENABLED=1, только ESP32-C6/H2 (перспективно)
- * @note При TRANSPORT_TYPE=1 (ZigBee) PROVISIONING_METHOD принудительно = 0
+ * @brief Тип физического носителя (транспортного уровня)
+ * @details Определяет, какой радиостек используется.
+ *          Только один транспорт может быть активен одновременно.
+ * @values:
+ *   - 0: NONE     — без транспорта (автономный режим)
+ *   - 1: WIFI     — WiFi (802.11) — для MQTT, Web, Matter over WiFi
+ *   - 2: ZIGBEE   — ZigBee (802.15.4 + полный стек)
+ *   - 3: THREAD   — Thread (802.15.4 + 6LoWPAN) — для Matter over Thread
  */
 #ifndef TRANSPORT_TYPE
 // ZigBee по умолчанию для платформ с аппаратной поддержкой
 #if PLATFORM_ESP32C6 || PLATFORM_ESP32H2
-#define TRANSPORT_TYPE 1  // ZigBee
+#define TRANSPORT_TYPE 2  // ZIGBEE
 #else
-#define TRANSPORT_TYPE 0  // MQTT
+#define TRANSPORT_TYPE 1  // WIFI
 #endif
 #endif
 
 // ============================================================================
-// 2.1. ПРОИЗВОДНЫЕ ФЛАГИ ТРАНСПОРТА
+// 3. ПРИКЛАДНЫЕ ПРОТОКОЛЫ (независимые флаги, но с проверками зависимостей)
 // ============================================================================
 
 /**
- * @brief Включить MQTT (автоматически на основе TRANSPORT_TYPE)
+ * @brief Включить MQTT-клиент
+ * @details Требует TRANSPORT_TYPE == 1 (WIFI)
+ *          Может работать одновременно с FEATURE_WEB_ENABLED
  */
 #ifndef FEATURE_MQTT_ENABLED
-#if TRANSPORT_TYPE == 0
+// По умолчанию включаем, если выбран WiFi
+#if TRANSPORT_TYPE == 1
 #define FEATURE_MQTT_ENABLED 1
 #else
 #define FEATURE_MQTT_ENABLED 0
@@ -147,34 +194,29 @@
 #endif
 
 /**
- * @brief Включить ZigBee (автоматически на основе TRANSPORT_TYPE)
+ * @brief Выключить веб-интерфейс по умолчанию
+ * @details Требует TRANSPORT_TYPE == 1 (WIFI)
+ *          Может работать одновременно с FEATURE_MQTT_ENABLED
  */
-#ifndef FEATURE_ZIGBEE_ENABLED
-#if TRANSPORT_TYPE == 1
-#define FEATURE_ZIGBEE_ENABLED 1
-#else
-#define FEATURE_ZIGBEE_ENABLED 0
-#endif
+#ifndef FEATURE_WEB_STATUS_ENABLED
+#define FEATURE_WEB_STATUS_ENABLED 0
 #endif
 
 /**
- * @brief Включить Matter (автоматически на основе TRANSPORT_TYPE)
+ * @brief Включить Matter
+ * @details Требует TRANSPORT_TYPE == 1 (WIFI) ИЛИ 3 (THREAD)
+ *          Поддерживается на ESP32-C6/H2 (перспективно)
  */
 #ifndef FEATURE_MATTER_ENABLED
-#if TRANSPORT_TYPE == 2
-#define FEATURE_MATTER_ENABLED 1
-#else
 #define FEATURE_MATTER_ENABLED 0
-#endif
 #endif
 
 // ============================================================================
-// 3. ФУНКЦИОНАЛЬНЫЕ ВОЗМОЖНОСТИ (FEATURES)
+// 4. ФУНКЦИОНАЛЬНЫЕ ВОЗМОЖНОСТИ (FEATURES)
 // ============================================================================
 
 /**
  * @brief Включить логирование
- * @deprecated Достаточно указать уровень детализации
  * @details Если 0 — весь код логирования исключается.
  *          Настройки (уровень, категории, цвет) определяются в logger.h
  */
@@ -202,25 +244,6 @@
 #endif
 
 /**
- * @brief Включить WiFi
- * @details Если 0 — WiFi отключен (для ZigBee режима)
- * @note При TRANSPORT_TYPE=1 (ZigBee) принудительно отключается
- */
-#ifndef FEATURE_WIFI_ENABLED
-#define FEATURE_WIFI_ENABLED 1
-#endif
-
-/**
- * @brief Включить веб-интерфейс
- * @details Если 1 — доступен веб-сервер для настройки и управления.
- * @note Требует FEATURE_WIFI_ENABLED=1
- * @note Недоступен при TRANSPORT_TYPE=1 (ZigBee)
- */
-#ifndef FEATURE_WEB_ENABLED
-#define FEATURE_WEB_ENABLED 1
-#endif
-
-/**
  * @brief Включить OTA-обновления
  * @details Если 1 — доступно обновление прошивки через веб-интерфейс.
  * @note Требует FEATURE_WEB_ENABLED=1
@@ -241,7 +264,7 @@
 /**
  * @brief Включить сканирование WiFi при старте (отладка)
  * @details Если 1 — устройство сканирует доступные сети при запуске.
- * @note Работает только при TRANSPORT_TYPE=0 (MQTT) и FEATURE_WIFI_ENABLED=1
+ * @note Требует TRANSPORT_TYPE == 1 (WIFI)
  */
 #ifndef FEATURE_SCANNING_WIFI_ENABLED
 #define FEATURE_SCANNING_WIFI_ENABLED 0
@@ -257,125 +280,120 @@
 #endif
 
 // ============================================================================
-// 4. PROVISIONING (МЕТОД НАСТРОЙКИ)
+// 5. PROVISIONING (МЕТОД НАСТРОЙКИ)
 // ============================================================================
 
-
+/**
+ * @brief Метод комиссионинга (настройки WiFi)
+ * @values:
+ *   - 0: Нет
+ *   - 1: Только BLE
+ *   - 2: Только AP (точка доступа)
+ *   - 3: BLE + AP (одновременно)
+ * @note Требует TRANSPORT_TYPE == 1 (WIFI)
+ * @note ESP32-C3 не поддерживает BLE+AP одновременно (значение 3)
+ * @note ESP8266 не поддерживает BLE
+ */
+#ifndef PROVISIONING_METHOD
+#define PROVISIONING_METHOD 2  // AP по умолчанию
+#endif
 
 // ============================================================================
-// 5. ПРОВЕРКИ ЗАВИСИМОСТЕЙ
+// 6. ПРОВЕРКИ ЗАВИСИМОСТЕЙ
 // ============================================================================
 
 // ----------------------------------------------------------------------------
-// Проверка TRANSPORT_TYPE
+// 6.1. Проверка TRANSPORT_TYPE
 // ----------------------------------------------------------------------------
-#if TRANSPORT_TYPE < 0 || TRANSPORT_TYPE > 2
-#error "TRANSPORT_TYPE must be 0 (MQTT), 1 (ZigBee), or 2 (Matter)"
+#if TRANSPORT_TYPE < 0 || TRANSPORT_TYPE > 3
+#error "TRANSPORT_TYPE must be 0 (NONE), 1 (WIFI), 2 (ZIGBEE), or 3 (THREAD)"
 #endif
 
 // ----------------------------------------------------------------------------
-// TRANSPORT_TYPE = 1 (ZigBee)
+// 6.2. Проверка платформы для ZigBee и Thread
 // ----------------------------------------------------------------------------
-#if TRANSPORT_TYPE == 1
-
-// ZigBee требует отключенного WiFi
-#if FEATURE_WIFI_ENABLED == 1
-#warning "TRANSPORT_TYPE=1 (ZigBee) disables FEATURE_WIFI_ENABLED"
-#undef FEATURE_WIFI_ENABLED
-#define FEATURE_WIFI_ENABLED 0
-#endif
-
-// ZigBee недоступен на неподдерживаемых платформах
+#if TRANSPORT_TYPE == 2 || TRANSPORT_TYPE == 3
 #if !PLATFORM_ESP32C6 && !PLATFORM_ESP32H2
-#error "TRANSPORT_TYPE=1 (ZigBee) is only supported on ESP32-C6 and ESP32-H2"
+#error \
+    "TRANSPORT_TYPE=2 (ZIGBEE) or 3 (THREAD) is only supported on ESP32-C6 and ESP32-H2"
 #endif
-
-// ZigBee отключает провизионинг
-#if PROVISIONING_METHOD != 0
-#warning "TRANSPORT_TYPE=1 (ZigBee) disables PROVISIONING_METHOD"
-#undef PROVISIONING_METHOD
-#define PROVISIONING_METHOD 0
-#endif
-
-// ZigBee отключает WEB (не нужен)
-#if FEATURE_WEB_ENABLED == 1
-#warning "TRANSPORT_TYPE=1 (ZigBee) disables FEATURE_WEB_ENABLED"
-#undef FEATURE_WEB_ENABLED
-#define FEATURE_WEB_ENABLED 0
-#endif
-
-// ZigBee отключает OTA (пока не реализован для ZigBee)
-#if FEATURE_OTA_ENABLED == 1
-#warning \
-    "TRANSPORT_TYPE=1 (ZigBee) disables FEATURE_OTA_ENABLED (not yet supported)"
-#undef FEATURE_OTA_ENABLED
-#define FEATURE_OTA_ENABLED 0
-#endif
-
-// ZigBee отключает сканирование WiFi
-#if FEATURE_SCANNING_WIFI_ENABLED == 1
-#warning "TRANSPORT_TYPE=1 (ZigBee) disables FEATURE_SCANNING_WIFI_ENABLED"
-#undef FEATURE_SCANNING_WIFI_ENABLED
-#define FEATURE_SCANNING_WIFI_ENABLED 0
 #endif
 
 // ----------------------------------------------------------------------------
-// TRANSPORT_TYPE = 0 (MQTT) или 2 (Matter) — требуют WiFi
+// 6.3. Проверка: прикладные протоколы требуют WiFi
 // ----------------------------------------------------------------------------
-#elif TRANSPORT_TYPE == 0 || TRANSPORT_TYPE == 2
-
-// MQTT/Matter требуют WiFi
-#if FEATURE_WIFI_ENABLED == 0
-#error "TRANSPORT_TYPE=0 (MQTT) or 2 (Matter) requires FEATURE_WIFI_ENABLED=1"
+#if FEATURE_MQTT_ENABLED == 1 && TRANSPORT_TYPE != 1
+#error "FEATURE_MQTT_ENABLED requires TRANSPORT_TYPE=1 (WIFI)"
 #endif
 
-// Matter требует поддержки (перспективно)
-#if TRANSPORT_TYPE == 2
-#if !PLATFORM_ESP32C6 && !PLATFORM_ESP32H2
-#warning "TRANSPORT_TYPE=2 (Matter) is experimental and only on ESP32-C6/H2"
+#if TRANSPORT_TYPE == 1 && TRANSPORT_TYPE != 1
+#error "FEATURE_WEB_ENABLED requires TRANSPORT_TYPE=1 (WIFI)"
+#endif
+
+// Matter требует WiFi или Thread
+#if FEATURE_MATTER_ENABLED == 1
+#if TRANSPORT_TYPE != 1 && TRANSPORT_TYPE != 3
+#error "FEATURE_MATTER_ENABLED requires TRANSPORT_TYPE=1 (WIFI) or 3 (THREAD)"
 #endif
 #endif
 
-#endif  // TRANSPORT_TYPE == 1
-
 // ----------------------------------------------------------------------------
-// ESP32-C3 НЕ ПОДДЕРЖИВАЕТ ОДНОВРЕМЕННУЮ РАБОТУ BLE+AP
-// ----------------------------------------------------------------------------
-#if PROVISIONING_METHOD == 3 && PLATFORM_ESP32C3
-#error "ESP32-C3 does not support simultaneous BLE+AP (PROVISIONING_METHOD=3)."
-#endif
-
-
-// ----------------------------------------------------------------------------
-// OTA требует WEB
+// 6.4. OTA требует Web
 // ----------------------------------------------------------------------------
 #if FEATURE_OTA_ENABLED == 1 && FEATURE_WEB_ENABLED == 0
 #error "FEATURE_OTA_ENABLED=1 requires FEATURE_WEB_ENABLED=1"
 #endif
 
 // ----------------------------------------------------------------------------
-// WEB требует WiFi
+// 6.5. Сканирование WiFi требует WiFi
 // ----------------------------------------------------------------------------
-#if FEATURE_WEB_ENABLED == 1 && FEATURE_WIFI_ENABLED == 0
-#error "FEATURE_WEB_ENABLED=1 requires FEATURE_WIFI_ENABLED=1"
+#if FEATURE_SCANNING_WIFI_ENABLED == 1 && TRANSPORT_TYPE != 1
+#error "FEATURE_SCANNING_WIFI_ENABLED requires TRANSPORT_TYPE=1 (WIFI)"
 #endif
 
 // ----------------------------------------------------------------------------
-// TYPE 1 требует датчик
+// 6.6. Provisioning требует WiFi
+// ----------------------------------------------------------------------------
+#if PROVISIONING_METHOD != 0 && TRANSPORT_TYPE != 1
+#error "PROVISIONING_METHOD requires TRANSPORT_TYPE=1 (WIFI)"
+#endif
+
+// ----------------------------------------------------------------------------
+// 6.7. ESP32-C3 не поддерживает BLE+AP одновременно
+// ----------------------------------------------------------------------------
+#if PROVISIONING_METHOD == 3 && PLATFORM_ESP32C3
+#error "ESP32-C3 does not support simultaneous BLE+AP (PROVISIONING_METHOD=3)"
+#endif
+
+// ----------------------------------------------------------------------------
+// 6.8. ESP8266 не поддерживает BLE
+// ----------------------------------------------------------------------------
+#if PROVISIONING_METHOD == 1 || PROVISIONING_METHOD == 3
+#if PLATFORM_ESP8266
+#error "ESP8266 does not support BLE (PROVISIONING_METHOD=1 or 3)"
+#endif
+#endif
+
+// ----------------------------------------------------------------------------
+// 6.9. Проверка PROVISIONING_METHOD
+// ----------------------------------------------------------------------------
+#if PROVISIONING_METHOD < 0 || PROVISIONING_METHOD > 3
+#error "PROVISIONING_METHOD must be 0, 1, 2, or 3"
+#endif
+
+// ----------------------------------------------------------------------------
+// 6.10. DEVICE TYPE требует датчик
 // ----------------------------------------------------------------------------
 #if DEVICE_TYPE == 1 && FEATURE_SENSOR_ENABLED == 0
 #error "DEVICE_TYPE=1 requires FEATURE_SENSOR_ENABLED=1"
 #endif
 
-// ----------------------------------------------------------------------------
-// TYPE 2 требует датчик
-// ----------------------------------------------------------------------------
 #if DEVICE_TYPE == 2 && FEATURE_SENSOR_ENABLED == 0
 #error "DEVICE_TYPE=2 requires FEATURE_SENSOR_ENABLED=1"
 #endif
 
 // ----------------------------------------------------------------------------
-// TYPE 3 не требует датчик (принудительно отключаем)
+// 6.11. TYPE 3 не требует датчик (принудительно отключаем)
 // ----------------------------------------------------------------------------
 #if DEVICE_TYPE == 3 && FEATURE_SENSOR_ENABLED == 1
 #warning "DEVICE_TYPE=3 ignores FEATURE_SENSOR_ENABLED"
@@ -384,30 +402,20 @@
 #endif
 
 // ----------------------------------------------------------------------------
-// ESP8266 не поддерживает BLE
-// ----------------------------------------------------------------------------
-#if PROVISIONING_METHOD == 1 || PROVISIONING_METHOD == 3
-#if PLATFORM_ESP8266
-#warning "ESP8266 does not support BLE, forcing PROVISIONING_METHOD=2"
-#undef PROVISIONING_METHOD
-#define PROVISIONING_METHOD 2
-#endif
-#endif
-
-// ----------------------------------------------------------------------------
-// Проверка PROVISIONING_METHOD
-// ----------------------------------------------------------------------------
-#if PROVISIONING_METHOD < 0 || PROVISIONING_METHOD > 3
-#warning "PROVISIONING_METHOD must be 0-3, forcing 0"
-#undef PROVISIONING_METHOD
-#define PROVISIONING_METHOD 0
-#endif
-
-// ----------------------------------------------------------------------------
-// Проверка DEVICE_TYPE
+// 6.12. Проверка DEVICE_TYPE
 // ----------------------------------------------------------------------------
 #if DEVICE_TYPE < 1 || DEVICE_TYPE > 3
 #error "DEVICE_TYPE must be 1, 2, or 3"
+#endif
+
+// ----------------------------------------------------------------------------
+// 6.13. Предупреждение: WiFi выбран, но ни один протокол не активен
+// ----------------------------------------------------------------------------
+#if TRANSPORT_TYPE == 1
+#if FEATURE_MQTT_ENABLED == 0 && FEATURE_WEB_STATUS_ENABLED == 0 && \
+    FEATURE_MATTER_ENABLED == 0
+#warning "TRANSPORT_TYPE=1 (WIFI) selected but no application protocol (MQTT/WEB/MATTER) is enabled"
+#endif
 #endif
 
 #endif  // SETTINGS_H

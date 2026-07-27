@@ -1,5 +1,6 @@
 #include <Arduino.h>
-#include "config_manager.h"
+#include "settings.h"
+#include "debug_tools.h"
 #include "led.h"
 #include "logger.h"
 #include "provisioning.h"
@@ -8,7 +9,6 @@
 #include "system_state.h"
 #include "wdt_manager.h"
 #include "web.h"
-#include "debug_tools.h"
 #include "wifi_manager.h"
 
 #include "fan_actuator.h"
@@ -22,11 +22,11 @@ static SwitchActuator* switchActuator = nullptr;
 
 
 
-#if FEATURE_WIFI_ENABLED == 1
+#if TRANSPORT_TYPE == 1
 static unsigned long wifi_fail_start = 0;   
 #endif
 
-#if FEATURE_WEB_ENABLED
+#if TRANSPORT_TYPE == 1
 #include "web_status_provider.h"
 static bool web_started = false;            
 static IWebStatusProvider* statusProvider = nullptr;
@@ -41,6 +41,7 @@ void setup() {
   XLOG_INFO(CAT_MAIN, "SYSTEM STARTING...");
   XLOG_INFO(CAT_MAIN, "Version: %s", VERSION);
   XLOG_INFO(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
+  XLOG_INFO(CAT_MAIN, "Provisioning method: %d", PROVISIONING_METHOD);
   XLOG_INFO(CAT_MAIN, "========================================");
 
   system_state_init();
@@ -57,13 +58,13 @@ void setup() {
     system_state_set_bit(STATE_PROVISIONING);
     startProvisioning();
   } else {
-#if FEATURE_WIFI_ENABLED == 1
+#if TRANSPORT_TYPE == 1
     wifi_manager_init();
     wifi_manager_begin();
 #endif
   }
 
-#if FEATURE_WEB_ENABLED == 1
+#if TRANSPORT_TYPE == 1
 #if DEVICE_TYPE == 1
   fan = new FanActuator();
   fan->init(SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
@@ -98,7 +99,7 @@ void setup() {
 #endif  // FEATURE_MQTT_ENABLED
 #endif  // DEVICE_TYPE == 3
   web_registerStatusProvider(statusProvider);
-#endif // FEATURE_WEB_ENABLED
+#endif  // TRANSPORT_TYPE == 1
 
   XLOG_INFO(CAT_MAIN, "Setup complete");
 }
@@ -121,7 +122,7 @@ void loop() {
     }
   } else {
     wifi_fail_start = 0;
-#if FEATURE_WEB_ENABLED == 1 // Для провизионинга в режиме AP нужен сервер
+#if TRANSPORT_TYPE == 1 // Для провизионинга в режиме AP нужен сервер
     if (!web_started && (bits & STATE_WIFI_OK)) {
       web_init(false);
       web_started = true;
@@ -141,7 +142,7 @@ void loop() {
       } else {
         const auto* data = ProvisioningManager::getInstance().getData();
         
-        #if FEATURE_WIFI_ENABLED == 1
+        #if TRANSPORT_TYPE == 1
         if (data && strlen(data->wifiSsid) > 0) {
           XLOG_INFO(CAT_MAIN, "Provisioning complete! SSID: %s",
                     data->wifiSsid);
@@ -196,8 +197,10 @@ void loop() {
     }
   } else if (!(bits & STATE_WIFI_OK)) {
     led_set_mode(LED_MORZE_E);
+  #if FEATURE_MQTT_ENABLED
   } else if (!(bits & STATE_MQTT_OK)) {
     led_set_mode(LED_MORZE_I);
+#endif  // FEATURE_MQTT_ENABLED
   } else {
     led_set_mode(LED_ON);
   }

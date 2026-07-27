@@ -49,7 +49,7 @@ static void SysProvEvent(arduino_event_t* sys_event) {
         memset(&data, 0, sizeof(data));
         data.type = 0;
 
-#if FEATURE_WIFI_ENABLED == 1
+#if TRANSPORT_TYPE == 1
         strncpy(data.wifiSsid, g_receivedConfig.wifiSsid,
                 sizeof(data.wifiSsid) - 1);
         strncpy(data.wifiPassword, g_receivedConfig.wifiPassword,

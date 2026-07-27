@@ -15,7 +15,7 @@
 #include "ota.h"
 #include "sensor.h"
 
-#if FEATURE_WEB_ENABLED == 1
+#if TRANSPORT_TYPE == 1
 
 // ============================================================================
 // HTML-ШАБЛОНЫ (хранятся в PROGMEM)
@@ -530,6 +530,6 @@ inline void sendConfigPage(WebSendCallback send,
   send(FPSTR(HTML_PAGE_END), context);
 }
 
-#endif  // FEATURE_WEB_ENABLED
+#endif  // TRANSPORT_TYPE == 1
 
 #endif  // WEB_TEMPLATES_H

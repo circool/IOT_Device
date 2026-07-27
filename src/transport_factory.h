@@ -25,7 +25,7 @@ inline Transport* createTransport() {
 #endif
 
 #elif TRANSPORT_TYPE == 1  // ZigBee
-#if FEATURE_ZIGBEE_ENABLED == 1
+#if TRANSPORT_TYPE == 2
 #include "transport_zigbee.h"
   return getZigbeeTransport();
 #else

@@ -175,13 +175,13 @@ pio run -e esp32 -t upload
 // Функционал
 #define FEATURE_WIFI_ENABLED 1
 #define FEATURE_MQTT_ENABLED 1
-#define FEATURE_WEB_ENABLED 1
+// #define FEATURE_WEB_ENABLED 1
 #define FEATURE_OTA_ENABLED 1
 #define FEATURE_WDT_ENABLED 1
 
 // Тайминги
 #define WDT_TIMER_MS 5000           // Watchdog таймер
-#define AP_FALLBACK_TIMEOUT_MS 12000 // Таймаут до перехода в AP
+#define WIFI_FALLBACK_TIMEOUT_MS 12000 // Таймаут до перехода в AP
 
 // ШИМ параметры (для TYPE 1)
 #define PWM_FREQUENCY 5      // Частота ШИМ (Гц)
@@ -271,7 +271,7 @@ board_build.flash_mode = dout     # Режим flash (для ESP8266)
 # Основные модули (по умолчанию ВСЕ включены)
 -DFEATURE_WIFI_ENABLED=1          # WiFi поддержка
 -DFEATURE_MQTT_ENABLED=1          # MQTT клиент
--DFEATURE_WEB_ENABLED=1           # Веб-сервер
+; -DFEATURE_WEB_STATUS_ENABLED=1           # Веб-сервер c отображением состояния устройства
 -DFEATURE_OTA_ENABLED=1           # OTA обновления
 -DFEATURE_WDT_ENABLED=1           # Watchdog Timer
 
@@ -327,13 +327,12 @@ build_flags =
 
 ```ini
 # WEB возможности (требуют FEATURE_WEB_ENABLED=1)
--DWEB_STATUS_ENABLED=1            # Страница статуса
+-DFEATURE_WEB_STATUS_ENABLED=1    # Страница статуса
 -DWEB_SHOW_RSSI=1                 # Отображать RSSI на странице
 -DWEB_RESET_ENABLED=1             # Кнопка сброса в веб-интерфейсе
 
 # Настройки точки доступа (AP)
--DAP_ENABLED=1                    # Включить режим AP
--DAP_FALLBACK_TIMEOUT_MS=12000    # Таймаут до перехода в AP (мс)
+-DWIFI_FALLBACK_TIMEOUT_MS=12000    # Таймаут до перехода в AP (мс)
 -DAP_IP_ADDRESS="192.168.4.1"     # IP адрес в режиме AP
 ```
 
@@ -410,7 +409,7 @@ build_flags =
     -DDEVICE_TYPE=2
     -DWIFI_ENABLED=0
     -DMQTT_ENABLED=0
-    -FEATURE_WEB_ENABLED=0
+    ; -FEATURE_WEB_ENABLED=0
     -DSENSOR_TYPE=1
     -DSTATUS_LED_PIN=0
 ```
@@ -597,7 +596,7 @@ board = esp32dev
 build_flags = 
     -DDEVICE_TYPE=1
     -DMQTT_ENABLED=1
-    -FEATURE_WEB_ENABLED=1
+    ; -FEATURE_WEB_ENABLED=1
 lib_deps = 
     knolleary/PubSubClient @ ^2.8
     adafruit/Adafruit AHTX0 @ ^2.0.5

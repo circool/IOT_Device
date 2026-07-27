@@ -7,9 +7,9 @@
 
 /**
  * @brief Включить поддержку ZigBee
- * @note Определяется в settings.h на основе FEATURE_ZIGBEE_ENABLED
+ * @note Определяется в settings.h на основе TRANSPORT_TYPE == 2
  */
-#if FEATURE_ZIGBEE_ENABLED == 1
+#if TRANSPORT_TYPE == 2
 
 #include <functional>
 
@@ -219,7 +219,7 @@ class ZigBeeManager {
 
 extern ZigBeeManager zigbeeManager;
 
-#else  // FEATURE_ZIGBEE_ENABLED == 0
+#else  // TRANSPORT_TYPE == 2 == 0
 
 // ============================================================================
 // ЗАГЛУШКА ДЛЯ РЕЖИМА БЕЗ ZIGBEE
@@ -285,6 +285,6 @@ class ZigBeeManager {
 
 extern ZigBeeManager zigbeeManager;
 
-#endif  // FEATURE_ZIGBEE_ENABLED == 1
+#endif  // TRANSPORT_TYPE == 2
 
 #endif  // ZIGBEE_H
