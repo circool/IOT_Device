@@ -218,6 +218,7 @@ class MQTTManager {
   void callback(char* topic, byte* payload, unsigned int length);
   static void staticCallback(char* topic, byte* payload, unsigned int length);
   void handleCommand(const char* topic, const String& payload);
+  bool firstAttempt = true;
 
   // ========================================================================
   // ДАННЫЕ

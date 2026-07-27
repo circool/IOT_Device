@@ -104,17 +104,22 @@ void MQTTManager::disconnect() {
 // ============================================================================
 
 void MQTTManager::reconnect() {
+
   if (!_initialized)
     return;
   if (isConnected())
     return;
 
   unsigned long now = millis();
-  if (now - _lastReconnectAttempt < MQTT_RECONNECT_DELAY_MS)
-    return;
-  _lastReconnectAttempt = now;
 
-  static bool firstAttempt = true;
+  if (!firstAttempt) {
+    if (now - _lastReconnectAttempt < MQTT_RECONNECT_DELAY_MS)
+      return;
+  }
+
+  
+  _lastReconnectAttempt = now;
+  
   if (firstAttempt) {
     XLOG_DEBUG(CAT_MQTT,
                "Connecting to broker " ANSI_BOLD "%s" ANSI_BOLD_RESET
