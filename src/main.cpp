@@ -1,16 +1,22 @@
 #include <Arduino.h>
-#include "settings.h"
 #include "debug_tools.h"
+#include "fan_actuator.h"
 #include "led.h"
 #include "logger.h"
+#include "mqtt.h"
 #include "provisioning.h"
 #include "reset_btn.h"
 #include "restart_manager.h"
+#include "settings.h"
 #include "system_state.h"
+#include "transport_factory.h"
 #include "wdt_manager.h"
 #include "web.h"
 #include "wifi_manager.h"
-#include "fan_actuator.h"
+
+WiFiClient wifiClient;
+
+
 static FanActuator* fan = nullptr;
 
 #include "switch_actuator.h"
@@ -57,6 +63,7 @@ void setup() {
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
     wifi_manager_init();
     wifi_manager_begin();
+
 #endif
   }
 
@@ -95,6 +102,14 @@ void setup() {
 #endif  // DEVICE_TYPE == 3
   web_registerStatusProvider(statusProvider);
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+
+  g_transport = createTransport();
+  if (g_transport) {
+    XLOG_INFO(CAT_MAIN, "Transport created: %s", g_transport->getName());
+    g_transport->begin(&wifiClient, g_configManager.get());
+  } else {
+    XLOG_ERROR(CAT_MAIN, "No transport available!");
+  }
 
   XLOG_INFO(CAT_MAIN, "Setup complete");
 }
@@ -206,4 +221,8 @@ void loop() {
   // Функциональные слои
   web_loop();
   restart_loop();
+
+  if (g_transport && (bits & STATE_WIFI_OK)) {
+    g_transport->process();
+  }
 }
