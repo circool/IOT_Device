@@ -57,6 +57,16 @@ class IWebStatusProvider {
   // ===== Информация о подключениях (все типы) =====
   virtual bool isMqttConnected() const = 0;
   virtual int getWifiRssi() const = 0;
+
+  // ===== Параметры из Config (для Web) =====
+  virtual float getLowTemp() const = 0;
+  virtual float getHighTemp() const = 0;
+  virtual float getLowHum() const = 0;
+  virtual float getHighHum() const = 0;
+  virtual int getDelaySeconds() const = 0;
+  virtual uint32_t getMaxOnTime() const = 0;
+  virtual int getSensorInterval() const = 0;
+  virtual bool isSensorControlMode() const = 0;
 };
 
 // ============================================================================
@@ -73,6 +83,7 @@ class IWebStatusProvider {
  *          - Датчик: температура, влажность (глобальные функции)
  *          - MQTT: статус подключения
  *          - WiFi: RSSI
+ *          - Config: пороги, таймеры, режимы
  */
 class FanWebStatusProvider : public IWebStatusProvider {
  public:
@@ -82,22 +93,36 @@ class FanWebStatusProvider : public IWebStatusProvider {
   FanWebStatusProvider(class FanActuator* fan);
 #endif
 
+  // Основная информация
   bool isDeviceOn() const override;
   bool isEmergencyStop() const override;
   bool isDelayActive() const override;
   unsigned long getDelayTimer() const override;
   unsigned long getStartTime() const override;
 
+  // Вентилятор
   int getSpeedPercent() const override;
   bool isAdaptiveModeActive() const override;
 
+  // Датчик
   bool isSensorOk() const override;
   float getTemperature() const override;
   float getHumidity() const override;
   const char* getSensorError() const override;
 
+  // Подключения
   bool isMqttConnected() const override;
   int getWifiRssi() const override;
+
+  // Параметры из Config
+  float getLowTemp() const override;
+  float getHighTemp() const override;
+  float getLowHum() const override;
+  float getHighHum() const override;
+  int getDelaySeconds() const override;
+  uint32_t getMaxOnTime() const override;
+  int getSensorInterval() const override;
+  bool isSensorControlMode() const override;
 
  private:
   class FanActuator* _fan;
@@ -111,7 +136,7 @@ class FanWebStatusProvider : public IWebStatusProvider {
 /**
  * @brief Провайдер для TYPE 2 (автономный датчик)
  *
- * @details Реализует только методы датчика.
+ * @details Реализует только методы датчика и Config.
  *          Методы актуатора возвращают заглушки.
  */
 class SensorWebStatusProvider : public IWebStatusProvider {
@@ -143,6 +168,16 @@ class SensorWebStatusProvider : public IWebStatusProvider {
   bool isMqttConnected() const override;
   int getWifiRssi() const override;
 
+  // Параметры из Config
+  float getLowTemp() const override { return 0.0f; }
+  float getHighTemp() const override { return 0.0f; }
+  float getLowHum() const override { return 0.0f; }
+  float getHighHum() const override { return 0.0f; }
+  int getDelaySeconds() const override { return 0; }
+  uint32_t getMaxOnTime() const override { return 0; }
+  int getSensorInterval() const override;
+  bool isSensorControlMode() const override { return false; }
+
  private:
 #if FEATURE_MQTT_ENABLED == 1
   MQTTManager* _mqtt;
@@ -154,7 +189,7 @@ class SensorWebStatusProvider : public IWebStatusProvider {
 /**
  * @brief Провайдер для TYPE 3 (управляемый выключатель)
  *
- * @details Реализует только методы актуатора.
+ * @details Реализует только методы актуатора и Config.
  *          Методы датчика и вентилятора возвращают заглушки.
  */
 class SwitchWebStatusProvider : public IWebStatusProvider {
@@ -165,6 +200,7 @@ class SwitchWebStatusProvider : public IWebStatusProvider {
   SwitchWebStatusProvider(class SwitchActuator* sw);
 #endif
 
+  // Актуатор
   bool isDeviceOn() const override;
   bool isEmergencyStop() const override;
   bool isDelayActive() const override;
@@ -181,8 +217,19 @@ class SwitchWebStatusProvider : public IWebStatusProvider {
   float getHumidity() const override { return 0.0f; }
   const char* getSensorError() const override { return "N/A"; }
 
+  // Подключения
   bool isMqttConnected() const override;
   int getWifiRssi() const override;
+
+  // Параметры из Config
+  float getLowTemp() const override { return 0.0f; }
+  float getHighTemp() const override { return 0.0f; }
+  float getLowHum() const override { return 0.0f; }
+  float getHighHum() const override { return 0.0f; }
+  int getDelaySeconds() const override;
+  uint32_t getMaxOnTime() const override;
+  int getSensorInterval() const override { return 0; }
+  bool isSensorControlMode() const override { return false; }
 
  private:
   class SwitchActuator* _switch;

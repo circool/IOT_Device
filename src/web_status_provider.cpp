@@ -9,10 +9,11 @@
 #include "mqtt.h"
 #endif
 
+// ============================================================================
+// TYPE 1 — FanWebStatusProvider
+// ============================================================================
+
 #if DEVICE_TYPE == 1
-// ============================================================================
-// FanWebStatusProvider
-// ============================================================================
 
 #if FEATURE_MQTT_ENABLED == 1
 FanWebStatusProvider::FanWebStatusProvider(FanActuator* fan, MQTTManager* mqtt)
@@ -21,6 +22,7 @@ FanWebStatusProvider::FanWebStatusProvider(FanActuator* fan, MQTTManager* mqtt)
 FanWebStatusProvider::FanWebStatusProvider(FanActuator* fan) : _fan(fan) {}
 #endif
 
+// ----- Основная информация -----
 bool FanWebStatusProvider::isDeviceOn() const {
   return _fan ? _fan->getState() : false;
 }
@@ -41,6 +43,7 @@ unsigned long FanWebStatusProvider::getStartTime() const {
   return _fan ? _fan->getStartTime() : 0;
 }
 
+// ----- Вентилятор -----
 int FanWebStatusProvider::getSpeedPercent() const {
   return _fan ? _fan->getSpeed() : 0;
 }
@@ -49,6 +52,7 @@ bool FanWebStatusProvider::isAdaptiveModeActive() const {
   return _fan ? _fan->getAdaptiveMode() : false;
 }
 
+// ----- Датчик -----
 bool FanWebStatusProvider::isSensorOk() const {
   return sensor_isOk();
 }
@@ -65,6 +69,7 @@ const char* FanWebStatusProvider::getSensorError() const {
   return sensor_getError();
 }
 
+// ----- Подключения -----
 bool FanWebStatusProvider::isMqttConnected() const {
 #if FEATURE_MQTT_ENABLED == 1
   if (_mqtt) {
@@ -78,11 +83,44 @@ int FanWebStatusProvider::getWifiRssi() const {
   return wifi_get_rssi();
 }
 
-#elif DEVICE_TYPE == 2
+// ----- Параметры из Config -----
+float FanWebStatusProvider::getLowTemp() const {
+  return g_configManager.getLowTemp();
+}
+
+float FanWebStatusProvider::getHighTemp() const {
+  return g_configManager.getHighTemp();
+}
+
+float FanWebStatusProvider::getLowHum() const {
+  return g_configManager.getLowHum();
+}
+
+float FanWebStatusProvider::getHighHum() const {
+  return g_configManager.getHighHum();
+}
+
+int FanWebStatusProvider::getDelaySeconds() const {
+  return g_configManager.getDelaySeconds();
+}
+
+uint32_t FanWebStatusProvider::getMaxOnTime() const {
+  return g_configManager.getMaxOnTime();
+}
+
+int FanWebStatusProvider::getSensorInterval() const {
+  return g_configManager.getSensorInterval();
+}
+
+bool FanWebStatusProvider::isSensorControlMode() const {
+  return g_configManager.getSensorControlMode();
+}
 
 // ============================================================================
-// SensorWebStatusProvider (для TYPE 2)
+// TYPE 2 — SensorWebStatusProvider
 // ============================================================================
+
+#elif DEVICE_TYPE == 2
 
 #if FEATURE_MQTT_ENABLED == 1
 SensorWebStatusProvider::SensorWebStatusProvider(MQTTManager* mqtt)
@@ -91,6 +129,7 @@ SensorWebStatusProvider::SensorWebStatusProvider(MQTTManager* mqtt)
 SensorWebStatusProvider::SensorWebStatusProvider() {}
 #endif
 
+// ----- Датчик -----
 bool SensorWebStatusProvider::isSensorOk() const {
   return sensor_isOk();
 }
@@ -107,6 +146,7 @@ const char* SensorWebStatusProvider::getSensorError() const {
   return sensor_getError();
 }
 
+// ----- Подключения -----
 bool SensorWebStatusProvider::isMqttConnected() const {
 #if FEATURE_MQTT_ENABLED == 1
   if (_mqtt) {
@@ -120,11 +160,16 @@ int SensorWebStatusProvider::getWifiRssi() const {
   return wifi_get_rssi();
 }
 
-#elif DEVICE_TYPE == 3
+// ----- Параметры из Config -----
+int SensorWebStatusProvider::getSensorInterval() const {
+  return g_configManager.getSensorInterval();
+}
 
 // ============================================================================
-// SwitchWebStatusProvider
+// TYPE 3 — SwitchWebStatusProvider
 // ============================================================================
+
+#elif DEVICE_TYPE == 3
 
 #if FEATURE_MQTT_ENABLED == 1
 SwitchWebStatusProvider::SwitchWebStatusProvider(SwitchActuator* sw,
@@ -135,6 +180,7 @@ SwitchWebStatusProvider::SwitchWebStatusProvider(SwitchActuator* sw)
     : _switch(sw) {}
 #endif
 
+// ----- Актуатор -----
 bool SwitchWebStatusProvider::isDeviceOn() const {
   return _switch ? _switch->getState() : false;
 }
@@ -155,6 +201,7 @@ unsigned long SwitchWebStatusProvider::getStartTime() const {
   return _switch ? _switch->getStartTime() : 0;
 }
 
+// ----- Подключения -----
 bool SwitchWebStatusProvider::isMqttConnected() const {
 #if FEATURE_MQTT_ENABLED == 1
   if (_mqtt) {
@@ -166,6 +213,15 @@ bool SwitchWebStatusProvider::isMqttConnected() const {
 
 int SwitchWebStatusProvider::getWifiRssi() const {
   return wifi_get_rssi();
+}
+
+// ----- Параметры из Config -----
+int SwitchWebStatusProvider::getDelaySeconds() const {
+  return g_configManager.getDelaySeconds();
+}
+
+uint32_t SwitchWebStatusProvider::getMaxOnTime() const {
+  return g_configManager.getMaxOnTime();
 }
 
 #endif  // DEVICE_TYPE

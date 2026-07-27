@@ -220,6 +220,41 @@ void loop() {
 
   // Функциональные слои
   web_loop();
+  // Обработка команд от Web (/set)
+  if (g_webCommandPending) {
+    // DeviceController должен быть создан и инициализирован
+    // (в текущей реализации DeviceController ещё нет, поэтому временно:
+    //   - CMD_STATE → fan->set(value)
+    //   - CMD_SPEED → fan->setSpeed(value)
+    //   - CMD_MANUAL_MODE → fan->setAdaptiveMode(!value) или логика в main)
+    switch (g_webCommand.type) {
+      case CMD_STATE:
+        // deviceController.setOperationalParam(PARAM_STATE,
+        // g_webCommand.value.boolVal);
+        if (fan)
+          fan->set(g_webCommand.value.boolVal, true);
+        break;
+      case CMD_SPEED:
+        if (fan)
+          fan->setSpeed(g_webCommand.value.intVal, true);
+        break;
+      case CMD_MANUAL_MODE:
+        // deviceController.setOperationalParam(PARAM_MANUAL_MODE,
+        // g_webCommand.value.boolVal);
+        if (fan)
+          fan->setAdaptiveMode(!g_webCommand.value.boolVal);
+        break;
+    }
+    g_webCommandPending = false;
+  }
+
+  // Обработка сброса настроек от Web (/resetall)
+  if (g_webRestartPending) {
+    g_configManager.reset();
+    g_webRestartPending = false;
+    restart_request(500);
+  }
+
   restart_loop();
 
   if (g_transport && (bits & STATE_WIFI_OK)) {

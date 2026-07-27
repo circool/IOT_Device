@@ -10,10 +10,10 @@
 // ============================================================================
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-/** 
- * @brief Показывать страницу состояния (иначе сразу /config) 
+/**
+ * @brief Показывать страницу состояния (иначе сразу /config)
  * @deprecated Неочевидная зависимость
- * @FIXME Убедиться что реализовано в коде  
+ * @FIXME Убедиться что реализовано в коде
  */
 // #ifndef FEATURE_WEB_STATUS_ENABLED
 // #define FEATURE_WEB_STATUS_ENABLED 1
@@ -77,8 +77,6 @@ String web_buildStatusHtml();
  */
 String web_buildResultHtml(const String& action, bool success);
 
-    
-
 /**
  * @brief Отправить фрагмент HTML-контента через веб-сервер
  * @param chunk Строка с HTML-контентом для отправки
@@ -101,14 +99,12 @@ String web_buildResultHtml(const String& action, bool success);
 static void webSendContent(const String& chunk, void* context);
 
 #if FEATURE_WEB_STATUS_ENABLED == 1
-    /**
-     * @brief Отправить страницу состояния (HTTP)
-     * @param refreshInterval Интервал автообновления страницы (сек)
-     */
-    void web_sendStatusPage(int refreshInterval);
+/**
+ * @brief Отправить страницу состояния (HTTP)
+ * @param refreshInterval Интервал автообновления страницы (сек)
+ */
+void web_sendStatusPage(int refreshInterval);
 #endif
-
-
 
 /**
  * @brief Инициализация веб-сервера
@@ -116,7 +112,6 @@ static void webSendContent(const String& chunk, void* context);
  *                  false - нормальный режим (полный функционал)
  */
 void web_init(bool setupMode = false);
-
 
 /**
  * @brief Периодическая обработка HTTP-запросов
@@ -167,7 +162,8 @@ void handleToggle();
  * @see web_init() - регистрация маршрута
  * @see g_configManager.setSensorControlMode()
  * @deprecated Является заглушкой для обратной совместимости.
- *             В будущем будет заменена на универсальный обработчик команд или удалена.
+ *             В будущем будет заменена на универсальный обработчик команд или
+ * удалена.
  */
 void handleSensorControlMode();
 #endif
@@ -225,71 +221,93 @@ static void configFlush();
  */
 static void configSend(const String& chunk);
 
-    /**
-     * @brief Обёртка для configSend, совместимая с сигнатурой WebSendCallback
-     * @param chunk Фрагмент HTML-контента
-     * @param context Неиспользуемый контекст (требуется для совместимости с
-     * колбэком)
-     * @details Используется в sendConfigPage как колбэк для отправки контента
-     * на ESP32. Преобразует вызов в configSend(chunk).
-     * @note Сигнатура соответствует WebSendCallback: void (*)(const String&,
-     * void*)
-     * @see WebSendCallback
-     * @see configSend()
-     */
-    static void configSendWrapper(const String& chunk, void* context);
+/**
+ * @brief Обёртка для configSend, совместимая с сигнатурой WebSendCallback
+ * @param chunk Фрагмент HTML-контента
+ * @param context Неиспользуемый контекст (требуется для совместимости с
+ * колбэком)
+ * @details Используется в sendConfigPage как колбэк для отправки контента
+ * на ESP32. Преобразует вызов в configSend(chunk).
+ * @note Сигнатура соответствует WebSendCallback: void (*)(const String&,
+ * void*)
+ * @see WebSendCallback
+ * @see configSend()
+ */
+static void configSendWrapper(const String& chunk, void* context);
 
-    /**
-     * @brief Отправить HTML-страницу конфигурации клиенту
-     * @param errorMsg Сообщение об ошибке для отображения (если не пусто)
-     * @param successMsg Сообщение об успехе для отображения (если не пусто)
-     * @details Генерирует полную HTML-страницу настроек устройства с
-     * использованием sendConfigPage() из web_templates.h. Содержит:
-     *          - Информацию о текущем режиме (AP/STA), SSID и IP-адресе
-     *          - Форму с полями для всех параметров конфигурации
-     *          - Сообщения об ошибках или успехе
-     *          - Для TYPE 1: пороги температуры/влажности, таймеры, режимы
-     * работы
-     *          - Для TYPE 3: таймеры и параметры включения
-     *
-     *          Использует потоковую передачу (chunked transfer) для экономии
-     * RAM. На ESP32 используется буферизированная отправка через
-     * g_configBuffer.
-     * @note Устанавливает Content-Length как UNKNOWN для поддержки chunked
-     * encoding
-     * @see sendConfigPage()
-     */
-    void web_sendConfigPage(const String& errorMsg, const String& successMsg);
+/**
+ * @brief Отправить HTML-страницу конфигурации клиенту
+ * @param errorMsg Сообщение об ошибке для отображения (если не пусто)
+ * @param successMsg Сообщение об успехе для отображения (если не пусто)
+ * @details Генерирует полную HTML-страницу настроек устройства с
+ * использованием sendConfigPage() из web_templates.h. Содержит:
+ *          - Информацию о текущем режиме (AP/STA), SSID и IP-адресе
+ *          - Форму с полями для всех параметров конфигурации
+ *          - Сообщения об ошибках или успехе
+ *          - Для TYPE 1: пороги температуры/влажности, таймеры, режимы
+ * работы
+ *          - Для TYPE 3: таймеры и параметры включения
+ *
+ *          Использует потоковую передачу (chunked transfer) для экономии
+ * RAM. На ESP32 используется буферизированная отправка через
+ * g_configBuffer.
+ * @note Устанавливает Content-Length как UNKNOWN для поддержки chunked
+ * encoding
+ * @see sendConfigPage()
+ */
+void web_sendConfigPage(const String& errorMsg, const String& successMsg);
 
-    /**
-     * @brief Обработать POST-запрос сохранения конфигурации
-     * @details Основной обработчик веб-формы настроек. Выполняет:
-     *          1. Копирует текущую конфигурацию в g_webPendingConfig как базу
-     *          2. Парсит все параметры из HTTP-запроса (WiFi, MQTT, сенсор,
-     * таймеры)
-     *          3. Валидирует каждый параметр (диапазоны, длины строк)
-     *          4. При ошибке валидации показывает страницу с сообщением об
-     * ошибке
-     *          5. При успехе устанавливает g_webConfigPending = true
-     *          6. Отправляет страницу подтверждения с автоматическим редиректом
-     *
-     *          Параметры формы:
-     *          - wifiSsid, wifiPassword
-     *          - mqttBroker, mqttPort, mqttUser, mqttPassword, mqttClientId
-     *          - sensorInterval (TYPE 1,2)
-     *          - lowTemp, highTemp, lowHum, highHum (TYPE 1)
-     *          - maxOnTime, delaySeconds (TYPE 1,3)
-     *          - speedPercent, adaptiveMode, bootState, sensorControlMode (TYPE
-     * 1)
-     *
-     * @note Сохранение в энергонезависимую память выполняется в main.cpp
-     *       при обработке флага g_webConfigPending
-     * @see g_webPendingConfig
-     * @see g_webConfigPending
-     */
-    void web_saveConfig();
+/**
+ * @brief Обработать POST-запрос сохранения конфигурации
+ * @details Основной обработчик веб-формы настроек. Выполняет:
+ *          1. Копирует текущую конфигурацию в g_webPendingConfig как базу
+ *          2. Парсит все параметры из HTTP-запроса (WiFi, MQTT, сенсор,
+ * таймеры)
+ *          3. Валидирует каждый параметр (диапазоны, длины строк)
+ *          4. При ошибке валидации показывает страницу с сообщением об
+ * ошибке
+ *          5. При успехе устанавливает g_webConfigPending = true
+ *          6. Отправляет страницу подтверждения с автоматическим редиректом
+ *
+ *          Параметры формы:
+ *          - wifiSsid, wifiPassword
+ *          - mqttBroker, mqttPort, mqttUser, mqttPassword, mqttClientId
+ *          - sensorInterval (TYPE 1,2)
+ *          - lowTemp, highTemp, lowHum, highHum (TYPE 1)
+ *          - maxOnTime, delaySeconds (TYPE 1,3)
+ *          - speedPercent, adaptiveMode, bootState, sensorControlMode (TYPE
+ * 1)
+ *
+ * @note Сохранение в энергонезависимую память выполняется в main.cpp
+ *       при обработке флага g_webConfigPending
+ * @see g_webPendingConfig
+ * @see g_webConfigPending
+ */
+void web_saveConfig();
 
-    
+// ============================================================================
+// КОМАНДЫ ОТ WEB (/set)
+// ============================================================================
+
+typedef enum {
+  CMD_STATE,
+  CMD_SPEED,
+  CMD_MANUAL_MODE,
+} WebCommandType;
+
+typedef struct {
+  WebCommandType type;
+  union {
+    bool boolVal;
+    int intVal;
+  } value;
+} WebCommand;
+
+extern volatile bool g_webCommandPending;
+extern WebCommand g_webCommand;
+
+// Обработчик /set
+void handleSetCommand();
 
 #else  // TRANSPORT_TYPE == TRANSPORT_TYPE_NONE
 

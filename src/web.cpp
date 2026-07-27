@@ -12,19 +12,17 @@
 #include "web_templates.h"
 #include "wifi_manager.h"
 
-/**
- * @todo исправить ошибку [W][WebServer.cpp:435] send(): content length is zero
- */
-
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
 // ============================================================================
-// ГЛОБАЛЬНЫЕ ФЛАГИ ДЛЯ КОММУНИКАЦИИ С MAIN (определение)
+// ГЛОБАЛЬНЫЕ ФЛАГИ ДЛЯ КОММУНИКАЦИИ С MAIN
 // ============================================================================
 
 volatile bool g_webConfigPending = false;
 volatile bool g_webRestartPending = false;
+volatile bool g_webCommandPending = false;
 ConfigData g_webPendingConfig;
+WebCommand g_webCommand;
 
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ
@@ -63,8 +61,9 @@ static String formatRemainingTime(unsigned long remainingMs) {
 static String getCurrentModeText() {
   if (!g_statusProvider)
     return "N/A";
+
 #if DEVICE_TYPE == 1
-  if (g_configManager.getSensorControlMode()) {
+  if (g_statusProvider->isSensorControlMode()) {
     return F("<span style='color:#4CAF50;'>SENSOR</span>");
   }
 #endif
@@ -85,7 +84,7 @@ static String getCurrentModeText() {
 }
 
 static String getMaxOnTimeRemaining() {
-  uint32_t maxOnTime = g_configManager.getMaxOnTime();
+  uint32_t maxOnTime = g_statusProvider ? g_statusProvider->getMaxOnTime() : 0;
   if (maxOnTime == 0)
     return "disabled";
 
@@ -106,7 +105,7 @@ static String getDelayTimerRemaining() {
     return "N/A";
 
   if (!g_statusProvider->isDelayActive()) {
-    uint16_t delaySec = g_configManager.getDelaySeconds();
+    int delaySec = g_statusProvider->getDelaySeconds();
     if (delaySec > 0) {
       return String(delaySec) + " sec (inactive)";
     }
@@ -120,6 +119,81 @@ static String getDelayTimerRemaining() {
 }
 
 // ============================================================================
+// ОБРАБОТЧИК /set (оперативные команды)
+// ============================================================================
+
+void handleSetCommand() {
+  if (!g_statusProvider) {
+    server.send(500, "text/plain", "Status provider not registered");
+    return;
+  }
+
+  String param = server.arg("param");
+  String value = server.arg("value");
+
+  XLOG_INFO(CAT_WEB, "SET command: %s = %s", param.c_str(), value.c_str());
+
+  // --- PARAM_STATE ---
+  if (param == "state") {
+    bool on = (value == "on" || value == "1");
+    g_webCommandPending = true;
+    g_webCommand.type = CMD_STATE;
+    g_webCommand.value.boolVal = on;
+    server.send(
+        200, "text/html",
+        web_buildResultHtml("State set to " + String(on ? "ON" : "OFF"), true));
+    return;
+  }
+
+  // --- PARAM_SPEED (только TYPE 1) ---
+#if DEVICE_TYPE == 1
+  if (param == "speed") {
+    int speed = value.toInt();
+    if (speed < 0 || speed > 100) {
+      server.send(400, "text/html",
+                  web_buildResultHtml("Speed must be 0-100%", false));
+      return;
+    }
+    g_webCommandPending = true;
+    g_webCommand.type = CMD_SPEED;
+    g_webCommand.value.intVal = speed;
+    server.send(
+        200, "text/html",
+        web_buildResultHtml("Speed set to " + String(speed) + "%", true));
+    return;
+  }
+#endif
+
+  // --- PARAM_MANUAL_MODE (только TYPE 1) ---
+#if DEVICE_TYPE == 1
+  if (param == "manualMode") {
+    bool enabled = (value == "1" || value == "on");
+    g_webCommandPending = true;
+    g_webCommand.type = CMD_MANUAL_MODE;
+    g_webCommand.value.boolVal = enabled;
+    server.send(
+        200, "text/html",
+        web_buildResultHtml(
+            "Manual mode " + String(enabled ? "enabled" : "disabled"), true));
+    return;
+  }
+#endif
+
+  // --- Неизвестная команда ---
+  server.send(400, "text/html",
+              web_buildResultHtml("Unknown command: " + param, false));
+}
+
+// ============================================================================
+// ВСПОМОГАТЕЛЬНАЯ ФУНКЦИЯ ОТПРАВКИ HTML
+// ============================================================================
+
+static void webSendContent(const String& chunk, void* context) {
+  WebServerClass* srv = (WebServerClass*)context;
+  srv->sendContent(chunk);
+}
+
+// ============================================================================
 // ПОСТРОЕНИЕ HTML СТАТУСА
 // ============================================================================
 
@@ -130,7 +204,9 @@ String web_buildStatusHtml() {
 
   String html;
   bool sensorOk = g_statusProvider->isSensorOk();
+  bool state = g_statusProvider->isDeviceOn();
 
+  // ===== ДАТЧИК =====
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (sensorOk) {
     float temp = g_statusProvider->getTemperature();
@@ -140,19 +216,20 @@ String web_buildStatusHtml() {
     String humColor = "#2196F3";
 
 #if DEVICE_TYPE == 1
-    if (temp >= g_configManager.getHighTemp())
+    if (temp >= g_statusProvider->getHighTemp())
       tempColor = "#f44336";
-    else if (temp <= g_configManager.getLowTemp())
+    else if (temp <= g_statusProvider->getLowTemp())
       tempColor = "#4CAF50";
 
-    if (hum >= g_configManager.getHighHum())
+    if (hum >= g_statusProvider->getHighHum())
       humColor = "#f44336";
-    else if (hum <= g_configManager.getLowHum())
+    else if (hum <= g_statusProvider->getLowHum())
       humColor = "#4CAF50";
 #endif
 
     html += F("<div class='flex-container'>");
 
+    // Температура
     html += F("<div class='sensor-card' style='background:");
     html += tempColor;
     html += F("20; border:2px solid ");
@@ -166,13 +243,14 @@ String web_buildStatusHtml() {
     html += F("<div class='sensor-label'>Temperature");
 #if DEVICE_TYPE == 1
     html += F(" (off: ");
-    html += String(g_configManager.getLowTemp(), 1);
+    html += String(g_statusProvider->getLowTemp(), 1);
     html += F(" on: ");
-    html += String(g_configManager.getHighTemp(), 1);
+    html += String(g_statusProvider->getHighTemp(), 1);
     html += F(")");
 #endif
     html += F("</div></div>");
 
+    // Влажность
     html += F("<div class='sensor-card' style='background:");
     html += humColor;
     html += F("20; border:2px solid ");
@@ -186,9 +264,9 @@ String web_buildStatusHtml() {
     html += F("<div class='sensor-label'>Humidity");
 #if DEVICE_TYPE == 1
     html += F(" (off: ");
-    html += String(g_configManager.getLowHum(), 1);
+    html += String(g_statusProvider->getLowHum(), 1);
     html += F(" on: ");
-    html += String(g_configManager.getHighHum(), 1);
+    html += String(g_statusProvider->getHighHum(), 1);
     html += F(")");
 #endif
     html += F("</div></div>");
@@ -201,16 +279,17 @@ String web_buildStatusHtml() {
   }
 #endif
 
+  // ===== EMERGENCY =====
   if (g_statusProvider->isEmergencyStop()) {
     html += F("<div class='status-card error'>");
     html += F("<div style='font-size:1.2em;'>EMERGENCY STOPPED</div>");
-    html += F("<div class='note'>");
     html +=
-        F("Device was automatically turned off after exceeding the maximum "
-          "allowed runtime.");
-    html += F("</div></div>");
+        F("<div class='note'>Device was automatically turned off after "
+          "exceeding the maximum allowed runtime.</div>");
+    html += F("</div>");
   }
 
+  // ===== РЕЖИМ =====
   html +=
       F("<div class='status-card' style='background:#f5f5f5; border:2px solid "
         "#ddd;'>");
@@ -218,7 +297,7 @@ String web_buildStatusHtml() {
   html += getCurrentModeText();
   html += F("</div></div>");
 
-  bool state = g_statusProvider->isDeviceOn();
+  // ===== СОСТОЯНИЕ =====
   String stateColor = state ? "#f44336" : "#2196F3";
   String stateText = state ? "ON" : "OFF";
 
@@ -229,11 +308,11 @@ String web_buildStatusHtml() {
   html += F(";'>");
   html += F("<div style='font-size:2em;font-weight:bold;color:");
   html += stateColor;
-  html += F(";'>");
-  html += F("Device: ");
+  html += F(";'>Device: ");
   html += stateText;
   html += F("</div></div>");
 
+  // ===== СКОРОСТЬ (TYPE 1) =====
 #if DEVICE_TYPE == 1
   if (state) {
     int speed = g_statusProvider->getSpeedPercent();
@@ -256,11 +335,12 @@ String web_buildStatusHtml() {
   }
 #endif
 
+  // ===== ИНФОРМАЦИОННАЯ ПАНЕЛЬ =====
   html += F("<hr><div class='info'>");
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   html += F("Sensor polling ");
-  html += String(g_configManager.getSensorInterval());
+  html += String(g_statusProvider->getSensorInterval());
   html += F(" sec<br>");
 #endif
 
@@ -286,10 +366,50 @@ String web_buildStatusHtml() {
 
   html += F("</div>");
 
+  // ===== КНОПКИ УПРАВЛЕНИЯ =====
+  html += F("<div class='button-group'>");
+
+  // ON / OFF
+  String onOffLabel = state ? "Turn OFF" : "Turn ON";
+  html += F("<a href='/set?param=state&value=");
+  html += state ? "off" : "on";
+  html += F("'><button class='link-btn'>");
+  html += onOffLabel;
+  html += F("</button></a>");
+
+  // Скорость (TYPE 1, если включён)
 #if DEVICE_TYPE == 1
-  if (!g_configManager.getSensorControlMode() && sensorOk) {
+  if (state) {
+    html += F("<a href='/set?param=speed&value=25'><button>25%</button></a>");
+    html += F("<a href='/set?param=speed&value=50'><button>50%</button></a>");
+    html += F("<a href='/set?param=speed&value=75'><button>75%</button></a>");
+    html += F("<a href='/set?param=speed&value=100'><button>100%</button></a>");
+  }
+#endif
+
+  // Manual / Auto (TYPE 1)
+#if DEVICE_TYPE == 1
+  if (g_statusProvider->isSensorControlMode()) {
+    html +=
+        F("<a href='/set?param=manualMode&value=1'><button>Manual "
+          "mode</button></a>");
+  } else {
+    html +=
+        F("<a href='/set?param=manualMode&value=0'><button>Auto "
+          "mode</button></a>");
+  }
+#endif
+
+  html += F("</div>");
+
+  // ===== КНОПКА ВКЛЮЧЕНИЯ СЕНСОРНОГО РЕЖИМА (устаревшая, но пока оставлена)
+  // =====
+#if DEVICE_TYPE == 1
+  if (!g_statusProvider->isSensorControlMode() && sensorOk) {
     html += F("<div class='button-group' style='margin-top:10px;'>");
-    html += F("<a href='/fan/auto'><button>Enable Sensor Control</button></a>");
+    html +=
+        F("<a href='/set?param=manualMode&value=0'><button>Enable Sensor "
+          "Control</button></a>");
     html += F("</div>");
   }
 #endif
@@ -298,36 +418,9 @@ String web_buildStatusHtml() {
 }
 
 // ============================================================================
-// ОБРАБОТЧИКИ
+// ОБРАБОТЧИК AP-ПРОВИЗИОНИНГА (временный, будет перенесён в provisioning)
 // ============================================================================
 
-#if DEVICE_TYPE == 1
-void handleToggle() {
-  XLOG_INFO(CAT_WEB, "Toggle button pressed");
-}
-
-void handleSensorControlMode() {
-  g_configManager.setSensorControlMode(true);
-  XLOG_INFO(CAT_WEB, "Sensor control mode enabled");
-}
-#endif
-
-#if DEVICE_TYPE == 3
-void handleToggle() {
-  XLOG_INFO(CAT_WEB, "Toggle button pressed");
-}
-#endif
-
-// ============================================================================
-// ФУНКЦИЯ ОТПРАВКИ HTML
-// ============================================================================
-
-static void webSendContent(const String& chunk, void* context) {
-  WebServerClass* srv = (WebServerClass*)context;
-  srv->sendContent(chunk);
-}
-
-// * @deprecated Перенести в слой provisioning
 void web_handleApProvisioning() {
   String ssid = server.arg("wifiSsid");
   String password = server.arg("wifiPassword");
@@ -345,32 +438,9 @@ void web_handleApProvisioning() {
 #endif
 
     ProvisioningManager::getInstance().onDataReceived(data);
-
-    // String html = FPSTR(HTML_PAGE_START);
-    // html += F("<title>WiFi Saved</title>");
-    // html += FPSTR(HTML_STYLE);
-    // html += F("</head><body><div class='container' style='max-width:600px;'>");
-    // html += F("<div class='success' style='text-align:center;'>");
-    // html += F("<h2>WiFi saved!</h2>");
-    // html += F("<p>Device will reboot in a moment...</p>");
-    // html += F("</div></div>");
-    // html += FPSTR(HTML_PAGE_END);
-
-    // server.send(200, "text/html", html);
     server.send(200, "text/html",
                 web_buildResultHtml("WiFi credentials saved", true));
   } else {
-    // String html = FPSTR(HTML_PAGE_START);
-    // html += F("<title>Error</title>");
-    // html += FPSTR(HTML_STYLE);
-    // html += F("</head><body><div class='container' style='max-width:600px;'>");
-    // html += F("<div class='error' style='text-align:center;'>");
-    // html += F("<h2>Error</h2>");
-    // html += F("<p>SSID is required!</p>");
-    // html += F("</div></div>");
-    // html += FPSTR(HTML_PAGE_END);
-
-    // server.send(400, "text/html", html);
     server.send(400, "text/html",
                 web_buildResultHtml("WiFi credentials not saved", false));
   }
@@ -389,9 +459,6 @@ void web_sendStatusPage(int refreshInterval) {
   const char* deviceId = g_configManager.getDeviceId();
   String statusHtml = web_buildStatusHtml();
 
-  // ================================================================
-  // ЗАЩИТА: если HTML пустой — подставляем заглушку
-  // ================================================================
   if (statusHtml.length() == 0) {
     statusHtml = F("<div class='warning'>Device status is loading...</div>");
     XLOG_WARN(CAT_WEB, "web_buildStatusHtml() returned empty, using fallback");
@@ -412,9 +479,8 @@ void web_sendStatusPage(int refreshInterval) {
   };
 
   auto send = [&](const String& chunk) {
-    if (buffer.length() + chunk.length() > 1024) {
+    if (buffer.length() + chunk.length() > 1024)
       flush();
-    }
     buffer += chunk;
   };
 
@@ -505,11 +571,10 @@ void web_sendStatusPage(int refreshInterval) {
 #endif
 }
 
-/**
- * @brief Содержимое страницы WiFi Setup (без html/head/body)
- * @details Вставляется между HTML_PAGE_START и HTML_PAGE_END
- * @todo: Сделать версию для 8266
- */
+// ============================================================================
+// СТРАНИЦА AP-ПРОВИЗИОНИНГА
+// ============================================================================
+
 const char HTML_AP_CONTENT[] PROGMEM = R"rawliteral(
 <div class='container'>
     <h1>WiFi Setup</h1>
@@ -541,9 +606,8 @@ static void configFlush() {
 }
 
 static void configSend(const String& chunk) {
-  if (g_configBuffer.length() + chunk.length() > 1024) {
+  if (g_configBuffer.length() + chunk.length() > 1024)
     configFlush();
-  }
   g_configBuffer += chunk;
   g_configFlushNeeded = true;
 }
@@ -556,18 +620,14 @@ static void configSendWrapper(const String& chunk, void* context) {
 
 void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
   const ConfigData* cfg = g_configManager.get();
-  bool isApMode = system_state_has_bit(
-      STATE_PROVISIONING);  // Страница конфигурации для AP provisioninng больше
-                            // не выхывается тут
+  bool isApMode = system_state_has_bit(STATE_PROVISIONING);
   const char* deviceId = g_configManager.getDeviceId();
 
-  String currentMode =
-      isApMode ? F("Access Point") : F("Client WiFi");  // @deprecated isApMode
+  String currentMode = isApMode ? F("Access Point") : F("Client WiFi");
   String currentSsid = isApMode ? String(deviceId) : String(cfg->wifiSsid);
-  // String currentIp = isApMode ? String(AP_IP_ADDRESS) :
-  // wifi_get_local_ip();
   String currentIp = wifi_get_local_ip();
   int refreshSeconds = (successMsg.length() > 0) ? DEFAULT_WEB_REFRESH : 0;
+
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
 
@@ -580,9 +640,8 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
                  currentMode, currentSsid, currentIp, refreshSeconds,
                  g_setupMode);
 
-  if (g_configFlushNeeded) {
+  if (g_configFlushNeeded)
     configFlush();
-  }
 
 #elif defined(ESP8266)
   sendConfigPage(webSendContent, &server, errorMsg, successMsg, *cfg,
@@ -595,7 +654,6 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
     (void)context;
     fullHtml += chunk;
   };
-
   sendConfigPage(send, nullptr, errorMsg, successMsg, *cfg, currentMode,
                  currentSsid, currentIp, refreshSeconds, g_setupMode);
   server.sendContent(fullHtml);
@@ -603,21 +661,14 @@ void web_sendConfigPage(const String& errorMsg, const String& successMsg) {
 }
 
 // ============================================================================
-// СОХРАНЕНИЕ КОНФИГУРАЦИИ
+// СОХРАНЕНИЕ КОНФИГУРАЦИИ (ПОСТ-ФОРМА)
 // ============================================================================
 
 void web_saveConfig() {
   XLOG_INFO(CAT_WEB, "Processing config form...");
 
-  // ========================================================================
-  // 1. КОПИРУЕМ ТЕКУЩУЮ КОНФИГУРАЦИЮ КАК БАЗУ
-  // ========================================================================
-
+  // Копируем текущую конфигурацию как базу
   memcpy(&g_webPendingConfig, g_configManager.get(), sizeof(ConfigData));
-
-  // ========================================================================
-  // 2. ПАРСИМ ВСЕ ПАРАМЕТРЫ ИЗ ФОРМЫ
-  // ========================================================================
 
   // --- WiFi ---
   if (server.hasArg("wifiSsid")) {
@@ -647,7 +698,6 @@ void web_saveConfig() {
         return;
       }
     }
-    // Если пусто — оставляем текущий пароль (уже скопирован)
   }
 
   // --- MQTT ---
@@ -688,13 +738,12 @@ void web_saveConfig() {
 
   if (server.hasArg("mqttPassword")) {
     String pwd = server.arg("mqttPassword");
-    if (pwd.length() > 0) {
-      if (pwd.length() < sizeof(g_webPendingConfig.mqttPassword)) {
-        strncpy(g_webPendingConfig.mqttPassword, pwd.c_str(),
-                sizeof(g_webPendingConfig.mqttPassword) - 1);
-        g_webPendingConfig
-            .mqttPassword[sizeof(g_webPendingConfig.mqttPassword) - 1] = '\0';
-      }
+    if (pwd.length() > 0 &&
+        pwd.length() < sizeof(g_webPendingConfig.mqttPassword)) {
+      strncpy(g_webPendingConfig.mqttPassword, pwd.c_str(),
+              sizeof(g_webPendingConfig.mqttPassword) - 1);
+      g_webPendingConfig
+          .mqttPassword[sizeof(g_webPendingConfig.mqttPassword) - 1] = '\0';
     }
   }
 
@@ -713,7 +762,7 @@ void web_saveConfig() {
   }
 #endif
 
-  // --- Sensor Interval (TYPE 1 и 2) ---
+  // --- Sensor Interval ---
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   if (server.hasArg("sensorInterval")) {
     int interval = server.arg("sensorInterval").toInt();
@@ -730,9 +779,9 @@ void web_saveConfig() {
 #if DEVICE_TYPE == 1
   if (server.hasArg("lowTemp")) {
     float val = server.arg("lowTemp").toFloat();
-    if (val >= TEMP_MIN && val <= TEMP_MAX) {
+    if (val >= TEMP_MIN && val <= TEMP_MAX)
       g_webPendingConfig.lowTemp = val;
-    } else {
+    else {
       web_sendConfigPage("Low Temp out of range", "");
       return;
     }
@@ -740,9 +789,9 @@ void web_saveConfig() {
 
   if (server.hasArg("highTemp")) {
     float val = server.arg("highTemp").toFloat();
-    if (val >= TEMP_MIN && val <= TEMP_MAX) {
+    if (val >= TEMP_MIN && val <= TEMP_MAX)
       g_webPendingConfig.highTemp = val;
-    } else {
+    else {
       web_sendConfigPage("High Temp out of range", "");
       return;
     }
@@ -750,9 +799,9 @@ void web_saveConfig() {
 
   if (server.hasArg("lowHum")) {
     float val = server.arg("lowHum").toFloat();
-    if (val >= HUM_MIN && val <= HUM_MAX) {
+    if (val >= HUM_MIN && val <= HUM_MAX)
       g_webPendingConfig.lowHum = val;
-    } else {
+    else {
       web_sendConfigPage("Low Hum out of range", "");
       return;
     }
@@ -760,9 +809,9 @@ void web_saveConfig() {
 
   if (server.hasArg("highHum")) {
     float val = server.arg("highHum").toFloat();
-    if (val >= HUM_MIN && val <= HUM_MAX) {
+    if (val >= HUM_MIN && val <= HUM_MAX)
       g_webPendingConfig.highHum = val;
-    } else {
+    else {
       web_sendConfigPage("High Hum out of range", "");
       return;
     }
@@ -770,9 +819,9 @@ void web_saveConfig() {
 
   if (server.hasArg("maxOnTime")) {
     uint32_t val = server.arg("maxOnTime").toInt();
-    if (val <= MAX_ON_TIME_MAX) {
+    if (val <= MAX_ON_TIME_MAX)
       g_webPendingConfig.maxOnTime = val;
-    } else {
+    else {
       web_sendConfigPage("MaxOnTime out of range", "");
       return;
     }
@@ -780,9 +829,9 @@ void web_saveConfig() {
 
   if (server.hasArg("delaySeconds")) {
     int val = server.arg("delaySeconds").toInt();
-    if (val >= DELAY_SECONDS_MIN && val <= DELAY_SECONDS_MAX) {
+    if (val >= DELAY_SECONDS_MIN && val <= DELAY_SECONDS_MAX)
       g_webPendingConfig.delaySeconds = val;
-    } else {
+    else {
       web_sendConfigPage("Delay seconds out of range", "");
       return;
     }
@@ -790,9 +839,9 @@ void web_saveConfig() {
 
   if (server.hasArg("speedPercent")) {
     int val = server.arg("speedPercent").toInt();
-    if (val >= 0 && val <= 100) {
+    if (val >= 0 && val <= 100)
       g_webPendingConfig.speedPercent = (uint16_t)val;
-    } else {
+    else {
       web_sendConfigPage("Speed must be 0-100%", "");
       return;
     }
@@ -807,9 +856,9 @@ void web_saveConfig() {
 #if DEVICE_TYPE == 3
   if (server.hasArg("maxOnTime")) {
     uint32_t val = server.arg("maxOnTime").toInt();
-    if (val <= MAX_ON_TIME_MAX) {
+    if (val <= MAX_ON_TIME_MAX)
       g_webPendingConfig.maxOnTime = val;
-    } else {
+    else {
       web_sendConfigPage("MaxOnTime out of range", "");
       return;
     }
@@ -817,9 +866,9 @@ void web_saveConfig() {
 
   if (server.hasArg("delaySeconds")) {
     int val = server.arg("delaySeconds").toInt();
-    if (val >= DELAY_SECONDS_MIN && val <= DELAY_SECONDS_MAX) {
+    if (val >= DELAY_SECONDS_MIN && val <= DELAY_SECONDS_MAX)
       g_webPendingConfig.delaySeconds = val;
-    } else {
+    else {
       web_sendConfigPage("Delay seconds out of range", "");
       return;
     }
@@ -828,41 +877,45 @@ void web_saveConfig() {
   g_webPendingConfig.bootState = server.hasArg("bootState");
 #endif
 
-  // ========================================================================
-  // 3. УСТАНАВЛИВАЕМ ФЛАГ ДЛЯ MAIN
-  // ========================================================================
-
+  // Устанавливаем флаг для main
   g_webConfigPending = true;
   XLOG_INFO(CAT_WEB, "Config parsed, pending for main to apply");
 
-  // ========================================================================
-  // 4. ПОКАЗЫВАЕМ СТРАНИЦУ УСПЕХА (без перезагрузки)
-  // ========================================================================
-
-//   String html = R"rawliteral(
-// <!DOCTYPE html>
-// <html>
-// <head>
-//     <meta charset='UTF-8'>
-//     <meta http-equiv='refresh' content='2;url=/'>
-//     <title>Config Received</title>
-//     <style>
-//         body{font-family:Arial;text-align:center;margin-top:50px;background:#f0f0f0;}
-//         .success{color:#2e7d32;background:#e8f5e9;padding:20px;border-radius:10px;display:inline-block;}
-//     </style>
-// </head>
-// <body>
-//     <div class='success'>
-//         <h2>Configuration received</h2>
-//         <p>Applying settings...</p>
-//     </div>
-// </body>
-// </html>
-// )rawliteral";
-
-  // server.send(200, "text/html", html);
   server.send(200, "text/html",
               web_buildResultHtml("Configuration saved", true));
+}
+
+// ============================================================================
+// СТРАНИЦА РЕЗУЛЬТАТА
+// ============================================================================
+
+String web_buildResultHtml(const String& action, bool success) {
+  String html = R"rawliteral(<!DOCTYPE html>
+<html>
+<head>
+    <meta charset='UTF-8'>
+    <meta http-equiv='refresh' content='2;url=/'>
+    <title>)rawliteral";
+  html += success ? "Success" : "Error";
+  html += R"rawliteral(</title>
+    <style>
+        body{font-family:Arial;text-align:center;margin-top:50px;background:#f0f0f0;}
+        .result{)rawliteral";
+  html += success ? "color:#2e7d32;background:#e8f5e9;"
+                  : "color:#c62828;background:#ffebee;";
+  html += R"rawliteral(padding:20px;border-radius:10px;display:inline-block;}
+    </style>
+</head>
+<body>
+    <div class='result'>
+        <h2>)rawliteral";
+  html += action;
+  html += success ? F(" successful</h2><p>Redirecting...</p>")
+                  : F(" failed</h2><p>Please try again.</p>");
+  html += R"rawliteral(</div>
+</body>
+</html>)rawliteral";
+  return html;
 }
 
 // ============================================================================
@@ -873,6 +926,7 @@ void web_init(bool setupMode) {
   g_setupMode = setupMode;
 
   if (setupMode) {
+    // AP-режим: только страница ввода WiFi
     server.on("/", []() {
       String html = FPSTR(HTML_PAGE_START);
       html += F("<title>WiFi Setup</title>");
@@ -883,26 +937,23 @@ void web_init(bool setupMode) {
       server.send(200, "text/html", html);
     });
 
-    // * @deprecated Перенести в слой provisioning
     server.on("/savewifi", web_handleApProvisioning);
-
-
     server.on("/favicon.ico", []() { server.send(404); });
-  } else {
-    // XLOG_DEBUG(CAT_WEB, "Initializing web server in NORMAL mode");
 
+  } else {
+    // Нормальный режим
     int refreshInterval = DEFAULT_WEB_REFRESH;
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     refreshInterval = g_configManager.getSensorInterval();
 #endif
 
+    // Главная страница (статус)
 #if FEATURE_WEB_STATUS_ENABLED == 1
     server.on("/", [refreshInterval]() {
       XLOG_DEBUG(CAT_WEB, "GET / - serving status page");
 #ifdef ESP32
       server.client().setNoDelay(true);
-#endif  
-
+#endif
       web_sendStatusPage(refreshInterval);
     });
 #else
@@ -911,8 +962,9 @@ void web_init(bool setupMode) {
       server.sendHeader("Location", "/config", true);
       server.send(302, "text/plain", "");
     });
-#endif // FEATURE_WEB_STATUS_ENABLED == 1
+#endif
 
+    // Конфигурация
     server.on("/config", []() {
       XLOG_DEBUG(CAT_WEB, "GET /config - serving config page");
       web_sendConfigPage("", "");
@@ -921,33 +973,16 @@ void web_init(bool setupMode) {
     server.on("/save", web_saveConfig);
     server.on("/favicon.ico", []() { server.send(404); });
 
+    // Команды /set (оперативное управление)
+    server.on("/set", handleSetCommand);
+
+    // Сброс настроек (через флаг для оркестратора)
 #if WEB_RESET_ENABLED == 1
     server.on("/resetall", []() {
-      g_configManager.reset();
-      // server.send(200, "text/html",
-      //             F("<!DOCTYPE html><html><head><meta charset='UTF-8'><meta "
-      //               "http-equiv='refresh' "
-      //               "content='5;url=/'></head><body><h2>Configuration "
-      //               "was reset, rebooting...</h2></body></html>"));
-      server.send(200, "text/html",web_buildResultHtml("Configuration was reset, rebooting...", true));
-      delay(1000);
-      ESP.restart();
-    });
-#endif
-
-#if DEVICE_TYPE == 1
-    server.on("/fan/auto", []() {
-      handleSensorControlMode();
-      server.sendHeader("Location", "/", true);
-      server.send(302, "text/plain", "");
-    });
-#endif
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    server.on("/switch/toggle", []() {
-      handleToggle();
-      server.sendHeader("Location", "/", true);
-      server.send(302, "text/plain", "");
+      g_webRestartPending = true;
+      server.send(
+          200, "text/html",
+          web_buildResultHtml("Configuration was reset, rebooting...", true));
     });
 #endif
   }
@@ -959,43 +994,6 @@ void web_init(bool setupMode) {
 
 void web_loop() {
   server.handleClient();
-}
-
-String web_buildResultHtml(const String& action, bool success) {
-  String html = R"rawliteral(<!DOCTYPE html>
-<html>
-<head>
-    <meta charset='UTF-8'>
-    <meta http-equiv='refresh' content='2;url=/'>
-    <title>)rawliteral";
-
-  html += success ? "Success" : "Error";
-
-  html += R"rawliteral(</title>
-    <style>
-        body{font-family:Arial;text-align:center;margin-top:50px;background:#f0f0f0;}
-        .result{)rawliteral";
-
-  html += success ? "color:#2e7d32;background:#e8f5e9;"
-                  : "color:#c62828;background:#ffebee;";
-
-  html += R"rawliteral(padding:20px;border-radius:10px;display:inline-block;}
-    </style>
-</head>
-<body>
-    <div class='result'>
-        <h2>)rawliteral";
-
-  html += action;
-
-  html += success ? F(" successful</h2><p>Redirecting...</p>")
-                  : F(" failed</h2><p>Please try again.</p>");
-
-  html += R"rawliteral(</div>
-</body>
-</html>)rawliteral";
-
-  return html;
 }
 
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
