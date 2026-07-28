@@ -1,19 +1,9 @@
 /**
  * @file web_status_provider.h
  * @brief Провайдеры статуса для веб-интерфейса
- *
  * @details Адаптер между веб-слоем и бизнес-логикой.
  *          Веб-слой работает через единый интерфейс IWebStatusProvider.
- *
- * @architecture
- *   Каждый тип устройства имеет свою реализацию провайдера.
- *   #ifdef используются ТОЛЬКО для выбора реализации по DEVICE_TYPE.
- *   Это позволяет компилировать только нужный код для каждого типа.
- *
- * @note "Толстый" интерфейс с заглушками — осознанное упрощение для Embedded:
- *       - Web слой работает с одним интерфейсом (без dynamic_cast)
- *       - Заглушки тривиальны (не увеличивают код)
- *       - Экономия Flash и RAM
+ *          Каждый тип устройства имеет свою реализацию провайдера.
  */
 
 #ifndef WEB_STATUS_PROVIDER_H
@@ -23,7 +13,7 @@
 #include "config_manager.h"
 
 // ============================================================================
-// ИНТЕРФЕЙС (ОБЩИЙ ДЛЯ ВСЕХ ТИПОВ)
+// ИНТЕРФЕЙС
 // ============================================================================
 
 /**
@@ -70,20 +60,13 @@ class IWebStatusProvider {
 };
 
 // ============================================================================
-// РЕАЛИЗАЦИИ (ВЫБОР ПО DEVICE_TYPE)
+// РЕАЛИЗАЦИИ
 // ============================================================================
 
 #if DEVICE_TYPE == 1
 
 /**
  * @brief Провайдер для TYPE 1 (вентилятор с датчиком)
- *
- * @details Реализует все методы интерфейса:
- *          - Актуатор: состояние, скорость, таймеры
- *          - Датчик: температура, влажность (глобальные функции)
- *          - MQTT: статус подключения
- *          - WiFi: RSSI
- *          - Config: пороги, таймеры, режимы
  */
 class FanWebStatusProvider : public IWebStatusProvider {
  public:
@@ -93,28 +76,23 @@ class FanWebStatusProvider : public IWebStatusProvider {
   FanWebStatusProvider(class FanActuator* fan);
 #endif
 
-  // Основная информация
   bool isDeviceOn() const override;
   bool isEmergencyStop() const override;
   bool isDelayActive() const override;
   unsigned long getDelayTimer() const override;
   unsigned long getStartTime() const override;
 
-  // Вентилятор
   int getSpeedPercent() const override;
   bool isAdaptiveModeActive() const override;
 
-  // Датчик
   bool isSensorOk() const override;
   float getTemperature() const override;
   float getHumidity() const override;
   const char* getSensorError() const override;
 
-  // Подключения
   bool isMqttConnected() const override;
   int getWifiRssi() const override;
 
-  // Параметры из Config
   float getLowTemp() const override;
   float getHighTemp() const override;
   float getLowHum() const override;
@@ -127,7 +105,7 @@ class FanWebStatusProvider : public IWebStatusProvider {
  private:
   class FanActuator* _fan;
 #if FEATURE_MQTT_ENABLED == 1
-  MQTTManager* _mqtt;
+  class MQTTManager* _mqtt;
 #endif
 };
 
@@ -135,9 +113,6 @@ class FanWebStatusProvider : public IWebStatusProvider {
 
 /**
  * @brief Провайдер для TYPE 2 (автономный датчик)
- *
- * @details Реализует только методы датчика и Config.
- *          Методы актуатора возвращают заглушки.
  */
 class SensorWebStatusProvider : public IWebStatusProvider {
  public:
@@ -180,7 +155,7 @@ class SensorWebStatusProvider : public IWebStatusProvider {
 
  private:
 #if FEATURE_MQTT_ENABLED == 1
-  MQTTManager* _mqtt;
+  class MQTTManager* _mqtt;
 #endif
 };
 
@@ -188,9 +163,6 @@ class SensorWebStatusProvider : public IWebStatusProvider {
 
 /**
  * @brief Провайдер для TYPE 3 (управляемый выключатель)
- *
- * @details Реализует только методы актуатора и Config.
- *          Методы датчика и вентилятора возвращают заглушки.
  */
 class SwitchWebStatusProvider : public IWebStatusProvider {
  public:
@@ -200,7 +172,6 @@ class SwitchWebStatusProvider : public IWebStatusProvider {
   SwitchWebStatusProvider(class SwitchActuator* sw);
 #endif
 
-  // Актуатор
   bool isDeviceOn() const override;
   bool isEmergencyStop() const override;
   bool isDelayActive() const override;
@@ -217,7 +188,6 @@ class SwitchWebStatusProvider : public IWebStatusProvider {
   float getHumidity() const override { return 0.0f; }
   const char* getSensorError() const override { return "N/A"; }
 
-  // Подключения
   bool isMqttConnected() const override;
   int getWifiRssi() const override;
 
@@ -234,7 +204,7 @@ class SwitchWebStatusProvider : public IWebStatusProvider {
  private:
   class SwitchActuator* _switch;
 #if FEATURE_MQTT_ENABLED == 1
-  MQTTManager* _mqtt;
+  class MQTTManager* _mqtt;
 #endif
 };
 

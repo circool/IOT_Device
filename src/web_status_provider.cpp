@@ -1,3 +1,8 @@
+/**
+ * @file web_status_provider.cpp
+ * @brief Реализация провайдеров статуса
+ */
+
 #include "web_status_provider.h"
 #include "fan_actuator.h"
 #include "sensor.h"
