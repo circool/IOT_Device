@@ -150,17 +150,8 @@ void web_renderSpeedBar(char* buf, size_t size, int speed);
  */
 void webSendContent(const char* chunk, void* context);
 
-/**
- * @brief Получить колбэк для отправки контента
- * @return Указатель на функцию WebSendCallback
- */
-WebSendCallback web_common_getSendCallback(void);
 
-/**
- * @brief Установить глобальный указатель на WebServer
- * @param server Указатель на WebServerClass
- */
-void web_common_setServer(WebServerClass* server);
+
 
 /**
  * @brief Отправить начало HTML-страницы
@@ -209,16 +200,10 @@ void web_sendResultPage(WebSendCallback send,
  * @brief Отправить страницу AP-провизионинга (настройка WiFi)
  * @param send Колбэк для отправки
  * @param context Контекст
- * @todo Перенсти этот функционал в слой провизионинга
+ * @todo Перенести этот функционал в слой провизионинга
  */
 void web_sendApProvisioningPage(WebSendCallback send, void* context);
 
-/**
- * @brief Отправить страницу ошибки
- * @param send Колбэк для отправки
- * @param context Контекст
- * @param message Текст ошибки
- */
-void web_sendErrorPage(WebSendCallback send, void* context, const char* message);
+
 
 #endif  // WEB_COMMON_H

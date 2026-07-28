@@ -196,6 +196,25 @@ void web_renderSensorCard(char* buf,
   strncat(buf, temp, size - 1);
 }
 
+void web_sendRefreshMeta(WebSendCallback send,
+                         void* context,
+                         int refreshSeconds,
+                         const char* url) {
+  if (!send || refreshSeconds <= 0)
+    return;
+
+  char refresh[128];
+  if (url && strlen(url) > 0) {
+    snprintf_P(refresh, sizeof(refresh),
+               PSTR("<meta http-equiv='refresh' content='%d;url=%s'>"),
+               refreshSeconds, url);
+  } else {
+    snprintf_P(refresh, sizeof(refresh),
+               PSTR("<meta http-equiv='refresh' content='%d'>"),
+               refreshSeconds);
+  }
+  send(refresh, context);
+}
 
 void web_renderStatusCard(char* buf, size_t size, const char* status, bool isOn) {
   if (!buf || size == 0)
@@ -244,14 +263,6 @@ void webSendContent(const char* chunk, void* context) {
   }
 }
 
-WebSendCallback web_common_getSendCallback(void) {
-  return webSendContent;
-}
-
-void web_common_setServer(WebServerClass* server) {
-  g_commonServer = server;
-}
-
 void web_sendPageStart(WebSendCallback send, void* context, const char* title, PageMode mode) {
   (void)mode;
   if (!send)
@@ -276,24 +287,6 @@ void web_sendPageEnd(WebSendCallback send, void* context) {
     send((const char*)FPSTR(HTML_PAGE_END), context);
   }
 }
-
-void web_sendRefreshMeta(WebSendCallback send, void* context, int refreshSeconds, const char* url) {
-  if (!send || refreshSeconds <= 0)
-    return;
-
-  char refresh[128];
-  if (url && strlen(url) > 0) {
-    snprintf_P(refresh, sizeof(refresh),
-               PSTR("<meta http-equiv='refresh' content='%d;url=%s'>"),
-               refreshSeconds, url);
-  } else {
-    snprintf_P(refresh, sizeof(refresh),
-               PSTR("<meta http-equiv='refresh' content='%d'>"),
-               refreshSeconds);
-  }
-  send(refresh, context);
-}
-
 void web_sendResultPage(WebSendCallback send, void* context, const char* action, bool success) {
   if (!send)
     return;

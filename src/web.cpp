@@ -628,21 +628,6 @@ void web_saveConfig(void) {
   web_sendResultPage(webSendContent, &server, "Configuration saved", true);
 }
 
-String web_buildResultHtml(const char* action, bool success) {
-  char result[1024];
-  const char* className = success ? "success" : "error";
-  snprintf(result, sizeof(result),
-           "<html><head><meta http-equiv='refresh' "
-           "content='2;url=/'><title>%s</title>"
-           "%s"  
-           "</head>"
-           "<body><div class='block center %s'><h2>%s "
-           "%s</h2><p>Redirecting...</p></div></body></html>",
-           success ? "Success" : "Error", (const char*)FPSTR(HTML_STYLE),
-           className, action, success ? "successful" : "failed");
-  return String(result);
-}
-
 void web_init(bool setupMode) {
   g_setupMode = setupMode;
 

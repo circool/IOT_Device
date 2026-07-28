@@ -93,14 +93,6 @@ void web_sendConfigPage(const char* errorMsg, const char* successMsg);
  */
 void web_saveConfig(void);
 
-/**
- * @brief Сгенерировать страницу результата
- * @param action Название действия
- * @param success true — успех, false — ошибка
- * @return HTML-строка
- * @deprecated Использовать web_sendResultPage() из web_common
- */
-String web_buildResultHtml(const char* action, bool success);
 
 /**
  * @brief Обработчик оперативных команд (/set)
@@ -179,9 +171,7 @@ inline String web_buildStatusHtml(void) {
 inline void web_sendStatusPage(int) {}
 inline void web_sendConfigPage(const char*, const char*) {}
 inline void web_saveConfig(void) {}
-inline String web_buildResultHtml(const char*, bool) {
-  return String();
-}
+
 inline void handleSetCommand(void) {}
 
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
