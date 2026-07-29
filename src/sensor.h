@@ -164,6 +164,26 @@ const char* sensor_getError();
  */
 float sensor_getHumRate();
 
+#else
+inline void sensor_init() {}
+inline bool sensor_update() {
+  return false;
+}
+inline float sensor_getTemperature() {
+  return 0.0f;
+}
+inline float sensor_getHumidity() {
+  return 0.0f;
+}
+inline bool sensor_isOk() {
+  return false;
+}
+inline const char* sensor_getError() {
+  return "N/A";
+}
+inline float sensor_getHumRate() {
+  return 0.0f;
+}
 #endif  // DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 
 #endif  // SENSOR_H
