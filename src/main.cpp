@@ -1,5 +1,11 @@
+/**
+ * @file main.cpp
+ * @brief Оркестратор — связывает все слои
+ */
+
 #include <Arduino.h>
 #include "debug_tools.h"
+#include "device_controller.h"
 #include "fan_actuator.h"
 #include "led.h"
 #include "logger.h"
@@ -16,8 +22,12 @@
 
 WiFiClient wifiClient;
 
+static DeviceController deviceController;
 
 static FanActuator* fan = nullptr;
+
+
+
 
 #include "switch_actuator.h"
 static SwitchActuator* switchActuator = nullptr;
@@ -52,6 +62,8 @@ void setup() {
   g_configManager.print();
   resetBtn_init();
   led_init();
+  sensor_init();
+
   wifi_scan_and_log(g_configManager.getWifiSsid());
 
   // Режим первоначальной настройки (провизионинг) или обычная работа
@@ -63,22 +75,27 @@ void setup() {
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
     wifi_manager_init();
     wifi_manager_begin();
-
 #endif
   }
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 #if DEVICE_TYPE == 1
   fan = new FanActuator();
-  fan->init(SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
-            g_configManager.getSpeedPercent(),
-            g_configManager.getAdaptiveMode(),
-            g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
+  if (fan == nullptr) {
+    XLOG_ERROR(CAT_MAIN, "Failed to allocate FanActuator!");
+    // Не блокируем, просто падаем дальше — но с логом
+  } else {
+    XLOG_INFO(CAT_MAIN, "FanActuator allocated successfully!");
+    fan->init(
+        SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
+        g_configManager.getSpeedPercent(), g_configManager.getAdaptiveMode(),
+        g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
 #if FEATURE_MQTT_ENABLED == 1
-  statusProvider = new FanWebStatusProvider(fan, &mqttManager);
+    statusProvider = new FanWebStatusProvider(fan, &mqttManager);
 #else
-  statusProvider = new FanWebStatusProvider(fan);
-#endif  // FEATURE_MQTT_ENABLED
+    statusProvider = new FanWebStatusProvider(fan);
+#endif
+  }
 
 #elif DEVICE_TYPE == 2
 
@@ -100,9 +117,11 @@ void setup() {
   statusProvider = new SwitchWebStatusProvider(switchActuator);
 #endif  // FEATURE_MQTT_ENABLED
 #endif  // DEVICE_TYPE == 3
+
   web_registerStatusProvider(statusProvider);
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
+  // ===== ТРАНСПОРТ =====
   g_transport = createTransport();
   if (g_transport) {
     XLOG_INFO(CAT_MAIN, "Transport created: %s", g_transport->getName());
@@ -110,6 +129,99 @@ void setup() {
   } else {
     XLOG_ERROR(CAT_MAIN, "No transport available!");
   }
+
+  // ===== DEVICE CONTROLLER =====
+#if DEVICE_TYPE == 1
+  deviceController.init(g_configManager.get(), fan);
+#elif DEVICE_TYPE == 3
+  deviceController.init(g_configManager.get(), switchActuator);
+#elif DEVICE_TYPE == 2
+  deviceController.init(g_configManager.get());
+#endif
+
+  deviceController.set_state_callback(
+      [](const operational_state_t* state, bool need_save) {
+        if (need_save) {
+          g_configManager.save();
+        }
+        // Публикация через Transport
+        if (g_transport && g_transport->isConnected()) {
+          g_transport->publishState(state->is_on);
+#if DEVICE_TYPE == 1
+          g_transport->publishSpeed(state->speed);
+          g_transport->publishSensorControlMode(!state->manual_mode);
+          g_transport->publishAdaptiveMode(state->adaptive_mode_active);
+#endif
+        }
+      });
+
+  // ===== MQTT КОЛБЭКИ (после инициализации DeviceController) =====
+#if FEATURE_MQTT_ENABLED == 1
+  mqttManager.onState(
+      [](bool value, void* context) {
+        deviceController.handle_command(CMD_SET_ACTUATOR, value ? 1.0f : 0.0f);
+      },
+      nullptr);
+#if DEVICE_TYPE == 1
+  mqttManager.onSpeed(
+      [](int value, void* context) {
+        deviceController.handle_command(CMD_SET_SPEED, (float)value);
+      },
+      nullptr);
+#endif
+
+  mqttManager.onDelaySec(
+      [](int value, void* context) {
+        deviceController.handle_command(CMD_SET_DELAY_SEC, (float)value);
+      },
+      nullptr);
+
+  mqttManager.onMaxOnTime(
+      [](uint32_t value, void* context) {
+        deviceController.handle_command(CMD_SET_MAX_ON_TIME, (float)value);
+      },
+      nullptr);
+
+#if DEVICE_TYPE == 1
+  mqttManager.onAdaptiveMode(
+      [](bool value, void* context) {
+        deviceController.handle_command(CMD_SET_ADAPTIVE_MODE,
+                                        value ? 1.0f : 0.0f);
+      },
+      nullptr);
+
+  mqttManager.onLowTemp(
+      [](float value, void* context) {
+        deviceController.handle_command(CMD_SET_LOW_TEMP, value);
+      },
+      nullptr);
+
+  mqttManager.onHighTemp(
+      [](float value, void* context) {
+        deviceController.handle_command(CMD_SET_HIGH_TEMP, value);
+      },
+      nullptr);
+
+  mqttManager.onLowHum(
+      [](float value, void* context) {
+        deviceController.handle_command(CMD_SET_LOW_HUM, value);
+      },
+      nullptr);
+
+  mqttManager.onHighHum(
+      [](float value, void* context) {
+        deviceController.handle_command(CMD_SET_HIGH_HUM, value);
+      },
+      nullptr);
+
+  mqttManager.onSensorControlMode(
+      [](bool value, void* context) {
+        deviceController.handle_command(CMD_SET_SENSOR_CONTROL_MODE,
+                                        value ? 1.0f : 0.0f);
+      },
+      nullptr);
+#endif
+#endif
 
   XLOG_INFO(CAT_MAIN, "Setup complete");
 }
@@ -121,7 +233,7 @@ void loop() {
 
   uint16_t bits = system_state_get_bits();
 
-  // Переход в режим провизионинга при потеле соединения WiFi
+  // Переход в режим провизионинга при потере соединения WiFi
   if (!(bits & STATE_WIFI_OK) && !(bits & STATE_PROVISIONING)) {
     if (wifi_fail_start == 0) {
       wifi_fail_start = millis();
@@ -134,7 +246,7 @@ void loop() {
     }
   } else {
     wifi_fail_start = 0;
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI  // Для провизионинга в режиме AP нужен сервер
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
     if (!web_started && (bits & STATE_WIFI_OK)) {
       web_init(false);
       web_started = true;
@@ -159,14 +271,10 @@ void loop() {
           XLOG_INFO(CAT_MAIN, "Provisioning complete! SSID: %s",
                     data->wifiSsid);
 
-          // 1. Применяем дефолты
           g_configManager.setDefaults();
-
-          // 2. Перезаписываем WiFi
           g_configManager.setWifiSsid(data->wifiSsid);
           g_configManager.setWifiPassword(data->wifiPassword);
 
-          // 3. Сохраняем
           if (g_configManager.save()) {
             system_state_clear_bit(STATE_PROVISIONING);
             restart_request(500);
@@ -212,43 +320,47 @@ void loop() {
 #if FEATURE_MQTT_ENABLED
   } else if (!(bits & STATE_MQTT_OK)) {
     led_set_mode(LED_MORZE_I);
-#endif  // FEATURE_MQTT_ENABLED
+#endif
   } else {
     led_set_mode(LED_ON);
   }
   led_update();
 
-  // Функциональные слои
+  // ===== ЖЕЛЕЗО =====
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+  sensor_update();
+#endif
+
+#if DEVICE_TYPE == 1
+  fan->update();
+#elif DEVICE_TYPE == 3
+  switchActuator->update(g_configManager.getDelaySeconds(),
+                         g_configManager.getMaxOnTime());
+#endif
+
+  // ===== БИЗНЕС-ЛОГИКА =====
+  deviceController.update();
+
+  // ===== ФУНКЦИОНАЛЬНЫЕ СЛОИ =====
   web_update();
-  // Обработка команд от Web (/set)
+
+  // ===== КОМАНДЫ ОТ WEB (/set) =====
   if (g_webCommandPending) {
-    // DeviceController должен быть создан и инициализирован
-    // (в текущей реализации DeviceController ещё нет, поэтому временно:
-    //   - CMD_STATE → fan->set(value)
-    //   - CMD_SPEED → fan->setSpeed(value)
-    //   - CMD_MANUAL_MODE → fan->setAdaptiveMode(!value) или логика в main)
     switch (g_webCommand.type) {
       case CMD_STATE:
-        // deviceController.setOperationalParam(PARAM_STATE,
-        // g_webCommand.value.boolVal);
-        if (fan)
-          fan->set(g_webCommand.value.boolVal, true);
+        deviceController.set_state(g_webCommand.value.boolVal);
         break;
       case CMD_SPEED:
-        if (fan)
-          fan->setSpeed(g_webCommand.value.intVal, true);
+        deviceController.set_speed(g_webCommand.value.intVal);
         break;
       case CMD_MANUAL_MODE:
-        // deviceController.setOperationalParam(PARAM_MANUAL_MODE,
-        // g_webCommand.value.boolVal);
-        if (fan)
-          fan->setAdaptiveMode(!g_webCommand.value.boolVal);
+        deviceController.set_manual_mode(g_webCommand.value.boolVal);
         break;
     }
     g_webCommandPending = false;
   }
 
-  // Обработка сброса настроек от Web (/resetall)
+  // ===== СБРОС НАСТРОЕК ОТ WEB (/resetall) =====
   if (g_webRestartPending) {
     g_configManager.reset();
     g_webRestartPending = false;
@@ -258,6 +370,6 @@ void loop() {
   restart_update();
 
   if (g_transport && (bits & STATE_WIFI_OK)) {
-    g_transport->process();
+    g_transport->update();
   }
 }

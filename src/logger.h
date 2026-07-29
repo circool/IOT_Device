@@ -106,7 +106,7 @@ enum LogCategory : uint32_t {
   CAT_RESET_BTN = 1 << 15,     // 32768
   CAT_RESTART = 1 << 16,       // 65536
   CAT_SYSTEM = 1 << 17,        // 131072
-
+  CAT_DEVICE = 1 << 18,
   CAT_ALL = 0xFFFFFFFF
 };
 

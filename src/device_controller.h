@@ -26,23 +26,23 @@
  * @note Набор команд зависит от DEVICE_TYPE
  */
 typedef enum {
-  CMD_RESET, /**< void — сброс к заводским */
+  CMD_DO_RESET,        /**< void — сброс к заводским */
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  CMD_STATE,       /**< bool: true/false */
-  CMD_DELAY_SEC,   /**< int: 0-86400 */
-  CMD_MAX_ON_TIME, /**< uint32_t: 0-86400 */
-  CMD_BOOT_STATE,  /**< bool: состояние при старте */
+  CMD_SET_ACTUATOR,    /**< bool: true=включить, false=выключить */
+  CMD_SET_DELAY_SEC,   /**< int: 0-86400 */
+  CMD_SET_MAX_ON_TIME, /**< uint32_t: 0-86400 */
+  CMD_SET_BOOT_STATE,  /**< bool: состояние при старте */
 #endif
 
 #if DEVICE_TYPE == 1
-  CMD_SPEED,               /**< uint8_t: 0-100 */
-  CMD_LOW_TEMP,            /**< float */
-  CMD_HIGH_TEMP,           /**< float */
-  CMD_LOW_HUM,             /**< float */
-  CMD_HIGH_HUM,            /**< float */
-  CMD_SENSOR_CONTROL_MODE, /**< bool: true=AUTO, false=MANUAL */
-  CMD_ADAPTIVE_MODE,       /**< bool */
+  CMD_SET_SPEED,               /**< uint8_t: 0-100 */
+  CMD_SET_LOW_TEMP,            /**< float */
+  CMD_SET_HIGH_TEMP,           /**< float */
+  CMD_SET_LOW_HUM,             /**< float */
+  CMD_SET_HIGH_HUM,            /**< float */
+  CMD_SET_SENSOR_CONTROL_MODE, /**< bool: true=AUTO, false=MANUAL */
+  CMD_SET_ADAPTIVE_MODE,       /**< bool */
 #endif
 } command_type_t;
 
@@ -87,16 +87,10 @@ class DeviceController {
 
   /**
    * @brief Инициализация контроллера
-   * @param config Указатель на Config (копируется)
-   * @param sensor Указатель на датчик (не используется, только для API). Только
-   * TYPE 1 и TYPE 2.
-   * @param actuator Указатель на актуатор. TYPE 1 — FanActuator, TYPE 3 —
-   * SwitchActuator.
+   * @param config Указатель на Config (не владеет)
+   * @param actuator Указатель на актуатор (не владеет)
    */
   void init(const ConfigData* config,
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-            void* sensor,
-#endif
 #if DEVICE_TYPE == 1
             FanActuator* actuator
 #elif DEVICE_TYPE == 3
@@ -128,23 +122,26 @@ class DeviceController {
    */
   void set_state_callback(state_callback_t callback);
 
+  // ===== Команды от Web =====
+  void set_state(bool on);
+  void set_speed(int percent);
+  void set_manual_mode(bool enabled);
+
  private:
   // ===== Внутренние методы =====
 #if DEVICE_TYPE == 1
   void update_fan();
-  void handle_fan_command(command_type_t type, float value);
 #elif DEVICE_TYPE == 2
   void update_sensor();
 #elif DEVICE_TYPE == 3
   void update_switch();
-  void handle_switch_command(command_type_t type, float value);
 #endif
 
   void apply_state(); /**< Применить текущее состояние к Actuator */
   void notify_change(bool need_save); /**< Вызвать колбэк с флагом сохранения */
 
   // ===== Данные =====
-  ConfigData _config; /**< Копия Config (для чтения порогов, таймеров) */
+  const ConfigData* _config;  /**< Указатель на Config (не владеет) */
   operational_state_t _state; /**< Текущее оперативное состояние */
 
 #if DEVICE_TYPE == 1
@@ -154,13 +151,6 @@ class DeviceController {
 #endif
 
   state_callback_t _callback; /**< Колбэк для оркестратора */
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  uint32_t _last_sensor_read; /**< Для интервала опроса датчика */
-#endif
-
-  uint32_t _last_update; /**< Для антидребезга */
-  bool _state_changed;   /**< true — нужно вызвать колбэк */
 };
 
 #endif  // DEVICE_CONTROLLER_H

@@ -158,6 +158,8 @@ const char* Logger::categoryToString(LogCategory category) const {
       return "RESTART";
     case CAT_SYSTEM:
       return "SYSTEM";
+    case CAT_DEVICE:
+      return "DEVCTRL";
     default:
       return "???";
   }
