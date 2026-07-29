@@ -6,7 +6,19 @@
 #ifdef ESP32
 
 #include <WiFi.h>
-#include <WiFiProv.h>
+#include <WiFiProv.h>  // Этот заголовок есть для всех ESP32 (включая C6)
+
+// Определяем, какие макросы использовать
+// Для ESP32-C6/H2 используем NETWORK_PROV_*, для остальных — WIFI_PROV_*
+#if defined(CONFIG_IDF_TARGET_ESP32C6) || defined(CONFIG_IDF_TARGET_ESP32H2)
+#define PROV_SCHEME_BLE NETWORK_PROV_SCHEME_BLE
+#define PROV_SCHEME_HANDLER_FREE NETWORK_PROV_SCHEME_HANDLER_FREE_BTDM
+#define PROV_SECURITY NETWORK_PROV_SECURITY_1
+#else
+#define PROV_SCHEME_BLE WIFI_PROV_SCHEME_BLE
+#define PROV_SCHEME_HANDLER_FREE WIFI_PROV_SCHEME_HANDLER_FREE_BTDM
+#define PROV_SECURITY WIFI_PROV_SECURITY_1
+#endif
 
 static const uint8_t PROV_UUID[16] = {0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b,
                                       0xf4, 0xbf, 0xea, 0x4a, 0x82, 0x03,
@@ -97,10 +109,10 @@ bool BleProvisioningServer::begin() {
 
   WiFi.onEvent(SysProvEvent);
 
-  WiFiProv.beginProvision(WIFI_PROV_SCHEME_BLE,
-                          WIFI_PROV_SCHEME_HANDLER_FREE_BTDM,
-                          WIFI_PROV_SECURITY_1, BLE_PROVISIONING_PIN,
-                          _deviceName, NULL, (uint8_t*)PROV_UUID, true);
+  // Используем макросы, определенные выше
+  WiFiProv.beginProvision(PROV_SCHEME_BLE, PROV_SCHEME_HANDLER_FREE,
+                          PROV_SECURITY, BLE_PROVISIONING_PIN, _deviceName,
+                          NULL, (uint8_t*)PROV_UUID, true);
 
   _active = true;
 

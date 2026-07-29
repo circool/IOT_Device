@@ -1,12 +1,21 @@
 #include "fan_actuator.h"
 #include "logger.h"
 
-#ifdef ESP32
-#include <esp32-hal-ledc.h>
-#endif
-
 #if DEVICE_TYPE == 1
 
+// Определяем макросы для LEDC в зависимости от чипа
+#if defined(ESP32)
+#if defined(CONFIG_IDF_TARGET_ESP32C6) || \
+    defined(CONFIG_IDF_TARGET_ESP32H2) || defined(CONFIG_IDF_TARGET_ESP32C3)
+// Для ESP32-C6, H2, C3 используется LEDC API из esp32-hal-ledc.h
+#include <esp32-hal-ledc.h>
+#define USE_LEDC_LEGACY 0
+#else
+// Для ESP32, ESP32-S2, ESP32-S3 используется классический LEDC
+#include <esp32-hal-ledc.h>
+#define USE_LEDC_LEGACY 1
+#endif
+#endif
 
 static int percentToPWMValue(int percent) {
   if (percent <= 0)
@@ -48,9 +57,15 @@ void FanActuator::init(uint8_t pin,
   _pwmActive = false;
   _startingPulseActive = false;
 
-#ifdef ESP32
+#if defined(ESP32)
+#if USE_LEDC_LEGACY == 1
+  // ESP32, ESP32-S2, ESP32-S3
   ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcAttachPin(_pin, 0);
+#else
+  // ESP32-C3, ESP32-C6, ESP32-H2
+  ledcAttach(_pin, PWM_FREQUENCY, PWM_RESOLUTION);
+#endif
 #elif defined(ESP8266)
   analogWriteFreq(PWM_FREQUENCY);
   analogWriteRange(255);
@@ -183,8 +198,12 @@ void FanActuator::applySpeed(int percent) {
     pwmValue = 255 - pwmValue;
 #endif
     enablePWM();
-#ifdef ESP32
+#if defined(ESP32)
+#if USE_LEDC_LEGACY == 1
     ledcWrite(0, pwmValue);
+#else
+    ledcWrite(_pin, pwmValue);
+#endif
 #elif defined(ESP8266)
     analogWrite(_pin, pwmValue);
 #endif
@@ -194,9 +213,13 @@ void FanActuator::applySpeed(int percent) {
 void FanActuator::enablePWM() {
   if (_pwmActive)
     return;
-#ifdef ESP32
+#if defined(ESP32)
+#if USE_LEDC_LEGACY == 1
   ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcAttachPin(_pin, 0);
+#else
+  ledcAttach(_pin, PWM_FREQUENCY, PWM_RESOLUTION);
+#endif
 #elif defined(ESP8266)
   // Для ESP8266 не требуется отдельного включения
 #endif
@@ -206,8 +229,12 @@ void FanActuator::enablePWM() {
 void FanActuator::disablePWM() {
   if (!_pwmActive)
     return;
-#ifdef ESP32
+#if defined(ESP32)
+#if USE_LEDC_LEGACY == 1
   ledcDetachPin(_pin);
+#else
+  ledcDetach(_pin);
+#endif
 #elif defined(ESP8266)
   analogWrite(_pin, 1024);
   delayMicroseconds(10);
@@ -216,4 +243,4 @@ void FanActuator::disablePWM() {
   _pwmActive = false;
 }
 
-#endif
+#endif  // DEVICE_TYPE == 1
