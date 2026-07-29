@@ -146,7 +146,7 @@ class MQTTManager {
              const char* user = nullptr,
              const char* password = nullptr);
 
-  void process();
+  void update();
   bool isConnected();
   void disconnect();
 

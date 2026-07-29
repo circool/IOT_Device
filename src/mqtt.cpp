@@ -75,7 +75,7 @@ bool MQTTManager::begin(Client& client,
   return true;
 }
 
-void MQTTManager::process() {
+void MQTTManager::update() {
   if (!_initialized)
     return;
 

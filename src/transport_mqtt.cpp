@@ -120,8 +120,8 @@ static bool mqtt_begin(Client* client, const ConfigData* config) {
                            config->mqttPassword);
 }
 
-static void mqtt_process() {
-  mqttManager.process();
+static void mqtt_update() {
+  mqttManager.update();
 }
 
 static bool mqtt_isConnected() {
@@ -295,7 +295,7 @@ Transport* getMQTTTransport() {
 
   // Управление
   g_mqttTransport.begin = mqtt_begin;
-  g_mqttTransport.process = mqtt_process;
+  g_mqttTransport.update = mqtt_update;
   g_mqttTransport.isConnected = mqtt_isConnected;
   g_mqttTransport.disconnect = mqtt_disconnect;
   g_mqttTransport.getName = mqtt_getName;

@@ -15,7 +15,7 @@ typedef struct Transport {
   // ========================================================================
 
   bool (*begin)(Client* client, const ConfigData* config);
-  void (*process)();
+  void (*update)();
   bool (*isConnected)();
   void (*disconnect)();
   const char* (*getName)();

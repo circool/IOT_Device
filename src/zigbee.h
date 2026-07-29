@@ -46,7 +46,7 @@ class ZigBeeManager {
   /**
    * @brief Периодический вызов в loop()
    */
-  void process() {
+  void update() {
     if (!_initialized)
       return;
     // TODO: Реализовать обработку входящих ZigBee-сообщений
@@ -232,7 +232,7 @@ class ZigBeeManager {
   ~ZigBeeManager() = default;
 
   bool begin(const char*) { return false; }
-  void process() {}
+  void update() {}
   bool isConnected() const { return false; }
   void disconnect() {}
 

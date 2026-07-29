@@ -39,7 +39,7 @@ static bool zigbee_begin(Client* client, const ConfigData* config) {
   return false;
 }
 
-static void zigbee_process() {
+static void zigbee_update() {
   // TODO: реальная обработка ZigBee
 }
 
@@ -216,7 +216,7 @@ Transport* getZigbeeTransport() {
 
   // Управление
   g_zigbeeTransport.begin = zigbee_begin;
-  g_zigbeeTransport.process = zigbee_process;
+  g_zigbeeTransport.update = zigbee_update;
   g_zigbeeTransport.isConnected = zigbee_isConnected;
   g_zigbeeTransport.disconnect = zigbee_disconnect;
   g_zigbeeTransport.getName = zigbee_getName;
