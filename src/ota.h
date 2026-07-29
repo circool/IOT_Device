@@ -19,7 +19,7 @@ bool ota_is_available();
  */
 String ota_getButtonHtml();
 
-void ota_loop();
+void ota_update();
 
 #else
 
@@ -36,7 +36,7 @@ inline String ota_getButtonHtml() {
   return String();
 }
 
-inline void ota_loop() {}
+inline void ota_update() {}
 
 #endif
 

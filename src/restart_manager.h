@@ -20,7 +20,7 @@
  * 500)
  *
  * @details Запрос сохраняется во внутреннем флаге, а реальная перезагрузка
- *          происходит в restart_loop() после истечения задержки.
+ *          происходит в restart_update() после истечения задержки.
  *          Повторный вызов до выполнения перезагрузки игнорируется.
  */
 void restart_request(unsigned long delayMs = 500);
@@ -31,6 +31,6 @@ void restart_request(unsigned long delayMs = 500);
  * — выполняет ESP.restart() с небольшой дополнительной задержкой для отправки
  * логов.
  */
-void restart_loop();
+void restart_update();
 
 #endif  // RESTART_MANAGER_H

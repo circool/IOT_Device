@@ -12,7 +12,7 @@ void restart_request(unsigned long delayMs) {
   XLOG_INFO(CAT_RESTART, "Restart requested (delay: %lu ms)",delayMs);  
 }
 
-void restart_loop() {
+void restart_update() {
   if (!_pending)
     return;
   if (millis() >= _time) {

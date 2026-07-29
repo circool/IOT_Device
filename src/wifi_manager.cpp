@@ -30,7 +30,7 @@ void wifi_manager_begin() {
   return;
 }
 
-void wifi_manager_loop() {
+void wifi_manager_update() {
   if (WiFi.status() == WL_CONNECTED) {
     if (!system_state_has_bit(STATE_WIFI_OK)) {
       XLOG_INFO(CAT_WIFI, "Connected! IP: " ANSI_BOLD "%s" ANSI_BOLD_RESET ", RSSI: " ANSI_BOLD "%d" ANSI_BOLD_RESET " dBm.", WiFi.localIP().toString().c_str(), WiFi.RSSI());

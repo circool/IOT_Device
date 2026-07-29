@@ -706,7 +706,7 @@ void web_init(bool setupMode) {
              setupMode ? "SETUP" : "NORMAL");
 }
 
-void web_loop(void) {
+void web_update(void) {
   server.handleClient();
 }
 

@@ -117,7 +117,7 @@ void setup() {
 void loop() {
   wdt_feed();
   resetBtn_update();
-  wifi_manager_loop();
+  wifi_manager_update();
 
   uint16_t bits = system_state_get_bits();
 
@@ -216,10 +216,10 @@ void loop() {
   } else {
     led_set_mode(LED_ON);
   }
-  led_loop();
+  led_update();
 
   // Функциональные слои
-  web_loop();
+  web_update();
   // Обработка команд от Web (/set)
   if (g_webCommandPending) {
     // DeviceController должен быть создан и инициализирован
@@ -255,7 +255,7 @@ void loop() {
     restart_request(500);
   }
 
-  restart_loop();
+  restart_update();
 
   if (g_transport && (bits & STATE_WIFI_OK)) {
     g_transport->process();

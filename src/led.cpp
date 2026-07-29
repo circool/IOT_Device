@@ -33,7 +33,7 @@ void led_set_mode(LedMode mode) {
     }
 }
 
-void led_loop() {
+void led_update() {
     static bool lastState = false;
     unsigned long now = millis();
     bool shouldBeOn = false;

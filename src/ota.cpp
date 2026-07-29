@@ -57,11 +57,11 @@ void ota_init(WebServerClass* server) {
   XLOG_DEBUG(CAT_OTA, "OTA initialized at /update");
 }
 
-// ========== ota_loop() НЕ НУЖЕН для ElegantOTA 2.2.x ==========
+// ========== ota_update() НЕ НУЖЕН для ElegantOTA 2.2.x ==========
 // ElegantOTA работает через WebServer::handleClient()
 // Эта функция оставлена для совместимости, но ничего не делает
 
-void ota_loop() {
+void ota_update() {
   // ElegantOTA 2.2.x не требует отдельного loop()
   // Всё обрабатывается через server.handleClient()
   // Функция оставлена для совместимости с main.cpp

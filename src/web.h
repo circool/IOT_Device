@@ -67,7 +67,7 @@ void web_init(bool setupMode = false);
 /**
  * @brief Периодическая обработка HTTP-запросов. Вызывается в loop()
  */
-void web_loop(void);
+void web_update(void);
 
 /**
  * @brief Построить HTML-код страницы состояния
@@ -164,7 +164,7 @@ inline void web_registerStatusProvider(IWebStatusProvider* provider) {
 inline void web_init(bool setupMode) {
   (void)setupMode;
 }
-inline void web_loop(void) {}
+inline void web_update(void) {}
 inline String web_buildStatusHtml(void) {
   return String();
 }

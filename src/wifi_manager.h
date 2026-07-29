@@ -102,7 +102,7 @@ void wifi_manager_begin();
  * @todo Продумать функциональные обязанности и решить что делать с
  * wifi_check/wifi_monitor
  */
-void wifi_manager_loop();
+void wifi_manager_update();
 
 /**
  * @brief Получить локальный IP адрес

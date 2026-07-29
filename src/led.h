@@ -61,7 +61,7 @@ void led_set_mode(LedMode mode);
  * @details Вызывается в loop(). Применяет текущий режим.
  *          Использует millis() для неблокирующего мигания.
  */
-void led_loop();
+void led_update();
 
 #else  // FEATURE_LED_ENABLED == 0
 
@@ -69,7 +69,7 @@ inline void led_init() {}
 inline void led_set_mode(LedMode mode) {
   (void)mode;
 }
-inline void led_loop() {}
+inline void led_update() {}
 
 #endif  // FEATURE_LED_ENABLED
 
