@@ -204,12 +204,12 @@
 #endif
 
 /**
- * @brief Включить OTA-обновления
+ * @brief Выключить OTA-обновления по умолчанию
  * @details Если 1 — доступно обновление прошивки через веб-интерфейс.
  * @note Требует FEATURE_WEB_ENABLED=1
  */
 #ifndef FEATURE_OTA_ENABLED
-#define FEATURE_OTA_ENABLED 1
+#define FEATURE_OTA_ENABLED 0
 #endif
 
 /**

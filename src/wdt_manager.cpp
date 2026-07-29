@@ -25,26 +25,14 @@ void wdt_init() {
   XLOG_DEBUG(CAT_WDT, "ESP8266 WDT enabled, timeout=%d ms", WDT_TIMER_MS);
 
 #elif defined(ESP32)
-// Проверяем, какой API доступен
-#if defined(CONFIG_IDF_TARGET_ESP32C6) || \
-    defined(CONFIG_IDF_TARGET_ESP32H2) || defined(CONFIG_IDF_TARGET_ESP32C3)
-  // Новый API (ESP-IDF 5.0+)
-  esp_task_wdt_config_t wdt_config = {
-      .timeout_ms = WDT_TIMER_MS,
-      .idle_core_mask = 1,  // Для одноядерных чипов (C3, C6, H2)
-      .trigger_panic = true,
-  };
-  esp_task_wdt_init(&wdt_config);
-#elif defined(CONFIG_IDF_TARGET_ESP32S3) || defined(CONFIG_IDF_TARGET_ESP32)
-  // Для ESP32 и ESP32-S3 (двухъядерные)
-  esp_task_wdt_config_t wdt_config = {
-      .timeout_ms = WDT_TIMER_MS,
-      .idle_core_mask = (1 << CONFIG_ESP_INT_WDT_CPU_NUM) - 1,
-      .trigger_panic = true,
-  };
-  esp_task_wdt_init(&wdt_config);
+// Универсальный подход для всех ESP32
+// Пробуем использовать старый API (работает везде)
+#ifdef CONFIG_IDF_TARGET_ESP32C6
+  // Для ESP32-C6 используем альтернативный подход
+  // Некоторые версии Arduino Core для C6 не имеют esp_task_wdt_config_t
+  esp_task_wdt_init(WDT_TIMER_MS / 1000, true);
 #else
-  // Старый API (ESP-IDF 4.x) для ESP32, ESP32-S2
+  // Для всех остальных ESP32
   esp_task_wdt_init(WDT_TIMER_MS / 1000, true);
 #endif
 

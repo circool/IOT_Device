@@ -3,17 +3,22 @@
 
 #if DEVICE_TYPE == 1
 
-// Определяем макросы для LEDC в зависимости от чипа
+// Определяем, какой API использовать для LEDC
 #if defined(ESP32)
-#if defined(CONFIG_IDF_TARGET_ESP32C6) || \
-    defined(CONFIG_IDF_TARGET_ESP32H2) || defined(CONFIG_IDF_TARGET_ESP32C3)
-// Для ESP32-C6, H2, C3 используется LEDC API из esp32-hal-ledc.h
-#include <esp32-hal-ledc.h>
-#define USE_LEDC_LEGACY 0
+// Пытаемся определить по макросам платформы
+#if defined(CONFIG_IDF_TARGET_ESP32C6) || defined(CONFIG_IDF_TARGET_ESP32H2)
+// ESP32-C6 или H2 с новым API (ESP-IDF 5.0+)
+#define USE_LEDC_NEW_API 1
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+// Для ESP32-C3 проверяем, есть ли ledcAttach
+#ifdef ledcAttach
+#define USE_LEDC_NEW_API 1
 #else
-// Для ESP32, ESP32-S2, ESP32-S3 используется классический LEDC
-#include <esp32-hal-ledc.h>
-#define USE_LEDC_LEGACY 1
+#define USE_LEDC_NEW_API 0
+#endif
+#else
+// Остальные ESP32
+#define USE_LEDC_NEW_API 0
 #endif
 #endif
 
@@ -58,13 +63,20 @@ void FanActuator::init(uint8_t pin,
   _startingPulseActive = false;
 
 #if defined(ESP32)
-#if USE_LEDC_LEGACY == 1
-  // ESP32, ESP32-S2, ESP32-S3
+#if USE_LEDC_NEW_API == 1
+// Новый API для ESP32-C6, H2 (ESP-IDF 5.0+)
+// В некоторых версиях Arduino Core для C6 используется ledcAttach
+#ifdef ledcAttach
+  ledcAttach(_pin, PWM_FREQUENCY, PWM_RESOLUTION);
+#else
+  // Fallback на старый API
   ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcAttachPin(_pin, 0);
+#endif
 #else
-  // ESP32-C3, ESP32-C6, ESP32-H2
-  ledcAttach(_pin, PWM_FREQUENCY, PWM_RESOLUTION);
+  // Старый API для ESP32, ESP32-S2, ESP32-S3, ESP32-C3
+  ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcAttachPin(_pin, 0);
 #endif
 #elif defined(ESP8266)
   analogWriteFreq(PWM_FREQUENCY);
@@ -140,8 +152,6 @@ void FanActuator::updateConfig(bool adaptiveMode,
   _adaptiveMode = adaptiveMode;
   _delaySeconds = delaySeconds;
   _maxOnTime = maxOnTime;
-  // XLOG_DEBUG(CAT_FAN, "Config updated: adaptive=%s, delay=%d, maxOnTime=%lu",
-  //            adaptiveMode ? "ON" : "OFF", delaySeconds, maxOnTime);
 }
 
 // Статические колбэки
@@ -172,7 +182,6 @@ void FanActuator::onForceStopCallback(void* context) {
   FanActuator* self = (FanActuator*)context;
   if (!self)
     return;
-  // Только логируем — оркестратор сам решит, что делать
   XLOG_INFO(CAT_FAN, "Force stop triggered");
 }
 
@@ -180,7 +189,6 @@ void FanActuator::onManualCommandCallback(void* context) {
   FanActuator* self = (FanActuator*)context;
   if (!self)
     return;
-  // Только логируем — оркестратор сам решит, что делать
   XLOG_INFO(CAT_FAN, "Manual command received");
 }
 
@@ -199,10 +207,16 @@ void FanActuator::applySpeed(int percent) {
 #endif
     enablePWM();
 #if defined(ESP32)
-#if USE_LEDC_LEGACY == 1
-    ledcWrite(0, pwmValue);
-#else
+#if USE_LEDC_NEW_API == 1
+// Новый API
+#ifdef ledcWrite
     ledcWrite(_pin, pwmValue);
+#else
+    ledcWrite(0, pwmValue);
+#endif
+#else
+    // Старый API
+    ledcWrite(0, pwmValue);
 #endif
 #elif defined(ESP8266)
     analogWrite(_pin, pwmValue);
@@ -214,11 +228,18 @@ void FanActuator::enablePWM() {
   if (_pwmActive)
     return;
 #if defined(ESP32)
-#if USE_LEDC_LEGACY == 1
+#if USE_LEDC_NEW_API == 1
+// Новый API
+#ifdef ledcAttach
+  ledcAttach(_pin, PWM_FREQUENCY, PWM_RESOLUTION);
+#else
   ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcAttachPin(_pin, 0);
+#endif
 #else
-  ledcAttach(_pin, PWM_FREQUENCY, PWM_RESOLUTION);
+  // Старый API
+  ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
+  ledcAttachPin(_pin, 0);
 #endif
 #elif defined(ESP8266)
   // Для ESP8266 не требуется отдельного включения
@@ -230,10 +251,16 @@ void FanActuator::disablePWM() {
   if (!_pwmActive)
     return;
 #if defined(ESP32)
-#if USE_LEDC_LEGACY == 1
-  ledcDetachPin(_pin);
-#else
+#if USE_LEDC_NEW_API == 1
+// Новый API
+#ifdef ledcDetach
   ledcDetach(_pin);
+#else
+  ledcDetachPin(_pin);
+#endif
+#else
+  // Старый API
+  ledcDetachPin(_pin);
 #endif
 #elif defined(ESP8266)
   analogWrite(_pin, 1024);

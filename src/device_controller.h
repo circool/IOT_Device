@@ -11,9 +11,13 @@
 #define DEVICE_CONTROLLER_H
 
 #include <stdint.h>
-#include "actuator_base.h"
 #include "config_manager.h"
+#include "fan_actuator.h"
+#include "switch_actuator.h"
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
 #include "sensor.h"
+#endif
 
 // ===== Типы команд от транспорта =====
 
@@ -22,7 +26,7 @@
  * @note Набор команд зависит от DEVICE_TYPE
  */
 typedef enum {
-  CMD_RESET, /**< void — сброс к заводским (все типы) */
+  CMD_RESET, /**< void — сброс к заводским */
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
   CMD_STATE,       /**< bool: true/false */
@@ -84,15 +88,19 @@ class DeviceController {
   /**
    * @brief Инициализация контроллера
    * @param config Указатель на Config (копируется)
-   * @param sensor Указатель на датчик (не владеет). Только TYPE 1 и TYPE 2.
-   * @param actuator Указатель на актуатор (не владеет). Только TYPE 1 и TYPE 3.
+   * @param sensor Указатель на датчик (не используется, только для API). Только
+   * TYPE 1 и TYPE 2.
+   * @param actuator Указатель на актуатор. TYPE 1 — FanActuator, TYPE 3 —
+   * SwitchActuator.
    */
   void init(const ConfigData* config,
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-            Sensor* sensor,
+            void* sensor,
 #endif
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-            Actuator* actuator
+#if DEVICE_TYPE == 1
+            FanActuator* actuator
+#elif DEVICE_TYPE == 3
+            SwitchActuator* actuator
 #endif
   );
 
@@ -132,30 +140,27 @@ class DeviceController {
   void handle_switch_command(command_type_t type, float value);
 #endif
 
-  void apply_state();
-  void notify_change(bool need_save);
+  void apply_state(); /**< Применить текущее состояние к Actuator */
+  void notify_change(bool need_save); /**< Вызвать колбэк с флагом сохранения */
 
   // ===== Данные =====
-  ConfigData _config;
-  operational_state_t _state;
+  ConfigData _config; /**< Копия Config (для чтения порогов, таймеров) */
+  operational_state_t _state; /**< Текущее оперативное состояние */
+
+#if DEVICE_TYPE == 1
+  FanActuator* _actuator; /**< Указатель на актуатор вентилятора */
+#elif DEVICE_TYPE == 3
+  SwitchActuator* _actuator; /**< Указатель на актуатор выключателя */
+#endif
+
+  state_callback_t _callback; /**< Колбэк для оркестратора */
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  Sensor* _sensor;
+  uint32_t _last_sensor_read; /**< Для интервала опроса датчика */
 #endif
 
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  Actuator* _actuator;
-#endif
-
-  state_callback_t _callback;
-
-  // ===== Таймеры =====
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  uint32_t _last_sensor_read;
-#endif
-
-  uint32_t _last_update;
-  bool _state_changed;
+  uint32_t _last_update; /**< Для антидребезга */
+  bool _state_changed;   /**< true — нужно вызвать колбэк */
 };
 
 #endif  // DEVICE_CONTROLLER_H
