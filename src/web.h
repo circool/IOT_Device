@@ -3,6 +3,7 @@
  * @brief Веб-интерфейс устройства
  * @details HTTP-сервер для управления и настройки устройства.
  *          Работает только при TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI.
+ *          В AP-режиме делегирует провизионинг в слой provisioning.
  * @date 2026-07-28
  */
 
@@ -47,7 +48,7 @@
 // ПУБЛИЧНЫЙ API
 // ============================================================================
 
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI && FEATURE_WEB_STATUS_ENABLED == 1
 
 /** @brief Глобальный экземпляр веб-сервера */
 extern WebServerClass server;
@@ -92,7 +93,6 @@ void web_sendConfigPage(const char* errorMsg, const char* successMsg);
  * @brief Обработчик сохранения конфигурации (POST /save)
  */
 void web_saveConfig(void);
-
 
 /**
  * @brief Обработчик оперативных команд (/set)
@@ -152,28 +152,52 @@ extern volatile bool g_webCommandPending;
  */
 extern WebCommand g_webCommand;
 
-#else  // TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI
+#else  // TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI || FEATURE_WEB_STATUS_ENABLED ==
+       // 0
 
 // ============================================================================
 // ЗАГЛУШКИ
 // ============================================================================
 
+// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
+// FEATURE_WEB_STATUS_ENABLED == 0)
 inline void web_registerStatusProvider(IWebStatusProvider* provider) {
   (void)provider;
 }
+
+// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
+// FEATURE_WEB_STATUS_ENABLED == 0)
 inline void web_init(bool setupMode) {
   (void)setupMode;
 }
+
+// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
+// FEATURE_WEB_STATUS_ENABLED == 0)
 inline void web_update(void) {}
+
+// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
+// FEATURE_WEB_STATUS_ENABLED == 0)
 inline String web_buildStatusHtml(void) {
   return String();
 }
+
+// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
+// FEATURE_WEB_STATUS_ENABLED == 0)
 inline void web_sendStatusPage(int) {}
+
+// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
+// FEATURE_WEB_STATUS_ENABLED == 0)
 inline void web_sendConfigPage(const char*, const char*) {}
+
+// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
+// FEATURE_WEB_STATUS_ENABLED == 0)
 inline void web_saveConfig(void) {}
 
+// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
+// FEATURE_WEB_STATUS_ENABLED == 0)
 inline void handleSetCommand(void) {}
 
-#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI && FEATURE_WEB_STATUS_ENABLED
+        // == 1
 
 #endif  // WEB_H

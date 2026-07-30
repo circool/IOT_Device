@@ -17,7 +17,7 @@
 #include "web_templates.h"
 #include "wifi_manager.h"
 
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI && FEATURE_WEB_STATUS_ENABLED == 1
 
 volatile bool g_webConfigPending = false;
 volatile bool g_webRestartPending = false;
@@ -145,7 +145,8 @@ void handleSetCommand(void) {
   if (param == "speed") {
     int speed = value.toInt();
     if (speed < 0 || speed > 100) {
-      web_sendResultPage(webSendContent, &server, "Speed must be 0-100%", false);
+      web_sendResultPage(webSendContent, &server, "Speed must be 0-100%",
+                         false);
       return;
     }
     g_webCommandPending = true;
@@ -256,7 +257,6 @@ String web_buildStatusHtml(void) {
   html += F("</div></div>");
 
   const char* stateText = state ? "ON" : "OFF";
-  // ===== ИСПРАВЛЕНО: передаём bool =====
   web_renderStatusCard(buf, sizeof(buf), stateText, state);
   html += buf;
 
@@ -396,7 +396,6 @@ void web_sendConfigPage(const char* errorMsg, const char* successMsg) {
   const char* currentMode = isApMode ? "Access Point" : "Client WiFi";
   const char* currentSsid = isApMode ? deviceId : cfg->wifiSsid;
 
-  // ИСПРАВЛЕНО: сохраняем String, а не указатель на временный буфер
   String currentIp = wifi_get_local_ip();
 
   int refreshSeconds =
@@ -628,42 +627,35 @@ void web_saveConfig(void) {
   web_sendResultPage(webSendContent, &server, "Configuration saved", true);
 }
 
+// ============================================================================
+// ИНИЦИАЛИЗАЦИЯ WEB
+// ============================================================================
+
 void web_init(bool setupMode) {
   g_setupMode = setupMode;
 
   if (setupMode) {
-    server.on("/",
-              []() { web_sendApProvisioningPage(webSendContent, &server); });
+    // ===== AP-режим: вся логика в provisioning =====
+    server.on("/", []() { provisioning_send_ap_page(&server); });
 
-    server.on("/savewifi", []() {
-      String ssid = server.arg("wifiSsid");
-      String password = server.arg("wifiPassword");
+    server.on("/savewifi", HTTP_POST,
+              []() { provisioning_handle_ap_save(&server); });
 
-      if (ssid.length() > 0) {
-        ProvisioningData data;
-        memset(&data, 0, sizeof(data));
-        data.type = 0;
-        strncpy(data.wifiSsid, ssid.c_str(), sizeof(data.wifiSsid) - 1);
-        strncpy(data.wifiPassword, password.c_str(),
-                sizeof(data.wifiPassword) - 1);
-        ProvisioningManager::getInstance().onDataReceived(data);
-        web_sendResultPage(webSendContent, &server, "WiFi credentials saved",
-                           true);
-      } else {
-        web_sendResultPage(webSendContent, &server,
-                           "WiFi credentials not saved", false);
-      }
+    // Перенаправляем /config на / для единообразия
+    server.on("/config", []() {
+      server.sendHeader("Location", "/");
+      server.send(302, "text/plain", "Redirecting...");
     });
 
     server.on("/favicon.ico", []() { server.send(404); });
 
   } else {
+    // ===== Обычный режим =====
     int refreshInterval = DEFAULT_WEB_REFRESH;
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
     refreshInterval = g_configManager.getSensorInterval();
 #endif
 
-#if FEATURE_WEB_STATUS_ENABLED == 1
     server.on("/", [refreshInterval]() {
       XLOG_DEBUG(CAT_WEB, "GET / - serving status page");
 #ifdef ESP32
@@ -671,13 +663,6 @@ void web_init(bool setupMode) {
 #endif
       web_sendStatusPage(refreshInterval);
     });
-#else
-    server.on("/", []() {
-      XLOG_DEBUG(CAT_WEB, "GET / - redirect to config");
-      server.sendHeader("Location", "/config", true);
-      server.send(302, "text/plain", "");
-    });
-#endif
 
     server.on("/config", []() {
       XLOG_DEBUG(CAT_WEB, "GET /config - serving config page");
@@ -714,4 +699,5 @@ void web_registerStatusProvider(IWebStatusProvider* provider) {
   g_statusProvider = provider;
 }
 
-#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI && FEATURE_WEB_STATUS_ENABLED
+        // == 1

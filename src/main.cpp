@@ -19,30 +19,19 @@
 #include "wdt_manager.h"
 #include "web.h"
 #include "wifi_manager.h"
+#include "switch_actuator.h"
+#include "mqtt.h"
+#include "web_status_provider.h"
 
 WiFiClient wifiClient;
 
 static DeviceController deviceController;
-
 static FanActuator* fan = nullptr;
-
-
-
-
-#include "switch_actuator.h"
 static SwitchActuator* switchActuator = nullptr;
-
-#include "mqtt.h"
-
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 static unsigned long wifi_fail_start = 0;
-#endif
-
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-#include "web_status_provider.h"
 static bool web_started = false;
 static IWebStatusProvider* statusProvider = nullptr;
-#endif
+
 
 void setup() {
   delay(2000);
@@ -72,6 +61,7 @@ void setup() {
     XLOG_INFO(CAT_MAIN, "Set provisioning mode due invalid WiFi configuration");
     system_state_set_bit(STATE_PROVISIONING);
     startProvisioning();
+    
   } else {
     wifi_manager_connect(g_configManager.getWifiSsid(), g_configManager.getWifiPassword());
 
@@ -284,8 +274,8 @@ void loop() {
     }
   }
 
-  // Кнопка сброса
-  ResetButtonStage stage = resetBtn_get_stage();
+      // Кнопка сброса
+      ResetButtonStage stage = resetBtn_get_stage();
   if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
     if (stage == STAGE_3S) {
       XLOG_WARN(CAT_MAIN, "Reset button triggered.");

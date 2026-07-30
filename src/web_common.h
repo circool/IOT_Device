@@ -150,9 +150,6 @@ void web_renderSpeedBar(char* buf, size_t size, int speed);
  */
 void webSendContent(const char* chunk, void* context);
 
-
-
-
 /**
  * @brief Отправить начало HTML-страницы
  * @param send Колбэк для отправки
@@ -200,10 +197,8 @@ void web_sendResultPage(WebSendCallback send,
  * @brief Отправить страницу AP-провизионинга (настройка WiFi)
  * @param send Колбэк для отправки
  * @param context Контекст
- * @todo Перенести этот функционал в слой провизионинга
+ * @note Только рендеринг HTML. Логика сохранения — в provisioning.
  */
 void web_sendApProvisioningPage(WebSendCallback send, void* context);
-
-
 
 #endif  // WEB_COMMON_H

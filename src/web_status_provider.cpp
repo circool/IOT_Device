@@ -76,6 +76,7 @@ const char* FanWebStatusProvider::getSensorError() const {
 
 // ----- Подключения -----
 bool FanWebStatusProvider::isMqttConnected() const {
+
 #if FEATURE_MQTT_ENABLED == 1
   if (_mqtt) {
     return _mqtt->isConnected();

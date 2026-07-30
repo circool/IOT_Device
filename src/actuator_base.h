@@ -1,3 +1,8 @@
+/**
+ * @file actuator_base.р
+ * @brief ...
+ */
+
 #ifndef ACTUATOR_BASE_H
 #define ACTUATOR_BASE_H
 
