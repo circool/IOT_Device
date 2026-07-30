@@ -1,5 +1,4 @@
 #include "wifi_manager.h"
-#include "config_manager.h"
 #include "system_state.h"
 #include "logger.h"
 
@@ -19,11 +18,16 @@ void wifi_manager_init() {
 }
 
 void wifi_manager_connect(const char* ssid, const char* password) {
+  
   if (strlen(ssid) == 0) {
     XLOG_WARN(CAT_WIFI, "No SSID configured");
     return;
   }
-  XLOG_INFO(CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET "...", ssid);
+  if (!password) {
+    password = "";
+  }
+
+  XLOG_INFO( CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET "...", ssid);
   WiFi.begin(ssid, password);
 }
 
