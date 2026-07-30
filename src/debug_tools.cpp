@@ -1,3 +1,8 @@
+/**
+ * @file debug_tools.cpp
+ * @brief Различные процедуры для отладки
+ */
+
 #include "debug_tools.h"
 #include "logger.h"
 
@@ -11,7 +16,6 @@
 
 float getChipTemperature() {
 #ifdef ESP32
-  // Простая функция из Arduino Core для ESP32-C3
   return temperatureRead();
 #else
   return -273.15f;
@@ -72,7 +76,12 @@ void print_system_info() {
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
 
+  // ================================================================
+  // ОПРЕДЕЛЕНИЕ ИМЕНИ ЧИПА
+  // ================================================================
   const char* chip_name = "Unknown";
+
+  // Пробуем определить через chip_info.model
   switch (chip_info.model) {
     case CHIP_ESP32:
       chip_name = "ESP32";
@@ -97,7 +106,26 @@ void print_system_info() {
       break;
 #endif
     default:
-      chip_name = "Unknown";
+      // ============================================================
+      // Если chip_info.model не распознан, пробуем определить по макросам
+      // ============================================================
+#if defined(CONFIG_IDF_TARGET_ESP32C6)
+      chip_name = "ESP32-C6";
+#elif defined(CONFIG_IDF_TARGET_ESP32H2)
+      chip_name = "ESP32-H2";
+#elif defined(CONFIG_IDF_TARGET_ESP32C3)
+      chip_name = "ESP32-C3";
+#elif defined(CONFIG_IDF_TARGET_ESP32S3)
+      chip_name = "ESP32-S3";
+#elif defined(CONFIG_IDF_TARGET_ESP32S2)
+      chip_name = "ESP32-S2";
+#elif defined(CONFIG_IDF_TARGET_ESP32)
+      chip_name = "ESP32";
+#elif defined(ESP32C6_DEV) || defined(ARDUINO_ESP32C6_DEV)
+      chip_name = "ESP32-C6";
+#elif defined(ESP32H2_DEV) || defined(ARDUINO_ESP32H2_DEV)
+      chip_name = "ESP32-H2";
+#endif
       break;
   }
 
@@ -136,11 +164,13 @@ void print_system_info() {
 
   bool hasWifi = (chip_info.features & CHIP_FEATURE_WIFI_BGN) != 0;
   bool hasBle = (chip_info.features & CHIP_FEATURE_BLE) != 0;
+
 #ifdef CHIP_FEATURE_IEEE802154
   bool has802154 = (chip_info.features & CHIP_FEATURE_IEEE802154) != 0;
 #else
   bool has802154 = false;
 #endif
+
 #ifdef CHIP_FEATURE_BT
   bool hasBt = (chip_info.features & CHIP_FEATURE_BT) != 0;
 #else
@@ -166,11 +196,16 @@ void print_system_info() {
   }
 
   XLOG_INFO(CAT_ALL, "Protocols: %s", protocols.c_str());
-  XLOG_INFO(CAT_ALL, "  WiFi: %s", hasWifi ? "Yes" : "No");
-  XLOG_INFO(CAT_ALL, "  BLE: %s", hasBle ? "Yes" : "No");
-  XLOG_INFO(CAT_ALL, "  IEEE 802.15.4: %s", has802154 ? "Yes" : "No");
+  XLOG_INFO(CAT_ALL, "  WiFi: " ANSI_BOLD "%s" ,
+            hasWifi ? ANSI_GREEN "Yes" ANSI_RESET
+                    : ANSI_RED "No" ANSI_RESET);
+  XLOG_INFO(CAT_ALL, "  BLE: " ANSI_BOLD "%s" ,
+            hasBle ? ANSI_GREEN "Yes" ANSI_RESET : ANSI_RED "No" ANSI_RESET);
+  XLOG_INFO(CAT_ALL, "  IEEE 802.15.4: " ANSI_BOLD "%s" ,
+            has802154 ? ANSI_GREEN "Yes" ANSI_RESET : ANSI_RED "No" ANSI_RESET);
   if (hasBt) {
-    XLOG_INFO(CAT_ALL, "  BT Classic: Yes");
+    XLOG_INFO(CAT_ALL, "  BT Classic: " ANSI_BOLD "%s" ,
+              ANSI_GREEN "Yes" ANSI_RESET);
   }
 
   float temp = getChipTemperature();
@@ -201,7 +236,13 @@ void print_system_info() {
   XLOG_INFO(CAT_ALL, "Sketch size: %u bytes", ESP.getSketchSize());
   XLOG_INFO(CAT_ALL, "Free sketch space: %u bytes", ESP.getFreeSketchSpace());
   XLOG_INFO(CAT_ALL, "Free heap: %u bytes", ESP.getFreeHeap());
-  XLOG_INFO(CAT_ALL, "Flash chip size: %u bytes", flashSize);
+  XLOG_INFO(CAT_ALL, "Flash chip size: %u bytes",
+#ifdef ESP32
+            ESP.getFlashChipSize()
+#else
+            flashSize
+#endif
+  );
   XLOG_INFO(CAT_ALL, "Firmware ver. %s", VERSION);
   XLOG_INFO(CAT_ALL, "Reset reason: %s", getResetReason());
 }
