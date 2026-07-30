@@ -2,10 +2,9 @@
 #include "config_manager.h"
 #include "system_state.h"
 #include "logger.h"
-#include "web.h"
+
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-static bool wifi_reconnecting = false;
 
 void wifi_manager_init() {
   XLOG_INFO(CAT_WIFI, "Initializing WiFi manager...");
@@ -15,19 +14,17 @@ void wifi_manager_init() {
 #if PLATFORM_ESP32C3==1
   WiFi.setTxPower(WIFI_POWER_8_5dBm); 
 #endif
-      WiFi.setAutoReconnect(true);
+  WiFi.setAutoReconnect(true);
+
 }
 
-void wifi_manager_begin() {
-  if (strlen(g_configManager.getWifiSsid()) == 0) {
+void wifi_manager_connect(const char* ssid, const char* password) {
+  if (strlen(ssid) == 0) {
     XLOG_WARN(CAT_WIFI, "No SSID configured");
     return;
   }
-  XLOG_INFO(CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET "...", g_configManager.getWifiSsid());
-  
-   WiFi.begin(
-      g_configManager.getWifiSsid(), g_configManager.getWifiPassword());
-  return;
+  XLOG_INFO(CAT_WIFI, "Connecting to " ANSI_BOLD "%s" ANSI_RESET "...", ssid);
+  WiFi.begin(ssid, password);
 }
 
 void wifi_manager_update() {
@@ -159,9 +156,6 @@ int wifi_get_rssi() {
   return WiFi.RSSI();
 }
 
-
-#endif
-
 #if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
 void wifi_start_ap(const char* ssid) {
   WiFi.setAutoReconnect(false);
@@ -205,4 +199,6 @@ void wifi_start_ap(const char* ssid) {
 void wifi_stop_ap() {
   WiFi.softAPdisconnect(true);
 }
-#endif
+
+#endif  // PROVISIONING_METHOD
+#endif  // TRANSPORT_TYPE
