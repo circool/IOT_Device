@@ -1,26 +1,45 @@
+/**
+ * @file fan_actuator.cpp
+ * @brief Управление вентилятором с ШИМ
+ * @details Поддерживает ESP32, ESP32-S2, ESP32-S3, ESP32-C3, ESP32-C6, ESP32-H2
+ */
+
 #include "fan_actuator.h"
 #include "logger.h"
+#include "settings.h"
 
 #if DEVICE_TYPE == 1
 
-// Определяем, какой API использовать для LEDC
+/**
+ * @brief Определяем, какой API LEDC использовать
+ *
+ * Старый API (ESP-IDF 4.x):   ledcSetup(), ledcAttachPin(), ledcWrite(),
+ * ledcDetachPin() Новый API (ESP-IDF 5.0+):   ledcAttach(), ledcWrite(),
+ * ledcDetach()
+ *
+ * ESP32-C6 и ESP32-H2 используют новый API.
+ * ESP32-C3 может использовать оба (зависит от версии Arduino Core).
+ */
 #if defined(ESP32)
-// Пытаемся определить по макросам платформы
+
+// ESP32-C6 и ESP32-H2 — всегда новый API
 #if defined(CONFIG_IDF_TARGET_ESP32C6) || defined(CONFIG_IDF_TARGET_ESP32H2)
-// ESP32-C6 или H2 с новым API (ESP-IDF 5.0+)
 #define USE_LEDC_NEW_API 1
+
+// ESP32-C3 — проверяем наличие ledcAttach (признак нового API)
 #elif defined(CONFIG_IDF_TARGET_ESP32C3)
-// Для ESP32-C3 проверяем, есть ли ledcAttach
 #ifdef ledcAttach
 #define USE_LEDC_NEW_API 1
 #else
 #define USE_LEDC_NEW_API 0
 #endif
+
+// Остальные ESP32 (S2, S3, обычный ESP32) — старый API
 #else
-// Остальные ESP32
 #define USE_LEDC_NEW_API 0
 #endif
-#endif
+
+#endif  // defined(ESP32)
 
 static int percentToPWMValue(int percent) {
   if (percent <= 0)
@@ -62,25 +81,26 @@ void FanActuator::init(uint8_t pin,
   _pwmActive = false;
   _startingPulseActive = false;
 
+  // ================================================================
+  // ИНИЦИАЛИЗАЦИЯ ШИМ В ЗАВИСИМОСТИ ОТ ПЛАТФОРМЫ
+  // ================================================================
 #if defined(ESP32)
 #if USE_LEDC_NEW_API == 1
-// Новый API для ESP32-C6, H2 (ESP-IDF 5.0+)
-// В некоторых версиях Arduino Core для C6 используется ledcAttach
-#ifdef ledcAttach
+  // API (ESP32-C6, ESP32-H2) 
   ledcAttach(_pin, PWM_FREQUENCY, PWM_RESOLUTION);
+  XLOG_DEBUG(CAT_FAN, "LEDC init (new API): pin=%d, freq=%d, res=%d", _pin,
+             PWM_FREQUENCY, PWM_RESOLUTION);
 #else
-  // Fallback на старый API
+  // API (ESP32, ESP32-S2, S3, C3) 
   ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcAttachPin(_pin, 0);
-#endif
-#else
-  // Старый API для ESP32, ESP32-S2, ESP32-S3, ESP32-C3
-  ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
-  ledcAttachPin(_pin, 0);
+  XLOG_DEBUG(CAT_FAN, "LEDC init (old API): pin=%d, channel=0, freq=%d, res=%d",
+             _pin, PWM_FREQUENCY, PWM_RESOLUTION);
 #endif
 #elif defined(ESP8266)
   analogWriteFreq(PWM_FREQUENCY);
   analogWriteRange(255);
+  XLOG_DEBUG(CAT_FAN, "analogWrite init: freq=%d, range=255", PWM_FREQUENCY);
 #endif
 
   _base.init(pin, relayOnLevel, bootState, delaySeconds, maxOnTime);
@@ -95,14 +115,14 @@ bool FanActuator::getState() const {
 }
 
 void FanActuator::update() {
-  // Стартовый импульс
+  
   if (_startingPulseActive) {
     if (millis() - _startingPulseStart >= PWM_STARTING) {
       if (_currentSpeed <= 0) {
         _base.set(false, false);
         applySpeed(0);
         _startingPulseActive = false;
-        XLOG_DEBUG(CAT_FAN, "Start pulse done, speed 0% -> OFF");
+        XLOG_DEBUG(CAT_FAN, "Start pulse done, speed 0%% -> OFF");
       } else {
         applySpeed(_currentSpeed);
         _startingPulseActive = false;
@@ -112,7 +132,6 @@ void FanActuator::update() {
     return;
   }
 
-  // Передаём текущие настройки в базовый класс
   _base.update(_delaySeconds, _maxOnTime);
 }
 
@@ -154,7 +173,10 @@ void FanActuator::updateConfig(bool adaptiveMode,
   _maxOnTime = maxOnTime;
 }
 
-// Статические колбэки
+// ============================================================================
+// СТАТИЧЕСКИЕ КОЛБЭКИ
+// ============================================================================
+
 void FanActuator::onSetPhysicalCallback(void* context, bool on) {
   FanActuator* self = (FanActuator*)context;
   if (!self)
@@ -162,6 +184,7 @@ void FanActuator::onSetPhysicalCallback(void* context, bool on) {
 
   if (on) {
     if (self->_currentSpeed < 100 && self->_currentSpeed > 0) {
+      // Включаем на полную для стартового импульса
       self->applySpeed(100);
       self->_startingPulseActive = true;
       self->_startingPulseStart = millis();
@@ -192,7 +215,10 @@ void FanActuator::onManualCommandCallback(void* context) {
   XLOG_INFO(CAT_FAN, "Manual command received");
 }
 
-// Приватные методы PWM
+// ============================================================================
+// PWM УПРАВЛЕНИЕ
+// ============================================================================
+
 void FanActuator::applySpeed(int percent) {
   if (percent <= 0) {
     disablePWM();
@@ -208,14 +234,8 @@ void FanActuator::applySpeed(int percent) {
     enablePWM();
 #if defined(ESP32)
 #if USE_LEDC_NEW_API == 1
-// Новый API
-#ifdef ledcWrite
     ledcWrite(_pin, pwmValue);
 #else
-    ledcWrite(0, pwmValue);
-#endif
-#else
-    // Старый API
     ledcWrite(0, pwmValue);
 #endif
 #elif defined(ESP8266)
@@ -227,22 +247,20 @@ void FanActuator::applySpeed(int percent) {
 void FanActuator::enablePWM() {
   if (_pwmActive)
     return;
+
 #if defined(ESP32)
 #if USE_LEDC_NEW_API == 1
-// Новый API
-#ifdef ledcAttach
+  // ===== НОВЫЙ API: ledcAttach(pin, freq, resolution) =====
   ledcAttach(_pin, PWM_FREQUENCY, PWM_RESOLUTION);
+  XLOG_DEBUG(CAT_FAN, "PWM enabled (new API): pin=%d", _pin);
 #else
+  // ===== СТАРЫЙ API: ledcSetup + ledcAttachPin =====
   ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
   ledcAttachPin(_pin, 0);
-#endif
-#else
-  // Старый API
-  ledcSetup(0, PWM_FREQUENCY, PWM_RESOLUTION);
-  ledcAttachPin(_pin, 0);
+  XLOG_DEBUG(CAT_FAN, "PWM enabled (old API): pin=%d, channel=0", _pin);
 #endif
 #elif defined(ESP8266)
-  // Для ESP8266 не требуется отдельного включения
+  // ESP8266 не требует отдельного включения PWM
 #endif
   _pwmActive = true;
 }
@@ -250,22 +268,23 @@ void FanActuator::enablePWM() {
 void FanActuator::disablePWM() {
   if (!_pwmActive)
     return;
+
 #if defined(ESP32)
 #if USE_LEDC_NEW_API == 1
-// Новый API
-#ifdef ledcDetach
+  // ===== НОВЫЙ API: ledcDetach(pin) =====
   ledcDetach(_pin);
+  XLOG_DEBUG(CAT_FAN, "PWM disabled (new API): pin=%d", _pin);
 #else
+  // ===== СТАРЫЙ API: ledcDetachPin(pin) =====
   ledcDetachPin(_pin);
-#endif
-#else
-  // Старый API
-  ledcDetachPin(_pin);
+  XLOG_DEBUG(CAT_FAN, "PWM disabled (old API): pin=%d", _pin);
 #endif
 #elif defined(ESP8266)
+  // ESP8266: отключаем analogWrite
   analogWrite(_pin, 1024);
   delayMicroseconds(10);
   pinMode(_pin, OUTPUT);
+  XLOG_DEBUG(CAT_FAN, "PWM disabled (ESP8266): pin=%d", _pin);
 #endif
   _pwmActive = false;
 }
