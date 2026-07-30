@@ -27,7 +27,7 @@ void led_set_mode(LedMode mode) {
             "ON (Pramanent)",
             "Morze E - No WiFi or Reset BTN pressed 1 sec (1 blink)",
             "Morze I - No MQTT or Reset BTN pressed 2 sec (2 blink)",
-            "Morze S - Privisioning mode or Reset BTN pressed 3 sec (3 blink)",
+            "Morze S - Provisioning mode or Reset BTN pressed 3 sec (3 blink)",
             "SLOW blinks"};
         XLOG_DEBUG(CAT_LED, "Mode: %s", names[mode]);
     }
