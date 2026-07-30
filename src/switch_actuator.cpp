@@ -1,6 +1,6 @@
 #include "switch_actuator.h"
 #include "logger.h"
-
+#if DEVICE_TYPE == 3
 SwitchActuator::SwitchActuator()
     : _pin(0), _relayOnLevel(LOW), _delaySeconds(0), _maxOnTime(0) {
   _base.onSetPhysicalCallback = SwitchActuator::onSetPhysicalCallback;
@@ -52,3 +52,4 @@ void SwitchActuator::onSetPhysicalCallback(void* context, bool on) {
 void SwitchActuator::onForceStopCallback(void* context) {
   XLOG_INFO(CAT_ACTUATOR, "Force stop due to maxOnTime");
 }
+#endif

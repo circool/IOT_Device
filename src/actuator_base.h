@@ -20,7 +20,7 @@
 #ifndef RELAY_ON_LEVEL
 #define RELAY_ON_LEVEL LOW
 #endif
-
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
 /**
  * @brief Базовый класс для управления исполнительным механизмом
  * (вентилятор/выключатель)
@@ -118,5 +118,30 @@ class ActuatorBase {
   unsigned long _delayTimer;  // Время срабатывания таймера (millis)
   bool _emergencyStop = false;
 };
+#else
+// ================================================================
+// ЗАГЛУШКА ДЛЯ ТИПА 2 (АВТОНОМНЫЙ ДАТЧИК)
+// ================================================================
 
+class ActuatorBase {
+ public:
+  ActuatorBase() {}
+
+  void init(uint8_t, uint8_t, bool, int, uint32_t) {}
+  void set(bool, bool = true) {}
+  bool getState() const { return false; }
+  void update(int, uint32_t) {}
+  void forceStop() {}
+
+  unsigned long getStartTime() const { return 0; }
+  bool isDelayActive() const { return false; }
+  unsigned long getDelayTimer() const { return 0; }
+  bool isEmergencyStop() const { return false; }
+
+  void (*onSetPhysicalCallback)(void*, bool) = nullptr;
+  void (*onForceStopCallback)(void*) = nullptr;
+  void (*onManualCommandCallback)(void*) = nullptr;
+  void* callbackContext = nullptr;
+};
+#endif
 #endif

@@ -65,6 +65,7 @@ void setup() {
   sensor_init();
 
   wifi_scan_and_log(g_configManager.getWifiSsid());
+  wifi_manager_init();
 
   // Режим первоначальной настройки (провизионинг) или обычная работа
   if (strlen(g_configManager.getWifiSsid()) < 1) {
@@ -72,10 +73,8 @@ void setup() {
     system_state_set_bit(STATE_PROVISIONING);
     startProvisioning();
   } else {
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-    wifi_manager_init();
-    wifi_manager_begin();
-#endif
+    wifi_manager_connect(g_configManager.getWifiSsid(), g_configManager.getWifiPassword());
+
   }
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
@@ -239,9 +238,7 @@ void loop() {
       wifi_fail_start = millis();
     } else if (millis() - wifi_fail_start > WIFI_FALLBACK_TIMEOUT_MS) {
       system_state_set_bit(STATE_PROVISIONING);
-      XLOG_DEBUG(
-          CAT_MAIN,
-          "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
+      XLOG_DEBUG(CAT_MAIN, "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
       startProvisioning();
     }
   } else {
@@ -326,24 +323,15 @@ void loop() {
   }
   led_update();
 
-  // ===== ЖЕЛЕЗО =====
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   sensor_update();
-#endif
-
-#if DEVICE_TYPE == 1
   fan->update();
-#elif DEVICE_TYPE == 3
   switchActuator->update(g_configManager.getDelaySeconds(),
                          g_configManager.getMaxOnTime());
-#endif
 
-  // ===== БИЗНЕС-ЛОГИКА =====
   deviceController.update();
 
-  // ===== ФУНКЦИОНАЛЬНЫЕ СЛОИ =====
-  web_update();
 
+  web_update();
   // ===== КОМАНДЫ ОТ WEB (/set) =====
   if (g_webCommandPending) {
     switch (g_webCommand.type) {

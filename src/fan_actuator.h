@@ -62,7 +62,7 @@
 #define PWM_ENABLED 0
 #endif
 #endif
-
+#if DEVICE_TYPE == 1
 /**
  * @brief Управление вентилятором с поддержкой ШИМ
  *
@@ -189,5 +189,26 @@ class FanActuator {
   bool _startingPulseActive;          // Идёт ли стартовый импульс
   unsigned long _startingPulseStart;  // Время начала импульса
 };
+#else
+// Заглушка
+class FanActuator {
+ public:
+  FanActuator() {}
 
+  void init(uint8_t, uint8_t, bool, uint16_t, bool, int, uint32_t) {}
+  void update() {}
+  void set(bool, bool = true) {}
+  bool getState() const { return false; }
+  void setSpeed(int, bool = true) {}
+  int getSpeed() const { return 0; }
+  void setAdaptiveMode(bool) {}
+  bool getAdaptiveMode() const { return false; }
+  void updateConfig(bool, int, uint32_t) {}
+
+  unsigned long getStartTime() const { return 0; }
+  bool isDelayActive() const { return false; }
+  unsigned long getDelayTimer() const { return 0; }
+  bool isEmergencyStop() const { return false; }
+};
+#endif
 #endif
