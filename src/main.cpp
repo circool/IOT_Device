@@ -11,7 +11,7 @@
 #include "logger.h"
 #include "mqtt_manager.h"
 #include "provisioning_manager.h"
-#include "reset_btn.h"
+#include "reset_button_manager.h"
 #include "restart_manager.h"
 #include "settings.h"
 #include "switch_actuator.h"
@@ -33,7 +33,7 @@ static IWebStatusProvider* statusProvider = nullptr;
 
 void setup() {
   delay(2000);
-  Logger::getInstance().begin((LogLevel)XLOG_LEVEL, XLOG_CATEGORIES,
+  Logger::getInstance().init((LogLevel)XLOG_LEVEL, XLOG_CATEGORIES,
                               XLOG_USE_COLOR);
   print_system_info();
   XLOG_INFO(CAT_MAIN, "========================================");

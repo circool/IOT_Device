@@ -131,24 +131,24 @@ class Logger {
    * @param categories Битовая маска разрешённых категорий
    * @param useColor Использовать ANSI-цвета
    */
-  void begin(LogLevel level = XLOG_LEVEL_INFO,
+  void init(LogLevel level = XLOG_LEVEL_INFO,
              uint32_t categories = CAT_ALL,
              bool useColor = true);
 
   /**
    * @brief Установить уровень логирования
    */
-  void setLevel(LogLevel level);
+  void set_level(LogLevel level);
 
   /**
    * @brief Установить разрешённые категории
    */
-  void setCategories(uint32_t categories);
+  void set_categories(uint32_t categories);
 
   /**
    * @brief Включить/выключить цвета
    */
-  void setColorEnabled(bool enabled);
+  void is_enabled(bool enabled);
 
   /**
    * @brief Основной метод логирования (printf-стиль)
@@ -157,6 +157,7 @@ class Logger {
 
   /**
    * @brief Логирование готовой строки
+   * @deprecated нарушает запрет динамической памяти
    */
   void log(LogLevel level, LogCategory category, const String& message);
 

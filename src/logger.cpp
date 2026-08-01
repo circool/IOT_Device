@@ -20,7 +20,7 @@ Logger& Logger::getInstance() {
 // ПУБЛИЧНЫЕ МЕТОДЫ
 // ============================================================================
 
-void Logger::begin(LogLevel level, uint32_t categories, bool useColor) {
+void Logger::init(LogLevel level, uint32_t categories, bool useColor) {
   _currentLevel = level;
   _enabledCategories = categories;
   _useColor = useColor;
@@ -34,15 +34,15 @@ void Logger::begin(LogLevel level, uint32_t categories, bool useColor) {
       categories);
 }
 
-void Logger::setLevel(LogLevel level) {
+void Logger::set_level(LogLevel level) {
   _currentLevel = level;
 }
 
-void Logger::setCategories(uint32_t categories) {
+void Logger::set_categories(uint32_t categories) {
   _enabledCategories = categories;
 }
 
-void Logger::setColorEnabled(bool enabled) {
+void Logger::is_enabled(bool enabled) {
   _useColor = enabled;
 }
 
@@ -85,6 +85,7 @@ void Logger::log(LogLevel level,
   Serial.print(output);
 }
 
+// @deprecated нарушает запрет динамической памяти
 void Logger::log(LogLevel level, LogCategory category, const String& message) {
   if (!isEnabled(level, category))
     return;
