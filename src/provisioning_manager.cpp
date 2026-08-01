@@ -2,10 +2,10 @@
  * @file provisioning_manager.cpp
  * @brief Реализация менеджера провизионинга
  */
+#include "provisioning_manager.h"
 
 #include "config_manager.h"
 #include "logger.h"
-#include "provisioning_manager.h"
 #include "system_state.h"
 #include "wifi_manager.h"  //@deprecated - вынести wifi в wifi_manager
 

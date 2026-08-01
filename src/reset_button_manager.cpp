@@ -1,9 +1,9 @@
 /**
- * @file reset_btn.cpp
+ * @file reset_button_manager.cpp
  * @brief Реализация кнопки сброса
  */
 
-#include "reset_btn.h"
+#include "reset_button_manager.h"
 #include "logger.h"
 #include "system_state.h"
 

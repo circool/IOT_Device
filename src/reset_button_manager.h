@@ -1,5 +1,5 @@
 /**
- * @file reset_btn.h
+ * @file reset_button_manager.h
  * @brief Кнопка сброса
  * @details Обрабатывает нажатие кнопки, определяет стадию удержания.
  *          Устанавливает/снимает STATE_BUTTON_PRESSED в SystemState.
