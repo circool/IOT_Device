@@ -6,7 +6,7 @@
 .vscode/*
 *.code-workspace
 *secret*.*
-*cred*.*
+src/*cred*.*
 .DS_Store
 .disabled/*
 hidden/*
@@ -15,4 +15,3 @@ Fan/fp-info-cache
 build.log
 .openhabignore
 Fan/fp-info-cache
-!CREDENTIONS.md
