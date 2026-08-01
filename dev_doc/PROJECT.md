@@ -826,25 +826,30 @@ WEB-интерфейс предоставляет прямой доступ к �
 ```
 
 ## ДОКУМЕНТАЦИЯ
-ARCHITECTURE.md 
-TRANSPORT_ABSTRACTION.md
-ACTUATOR_SENSOR.md              
-DEVICE_TYPES.md                 
-SYSTEM_STATE.md                 
-TRANSPORT_ZIGBEE.md
-BUILD_AND_CONFIG.md             
-LED_MANAGER.md               
-TRANSPORT_MATTER.md
-CONFIG_AND_STATE.md             
-OTA_MANAGER.md                          
-TRANSPORT_MQTT.md
-DEVICE_CONTROLLER.md            
-PROVISIONING_MANAGER.md                 
-TRANSPORT_WEB.md
+|Статус|Документ|Описание|
+|-|-|-|
+|[В процессе]| PROJECT.md |Этот файл|
+|[Частично]|ADR.md |Глобальные требования к архитектурному базису и контрактам компонентов|
+|[В процессе]|ARCHITECTURE.md | Описание архитектуры|
+|[В процессе]|ORCHESTRATOR.md | Оркестратор (`main.cpp`)|
+|[-]|TRANSPORT_ABSTRACTION.md| Состояние системы (битовая маска) |
+|[-]|ACTUATOR_SENSOR.md  ||            
+|[-]|DEVICE_TYPES.md  ||               
+|[Выполнен]|SYSTEM_STATE.md     ||            
+|[-]|TRANSPORT_ZIGBEE.md||
+|[-]|BUILD_AND_CONFIG.md  ||           
+|[Выполнен]|LOGGER.md    | Логирование событий |           
+|[Выполнен]|LED_MANAGER.md |Светодиодная индикация|          
+|[]|TRANSPORT_MATTER.md||
+|[]|CONFIG_AND_STATE.md||             
+|[]|OTA_MANAGER.md   ||                       
+|[]|TRANSPORT_MQTT.md||
+|[]|DEVICE_CONTROLLER.md  ||          
+|[В процессе]|PROVISIONING_MANAGER.md |Провизионинг (первоначальная настройка)|               
+|[]|TRANSPORT_WEB.md||
+|[В процессе]|FIXME.md  | Технический долг|
 
-FIXME.md  
-
-/specifications
+dev_doc/specifications
 scpec_matter.md         
 spec_logger.md          
 spec_mqtt.md            
