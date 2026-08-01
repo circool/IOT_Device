@@ -1,13 +1,13 @@
 /**
- * @file web_templates.h
+ * @file html_templates.h
  * @brief HTML-шаблоны для веб-интерфейса
  * @details Содержит HTML-шаблоны в PROGMEM и функцию отправки страницы
  * конфигурации. Использует унифицированный рендеринг через web_common.
  * @date 2026-07-28
  */
 
-#ifndef WEB_TEMPLATES_H
-#define WEB_TEMPLATES_H
+#ifndef HTML_TEMPLATES_H
+#define HTML_TEMPLATES_H
 
 #include <Arduino.h>
 #include "config_manager.h"
@@ -629,4 +629,4 @@ inline void sendConfigPage(WebSendCallback send,
 
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
-#endif  // WEB_TEMPLATES_H
+#endif  // HTML_TEMPLATES_H

@@ -1,19 +1,18 @@
 /**
- * @file provisioning.h
+ * @file provisioning_manager.h
  * @brief Менеджер комиссионинга (первоначальная настройка)
  * @details Управляет процессом первоначальной настройки устройства:
- *          - AP-режим (WiFi точка доступа)
+ *          - AP-режим (WiFi точка доступа) — со своим HTTP-сервером
  *          - BLE-режим (ESP BLE Provisioning)
  *          - Приём WiFi-учётных данных от пользователя
- *          - Управление флагом STATE_PROVISIONING
  */
 
 #ifndef PROVISIONING_H
 #define PROVISIONING_H
 
 #include <Arduino.h>
-#include "settings.h"
 #include "logger.h"
+#include "settings.h"
 
 // ============================================================================
 // НАСТРОЙКИ ПРОВИЗИОНИНГА
@@ -62,35 +61,8 @@
 #endif
 
 // ============================================================================
-// ТИПЫ ДАННЫХ (всегда определены)
+// ТИПЫ ДАННЫХ
 // ============================================================================
-
-/**
- * @brief Метод, которым был завершён провизионинг
- */
-enum class ProvisioningMethod : uint8_t {
-  NONE = 0, /**< Не завершён */
-#if FEATURE_PROVISIONING_ENABLED == 1
-  WIFI = 1, /**< WiFi (AP или BLE) */
-#endif
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
-  ZIGBEE = 2, /**< Zigbee */
-#endif
-#if FEATURE_MATTER_ENABLED == 1
-  MATTER = 3, /**< Matter */
-#endif
-  FAILED = 4 /**< Ошибка провизионинга */
-};
-
-/**
- * @brief Состояние процесса провизионинга
- */
-enum class ProvisioningState : uint8_t {
-  IDLE = 0,      /**< Не запущен */
-  ACTIVE = 1,    /**< Активен (ожидает ввода) */
-  COMPLETED = 2, /**< Завершён успешно */
-  FAILED = 3     /**< Ошибка */
-};
 
 /**
  * @brief Данные, полученные от пользователя
@@ -114,14 +86,12 @@ struct ProvisioningData {
 #endif
 };
 
-// ============================================================================
-// ТИПЫ КОЛБЭКОВ
-// ============================================================================
-
 /**
  * @brief Колбэк при завершении провизионинга
+ * @param success true — данные получены, false — ошибка
+ * @param context Контекст, переданный при регистрации
  */
-typedef void (*ProvisioningCallback)(ProvisioningMethod method, void* context);
+typedef void (*ProvisioningCallback)(bool success, void* context);
 
 // ============================================================================
 // ПРОВИЗИОНИНГ (реализация или заглушки)
@@ -135,6 +105,10 @@ typedef void (*ProvisioningCallback)(ProvisioningMethod method, void* context);
 
 /**
  * @brief Менеджер провизионинга (синглтон)
+ * @details Управляет процессом первоначальной настройки:
+ *          - Устанавливает STATE_PROVISIONING при запуске
+ *          - Принимает данные через AP (HTTP) или BLE (события)
+ *          - Предоставляет данные через getProvisioningData()
  */
 class ProvisioningManager {
  public:
@@ -146,7 +120,7 @@ class ProvisioningManager {
 
   /**
    * @brief Запустить процесс провизионинга
-   * @param callback Колбэк при завершении (может быть nullptr)
+   * @param callback Колбэк при получении данных (success=true) или ошибке
    * @param context Контекст для колбэка
    * @return true — успешно запущен, false — уже запущен
    */
@@ -154,39 +128,22 @@ class ProvisioningManager {
 
   /**
    * @brief Периодическая обработка (вызывается в loop)
+   * @details Для AP: обновляет HTTP-сервер (обрабатывает запросы)
+   *          Для BLE: ничего не делает (работает через события)
    */
   void update();
 
   /**
-   * @brief Проверить, завершён ли провизионинг
-   * @return true — завершён (успешно или с ошибкой)
+   * @brief Получить данные провизионинга
+   * @return Указатель на данные или nullptr, если данные не получены
+   * @note После вызова состояние сбрасывается (данные возвращаются один раз)
    */
-  bool isCompleted() const;
-
-  /**
-   * @brief Получить метод, которым завершён провизионинг
-   */
-  ProvisioningMethod getCompletedBy() const;
-
-  /**
-   * @brief Получить текущее состояние провизионинга
-   */
-  ProvisioningState getState() const;
-
-  /**
-   * @brief Получить количество попыток провизионинга
-   */
-  int getRetryCount() const;
-
-  /**
-   * @brief Получить данные, полученные от пользователя
-   * @return Указатель на ProvisioningData или nullptr
-   */
-  const ProvisioningData* getData() const;
+  const ProvisioningData* getProvisioningData();
 
   /**
    * @brief Обработать полученные от пользователя данные
    * @param data Данные провизионинга
+   * @details Вызывается из AP-обработчика или BLE-колбэка
    */
   void onDataReceived(const ProvisioningData& data);
 
@@ -197,87 +154,75 @@ class ProvisioningManager {
   void onBleStatus(uint8_t status);
 
  private:
-  // ========================================================================
-  // КОНСТРУКТОРЫ (закрытые для синглтона)
-  // ========================================================================
-
   ProvisioningManager() = default;
   ~ProvisioningManager() = default;
   ProvisioningManager(const ProvisioningManager&) = delete;
   ProvisioningManager& operator=(const ProvisioningManager&) = delete;
 
-  // ========================================================================
-  // ВНУТРЕННИЕ МЕТОДЫ
-  // ========================================================================
-
+  /**
+   * @brief Выбрать метод провизионинга на основе PROVISIONING_METHOD
+   */
   void selectProvisioningMethod();
 
 #if USE_BLE_PROVISIONING == 1
+  /**
+   * @brief Запустить BLE-провизионинг
+   */
   void startBleProvisioning();
 #endif
 
 #if USE_AP_PROVISIONING == 1
+  /**
+   * @brief Запустить AP-провизионинг (точка доступа + HTTP-сервер)
+   */
   void startApProvisioning();
+
+  /**
+   * @brief Проверить, завершён ли AP-провизионинг (есть ли данные)
+   * @return true — данные получены
+   */
   bool isApComplete() const;
 #endif
 
-  // ========================================================================
-  // ДАННЫЕ
-  // ========================================================================
+  static constexpr int MAX_RETRIES = 3; /**< Максимум попыток BLE */
 
-  static constexpr int MAX_RETRIES = 3;
-
-  ProvisioningState _state = ProvisioningState::IDLE;
-  ProvisioningMethod _completedBy = ProvisioningMethod::NONE;
-  ProvisioningCallback _callback = nullptr;
-  void* _context = nullptr;
-  bool _started = false;
+  bool _started = false;                    /**< Флаг: провизионинг запущен */
+  int _retryCount = 0;                      /**< Счётчик попыток BLE */
+  ProvisioningData _data;                   /**< Данные от пользователя */
+  ProvisioningCallback _callback = nullptr; /**< Колбэк завершения */
+  void* _context = nullptr;                 /**< Контекст колбэка */
 
 #if USE_AP_PROVISIONING == 1
-  bool _apStarted = false;
+  bool _apStarted = false; /**< Флаг: AP-режим запущен */
 #endif
-
-  int _retryCount = 0;
-  ProvisioningData _data;
 };
 
 // ============================================================================
-// ГЛОБАЛЬНЫЕ ФУНКЦИИ (для удобства вызова из оркестратора)
+// ГЛОБАЛЬНЫЕ ФУНКЦИИ (обёртки для оркестратора)
 // ============================================================================
 
 /**
  * @brief Запустить провизионинг
+ * @details Удобная обёртка вокруг ProvisioningManager::begin()
  */
 void startProvisioning();
 
 /**
- * @brief Проверить, завершён ли провизионинг
- * @return true — завершён
+ * @brief Обновить состояние провизионинга
+ * @details Удобная обёртка вокруг ProvisioningManager::update()
+ *          Вызывается из оркестратора в loop()
  */
-bool isProvisioningComplete();
-
-/**
- * @brief Получить метод завершения провизионинга
- */
-ProvisioningMethod getProvisioningMethod();
-
-/**
- * @brief Получить текущее состояние провизионинга
- */
-ProvisioningState getProvisioningState();
-
-/**
- * @brief Получить количество попыток провизионинга
- */
-int getProvisioningRetryCount();
+void provisioning_update();
 
 /**
  * @brief Получить данные провизионинга
+ * @return Указатель на данные или nullptr
+ * @details Удобная обёртка вокруг ProvisioningManager::getProvisioningData()
  */
 const ProvisioningData* getProvisioningData();
 
 // ============================================================================
-// ФУНКЦИИ AP-ПРОВИЗИОНИНГА (вызываются из Web)
+// ФУНКЦИИ AP-ПРОВИЗИОНИНГА (HTTP-обработчики)
 // ============================================================================
 
 #if USE_AP_PROVISIONING == 1
@@ -310,14 +255,14 @@ void provisioning_handle_ap_save(WebServerClass* server);
 // ============================================================================
 
 /**
- * @brief Заглушка — AP-провизионинг отключён
+ * @brief Заглушка — AP-провизионинг отключён (USE_AP_PROVISIONING == 0)
  */
 inline void provisioning_send_ap_page(void* server) {
   (void)server;
 }
 
 /**
- * @brief Заглушка — AP-провизионинг отключён
+ * @brief Заглушка — AP-провизионинг отключён (USE_AP_PROVISIONING == 0)
  */
 inline void provisioning_handle_ap_save(void* server) {
   (void)server;
@@ -337,11 +282,12 @@ inline void provisioning_handle_ap_save(void* server) {
 
 /**
  * @brief Заглушка — менеджер провизионинга отключён
+ * (FEATURE_PROVISIONING_ENABLED == 0)
  */
 class ProvisioningManager {
  public:
   /**
-   * @brief Заглушка — провизионинг отключён
+   * @brief Заглушка — провизионинг отключён (FEATURE_PROVISIONING_ENABLED == 0)
    * @return Ссылка на статический экземпляр-заглушку
    */
   static ProvisioningManager& getInstance() {
@@ -350,7 +296,7 @@ class ProvisioningManager {
   }
 
   /**
-   * @brief Заглушка — провизионинг отключён
+   * @brief Заглушка — провизионинг отключён (FEATURE_PROVISIONING_ENABLED == 0)
    * @return false (запуск невозможен)
    */
   inline bool begin(ProvisioningCallback = nullptr, void* = nullptr) {
@@ -358,53 +304,27 @@ class ProvisioningManager {
   }
 
   /**
-   * @brief Заглушка — провизионинг отключён
+   * @brief Заглушка — провизионинг отключён (FEATURE_PROVISIONING_ENABLED == 0)
    */
   inline void update() {
     // Пусто
   }
 
   /**
-   * @brief Заглушка — провизионинг отключён
-   * @return true (считаем завершённым, чтобы оркестратор не ждал)
-   */
-  inline bool isCompleted() const { return true; }
-
-  /**
-   * @brief Заглушка — провизионинг отключён
-   * @return ProvisioningMethod::NONE
-   */
-  inline ProvisioningMethod getCompletedBy() const {
-    return ProvisioningMethod::NONE;
-  }
-
-  /**
-   * @brief Заглушка — провизионинг отключён
-   * @return ProvisioningState::IDLE
-   */
-  inline ProvisioningState getState() const { return ProvisioningState::IDLE; }
-
-  /**
-   * @brief Заглушка — провизионинг отключён
-   * @return 0
-   */
-  inline int getRetryCount() const { return 0; }
-
-  /**
-   * @brief Заглушка — провизионинг отключён
+   * @brief Заглушка — провизионинг отключён (FEATURE_PROVISIONING_ENABLED == 0)
    * @return nullptr
    */
-  inline const ProvisioningData* getData() const { return nullptr; }
+  inline const ProvisioningData* getProvisioningData() { return nullptr; }
 
   /**
-   * @brief Заглушка — провизионинг отключён
+   * @brief Заглушка — провизионинг отключён (FEATURE_PROVISIONING_ENABLED == 0)
    */
   inline void onDataReceived(const ProvisioningData&) {
     // Пусто
   }
 
   /**
-   * @brief Заглушка — провизионинг отключён
+   * @brief Заглушка — провизионинг отключён (FEATURE_PROVISIONING_ENABLED == 0)
    */
   inline void onBleStatus(uint8_t) {
     // Пусто
@@ -422,9 +342,7 @@ class ProvisioningManager {
 // ============================================================================
 
 /**
- * @brief Заглушка — провизионинг отключён
- * @note В реальной реализации: XLOG_INFO(CAT_PROVISIONING, "Starting AP + BLE
- * provisioning") и т.д.
+ * @brief Заглушка — провизионинг отключён (FEATURE_PROVISIONING_ENABLED == 0)
  */
 inline void startProvisioning() {
   XLOG_WARN(CAT_PROVISIONING,
@@ -432,61 +350,18 @@ inline void startProvisioning() {
 }
 
 /**
- * @brief Заглушка — провизионинг отключён
- * @return true (считаем завершённым, чтобы оркестратор не ждал)
+ * @brief Заглушка — провизионинг отключён (FEATURE_PROVISIONING_ENABLED == 0)
  */
-inline bool isProvisioningComplete() {
-  return true;
+inline void provisioning_update() {
+  // Пусто
 }
 
 /**
- * @brief Заглушка — провизионинг отключён
- * @return ProvisioningMethod::NONE
- */
-inline ProvisioningMethod getProvisioningMethod() {
-  return ProvisioningMethod::NONE;
-}
-
-/**
- * @brief Заглушка — провизионинг отключён
- * @return ProvisioningState::IDLE
- */
-inline ProvisioningState getProvisioningState() {
-  return ProvisioningState::IDLE;
-}
-
-/**
- * @brief Заглушка — провизионинг отключён
- * @return 0
- */
-inline int getProvisioningRetryCount() {
-  return 0;
-}
-
-/**
- * @brief Заглушка — провизионинг отключён
+ * @brief Заглушка — провизионинг отключён (FEATURE_PROVISIONING_ENABLED == 0)
  * @return nullptr
  */
 inline const ProvisioningData* getProvisioningData() {
   return nullptr;
-}
-
-// ============================================================================
-// AP-ФУНКЦИИ — ЗАГЛУШКИ
-// ============================================================================
-
-/**
- * @brief Заглушка — AP-провизионинг отключён
- */
-inline void provisioning_send_ap_page(void* server) {
-  (void)server;
-}
-
-/**
- * @brief Заглушка — AP-провизионинг отключён
- */
-inline void provisioning_handle_ap_save(void* server) {
-  (void)server;
 }
 
 #endif  // FEATURE_PROVISIONING_ENABLED

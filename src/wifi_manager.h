@@ -1,3 +1,8 @@
+/**
+ * @file wifi_manager.h
+ * @brief 
+ */
+ 
 #ifndef WIFI_H
 #define WIFI_H
 

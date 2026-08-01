@@ -11,7 +11,7 @@
 #include "wifi_manager.h"
 
 #if FEATURE_MQTT_ENABLED == 1
-#include "mqtt.h"
+#include "mqtt_manager.h"
 #endif
 
 // ============================================================================

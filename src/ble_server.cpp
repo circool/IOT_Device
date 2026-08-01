@@ -1,6 +1,6 @@
 #include "ble_server.h"
 #include "logger.h"
-#include "provisioning.h"
+#include "provisioning_manager.h"
 #include "settings.h"
 
 #ifdef ESP32

@@ -1,11 +1,11 @@
 /**
- * @file led.h
+ * @file led_manager.h
  * @brief Управление светодиодной индикацией (тупой исполнитель)
  * @details Получает готовый режим через led_set_mode() и применяет его.
  */
 
-#ifndef LED_H
-#define LED_H
+#ifndef LED_MANAGER_H
+#define LED_MANAGER_H
 
 #include "settings.h"
 
@@ -73,4 +73,4 @@ inline void led_update() {}
 
 #endif  // FEATURE_LED_ENABLED
 
-#endif  // LED_H
+#endif  // LED_MANAGER_H

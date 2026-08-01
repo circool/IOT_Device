@@ -1,11 +1,11 @@
 
 
 /**
- * @file led.cpp
+ * @file led_manager.cpp
  * @brief Реализация управления светодиодной индикацией
  */
 
-#include "led.h"
+#include "led_manager.h"
 #include <Arduino.h>
 #include "logger.h"
 

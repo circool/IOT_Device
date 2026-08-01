@@ -1,5 +1,5 @@
 /**
- * @file web.h
+ * @file web_manager.h
  * @brief Веб-интерфейс устройства
  * @details HTTP-сервер для управления и настройки устройства.
  *          Работает только при TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI.

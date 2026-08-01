@@ -1,3 +1,9 @@
+/**
+ * @file wifi_manager.h
+ * @brief Менеджер соединения WiFi
+ * @details 
+ */
+
 #include "wifi_manager.h"
 #include "system_state.h"
 #include "logger.h"

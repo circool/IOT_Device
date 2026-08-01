@@ -154,12 +154,12 @@
 #endif
 
 /**
- * @brief Выключить веб-интерфейс по умолчанию
+ * @brief Включить веб-интерфейс по умолчанию
  * @details Требует TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI (WIFI)
  *          Может работать одновременно с FEATURE_MQTT_ENABLED
  */
 #ifndef FEATURE_WEB_STATUS_ENABLED
-#define FEATURE_WEB_STATUS_ENABLED 0
+#define FEATURE_WEB_STATUS_ENABLED 1
 #endif
 
 /**
@@ -187,7 +187,7 @@
 /**
  * @brief Включить светодиодную индикацию
  * @details Если 0 — весь код индикации исключается.
- *          Пин и инверсия определяются в led.h
+ *          Пин и инверсия определяются в led_manager.h
  */
 #ifndef FEATURE_LED_ENABLED
 #define FEATURE_LED_ENABLED 1

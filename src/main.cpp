@@ -7,21 +7,20 @@
 #include "debug_tools.h"
 #include "device_controller.h"
 #include "fan_actuator.h"
-#include "led.h"
+#include "led_manager.h"
 #include "logger.h"
-#include "mqtt.h"
-#include "provisioning.h"
+#include "mqtt_manager.h"
+#include "provisioning_manager.h"
 #include "reset_btn.h"
 #include "restart_manager.h"
 #include "settings.h"
+#include "switch_actuator.h"
 #include "system_state.h"
 #include "transport_factory.h"
 #include "wdt_manager.h"
-#include "web.h"
-#include "wifi_manager.h"
-#include "switch_actuator.h"
-#include "mqtt.h"
+#include "web_manager.h"
 #include "web_status_provider.h"
+#include "wifi_manager.h"
 
 WiFiClient wifiClient;
 
@@ -31,7 +30,6 @@ static SwitchActuator* switchActuator = nullptr;
 static unsigned long wifi_fail_start = 0;
 static bool web_started = false;
 static IWebStatusProvider* statusProvider = nullptr;
-
 
 void setup() {
   delay(2000);
@@ -56,15 +54,15 @@ void setup() {
   wifi_scan_and_log(g_configManager.getWifiSsid());
   wifi_manager_init();
 
-  // Режим первоначальной настройки (провизионинг) или обычная работа
+  // =========================================================================
+  // РЕЖИМ ПРОВИЗИОНИНГА ИЛИ ОБЫЧНАЯ РАБОТА
+  // =========================================================================
   if (strlen(g_configManager.getWifiSsid()) < 1) {
     XLOG_INFO(CAT_MAIN, "Set provisioning mode due invalid WiFi configuration");
-    system_state_set_bit(STATE_PROVISIONING);
-    startProvisioning();
-    
+    startProvisioning();  // ← менеджер сам установит STATE_PROVISIONING
   } else {
-    wifi_manager_connect(g_configManager.getWifiSsid(), g_configManager.getWifiPassword());
-
+    wifi_manager_connect(g_configManager.getWifiSsid(),
+                         g_configManager.getWifiPassword());
   }
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
@@ -72,7 +70,6 @@ void setup() {
   fan = new FanActuator();
   if (fan == nullptr) {
     XLOG_ERROR(CAT_MAIN, "Failed to allocate FanActuator!");
-    // Не блокируем, просто падаем дальше — но с логом
   } else {
     XLOG_INFO(CAT_MAIN, "FanActuator allocated successfully!");
     fan->init(
@@ -92,7 +89,7 @@ void setup() {
   statusProvider = new SensorWebStatusProvider(&mqttManager);
 #else
   statusProvider = new SensorWebStatusProvider();
-#endif  // FEATURE_MQTT_ENABLED
+#endif
 
 #elif DEVICE_TYPE == 3
   switchActuator = new SwitchActuator();
@@ -104,8 +101,8 @@ void setup() {
   statusProvider = new SwitchWebStatusProvider(switchActuator, &mqttManager);
 #else
   statusProvider = new SwitchWebStatusProvider(switchActuator);
-#endif  // FEATURE_MQTT_ENABLED
-#endif  // DEVICE_TYPE == 3
+#endif
+#endif
 
   web_registerStatusProvider(statusProvider);
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
@@ -133,7 +130,6 @@ void setup() {
         if (need_save) {
           g_configManager.save();
         }
-        // Публикация через Transport
         if (g_transport && g_transport->isConnected()) {
           g_transport->publishState(state->is_on);
 #if DEVICE_TYPE == 1
@@ -144,7 +140,7 @@ void setup() {
         }
       });
 
-  // ===== MQTT КОЛБЭКИ (после инициализации DeviceController) =====
+  // ===== MQTT КОЛБЭКИ =====
 #if FEATURE_MQTT_ENABLED == 1
   mqttManager.onState(
       [](bool value, void* context) {
@@ -222,14 +218,17 @@ void loop() {
 
   uint16_t bits = system_state_get_bits();
 
-  // Переход в режим провизионинга при потере соединения WiFi
+  // =========================================================================
+  // ПЕРЕХОД В РЕЖИМ ПРОВИЗИОНИНГА ПРИ ПОТЕРЕ WIFI
+  // =========================================================================
   if (!(bits & STATE_WIFI_OK) && !(bits & STATE_PROVISIONING)) {
     if (wifi_fail_start == 0) {
       wifi_fail_start = millis();
     } else if (millis() - wifi_fail_start > WIFI_FALLBACK_TIMEOUT_MS) {
-      system_state_set_bit(STATE_PROVISIONING);
-      XLOG_DEBUG(CAT_MAIN, "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
-      startProvisioning();
+      XLOG_DEBUG(
+          CAT_MAIN,
+          "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
+      startProvisioning();  // ← МЕНЕДЖЕР САМ УСТАНОВИТ STATE_PROVISIONING
     }
   } else {
     wifi_fail_start = 0;
@@ -241,41 +240,32 @@ void loop() {
 #endif
   }
 
-  // Провизионинг
   if (system_state_has_bit(STATE_PROVISIONING)) {
     ProvisioningManager::getInstance().update();
 
-    if (isProvisioningComplete()) {
-      auto method = getProvisioningMethod();
+    const auto* data = getProvisioningData();
 
-      if (method == ProvisioningMethod::FAILED) {
-        XLOG_ERROR(CAT_MAIN, "Provisioning FAILED!");
+    if (data && data->type == 0 && strlen(data->wifiSsid) > 0) {
+      XLOG_INFO(CAT_MAIN, "Provisioning complete! SSID: %s", data->wifiSsid);
+
+      g_configManager.setDefaults();
+      g_configManager.setWifiSsid(data->wifiSsid);
+      g_configManager.setWifiPassword(data->wifiPassword);
+
+      if (g_configManager.save()) {
+        system_state_clear_bit(STATE_PROVISIONING);
+        restart_request(500);
       } else {
-        const auto* data = ProvisioningManager::getInstance().getData();
-
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-        if (data && strlen(data->wifiSsid) > 0) {
-          XLOG_INFO(CAT_MAIN, "Provisioning complete! SSID: %s",
-                    data->wifiSsid);
-
-          g_configManager.setDefaults();
-          g_configManager.setWifiSsid(data->wifiSsid);
-          g_configManager.setWifiPassword(data->wifiPassword);
-
-          if (g_configManager.save()) {
-            system_state_clear_bit(STATE_PROVISIONING);
-            restart_request(500);
-          } else {
-            XLOG_ERROR(CAT_MAIN, "Failed to save config!");
-          }
-        }
-#endif
+        XLOG_ERROR(CAT_MAIN, "Failed to save config!");
       }
     }
+  } else {
+    // TODO> web_update();
   }
-
-      // Кнопка сброса
-      ResetButtonStage stage = resetBtn_get_stage();
+  // =========================================================================
+  // КНОПКА СБРОСА
+  // =========================================================================
+  ResetButtonStage stage = resetBtn_get_stage();
   if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
     if (stage == STAGE_3S) {
       XLOG_WARN(CAT_MAIN, "Reset button triggered.");
@@ -287,7 +277,9 @@ void loop() {
     }
   }
 
-  // Индикатор LED
+  // =========================================================================
+  // LED ИНДИКАЦИЯ
+  // =========================================================================
   if (bits & STATE_RESTART) {
     led_set_mode(LED_OFF);
   } else if (bits & STATE_EMERGENCY) {
@@ -313,16 +305,25 @@ void loop() {
   }
   led_update();
 
+  // =========================================================================
+  // ОБНОВЛЕНИЕ СЛОЁВ
+  // =========================================================================
   sensor_update();
-  fan->update();
-  switchActuator->update(g_configManager.getDelaySeconds(),
-                         g_configManager.getMaxOnTime());
-
+  if (fan)
+    fan->update();
+  if (switchActuator)
+    switchActuator->update(g_configManager.getDelaySeconds(),
+                           g_configManager.getMaxOnTime());
   deviceController.update();
 
-
+  // =========================================================================
+  // HTTP-СЕРВЕРЫ (ОБА!)
+  // =========================================================================
   web_update();
-  // ===== КОМАНДЫ ОТ WEB (/set) =====
+
+  // =========================================================================
+  // КОМАНДЫ ОТ WEB (/set)
+  // =========================================================================
   if (g_webCommandPending) {
     switch (g_webCommand.type) {
       case CMD_STATE:
@@ -338,7 +339,9 @@ void loop() {
     g_webCommandPending = false;
   }
 
-  // ===== СБРОС НАСТРОЕК ОТ WEB (/resetall) =====
+  // =========================================================================
+  // СБРОС НАСТРОЕК ОТ WEB (/resetall)
+  // =========================================================================
   if (g_webRestartPending) {
     g_configManager.reset();
     g_webRestartPending = false;

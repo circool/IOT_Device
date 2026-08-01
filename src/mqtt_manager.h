@@ -1,10 +1,10 @@
 /**
- * @file mqtt.h
- * @brief MQTT транспорт для умного дома
+ * @file mqtt_manager.h
+ * @brief MQTT менеджер
  */
 
-#ifndef MQTT_H
-#define MQTT_H
+#ifndef MQTT_MANAGER_H
+#define MQTT_MANAGER_H
 
 #include <Arduino.h>
 #include <PubSubClient.h>
@@ -297,4 +297,4 @@ extern MQTTManager mqttManager;
 
 #endif  // FEATURE_MQTT_ENABLED == 1
 
-#endif  // MQTT_H
+#endif  // MQTT_MANAGER_H

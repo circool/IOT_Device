@@ -217,7 +217,7 @@ src/
 ├── system_state.h/cpp          # Состояние системы (битовая маска)
 ├── restart_manager.h/cpp       # Менеджер перезагрузок
 ├── logger.h/cpp                # Логирование
-├── led.h/cpp                   # LED (тупой исполнитель)
+├── led_manager.h/cpp                   # LED (тупой исполнитель)
 ├── wdt_manager.h/cpp           # Watchdog таймер
 ├── config_manager.h/cpp        # Менеджер настроек
 ├── reset_btn.h/cpp             # Кнопка сброса
@@ -226,13 +226,13 @@ src/
 ├── actuator_base.h/cpp         # Базовый класс исполнительного механизма
 ├── fan_actuator.h/cpp          # Управление вентилятором
 ├── switch_actuator.h/cpp       # Управление выключателем
-├── mqtt.h/cpp                  # MQTT-клиент
-├── web.h/cpp                   # Веб-интерфейс
+├── mqtt_manager.h/cpp                  # MQTT-клиент
+├── web_manager.h/cpp                   # Веб-интерфейс
 ├── ota.h/cpp                   # OTA-обновления
 ├── provisioning/               # Модуль комиссионинга
-│   ├── provisioning.h/cpp
+│   ├── provisioning_manager.h/cpp
 │   └── ble_server.h/cpp
-└── web_templates.h             # HTML-шаблоны
+└── html_templates.h             # HTML-шаблоны
 ```
 
 ## Техническая информация
@@ -516,7 +516,7 @@ WEB-интерфейс предоставляет прямой доступ к �
 ### logger.h/cpp
 **Система логирования.** Вывод в Serial с фильтрацией по уровню и категориям. Поддерживает цветной вывод.
 
-### led.h/cpp
+### led_manager.h/cpp
 **Светодиодная индикация.** Тупой исполнитель. Получает готовый режим через `led_set_mode()`.
 
 ### wdt_manager.h/cpp
@@ -540,16 +540,16 @@ WEB-интерфейс предоставляет прямой доступ к �
 ### wifi_manager.h/cpp
 **WiFi-подключение.** STA и AP режимы, мониторинг, fallback. Управляет `STATE_WIFI_OK`.
 
-### mqtt.h/cpp
+### mqtt_manager.h/cpp
 **MQTT-клиент.** Подключение к брокеру, публикация, приём команд. Управляет `STATE_MQTT_OK`.
 
-### web.h/cpp
+### web_manager.h/cpp
 **Веб-интерфейс.** HTTP-сервер для управления и настройки.
 
 ### ota.h/cpp
 **OTA-обновления.** Обновление прошивки через веб-интерфейс.
 
-### provisioning.h/cpp
+### provisioning_manager.h/cpp
 **Менеджер комиссионинга.** Управление BLE и AP настройкой. Управляет `STATE_PROVISIONING`.
 
 ### ble_server.h/cpp
@@ -665,14 +665,14 @@ WEB-интерфейс предоставляет прямой доступ к �
 | 4 | **SystemState** | `system_state.h/cpp` | ✅ ГОТОВ | Битовая маска, новый слой |
 | 5 | **RestartManager** | `restart_manager.h/cpp` | ✅ ГОТОВ | Новый слой |
 | 6 | **ResetButton** | `reset_btn.h/cpp` | ✅ ГОТОВ | Переработан |
-| 7 | **LED** | `led.h/cpp` | ✅ ГОТОВ | Тупой исполнитель |
+| 7 | **LED** | `led_manager.h/cpp` | ✅ ГОТОВ | Тупой исполнитель |
 | 8 | **Sensor** | `sensor.h/cpp` | ⏳ ОЖИДАЕТ | |
 | 9 | **WiFi** | `wifi_manager.h/cpp` | ✅ ГОТОВ | |
 | 10 | **Actuator (Fan)** | `fan_actuator.h/cpp` | ⏳ ОЖИДАЕТ | |
 | 11 | **Actuator (Switch)** | `switch_actuator.h/cpp` | ⏳ ОЖИДАЕТ | |
-| 12 | **Transport (MQTT)** | `mqtt.h/cpp` | ⏳ ОЖИДАЕТ | |
-| 13 | **Web** | `web.h/cpp` | ✅ ФУНКЦИОНАЛ ГОТОВ, НУЖДАЕТСЯ В ПОЛИРОВКЕ  | |
-| 14 | **Provisioning** | `provisioning.h/cpp` | ✅ ГОТОВ  | |
+| 12 | **Transport (MQTT)** | `mqtt_manager.h/cpp` | ⏳ ОЖИДАЕТ | |
+| 13 | **Web** | `web_manager.h/cpp` | ✅ ФУНКЦИОНАЛ ГОТОВ, НУЖДАЕТСЯ В ПОЛИРОВКЕ  | |
+| 14 | **Provisioning** | `provisioning_manager.h/cpp` | ✅ ГОТОВ  | |
 | 15 | **BLE Server** | `ble_server.h/cpp` | ✅ ГОТОВ | |
 | 16 | **OTA** | `ota.h/cpp` | ⏳ ОЖИДАЕТ | |
 
@@ -833,13 +833,13 @@ DEVICE_TYPES.md
 SYSTEM_STATE.md                 
 TRANSPORT_ZIGBEE.md
 BUILD_AND_CONFIG.md             
-LED_INDICATION.md               
+LED_MANAGER.md               
 TRANSPORT_MATTER.md
 CONFIG_AND_STATE.md             
-OTA.md                          
+OTA_MANAGER.md                          
 TRANSPORT_MQTT.md
 DEVICE_CONTROLLER.md            
-PROVISIONING.md                 
+PROVISIONING_MANAGER.md                 
 TRANSPORT_WEB.md
 
 FIXME.md  

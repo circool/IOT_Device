@@ -1,20 +1,20 @@
 /**
- * @file web.cpp
+ * @file web_manager.cpp
  * @brief Реализация веб-интерфейса
  * @date 2026-07-28
  */
 
-#include "web.h"
+#include "web_manager.h"
 #include <cstring>
 #include "config_manager.h"
 #include "logger.h"
 #include "ota.h"
-#include "provisioning.h"
+#include "provisioning_manager.h"
 #include "sensor.h"
 #include "settings.h"
 #include "system_state.h"
 #include "web_common.h"
-#include "web_templates.h"
+#include "html_templates.h"
 #include "wifi_manager.h"
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI && FEATURE_WEB_STATUS_ENABLED == 1

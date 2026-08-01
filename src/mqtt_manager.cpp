@@ -1,10 +1,10 @@
 /**
- * @file mqtt.cpp
+ * @file mqtt_manager.cpp
  * @brief Реализация MQTTManager
  */
 
-#include "mqtt.h"
 #include "logger.h"
+#include "mqtt_manager.h"
 #include "system_state.h"
 
 #if FEATURE_MQTT_ENABLED == 1

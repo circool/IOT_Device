@@ -1,5 +1,11 @@
-#ifndef ZIGBEE_H
-#define ZIGBEE_H
+/**
+ * @file zigbee_manager.h
+ * @brief
+ */
+
+ 
+#ifndef ZIGBEE_MANAGER_H
+#define ZIGBEE_MANAGER_H
 
 #include <Arduino.h>
 #include "settings.h"
@@ -288,4 +294,4 @@ extern ZigBeeManager zigbeeManager;
 
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
 
-#endif  // ZIGBEE_H
+#endif  // ZIGBEE_MANAGER_H

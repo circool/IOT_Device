@@ -576,12 +576,12 @@ build_flags =
 ```
 ├── main.cpp           # Основной цикл
 ├── config.h/cpp       # Настройки и EEPROM
-├── mqtt.h/cpp         # MQTT клиент
-├── web.h/cpp          # Веб-сервер
+├── mqtt_manager.h/cpp         # MQTT клиент
+├── web_manager.h/cpp          # Веб-сервер
 ├── sensor.h/cpp       # Датчики
 ├── fan.h/cpp          # Управление вентилятором
 ├── switch.h/cpp       # Управление выключателем
-├── led.h/cpp          # LED индикация
+├── led_manager.h/cpp          # LED индикация
 ├── ansi.h             # Цветной вывод в Serial
 ├── web_strings.h      # HTML строки
 └── platformio.ini     # Конфигурация сборки

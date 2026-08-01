@@ -5,7 +5,7 @@
  */
 
 #include "web_common.h"
-#include "web_templates.h"
+#include "html_templates.h"
 
 #include <cstring>
 #include "logger.h"

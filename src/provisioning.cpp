@@ -1,13 +1,13 @@
 /**
- * @file provisioning.cpp
+ * @file provisioning_manager.cpp
  * @brief Реализация менеджера провизионинга
  */
 
-#include "provisioning.h"
 #include "config_manager.h"
 #include "logger.h"
+#include "provisioning_manager.h"
 #include "system_state.h"
-#include "wifi_manager.h"
+#include "wifi_manager.h"  //@deprecated - вынести wifi в wifi_manager
 
 #if FEATURE_PROVISIONING_ENABLED == 1
 
@@ -26,41 +26,29 @@ typedef ESP8266WebServer WebServerClass;
 typedef WebServer WebServerClass;
 #endif
 
-// ============================================================================
-// СТАТИЧЕСКИЕ ДАННЫЕ ДЛЯ HTTP-СЕРВЕРА AP-ПРОВИЗИОНИНГА
-// ============================================================================
-
 static WebServerClass* _apServer = nullptr;
 static bool _apServerStarted = false;
 
-// ============================================================================
-// СТАТИЧЕСКИЕ ФУНКЦИИ ДЛЯ HTTP-СЕРВЕРА (НЕ МЕТОДЫ КЛАССА!)
-// ============================================================================
-
 static void startApServer() {
-  if (_apServerStarted) {
-    XLOG_DEBUG(CAT_PROVISIONING, "AP server already running");
+  if (_apServerStarted)
+    XLOG_WARN(CAT_PROVISIONING, "AP server already running");
     return;
-  }
 
   XLOG_DEBUG(CAT_PROVISIONING, "Creating AP HTTP server on port 80");
 
   _apServer = new WebServerClass(80);
-
   if (!_apServer) {
     XLOG_ERROR(CAT_PROVISIONING, "Failed to create AP server");
     return;
   }
 
-  // ===== МАРШРУТЫ =====
   _apServer->on("/", []() {
     XLOG_DEBUG(CAT_PROVISIONING, "GET / - serving AP provisioning page");
     web_sendApProvisioningPage(
         [](const char* chunk, void* context) {
           WebServerClass* srv = static_cast<WebServerClass*>(context);
-          if (srv && chunk) {
+          if (srv && chunk)
             srv->sendContent(chunk);
-          }
         },
         _apServer);
   });
@@ -90,10 +78,6 @@ static void updateApServer() {
   }
 }
 
-static bool isApServerRunning() {
-  return _apServerStarted;
-}
-
 #endif  // USE_AP_PROVISIONING
 
 #if USE_BLE_PROVISIONING == 1
@@ -108,11 +92,6 @@ static BleProvisioningServer* g_bleServer = nullptr;
 static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
   (void)context;
   auto& prov = ProvisioningManager::getInstance();
-
-  if (prov.isCompleted()) {
-    XLOG_DEBUG(CAT_PROVISIONING, "Already completed, ignoring BLE");
-    return;
-  }
 
   if (!bleConfig) {
     XLOG_ERROR(CAT_PROVISIONING, "BLE config is null!");
@@ -129,15 +108,13 @@ static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
   strncpy(data.wifiSsid, bleConfig->wifiSsid, sizeof(data.wifiSsid) - 1);
-  data.wifiSsid[sizeof(data.wifiSsid) - 1] = '\0';
   strncpy(data.wifiPassword, bleConfig->wifiPassword,
           sizeof(data.wifiPassword) - 1);
-  data.wifiPassword[sizeof(data.wifiPassword) - 1] = '\0';
 #endif
 
   prov.onDataReceived(data);
 }
-#endif  // USE_BLE_PROVISIONING
+#endif
 
 // ============================================================================
 // PROVISIONING MANAGER — РЕАЛИЗАЦИЯ
@@ -159,76 +136,38 @@ bool ProvisioningManager::begin(ProvisioningCallback callback, void* context) {
   _callback = callback;
   _context = context;
   _started = true;
-  _state = ProvisioningState::IDLE;
   _retryCount = 0;
-  _completedBy = ProvisioningMethod::NONE;
   memset(&_data, 0, sizeof(_data));
 
 #if USE_AP_PROVISIONING == 1
   _apStarted = false;
 #endif
 
+  system_state_set_bit(STATE_PROVISIONING);
   selectProvisioningMethod();
   return true;
 }
 
 void ProvisioningManager::update() {
-  if (_state == ProvisioningState::COMPLETED ||
-      _state == ProvisioningState::FAILED) {
-    return;
-  }
-
-  // ================================================================
-  // ОБНОВЛЯЕМ AP-СЕРВЕР (ЕСЛИ ЗАПУЩЕН)
-  // ================================================================
+  
 #if USE_AP_PROVISIONING == 1
   updateApServer();
 #endif
+  // BLE: НЕ ТРЕБУЕТ update() — работает через события
+}
 
-  // ================================================================
-  // ПРОВЕРЯЕМ ЗАВЕРШЕНИЕ AP-ПРОВИЗИОНИНГА
-  // ================================================================
-#if USE_AP_PROVISIONING == 1
-  if (_apStarted && system_state_has_bit(STATE_PROVISIONING)) {
-    if (isApComplete()) {
-      XLOG_DEBUG(CAT_PROVISIONING, "AP provisioning complete detected");
-      _state = ProvisioningState::COMPLETED;
-      _completedBy = ProvisioningMethod::WIFI;
-      if (_callback) {
-        _callback(ProvisioningMethod::WIFI, _context);
-      }
-    }
+const ProvisioningData* ProvisioningManager::getProvisioningData() {
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+  if (strlen(_data.wifiSsid) > 0) {
+    XLOG_DEBUG(CAT_PROVISIONING, "Provisioning data retrieved");
+    _started = false;
+    return &_data;
   }
 #endif
-}
-
-bool ProvisioningManager::isCompleted() const {
-  return _state == ProvisioningState::COMPLETED ||
-         _state == ProvisioningState::FAILED;
-}
-
-ProvisioningMethod ProvisioningManager::getCompletedBy() const {
-  return _completedBy;
-}
-
-ProvisioningState ProvisioningManager::getState() const {
-  return _state;
-}
-
-int ProvisioningManager::getRetryCount() const {
-  return _retryCount;
-}
-
-const ProvisioningData* ProvisioningManager::getData() const {
-  return &_data;
+  return nullptr;
 }
 
 void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
-  if (_state == ProvisioningState::COMPLETED) {
-    XLOG_DEBUG(CAT_PROVISIONING, "Already completed, ignoring new data");
-    return;
-  }
-
   XLOG_INFO(CAT_PROVISIONING, "Provisioning data received");
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
@@ -237,7 +176,6 @@ void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
 #endif
 
   memcpy(&_data, &data, sizeof(ProvisioningData));
-  _state = ProvisioningState::COMPLETED;
 
 #if USE_BLE_PROVISIONING == 1
   if (g_bleServer) {
@@ -248,32 +186,23 @@ void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
   }
 #endif
 
+// TODO: AP тоже останавливаем
+
   if (_callback) {
-    _callback(_completedBy, _context);
+    _callback(true, _context);
   }
 }
 
 void ProvisioningManager::onBleStatus(uint8_t status) {
-  if (_state == ProvisioningState::COMPLETED ||
-      _state == ProvisioningState::FAILED) {
-    return;
-  }
-
 #if USE_BLE_PROVISIONING == 1
   if (status == ARDUINO_EVENT_PROV_CRED_FAIL) {
     XLOG_WARN(CAT_PROVISIONING, "BLE credentials failed (attempt %d/%d)",
               _retryCount + 1, MAX_RETRIES);
     _retryCount++;
-
-    if (_retryCount < MAX_RETRIES) {
-      XLOG_INFO(CAT_PROVISIONING, "Waiting for new BLE connection attempt");
-      _state = ProvisioningState::ACTIVE;
-    } else {
-      XLOG_ERROR(CAT_PROVISIONING, "Max retries exceeded, provisioning FAILED");
-      _state = ProvisioningState::FAILED;
-      _completedBy = ProvisioningMethod::FAILED;
+    if (_retryCount >= MAX_RETRIES) {
+      XLOG_ERROR(CAT_PROVISIONING, "BLE max retries exceeded");
       if (_callback) {
-        _callback(ProvisioningMethod::FAILED, _context);
+        _callback(false, _context);
       }
     }
   }
@@ -299,14 +228,11 @@ void ProvisioningManager::selectProvisioningMethod() {
 #if USE_BLE_PROVISIONING == 1
 #ifdef ESP32
   startBleProvisioning();
-#elif defined(ESP8266)
-  XLOG_WARN(CAT_PROVISIONING, "ESP8266 does not support BLE");
 #endif
 #endif
 
 #if USE_AP_PROVISIONING == 1
   startApProvisioning();
-  _state = ProvisioningState::ACTIVE;
 #endif
 }
 
@@ -319,37 +245,22 @@ void ProvisioningManager::startBleProvisioning() {
 #if defined(ESP32) && !defined(ESP8266)
   const char* deviceId = ConfigManager::getInstance().getDeviceId();
   g_bleServer = new BleProvisioningServer(deviceId);
-
   if (g_bleServer->begin()) {
-    _state = ProvisioningState::ACTIVE;
     XLOG_INFO(CAT_PROVISIONING, "BLE provisioning started");
   } else {
     XLOG_ERROR(CAT_PROVISIONING, "Failed to start BLE provisioning");
     delete g_bleServer;
     g_bleServer = nullptr;
-
 #if USE_AP_PROVISIONING == 1
     if (!_apStarted) {
       XLOG_WARN(CAT_PROVISIONING, "BLE failed, falling back to AP");
       startApProvisioning();
-    } else {
-      _state = ProvisioningState::FAILED;
-      _completedBy = ProvisioningMethod::FAILED;
-      if (_callback) {
-        _callback(ProvisioningMethod::FAILED, _context);
-      }
-    }
-#else
-    _state = ProvisioningState::FAILED;
-    _completedBy = ProvisioningMethod::FAILED;
-    if (_callback) {
-      _callback(ProvisioningMethod::FAILED, _context);
     }
 #endif
   }
 #endif
 }
-#endif  // USE_BLE_PROVISIONING
+#endif
 
 // ============================================================================
 // AP-ПРОВИЗИОНИНГ
@@ -361,15 +272,8 @@ void ProvisioningManager::startApProvisioning() {
   _apStarted = true;
   const char* deviceId = ConfigManager::getInstance().getDeviceId();
   wifi_start_ap(deviceId);
-
-  XLOG_DEBUG(CAT_PROVISIONING, "AP started, starting HTTP server");
-
-  // ================================================================
-  // ЗАПУСКАЕМ ЛЕГКОВЕСНЫЙ HTTP-СЕРВЕР ДЛЯ AP-ПРОВИЗИОНИНГА
-  // ================================================================
   startApServer();
 
-  _state = ProvisioningState::ACTIVE;
   XLOG_INFO(CAT_PROVISIONING,
             "AP provisioning started, connect to SSID: " ANSI_BOLD
             "%s" ANSI_BOLD_RESET " and visit " ANSI_BOLD "%s" ANSI_BOLD_RESET
@@ -379,160 +283,104 @@ void ProvisioningManager::startApProvisioning() {
 
 bool ProvisioningManager::isApComplete() const {
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-  bool complete = strlen(_data.wifiSsid) > 0;
-  if (complete) {
-    XLOG_DEBUG(CAT_PROVISIONING, "AP complete: SSID present");
-  }
-  return complete;
+  return strlen(_data.wifiSsid) > 0;
 #else
   return false;
 #endif
 }
 
-#endif  // USE_AP_PROVISIONING
-
-// ============================================================================
-// ГЛОБАЛЬНЫЕ ФУНКЦИИ
-// ============================================================================
-
-static void onProvisioningComplete(ProvisioningMethod method, void* context) {
-  (void)context;
-  auto& prov = ProvisioningManager::getInstance();
-
-  if (method == ProvisioningMethod::FAILED) {
-    XLOG_ERROR(CAT_PROVISIONING, "Provisioning FAILED!");
-    return;
-  }
-
-  const auto* data = prov.getData();
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-  if (data && data->type == 0 && strlen(data->wifiSsid) > 0) {
-    XLOG_INFO(CAT_PROVISIONING, "Provisioning complete - SSID: %s",
-              data->wifiSsid);
-  }
 #endif
+
+// ============================================================================
+// ГЛОБАЛЬНЫЕ ФУНКЦИИ (обёртки для оркестратора)
+// ============================================================================
+
+static void onProvisioningComplete(bool success, void* context) {
+  (void)context;
+  if (!success) {
+    XLOG_ERROR(CAT_PROVISIONING, "Provisioning FAILED!");
+  }
 }
 
 void startProvisioning() {
-  XLOG_DEBUG(CAT_PROVISIONING, "startProvisioning() called");
   ProvisioningManager::getInstance().begin(onProvisioningComplete, nullptr);
 }
 
-bool isProvisioningComplete() {
-  return ProvisioningManager::getInstance().isCompleted();
-}
-
-ProvisioningMethod getProvisioningMethod() {
-  return ProvisioningManager::getInstance().getCompletedBy();
-}
-
-ProvisioningState getProvisioningState() {
-  return ProvisioningManager::getInstance().getState();
-}
-
-int getProvisioningRetryCount() {
-  return ProvisioningManager::getInstance().getRetryCount();
+void provisioning_update() {
+  ProvisioningManager::getInstance().update();
 }
 
 const ProvisioningData* getProvisioningData() {
-  return ProvisioningManager::getInstance().getData();
+  return ProvisioningManager::getInstance().getProvisioningData();
 }
 
 // ============================================================================
-// ГЛОБАЛЬНЫЕ ФУНКЦИИ ДЛЯ AP-СЕРВЕРА (вызываются из оркестратора)
-// ============================================================================
-
-#if USE_AP_PROVISIONING == 1
-
-void provisioning_ap_server_update() {
-  updateApServer();
-}
-
-#endif  // USE_AP_PROVISIONING
-
-// ============================================================================
-// ФУНКЦИИ AP-ПРОВИЗИОНИНГА (вызываются из HTTP-сервера)
+// AP-ФУНКЦИИ (HTTP-обработчики)
 // ============================================================================
 
 #if USE_AP_PROVISIONING == 1
 
 void provisioning_send_ap_page(WebServerClass* server) {
-  if (!server) {
-    XLOG_ERROR(CAT_PROVISIONING, "provisioning_send_ap_page: server is null");
+  if (!server)
     return;
-  }
 
   XLOG_DEBUG(CAT_PROVISIONING, "Sending AP provisioning page");
 
   web_sendApProvisioningPage(
       [](const char* chunk, void* context) {
         WebServerClass* srv = static_cast<WebServerClass*>(context);
-        if (srv && chunk) {
+        if (srv && chunk)
           srv->sendContent(chunk);
-        }
       },
       server);
-
-  XLOG_DEBUG(CAT_PROVISIONING, "AP provisioning page sent");
 }
 
 void provisioning_handle_ap_save(WebServerClass* server) {
-  if (!server) {
-    XLOG_ERROR(CAT_PROVISIONING, "provisioning_handle_ap_save: server is null");
+  if (!server)
     return;
-  }
 
   XLOG_INFO(CAT_PROVISIONING, "Handling AP save request");
 
-  // Проверяем, что это POST-запрос
   if (server->method() != HTTP_POST) {
-    XLOG_WARN(CAT_PROVISIONING, "AP save: method not POST (%d)",
-              server->method());
     server->send(405, "text/plain", "Method Not Allowed");
     return;
   }
 
-  // Получаем параметры
   String ssid = server->arg("wifiSsid");
   String password = server->arg("wifiPassword");
 
   XLOG_DEBUG(CAT_PROVISIONING, "AP save: SSID='%s', Password=%s", ssid.c_str(),
              password.length() > 0 ? "***" : "(empty)");
 
-  // Валидация SSID
   if (ssid.length() >= 32) {
     XLOG_WARN(CAT_PROVISIONING, "AP provisioning: SSID too long (%d chars)",
               ssid.length());
     web_sendResultPage(
         [](const char* chunk, void* context) {
           WebServerClass* srv = static_cast<WebServerClass*>(context);
-          if (srv && chunk) {
+          if (srv && chunk)
             srv->sendContent(chunk);
-          }
         },
         server, "SSID too long (max 31 chars)", false);
     return;
   }
 
-  // Валидация пароля
   if (password.length() >= 64) {
     XLOG_WARN(CAT_PROVISIONING, "AP provisioning: password too long (%d chars)",
               password.length());
     web_sendResultPage(
         [](const char* chunk, void* context) {
           WebServerClass* srv = static_cast<WebServerClass*>(context);
-          if (srv && chunk) {
+          if (srv && chunk)
             srv->sendContent(chunk);
-          }
         },
         server, "Password too long (max 63 chars)", false);
     return;
   }
 
-  // Сохраняем данные через менеджер провизионинга
   ProvisioningData data;
   memset(&data, 0, sizeof(data));
-  data.type = 0;  // WiFi
+  data.type = 0;
 
   strncpy(data.wifiSsid, ssid.c_str(), sizeof(data.wifiSsid) - 1);
   data.wifiSsid[sizeof(data.wifiSsid) - 1] = '\0';
@@ -542,24 +390,20 @@ void provisioning_handle_ap_save(WebServerClass* server) {
     data.wifiPassword[sizeof(data.wifiPassword) - 1] = '\0';
   }
 
-  auto& prov = ProvisioningManager::getInstance();
-  prov.onDataReceived(data);
+  ProvisioningManager::getInstance().onDataReceived(data);
 
-  XLOG_INFO(CAT_PROVISIONING, "AP provisioning: WiFi credentials saved successfully");
+  XLOG_INFO(CAT_PROVISIONING, "AP provisioning: WiFi credentials saved");
 
-  // Показываем страницу успеха
   web_sendResultPage(
       [](const char* chunk, void* context) {
         WebServerClass* srv = static_cast<WebServerClass*>(context);
-        if (srv && chunk) {
+        if (srv && chunk)
           srv->sendContent(chunk);
-        }
       },
-      server, "WiFi credentials saved ", true);
-
-  XLOG_DEBUG(CAT_PROVISIONING, "AP saved: positive result page sent");
-
+      server, "WiFi credentials saved. Device will reboot and try to connect.",
+      true);
 }
-#endif  // USE_AP_PROVISIONING == 1
+
+#endif  // USE_AP_PROVISIONING
 
 #endif  // FEATURE_PROVISIONING_ENABLED == 1

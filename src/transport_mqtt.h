@@ -1,7 +1,7 @@
 #ifndef MQTT_TRANSPORT_H
 #define MQTT_TRANSPORT_H
 
-#include "mqtt.h"
+#include "mqtt_manager.h"
 #include "transport.h"
 
 #if FEATURE_MQTT_ENABLED == 1
