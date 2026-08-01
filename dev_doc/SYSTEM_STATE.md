@@ -1,3 +1,11 @@
+```cpp
+/**
+ * @file SYSTEM_STATE.md
+ * @brief Состояние системы
+ * @note Статус: Закончен
+ */
+```
+
 # SYSTEM_STATE.md
 
 ## Состояние системы (битовая маска)
@@ -7,6 +15,12 @@
 - [2. Битовая маска](#2-битовая-маска)
 - [3. API](#3-api)
 - [4. Кто устанавливает и снимает биты](#4-кто-устанавливает-и-снимает-биты)
+- [5. Кто читает биты](#5-кто-читает-биты)
+- [6. Приоритеты битов](#6-приоритеты-битов)
+- [7. Особенности реализации](#7-особенности-реализации)
+- [8. Связь с другими слоями](#8-связь-с-другими-слоями)
+- [9. Итоговая таблица](#9-итоговая-таблица)
+
 
 ## 1. Назначение
 
@@ -49,8 +63,6 @@ uint16_t system_state_get_bits();             // Получить все фла�
 
 Биты состояния доступны для изменения только прямо связанным слоям
 
-**TODO:** Продумать и окончательно утвердить права установки/сброса битов для слоев
-
 | Бит | Кто устанавливает | Кто снимает | Когда |
 |-----|-------------------|-------------|-------|
 | `STATE_WIFI_OK` | `WiFiManager` | `WiFiManager` | При подключении / потере WiFi |
@@ -92,67 +104,14 @@ uint16_t system_state_get_bits();             // Получить все фла�
 
 ---
 
-## 7. Примеры использования
-
-### 7.1. WiFiManager — установка STATE_WIFI_OK
-
-```cpp
-void wifi_manager_loop() {
-    if (WiFi.status() == WL_CONNECTED) {
-        if (!system_state_has_bit(STATE_WIFI_OK)) {
-            system_state_set_bit(STATE_WIFI_OK);
-            XLOG_INFO(CAT_WIFI, "WiFi connected");
-        }
-    } else {
-        if (system_state_has_bit(STATE_WIFI_OK)) {
-            system_state_clear_bit(STATE_WIFI_OK);
-            XLOG_WARN(CAT_WIFI, "WiFi lost");
-        }
-    }
-}
-```
-
-### 7.2. Оркестратор — определение режима LED
-
-```cpp
-void update_led_mode() {
-    if (system_state_has_bit(STATE_RESTART)) {
-        led_set_mode(LED_OFF);
-    } else if (system_state_has_bit(STATE_EMERGENCY)) {
-        led_set_mode(LED_SLOW_BLINK);
-    } else if (system_state_has_bit(STATE_PROVISIONING)) {
-        led_set_mode(LED_MORZE_S);
-    } else if (!system_state_has_bit(STATE_WIFI_OK)) {
-        led_set_mode(LED_MORZE_E);
-    } else if (!system_state_has_bit(STATE_MQTT_OK)) {
-        led_set_mode(LED_MORZE_I);
-    } else {
-        led_set_mode(LED_ON);
-    }
-}
-```
-
-### 7.3. Оркестратор - проверка WiFi перед подключением MQTT
-
-```cpp
-void loop() {
-  if (if system_state_has_bit(STATE_WIFI_OK) && !isConnected()) {     
-    reconnect();
-  }
-}
-```
-
-
-## 8. Особенности реализации
+## 7. Особенности реализации
 
 1. **Битовая маска** — экономит память (всего 2 байта)
 2. **Глобальный доступ** — из любого места кода (через `#include "system_state.h"`)
 3. **Атомарность не требуется** — операции над битами выполняются за один такт на ESP
 4. **Нет блокировок** — все вызовы из loop() или прерываний (кроме ISR)
 
-
-
-## 9. Связь с другими слоями
+## 8. Связь с другими слоями
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
@@ -183,7 +142,7 @@ void loop() {
 
 
 
-## 10. Итоговая таблица
+## 9. Итоговая таблица
 
 | Бит | Значение | Устанавливает | Снимает | Читают |
 |-----|----------|---------------|---------|--------|

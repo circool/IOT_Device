@@ -532,7 +532,7 @@ WEB-интерфейс предоставляет прямой доступ к �
 
 |[В процессе]|ACTUATOR_SENSOR.md  ||            
 |[Закончен]|DEVICE_TYPES.md  ||               
-|[В процессе]|SYSTEM_STATE.md     ||            
+|[Закончен]|SYSTEM_STATE.md     ||            
 
 |[Закончен]|TRANSPORT.md||
 |[В процессе]|TRANSPORT_ABSTRACTION.md| |
