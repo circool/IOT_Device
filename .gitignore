@@ -15,3 +15,4 @@ Fan/fp-info-cache
 build.log
 .openhabignore
 Fan/fp-info-cache
+!CREDENTIONS.md
