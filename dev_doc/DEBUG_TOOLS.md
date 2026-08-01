@@ -1,10 +1,15 @@
+```cpp
+/**
+ * @file DEBUG_TOOLS.md
+ * @brief Вспомогательные функции для диагностики и отладки устройства
+ * @note Статус: Закончен
+ */
+```
 # DEBUG_TOOLS.md
 
 ## Отладочные утилиты
 
 Вспомогательные функции для диагностики и отладки устройства.
-
----
 
 ## Оглавление
 
@@ -13,13 +18,10 @@
   - [2.1. print_system_info()](#21-print_system_info)
   - [2.2. getResetReason()](#22-getresetreason)
   - [2.3. getChipTemperature()](#23-getchiptemperature)
-- [3. Примеры использования](#3-примеры-использования)
-- [4. Особенности реализации](#4-особенности-реализации)
-  - [4.1. ESP32](#41-esp32)
-  - [4.2. ESP8266](#42-esp8266)
-- [5. Требования к доработке](#5-требования-к-доработке)
-
----
+- [3. Особенности реализации](#3-особенности-реализации)
+  - [3.1. ESP32](#31-esp32)
+  - [3.2. ESP8266](#32-esp8266)
+- [4. Требования к доработке](#4-требования-к-доработке)
 
 ## 1. Назначение
 
@@ -32,8 +34,6 @@
 Слой **не имеет состояния** и **не требует инициализации или периодического вызова**.
 
 **Важно:** слой предназначен **только для отладки**. В production-сборках вызов `print_system_info()` может быть закомментирован.
-
----
 
 ## 2. API
 
@@ -92,10 +92,7 @@ Reset reason: POWER_ON
 
 **Когда использовать:**
 - При старте устройства (в `setup()`)
-- По команде от пользователя (Web/MQTT)
 - При подозрении на проблемы с памятью или перегревом
-
----
 
 ### 2.2. getResetReason()
 
@@ -134,6 +131,9 @@ const char* getResetReason();
 | `EXT_RESET` | Внешний сброс |
 | `UNKNOWN` | Неизвестная причина |
 
+**Когда использовать:**
+Внутренний метод для print_system_info() - в проекте не используется
+
 **Пример:**
 ```cpp
 const char* reason = getResetReason();
@@ -162,6 +162,9 @@ float getChipTemperature();
 - **ESP32** — температура в градусах Цельсия (°C)
 - **ESP8266** — `-273.15°C` (не поддерживается)
 
+**Когда использовать:**
+Внутренний метод для print_system_info() - в проекте не используется
+
 **Пример:**
 ```cpp
 float temp = getChipTemperature();
@@ -177,81 +180,9 @@ if (temp > -50.0f && temp < 150.0f) {
 
 ---
 
-## 3. Примеры использования
+## 3. Особенности реализации
 
-### 3.1. Вывод информации при старте
-
-```cpp
-void setup() {
-    Logger::getInstance().begin(...);
-    
-    // Вывести полную информацию о системе
-    print_system_info();
-    
-    // Остальная инициализация...
-}
-```
-
-### 3.2. Анализ причины перезагрузки
-
-```cpp
-void setup() {
-    const char* reason = getResetReason();
-    
-    if (strcmp(reason, "WDT_CRASH") == 0 ||
-        strcmp(reason, "TASK_WDT_CRASH") == 0) {
-        XLOG_WARN(CAT_SYSTEM, "Device crashed due to WDT!");
-        // Возможно, увеличить WDT_TIMER_MS
-        // Или оптимизировать loop()
-    } else if (strcmp(reason, "PANIC_CRASH") == 0) {
-        XLOG_ERROR(CAT_SYSTEM, "Device crashed due to panic!");
-        // Проверить стек вызовов в Serial
-    }
-}
-```
-
-### 3.3. Команда по MQTT для получения информации
-
-```cpp
-// В MQTT-колбэке
-void onDebugCommand(const char* payload) {
-    if (strcmp(payload, "info") == 0) {
-        // Отправить информацию о системе по MQTT
-        String info;
-        info += "Reset reason: ";
-        info += getResetReason();
-        info += "\nTemperature: ";
-        info += String(getChipTemperature());
-        info += "°C";
-        info += "\nFree heap: ";
-        info += String(ESP.getFreeHeap());
-        
-        mqttManager.publishDebugInfo(info.c_str());
-    }
-}
-```
-
-### 3.4. Мониторинг температуры
-
-```cpp
-static unsigned long lastTempCheck = 0;
-
-void loop() {
-    if (millis() - lastTempCheck > 60000) {  // Раз в минуту
-        float temp = getChipTemperature();
-        if (temp > 50.0f && temp < 150.0f) {
-            XLOG_DEBUG(CAT_SYSTEM, "Chip temp: %.1f°C", temp);
-        }
-        lastTempCheck = millis();
-    }
-}
-```
-
----
-
-## 4. Особенности реализации
-
-### 4.1. ESP32
+### 3.1. ESP32
 
 | Функция | API |
 |---------|-----|
@@ -294,7 +225,7 @@ bool hasBle = chip_info.features & CHIP_FEATURE_BLE;
 #endif
 ```
 
-### 4.2. ESP8266
+### 3.2. ESP8266
 
 | Функция | API |
 |---------|-----|
@@ -304,16 +235,7 @@ bool hasBle = chip_info.features & CHIP_FEATURE_BLE;
 | **Flash** | `ESP.getFlashChipRealSize()` |
 | **SDK** | `system_get_sdk_version()` |
 
----
 
-## 5. Требования к доработке
+## 4. Требования к доработке
 
-| # | Проблема | Статус | Решение |
-|---|----------|--------|---------|
-| 1 | **Смешение ответственности** | ⬜ | `debug_tools` не должен логировать напрямую (использовать колбэки) |
-| 2 | **Зависимость от Logger** | ⬜ | `print_system_info()` использует `XLOG_INFO` — лучше передавать колбэк для вывода |
-| 3 | **Дублирование макросов** | ⬜ | Вынести определение чипа в `settings.h` |
-
----
-
-*Конец документа*
+Не целесообразно
