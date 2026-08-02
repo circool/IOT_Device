@@ -121,7 +121,7 @@ static String getDelayTimerRemaining(void) {
   return formatRemainingTime(remaining);
 }
 
-void handleSetCommand(void) {
+void web_handle_set(void) {
   if (!g_statusProvider) {
     server.send(500, "text/plain", "Status provider not registered");
     return;
@@ -146,7 +146,7 @@ void handleSetCommand(void) {
   if (param == "speed") {
     int speed = value.toInt();
     if (speed < 0 || speed > 100) {
-      web_sendResultPage(webSendContent, &server, "Speed must be 0-100%",
+      web_send_result_page(webSendContent, &server, "Speed must be 0-100%",
                          false);
       return;
     }
@@ -171,10 +171,10 @@ void handleSetCommand(void) {
   }
 #endif
 
-  web_sendResultPage(webSendContent, &server, "Unknown command", false);
+  web_send_result_page(webSendContent, &server, "Unknown command", false);
 }
 
-String web_buildStatusHtml(void) {
+String web_build_status_html(void) {
   if (!g_statusProvider) {
     return F(
         "<div class='block error center'>Status provider not registered</div>");
@@ -353,18 +353,18 @@ String web_buildStatusHtml(void) {
   return html;
 }
 
-void web_sendStatusPage(int refreshInterval) {
+void web_send_status_page(int refreshInterval) {
   if (!g_statusProvider) {
     server.send(500, "text/html", "Status provider not registered");
     return;
   }
 
   const char* deviceId = g_configManager.getDeviceId();
-  String statusHtml = web_buildStatusHtml();
+  String statusHtml = web_build_status_html();
 
   if (statusHtml.length() == 0) {
     statusHtml = F("<div class='warning'>Device status is loading...</div>");
-    XLOG_WARN(CAT_WEB, "web_buildStatusHtml() returned empty, using fallback");
+    XLOG_WARN(CAT_WEB, "web_build_status_html() returned empty, using fallback");
   }
 
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
@@ -389,15 +389,15 @@ void web_sendStatusPage(int refreshInterval) {
   web_sendPageEnd(webSendContent, &server);
 }
 
-static void sendConfigPage(WebSendCallback send,
-                           void* context,
-                           const ConfigData* cfg,
-                           const char* currentMode,
-                           const char* currentSsid,
-                           const char* currentIp,
-                           int refreshSeconds,
-                           const char* errorMsg,
-                           const char* successMsg) {
+void web_send_config_page(WebSendCallback send,
+                          void* context,
+                          const ConfigData* cfg,
+                          const char* currentMode,
+                          const char* currentSsid,
+                          const char* currentIp,
+                          int refreshSeconds,
+                          const char* errorMsg,
+                          const char* successMsg) {
   if (!send || !cfg)
     return;
 
@@ -886,7 +886,7 @@ static void sendConfigPage(WebSendCallback send,
   send((const char*)FPSTR(HTML_PAGE_END), context);
 }
 
-void web_saveConfig(void) {
+void web_handle_save(void) {
   XLOG_INFO(CAT_WEB, "Processing config form...");
 
   memcpy(&g_webPendingConfig, g_configManager.get(), sizeof(ConfigData));
@@ -906,7 +906,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "WiFi SSID is empty or too long",
                      "");
       return;
@@ -926,7 +926,7 @@ void web_saveConfig(void) {
         String currentIp = wifi_get_local_ip();
         server.setContentLength(CONTENT_LENGTH_UNKNOWN);
         server.send(200, "text/html", "");
-        sendConfigPage(webSendContent, &server, cfg, "Client WiFi",
+        web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
                        cfg->wifiSsid, currentIp.c_str(), 0,
                        "WiFi password too long", "");
         return;
@@ -949,7 +949,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "MQTT Broker is empty or too long",
                      "");
       return;
@@ -965,7 +965,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "MQTT Port must be 1-65535", "");
       return;
     }
@@ -1005,7 +1005,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0,
                      "MQTT Client ID is empty or too long", "");
       return;
@@ -1024,7 +1024,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "Sensor interval out of range", "");
       return;
     }
@@ -1042,7 +1042,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "Low Temp out of range", "");
       return;
     }
@@ -1057,7 +1057,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "High Temp out of range", "");
       return;
     }
@@ -1072,7 +1072,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "Low Hum out of range", "");
       return;
     }
@@ -1087,7 +1087,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "High Hum out of range", "");
       return;
     }
@@ -1102,7 +1102,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "MaxOnTime out of range", "");
       return;
     }
@@ -1117,7 +1117,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "Delay seconds out of range", "");
       return;
     }
@@ -1132,7 +1132,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "Speed must be 0-100%", "");
       return;
     }
@@ -1154,7 +1154,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "MaxOnTime out of range", "");
       return;
     }
@@ -1169,7 +1169,7 @@ void web_saveConfig(void) {
       String currentIp = wifi_get_local_ip();
       server.setContentLength(CONTENT_LENGTH_UNKNOWN);
       server.send(200, "text/html", "");
-      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+      web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                      currentIp.c_str(), 0, "Delay seconds out of range", "");
       return;
     }
@@ -1186,7 +1186,7 @@ void web_saveConfig(void) {
   String currentIp = wifi_get_local_ip();
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
-  sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+  web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                  currentIp.c_str(), DEFAULT_WEB_REFRESH, "",
                  "Configuration saved. Device will reboot.");
 }
@@ -1206,7 +1206,7 @@ void web_init(void) {
 #ifdef ESP32
     server.client().setNoDelay(true);
 #endif
-    web_sendStatusPage(refreshInterval);
+    web_send_status_page(refreshInterval);
   });
 
   server.on("/config", []() {
@@ -1215,18 +1215,18 @@ void web_init(void) {
     String currentIp = wifi_get_local_ip();
     server.setContentLength(CONTENT_LENGTH_UNKNOWN);
     server.send(200, "text/html", "");
-    sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+    web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
                    currentIp.c_str(), 0, "", "");
   });
 
-  server.on("/save", web_saveConfig);
+  server.on("/save", web_handle_save);
   server.on("/favicon.ico", []() { server.send(404); });
-  server.on("/set", handleSetCommand);
+  server.on("/set", web_handle_set);
 
 #if WEB_RESET_ENABLED == 1
   server.on("/resetall", []() {
     g_webRestartPending = true;
-    web_sendResultPage(webSendContent, &server,
+    web_send_result_page(webSendContent, &server,
                        "Configuration was reset, rebooting...", true);
   });
 #endif
@@ -1243,7 +1243,7 @@ void web_update(void) {
   server.handleClient();
 }
 
-void web_registerStatusProvider(IWebStatusProvider* provider) {
+void web_register_status_provider(IWebStatusProvider* provider) {
   g_statusProvider = provider;
 }
 

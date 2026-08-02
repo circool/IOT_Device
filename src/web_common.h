@@ -188,7 +188,7 @@ void web_sendRefreshMeta(WebSendCallback send,
  * @param action Название действия
  * @param success true = успех, false = ошибка
  */
-void web_sendResultPage(WebSendCallback send,
+void web_send_result_page(WebSendCallback send,
                         void* context,
                         const char* action,
                         bool success);

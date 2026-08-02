@@ -104,7 +104,7 @@ void setup() {
 #endif
 #endif
 
-  web_registerStatusProvider(statusProvider);
+  web_register_status_provider(statusProvider);
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
   // ===== ТРАНСПОРТ =====

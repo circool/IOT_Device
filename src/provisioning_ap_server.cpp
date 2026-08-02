@@ -36,7 +36,7 @@ static char _received_password[64] = "";
 // ============================================================================
 
 static void send_result_page(const char* message, bool success) {
-  web_sendResultPage(
+  web_send_result_page(
       [](const char* chunk, void* context) {
         WebServerClass* srv = static_cast<WebServerClass*>(context);
         if (srv && chunk)

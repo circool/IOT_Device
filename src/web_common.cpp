@@ -287,7 +287,7 @@ void web_sendPageEnd(WebSendCallback send, void* context) {
     send((const char*)FPSTR(HTML_PAGE_END), context);
   }
 }
-void web_sendResultPage(WebSendCallback send, void* context, const char* action, bool success) {
+void web_send_result_page(WebSendCallback send, void* context, const char* action, bool success) {
   if (!send)
     return;
 

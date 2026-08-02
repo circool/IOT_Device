@@ -95,16 +95,16 @@
 | 1.11.8 | | Добавить `provisioning_init()` в `setup()` (после SystemState) | ⬜ | |
 | 1.11.9 | | Обновить `main.cpp`: после сохранения конфигурации вызывать `provisioning_stop()` вместо `restart_request()` | ⬜ | |
 | 1.11.10| | Обновить `PROVISIONING_MANAGER.md` под новый интерфейс | ⬜ | |
-| **1.12** | **Привести имена функций Web-слоя к `snake_case` и единообразию** | | ⬜ | 🟡 Средний |
-| 1.12.1 | | Переименовать `web_buildStatusHtml()` → `web_build_status_html()` (внутренняя) | ⬜ | |
-| 1.12.2 | | Переименовать `web_sendStatusPage()` → `web_send_status_page()` | ⬜ | |
-| 1.12.3 | | Переименовать `web_sendConfigPage()` → `web_send_config_page()` | ⬜ | |
-| 1.12.4 | | Переименовать `web_sendResultPage()` → `web_send_result_page()` | ⬜ | |
-| 1.12.5 | | Переименовать `web_saveConfig()` → `web_handle_save()` | ⬜ | |
-| 1.12.6 | | Переименовать `handleSetCommand()` → `web_handle_set()` | ⬜ | |
-| 1.12.7 | | Переименовать `web_registerStatusProvider()` → `web_register_status_provider()` | ⬜ | |
-| 1.12.8 | | Обновить все вызовы в `main.cpp` и `web_manager.cpp` | ⬜ | |
-| 1.12.9 | | Обновить `WEB_MANAGER.md` | ⬜ | |
+| **1.12** | **Привести имена функций Web-слоя к `snake_case` и единообразию** | | ✅ | 🟡 Средний |
+| 1.12.1 | | Переименовать `web_buildStatusHtml()` → `web_build_status_html()` (внутренняя) | ✅ | |
+| 1.12.2 | | Переименовать `web_sendStatusPage()` → `web_send_status_page()` | ✅ | |
+| 1.12.3 | | Переименовать `sendConfigPage()` → `web_send_config_page()` и сделать публичной | ✅ | |
+| 1.12.4 | | Переименовать `web_sendResultPage()` → `web_send_result_page()` | ✅ | |
+| 1.12.5 | | Переименовать `web_saveConfig()` → `web_handle_save()` | ✅ | |
+| 1.12.6 | | Переименовать `handleSetCommand()` → `web_handle_set()` | ✅ | |
+| 1.12.7 | | Переименовать `web_registerStatusProvider()` → `web_register_status_provider()` | ✅ | |
+| 1.12.8 | | Обновить все вызовы в `main.cpp` и `web_manager.cpp` | ✅ | |
+| 1.12.9 | | Обновить `WEB_MANAGER.md` | ✅ | |
 
 ## 2. Исправление найденных ошибок
 

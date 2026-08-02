@@ -56,7 +56,7 @@ Web — синхронный транспорт, обеспечивающий:
 
 ### 3.1. Назначение
 
-Абстракция для получения данных устройства Web-слоем. Оркестратор реализует этот интерфейс и регистрирует его через `web_registerStatusProvider()`.
+Абстракция для получения данных устройства Web-слоем. Оркестратор реализует этот интерфейс и регистрирует его через `web_register_status_provider()`.
 
 ### 3.2. Интерфейс
 
@@ -101,7 +101,7 @@ public:
 ```cpp
 // В оркестраторе (main.cpp)
 static FanWebStatusProvider statusProvider(&fanActuator, &mqttManager);
-web_registerStatusProvider(&statusProvider);
+web_register_status_provider(&statusProvider);
 ```
 
 ---
@@ -139,7 +139,7 @@ extern ConfigData g_webPendingConfig;      // Буфер с новыми нас�
 
 ```
 1. Пользователь заполняет форму на /config и нажимает Save
-2. Web::web_saveConfig():
+2. Web::web_handle_save():
    a. Копирует текущую конфигурацию как базу
    b. Парсит все параметры из формы
    c. Валидирует каждый параметр
@@ -293,7 +293,7 @@ void web_update() {
 }
 ```
 
-### 9.3. `web_saveConfig()`
+### 9.3. `web_handle_save()`
 
 Обработчик POST-запроса на `/save`:
 

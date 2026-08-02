@@ -44,7 +44,7 @@
 | Функция | Назначение |
 |---------|------------|
 | `web_send_status_page(refreshInterval)` | Отправить страницу состояния |
-| `web_send_config_page(errorMsg, successMsg)` | Отправить страницу конфигурации |
+| `web_send_config_page(send, context, cfg, currentMode, currentSsid, currentIp, refreshSeconds, errorMsg, successMsg)` | Отправить страницу конфигурации |
 | `web_send_result_page(action, success)` | Отправить страницу результата операции |
 
 ### 2.2. Обработчики
@@ -82,7 +82,7 @@ Web-слой получает данные через интерфейс `IWebSt
 
 **Регистрация:**
 - Оркестратор создаёт провайдер (в зависимости от `DEVICE_TYPE`)
-- Регистрирует через `web_registerStatusProvider(provider)`
+- Регистрирует через `web_register_status_provider(provider)`
 
 **Реализации:**
 

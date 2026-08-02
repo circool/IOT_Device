@@ -56,7 +56,7 @@ extern WebServerClass server;
  * @brief Зарегистрировать провайдер статуса для Web
  * @param provider Указатель на реализацию IWebStatusProvider
  */
-void web_registerStatusProvider(IWebStatusProvider* provider);
+void web_register_status_provider(IWebStatusProvider* provider);
 
 /**
  * @brief Инициализация веб-сервера в обычном режиме (STA)
@@ -72,23 +72,45 @@ void web_update(void);
  * @brief Построить HTML-код страницы состояния
  * @return HTML-строка
  */
-String web_buildStatusHtml(void);
+String web_build_status_html(void);
 
 /**
  * @brief Отправить страницу состояния
  * @param refreshInterval Интервал автообновления (сек)
  */
-void web_sendStatusPage(int refreshInterval);
+void web_send_status_page(int refreshInterval);
+
+/**
+ * @brief Отправить страницу конфигурации
+ * @param send Колбэк для отправки контента
+ * @param context Контекст для колбэка
+ * @param cfg Указатель на структуру ConfigData
+ * @param currentMode Текущий режим (AP/STA)
+ * @param currentSsid Текущий SSID
+ * @param currentIp Текущий IP-адрес
+ * @param refreshSeconds Интервал автообновления (0 = отключено)
+ * @param errorMsg Текст ошибки (NULL если нет)
+ * @param successMsg Текст успеха (NULL если нет)
+ */
+void web_send_config_page(WebSendCallback send,
+                          void* context,
+                          const ConfigData* cfg,
+                          const char* currentMode,
+                          const char* currentSsid,
+                          const char* currentIp,
+                          int refreshSeconds,
+                          const char* errorMsg,
+                          const char* successMsg);
 
 /**
  * @brief Обработчик сохранения конфигурации (POST /save)
  */
-void web_saveConfig(void);
+void web_handle_save(void);
 
 /**
  * @brief Обработчик оперативных команд (/set)
  */
-void handleSetCommand(void);
+void web_handle_set(void);
 
 // ============================================================================
 // ГЛОБАЛЬНЫЕ ФЛАГИ ДЛЯ ОРКЕСТРАТОРА
@@ -152,7 +174,7 @@ extern WebCommand g_webCommand;
 
 // Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
 // FEATURE_WEB_STATUS_ENABLED == 0)
-inline void web_registerStatusProvider(IWebStatusProvider* provider) {
+inline void web_register_status_provider(IWebStatusProvider* provider) {
   (void)provider;
 }
 
@@ -166,21 +188,43 @@ inline void web_update(void) {}
 
 // Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
 // FEATURE_WEB_STATUS_ENABLED == 0)
-inline String web_buildStatusHtml(void) {
+inline String web_build_status_html(void) {
   return String();
 }
 
 // Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
 // FEATURE_WEB_STATUS_ENABLED == 0)
-inline void web_sendStatusPage(int) {}
+inline void web_send_status_page(int) {}
 
 // Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
 // FEATURE_WEB_STATUS_ENABLED == 0)
-inline void web_saveConfig(void) {}
+inline void web_send_config_page(WebSendCallback send,
+                                 void* context,
+                                 const ConfigData* cfg,
+                                 const char* currentMode,
+                                 const char* currentSsid,
+                                 const char* currentIp,
+                                 int refreshSeconds,
+                                 const char* errorMsg,
+                                 const char* successMsg) {
+  (void)send;
+  (void)context;
+  (void)cfg;
+  (void)currentMode;
+  (void)currentSsid;
+  (void)currentIp;
+  (void)refreshSeconds;
+  (void)errorMsg;
+  (void)successMsg;
+}
 
 // Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
 // FEATURE_WEB_STATUS_ENABLED == 0)
-inline void handleSetCommand(void) {}
+inline void web_handle_save(void) {}
+
+// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
+// FEATURE_WEB_STATUS_ENABLED == 0)
+inline void web_handle_set(void) {}
 
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI && FEATURE_WEB_STATUS_ENABLED
         // == 1
