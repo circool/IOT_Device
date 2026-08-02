@@ -1,4 +1,9 @@
-#include "ota.h"
+/**
+ * @file ota_manager.cpp
+ * @brief Реализация обновления прошивки по воздухуъ
+ */
+#include "ota_manager.h"
+
 #include "config_manager.h"
 #include "logger.h"
 #include "wifi_manager.h"
@@ -37,7 +42,7 @@ bool ota_is_available() {
   return result;
 }
 
-void ota_init(WebServerClass* server) {
+void ota_manager_init(WebServerClass* server) {
   if (!ota_available) {
     XLOG_WARN(CAT_OTA, "OTA not available - insufficient flash memory");
     return;
@@ -57,11 +62,11 @@ void ota_init(WebServerClass* server) {
   XLOG_DEBUG(CAT_OTA, "OTA initialized at /update");
 }
 
-// ========== ota_update() НЕ НУЖЕН для ElegantOTA 2.2.x ==========
+// ========== ota_manager_update() НЕ НУЖЕН для ElegantOTA 2.2.x ==========
 // ElegantOTA работает через WebServer::handleClient()
 // Эта функция оставлена для совместимости, но ничего не делает
 
-void ota_update() {
+void ota_manager_update() {
   // ElegantOTA 2.2.x не требует отдельного loop()
   // Всё обрабатывается через server.handleClient()
   // Функция оставлена для совместимости с main.cpp
