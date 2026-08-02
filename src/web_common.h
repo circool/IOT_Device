@@ -36,39 +36,6 @@ typedef enum {
 } PageMode;
 
 /**
- * @brief Тип поля ввода для унифицированного рендеринга
- */
-typedef enum {
-  FIELD_TYPE_TEXT,     /**< Текстовое поле (<input type="text">) */
-  FIELD_TYPE_PASSWORD, /**< Поле пароля (<input type="password">) */
-  FIELD_TYPE_NUMBER,   /**< Числовое поле (<input type="number">) */
-  FIELD_TYPE_CHECKBOX, /**< Флажок (<input type="checkbox">) */
-  FIELD_TYPE_LABEL,    /**< Информационная метка (<div class="info">) */
-  FIELD_TYPE_BUTTON,   /**< Кнопка с ссылкой */
-  FIELD_TYPE_LINK,     /**< Обычная ссылка */
-  FIELD_TYPE_CARD,     /**< Карточка статуса */
-} FieldType;
-
-/**
- * @brief Структура описания поля для унифицированного рендеринга
- */
-typedef struct {
-  FieldType type;          /**< Тип поля */
-  const char* label;       /**< Подпись */
-  const char* name;        /**< Имя поля (для input) */
-  const char* value;       /**< Текущее значение */
-  const char* placeholder; /**< Подсказка */
-  const char* note;        /**< Примечание */
-  const char* min;         /**< Минимальное значение (для number) */
-  const char* max;         /**< Максимальное значение (для number) */
-  const char* step;        /**< Шаг (для number) */
-  const char* link;        /**< URL ссылки */
-  const char* buttonText;  /**< Текст кнопки */
-  bool checked;            /**< Для checkbox */
-  bool required;           /**< Обязательное поле */
-} FieldDef;
-
-/**
  * @brief Колбэк для отправки HTML-контента
  * @param chunk Строка для отправки (null-terminated)
  * @param context Контекст (указатель на WebServerClass)
@@ -76,16 +43,75 @@ typedef struct {
 typedef void (*WebSendCallback)(const char* chunk, void* context);
 
 // ============================================================================
-// УНИВЕРСАЛЬНЫЙ РЕНДЕРИНГ
+// СПЕЦИАЛИЗИРОВАННЫЕ СТРУКТУРЫ ДЛЯ ПОЛЕЙ
 // ============================================================================
 
 /**
- * @brief Сгенерировать HTML-блок поля в буфер
- * @param buf Буфер для записи
- * @param size Размер буфера
- * @param field Описание поля
+ * @brief Текстовое поле (TEXT / PASSWORD)
  */
-void web_renderField(char* buf, size_t size, const FieldDef* field);
+typedef struct {
+  const char* label;
+  const char* name;
+  const char* value;
+  const char* placeholder;
+  const char* note;
+  bool hideInput;  // true: type='password', false: type='text'
+  bool required;
+} FieldText;
+
+/**
+ * @brief Числовое поле (NUMBER) — целые числа
+ */
+typedef struct {
+  const char* label;
+  const char* name;
+  const char* value;
+  const char* placeholder;
+  const char* note;
+  const char* min;
+  const char* max;
+  const char* step;
+  bool required;
+} FieldNumber;
+
+/**
+ * @brief Числовое поле (FLOAT) — числа с плавающей точкой
+ */
+typedef struct {
+  const char* label;
+  const char* name;
+  const char* value;
+  const char* placeholder;
+  const char* note;
+  const char* min;
+  const char* max;
+  const char* step;
+  bool required;
+} FieldFloat;
+
+/**
+ * @brief Чекбокс (CHECKBOX)
+ */
+typedef struct {
+  const char* label;
+  const char* name;
+  const char* note;
+  bool checked;
+  bool required;
+} FieldCheckbox;
+
+// ============================================================================
+// РЕНДЕРИНГ ПОЛЕЙ
+// ============================================================================
+
+void render_text(char* buf, size_t size, const FieldText* field);
+void render_number(char* buf, size_t size, const FieldNumber* field);
+void render_float(char* buf, size_t size, const FieldFloat* field);
+void render_checkbox(char* buf, size_t size, const FieldCheckbox* field);
+
+// ============================================================================
+// ОБЩИЕ ФУНКЦИИ РЕНДЕРИНГА
+// ============================================================================
 
 /**
  * @brief Сгенерировать карточку датчика
@@ -189,9 +215,9 @@ void web_sendRefreshMeta(WebSendCallback send,
  * @param success true = успех, false = ошибка
  */
 void web_send_result_page(WebSendCallback send,
-                        void* context,
-                        const char* action,
-                        bool success);
+                          void* context,
+                          const char* action,
+                          bool success);
 
 /**
  * @brief Отправить страницу AP-провизионинга (настройка WiFi)

@@ -14,160 +14,190 @@
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
-static WebServerClass* g_commonServer = nullptr;
+// ============================================================================
+// РЕНДЕРИНГ ПОЛЕЙ
+// ============================================================================
 
-void web_renderField(char* buf, size_t size, const FieldDef* field) {
+void render_text(char* buf, size_t size, const FieldText* field) {
   if (!buf || size == 0 || !field)
     return;
   buf[0] = '\0';
 
-  switch (field->type) {
-    case FIELD_TYPE_TEXT:
-    case FIELD_TYPE_PASSWORD:
-    case FIELD_TYPE_NUMBER: {
-      const char* inputType = (field->type == FIELD_TYPE_PASSWORD) ? "password"
-                              : (field->type == FIELD_TYPE_NUMBER) ? "number"
-                                                                   : "text";
-      char temp[256];
-      temp[0] = '\0';
+  char temp[256];
+  temp[0] = '\0';
 
-      if (field->label) {
-        snprintf(temp, sizeof(temp), "<label>%s</label>", field->label);
-        strncat(buf, temp, size - 1);
-      }
+  const char* inputType = field->hideInput ? "password" : "text";
 
-      snprintf(temp, sizeof(temp), "<input type='%s' name='%s'", inputType,
-               field->name ? field->name : "");
-      if (field->value) {
-        char val[64];
-        snprintf(val, sizeof(val), " value='%s'", field->value);
-        strncat(temp, val, sizeof(temp) - strlen(temp) - 1);
-      }
-      if (field->placeholder) {
-        char ph[64];
-        snprintf(ph, sizeof(ph), " placeholder='%s'", field->placeholder);
-        strncat(temp, ph, sizeof(temp) - strlen(temp) - 1);
-      }
-      if (field->min) {
-        char mn[32];
-        snprintf(mn, sizeof(mn), " min='%s'", field->min);
-        strncat(temp, mn, sizeof(temp) - strlen(temp) - 1);
-      }
-      if (field->max) {
-        char mx[32];
-        snprintf(mx, sizeof(mx), " max='%s'", field->max);
-        strncat(temp, mx, sizeof(temp) - strlen(temp) - 1);
-      }
-      if (field->step) {
-        char st[32];
-        snprintf(st, sizeof(st), " step='%s'", field->step);
-        strncat(temp, st, sizeof(temp) - strlen(temp) - 1);
-      }
-      if (field->required) {
-        strncat(temp, " required", sizeof(temp) - strlen(temp) - 1);
-      }
-      strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
-      strncat(buf, temp, size - 1);
-      break;
-    }
-
-    case FIELD_TYPE_CHECKBOX: {
-      char temp[128];
-      temp[0] = '\0';
-      snprintf(temp, sizeof(temp),
-               "<label><input type='checkbox' name='%s' value='1'",
-               field->name ? field->name : "");
-      if (field->checked) {
-        strncat(temp, " checked", sizeof(temp) - strlen(temp) - 1);
-      }
-      if (field->required) {
-        strncat(temp, " required",
-                sizeof(temp) - strlen(temp) - 1);  
-      }
-      strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
-      if (field->label) {
-        strncat(temp, " ", sizeof(temp) - strlen(temp) - 1);
-        strncat(temp, field->label, sizeof(temp) - strlen(temp) - 1);
-      }
-      strncat(temp, "</label>", sizeof(temp) - strlen(temp) - 1);
-      strncat(buf, temp, size - 1);
-      break;
-    }
-
-    case FIELD_TYPE_LABEL: {
-      char temp[128];
-      temp[0] = '\0';
-      snprintf(temp, sizeof(temp), "<div class='info'>");
-      if (field->label) {
-        strncat(temp, field->label, sizeof(temp) - strlen(temp) - 1);
-      }
-      if (field->value) {
-        char val[64];
-        snprintf(val, sizeof(val), ": <strong>%s</strong>", field->value);
-        strncat(temp, val, sizeof(temp) - strlen(temp) - 1);
-      }
-      strncat(temp, "</div>", sizeof(temp) - strlen(temp) - 1);
-      strncat(buf, temp, size - 1);
-      break;
-    }
-
-    case FIELD_TYPE_CARD: {
-      char temp[256];
-      temp[0] = '\0';
-
-      snprintf(temp, sizeof(temp), "<div class='block error'>");
-      if (field->label) {
-        char lbl[128];
-        snprintf(lbl, sizeof(lbl), "<div class='text_header'>%s</div>",
-                 field->label);
-        strncat(temp, lbl, sizeof(temp) - strlen(temp) - 1);
-      }
-      if (field->note) {
-        char nt[128];
-        snprintf(nt, sizeof(nt), "<div class='text_small'>%s</div>",
-                 field->note);
-        strncat(temp, nt, sizeof(temp) - strlen(temp) - 1);
-      }
-      strncat(temp, "</div>", sizeof(temp) - strlen(temp) - 1);
-      strncat(buf, temp, size - 1);
-      break;
-    }
-
-    case FIELD_TYPE_BUTTON: {
-      char temp[128];
-      temp[0] = '\0';
-      const char* url = field->link ? field->link : "#";
-      const char* btnText = field->buttonText ? field->buttonText : "Button";
-      const char* style = field->value ? field->value : "link-btn";
-      snprintf(temp, sizeof(temp),
-               "<a href='%s'><button class='%s'>%s</button></a>", url, style,
-               btnText);
-      strncat(buf, temp, size - 1);
-      break;
-    }
-
-    case FIELD_TYPE_LINK: {
-      char temp[128];
-      temp[0] = '\0';
-      const char* url = field->link ? field->link : "#";
-      const char* btnText = field->buttonText ? field->buttonText : "Link";
-      snprintf(temp, sizeof(temp), "<a href='%s' class='link-btn'>%s</a>", url,
-               btnText);
-      strncat(buf, temp, size - 1);
-      break;
-    }
-
-    default:
-      break;
+  if (field->label) {
+    snprintf(temp, sizeof(temp), "<label>%s</label>", field->label);
+    strncat(buf, temp, size - 1);
   }
 
-  if (field->note && field->type != FIELD_TYPE_CARD) {
+  snprintf(temp, sizeof(temp), "<input type='%s' name='%s'", inputType,
+           field->name ? field->name : "");
+  if (field->value) {
+    char val[64];
+    snprintf(val, sizeof(val), " value='%s'", field->value);
+    strncat(temp, val, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->placeholder) {
+    char ph[64];
+    snprintf(ph, sizeof(ph), " placeholder='%s'", field->placeholder);
+    strncat(temp, ph, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->required) {
+    strncat(temp, " required", sizeof(temp) - strlen(temp) - 1);
+  }
+  strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
+  strncat(buf, temp, size - 1);
+
+  if (field->note) {
     char note[128];
-    note[0] = '\0';
     snprintf(note, sizeof(note), "<div class='note'>%s</div>", field->note);
     strncat(buf, note, size - 1);
   }
 }
+
+void render_number(char* buf, size_t size, const FieldNumber* field) {
+  if (!buf || size == 0 || !field)
+    return;
+  buf[0] = '\0';
+
+  char temp[256];
+  temp[0] = '\0';
+
+  if (field->label) {
+    snprintf(temp, sizeof(temp), "<label>%s</label>", field->label);
+    strncat(buf, temp, size - 1);
+  }
+
+  snprintf(temp, sizeof(temp), "<input type='number' name='%s'",
+           field->name ? field->name : "");
+  if (field->value) {
+    char val[64];
+    snprintf(val, sizeof(val), " value='%s'", field->value);
+    strncat(temp, val, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->placeholder) {
+    char ph[64];
+    snprintf(ph, sizeof(ph), " placeholder='%s'", field->placeholder);
+    strncat(temp, ph, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->min) {
+    char mn[32];
+    snprintf(mn, sizeof(mn), " min='%s'", field->min);
+    strncat(temp, mn, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->max) {
+    char mx[32];
+    snprintf(mx, sizeof(mx), " max='%s'", field->max);
+    strncat(temp, mx, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->step) {
+    char st[32];
+    snprintf(st, sizeof(st), " step='%s'", field->step);
+    strncat(temp, st, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->required) {
+    strncat(temp, " required", sizeof(temp) - strlen(temp) - 1);
+  }
+  strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
+  strncat(buf, temp, size - 1);
+
+  if (field->note) {
+    char note[128];
+    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field->note);
+    strncat(buf, note, size - 1);
+  }
+}
+
+void render_float(char* buf, size_t size, const FieldFloat* field) {
+  if (!buf || size == 0 || !field)
+    return;
+  buf[0] = '\0';
+
+  char temp[256];
+  temp[0] = '\0';
+
+  if (field->label) {
+    snprintf(temp, sizeof(temp), "<label>%s</label>", field->label);
+    strncat(buf, temp, size - 1);
+  }
+
+  snprintf(temp, sizeof(temp), "<input type='number' name='%s'",
+           field->name ? field->name : "");
+  if (field->value) {
+    char val[64];
+    snprintf(val, sizeof(val), " value='%s'", field->value);
+    strncat(temp, val, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->placeholder) {
+    char ph[64];
+    snprintf(ph, sizeof(ph), " placeholder='%s'", field->placeholder);
+    strncat(temp, ph, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->min) {
+    char mn[32];
+    snprintf(mn, sizeof(mn), " min='%s'", field->min);
+    strncat(temp, mn, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->max) {
+    char mx[32];
+    snprintf(mx, sizeof(mx), " max='%s'", field->max);
+    strncat(temp, mx, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->step) {
+    char st[32];
+    snprintf(st, sizeof(st), " step='%s'", field->step);
+    strncat(temp, st, sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->required) {
+    strncat(temp, " required", sizeof(temp) - strlen(temp) - 1);
+  }
+  strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
+  strncat(buf, temp, size - 1);
+
+  if (field->note) {
+    char note[128];
+    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field->note);
+    strncat(buf, note, size - 1);
+  }
+}
+
+void render_checkbox(char* buf, size_t size, const FieldCheckbox* field) {
+  if (!buf || size == 0 || !field)
+    return;
+  buf[0] = '\0';
+
+  char temp[128];
+  temp[0] = '\0';
+  snprintf(temp, sizeof(temp),
+           "<label><input type='checkbox' name='%s' value='1'",
+           field->name ? field->name : "");
+  if (field->checked) {
+    strncat(temp, " checked", sizeof(temp) - strlen(temp) - 1);
+  }
+  if (field->required) {
+    strncat(temp, " required", sizeof(temp) - strlen(temp) - 1);
+  }
+  strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
+  if (field->label) {
+    strncat(temp, " ", sizeof(temp) - strlen(temp) - 1);
+    strncat(temp, field->label, sizeof(temp) - strlen(temp) - 1);
+  }
+  strncat(temp, "</label>", sizeof(temp) - strlen(temp) - 1);
+  strncat(buf, temp, size - 1);
+
+  if (field->note) {
+    char note[128];
+    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field->note);
+    strncat(buf, note, size - 1);
+  }
+}
+
+// ============================================================================
+// ОБЩИЕ ФУНКЦИИ РЕНДЕРИНГА
+// ============================================================================
 
 void web_renderSensorCard(char* buf,
                           size_t size,
@@ -200,27 +230,10 @@ void web_renderSensorCard(char* buf,
   strncat(buf, temp, size - 1);
 }
 
-void web_sendRefreshMeta(WebSendCallback send,
-                         void* context,
-                         int refreshSeconds,
-                         const char* url) {
-  if (!send || refreshSeconds <= 0)
-    return;
-
-  char refresh[128];
-  if (url && strlen(url) > 0) {
-    snprintf_P(refresh, sizeof(refresh),
-               PSTR("<meta http-equiv='refresh' content='%d;url=%s'>"),
-               refreshSeconds, url);
-  } else {
-    snprintf_P(refresh, sizeof(refresh),
-               PSTR("<meta http-equiv='refresh' content='%d'>"),
-               refreshSeconds);
-  }
-  send(refresh, context);
-}
-
-void web_renderStatusCard(char* buf, size_t size, const char* status, bool isOn) {
+void web_renderStatusCard(char* buf,
+                          size_t size,
+                          const char* status,
+                          bool isOn) {
   if (!buf || size == 0)
     return;
   buf[0] = '\0';
@@ -234,7 +247,11 @@ void web_renderStatusCard(char* buf, size_t size, const char* status, bool isOn)
   strncat(buf, temp, size - 1);
 }
 
-void web_renderButton(char* buf, size_t size, const char* text, const char* url, const char* style) {
+void web_renderButton(char* buf,
+                      size_t size,
+                      const char* text,
+                      const char* url,
+                      const char* style) {
   if (!buf || size == 0)
     return;
   buf[0] = '\0';
@@ -260,6 +277,10 @@ void web_renderSpeedBar(char* buf, size_t size, int speed) {
   strncat(buf, temp, size - 1);
 }
 
+// ============================================================================
+// ОТПРАВКА СТРАНИЦ
+// ============================================================================
+
 void webSendContent(const char* chunk, void* context) {
   WebServerClass* srv = (WebServerClass*)context;
   if (srv && chunk) {
@@ -267,7 +288,10 @@ void webSendContent(const char* chunk, void* context) {
   }
 }
 
-void web_sendPageStart(WebSendCallback send, void* context, const char* title, PageMode mode) {
+void web_sendPageStart(WebSendCallback send,
+                       void* context,
+                       const char* title,
+                       PageMode mode) {
   (void)mode;
   if (!send)
     return;
@@ -291,7 +315,31 @@ void web_sendPageEnd(WebSendCallback send, void* context) {
     send((const char*)FPSTR(HTML_PAGE_END), context);
   }
 }
-void web_send_result_page(WebSendCallback send, void* context, const char* action, bool success) {
+
+void web_sendRefreshMeta(WebSendCallback send,
+                         void* context,
+                         int refreshSeconds,
+                         const char* url) {
+  if (!send || refreshSeconds <= 0)
+    return;
+
+  char refresh[128];
+  if (url && strlen(url) > 0) {
+    snprintf_P(refresh, sizeof(refresh),
+               PSTR("<meta http-equiv='refresh' content='%d;url=%s'>"),
+               refreshSeconds, url);
+  } else {
+    snprintf_P(refresh, sizeof(refresh),
+               PSTR("<meta http-equiv='refresh' content='%d'>"),
+               refreshSeconds);
+  }
+  send(refresh, context);
+}
+
+void web_send_result_page(WebSendCallback send,
+                          void* context,
+                          const char* action,
+                          bool success) {
   if (!send)
     return;
 

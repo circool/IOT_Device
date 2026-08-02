@@ -47,15 +47,23 @@
 | `web_send_config_page(send, context, cfg, currentMode, currentSsid, currentIp, refreshSeconds, errorMsg, successMsg)` | Отправить страницу конфигурации |
 | `web_send_result_page(action, success)` | Отправить страницу результата операции |
 
-### 2.2. Обработчики
+### 2.2. Рендеринг полей
+
+| Функция | Назначение |
+|---------|------------|
+| `render_text(buf, size, field)` | Рендеринг текстового поля |
+| `render_number(buf, size, field)` | Рендеринг числового поля |
+| `render_float(buf, size, field)` | Рендеринг поля с плавающей точкой |
+| `render_checkbox(buf, size, field)` | Рендеринг чекбокса |
+
+### 2.3. Обработчики
 
 | Функция | Назначение |
 |---------|------------|
 | `web_handle_save()` | Обработчик POST `/save` |
 | `web_handle_set()` | Обработчик GET `/set` |
-| `web_handle_reset()` | Обработчик GET `/resetall` (опционально) |
 
-### 2.3. Управление
+### 2.4. Управление
 
 | Функция | Назначение |
 |---------|------------|
