@@ -16,7 +16,6 @@
 | [ ] | `PROVISIONING_MANAGER.md` | Управление AP-режимом (`init()`, `start()`, `stop()`, `update()`) |
 | [ ] | `TRANSPORT_ABSTRACTION.md` | Создание транспорта через фабрику (`begin()`, `update()`) |
 | [ ] | `WEB_MANAGER.md` | Веб-интерфейс (`init()`, `update()`) |
-| [ ] | `WEB_OTA_MANAGER.md` | Обновление прошивки (`init()`, `update()`) |
 | [ ] | `LED_MANAGER.md` | Светодиодная индикация (`init()`, `set_mode()`, `update()`) |
 | [ ] | `RESET_BUTTON_MANAGER.md` | Кнопка сброса (`init()`, `update()`, чтение стадии) |
 | [ ] | `RESTART_MANAGER.md` | Централизованная перезагрузка (`update()` — последним в `loop()`) |

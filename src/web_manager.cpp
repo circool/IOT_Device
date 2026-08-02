@@ -5,16 +5,21 @@
  */
 
 #include "web_manager.h"
-#include <cstring>
-#include "config_manager.h"
-#include "logger.h"
 #include "web_ota_manager.h"
-#include "provisioning_manager.h"
-#include "sensor.h"
-#include "settings.h"
-#include "system_state.h"
 #include "web_common.h"
 #include "html_templates.h"
+
+#include "settings.h"
+
+#include <cstring>
+
+#include "config_manager.h"
+#include "logger.h"
+#include "provisioning_manager.h" //@deprecated see FIXME 1.10
+#include "sensor.h"
+#include "system_state.h"
+
+
 #include "wifi_manager.h"
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI && FEATURE_WEB_STATUS_ENABLED == 1

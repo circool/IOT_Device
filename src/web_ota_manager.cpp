@@ -4,9 +4,7 @@
  */
 #include "web_ota_manager.h"
 
-// #include "config_manager.h"
 #include "logger.h"
-// #include "wifi_manager.h"
 
 #if FEATURE_OTA_ENABLED == 1
 

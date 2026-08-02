@@ -11,7 +11,7 @@
 
 #include <Arduino.h>
 #include "config_manager.h"
-#include "web_ota_manager.h"
+#include "web_ota_manager.h" //@deprecated see FIXME 1.10
 #include "web_common.h"
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
@@ -125,6 +125,7 @@ const char HTML_PAGE_END[] PROGMEM = R"rawliteral(
  * @param isApMode true — режим точки доступа
  * @param errorMsg Текст ошибки (NULL если нет)
  * @param successMsg Текст успеха (NULL если нет)
+ * @deprecated see FIXME 1.10
  */
 inline void sendConfigPage(WebSendCallback send,
                            void* context,
