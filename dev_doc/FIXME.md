@@ -28,9 +28,9 @@
 | | | Убрать AP-страницу из `web_manager.cpp` | ✅ | |
 | | | Обновить `web_manager.cpp` для вызова функций provisioning | ✅ | |
 | | | Создать легковесный HTTP-сервер внутри `startApProvisioning()` | ✅ | |
-|**1.2.2** | Вынести AP сервер из в `ap_server`| | ⬜ | |
-| | | перенести AP сервер из `provisioning_manager` в `ap_server`| ⬜ | |
-| | | удалить функционал AP сервера из `web_manager`| ⬜ | |
+|**1.2.2** | Вынести AP сервер из в `provisioning_ap_server`| | ✅ | |
+| | | перенести AP сервер из `provisioning_manager` в `ap_server`| ✅ | |
+| | | удалить функционал AP сервера из `web_manager`| ✅ | |
 | **1.3** | **Вынести управление железом в `DeviceController`** | В `DeviceController::init()` инициализировать актуатор и датчик | ⬜ | 🔴 Критично |
 | | | В `DeviceController::update()` обновлять актуатор и датчик | ⬜ | |
 | | | Убрать `sensor_update()` из `main.cpp` | ⬜ | |
@@ -79,13 +79,32 @@
 | 1.9.7 | | Создать `CREDENTIALS.md` (заводские настройки) | ✅ | |
 | 1.9.8 | | Обновить `ARCHITECTURE.md` (раздел 10) — добавить ссылки на новые документы | ✅ | |
 | **1.10** | **Рефакторинг HTML-шаблонов** | | ⬜ | 🟡 Средний |
-| 1.10.1 | | Убрать `sendConfigPage()` из `html_templates.h` — это логика Web-слоя | ⬜ | |
-| 1.10.2 | | Перенести `sendConfigPage()` в `web_manager.cpp` как статическую функцию | ⬜ | |
-| 1.10.3 | | Добавить параметр `bool showOtaButton` в `sendConfigPage()` | ⬜ | |
-| 1.10.4 | | Убрать `#include "web_ota_manager.h"` из `html_templates.h` | ⬜ | |
-| 1.10.5 | | Обновить вызов `sendConfigPage()` в `web_manager.cpp` с передачей `ota_is_available()` | ⬜ | |
-
-
+| 1.10.1 | | Убрать `sendConfigPage()` из `html_templates.h` — это логика Web-слоя | ✅ | |
+| 1.10.2 | | Перенести `sendConfigPage()` в `web_manager.cpp` как статическую функцию | ✅ | |
+| 1.10.3 | | Добавить параметр `bool showOtaButton` в `sendConfigPage()` | [?] | |
+| 1.10.4 | | Убрать `#include "web_ota_manager.h"` из `html_templates.h` | ✅| |
+| 1.10.5 | | Обновить вызов `sendConfigPage()` в `web_manager.cpp` с передачей `ota_is_available()` | [?] | |
+| **1.11** | **Привести ProvisioningManager к единому интерфейсу слоёв** | | ⬜ | 🟡 Средний |
+| 1.11.1 | | Переименовать `begin()` → `init()` (инициализация структур) | ⬜ | |
+| 1.11.2 | | Переименовать `begin(callback)` → `start(callback)` (запуск провизионинга) | ⬜ | |
+| 1.11.3 | | Добавить метод `stop()` для остановки провизионинга с очисткой ресурсов | ⬜ | |
+| 1.11.4 | | В `stop()` вызывать `ap_server_stop()` и остановку BLE | ⬜ | |
+| 1.11.5 | | В `stop()` снимать `STATE_PROVISIONING` | ⬜ | |
+| 1.11.6 | | Добавить глобальные обёртки: `provisioning_init()`, `provisioning_start()`, `provisioning_stop()` | ⬜ | |
+| 1.11.7 | | Переименовать `startProvisioning()` → `provisioning_start()` | ⬜ | |
+| 1.11.8 | | Добавить `provisioning_init()` в `setup()` (после SystemState) | ⬜ | |
+| 1.11.9 | | Обновить `main.cpp`: после сохранения конфигурации вызывать `provisioning_stop()` вместо `restart_request()` | ⬜ | |
+| 1.11.10| | Обновить `PROVISIONING_MANAGER.md` под новый интерфейс | ⬜ | |
+| **1.12** | **Привести имена функций Web-слоя к `snake_case` и единообразию** | | ⬜ | 🟡 Средний |
+| 1.12.1 | | Переименовать `web_buildStatusHtml()` → `web_build_status_html()` (внутренняя) | ⬜ | |
+| 1.12.2 | | Переименовать `web_sendStatusPage()` → `web_send_status_page()` | ⬜ | |
+| 1.12.3 | | Переименовать `web_sendConfigPage()` → `web_send_config_page()` | ⬜ | |
+| 1.12.4 | | Переименовать `web_sendResultPage()` → `web_send_result_page()` | ⬜ | |
+| 1.12.5 | | Переименовать `web_saveConfig()` → `web_handle_save()` | ⬜ | |
+| 1.12.6 | | Переименовать `handleSetCommand()` → `web_handle_set()` | ⬜ | |
+| 1.12.7 | | Переименовать `web_registerStatusProvider()` → `web_register_status_provider()` | ⬜ | |
+| 1.12.8 | | Обновить все вызовы в `main.cpp` и `web_manager.cpp` | ⬜ | |
+| 1.12.9 | | Обновить `WEB_MANAGER.md` | ⬜ | |
 
 ## 2. Исправление найденных ошибок
 
