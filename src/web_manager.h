@@ -3,7 +3,6 @@
  * @brief Веб-интерфейс устройства
  * @details HTTP-сервер для управления и настройки устройства.
  *          Работает только при TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI.
- *          В AP-режиме делегирует провизионинг в слой provisioning.
  * @date 2026-07-28
  */
 
@@ -60,10 +59,9 @@ extern WebServerClass server;
 void web_registerStatusProvider(IWebStatusProvider* provider);
 
 /**
- * @brief Инициализация веб-сервера
- * @param setupMode true — AP-режим (настройка), false — нормальный режим
+ * @brief Инициализация веб-сервера в обычном режиме (STA)
  */
-void web_init(bool setupMode = false);
+void web_init(void);
 
 /**
  * @brief Периодическая обработка HTTP-запросов. Вызывается в loop()
@@ -81,13 +79,6 @@ String web_buildStatusHtml(void);
  * @param refreshInterval Интервал автообновления (сек)
  */
 void web_sendStatusPage(int refreshInterval);
-
-/**
- * @brief Отправить страницу конфигурации
- * @param errorMsg Текст ошибки (NULL если нет)
- * @param successMsg Текст успеха (NULL если нет)
- */
-void web_sendConfigPage(const char* errorMsg, const char* successMsg);
 
 /**
  * @brief Обработчик сохранения конфигурации (POST /save)
@@ -167,9 +158,7 @@ inline void web_registerStatusProvider(IWebStatusProvider* provider) {
 
 // Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
 // FEATURE_WEB_STATUS_ENABLED == 0)
-inline void web_init(bool setupMode) {
-  (void)setupMode;
-}
+inline void web_init(void) {}
 
 // Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
 // FEATURE_WEB_STATUS_ENABLED == 0)
@@ -184,10 +173,6 @@ inline String web_buildStatusHtml(void) {
 // Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
 // FEATURE_WEB_STATUS_ENABLED == 0)
 inline void web_sendStatusPage(int) {}
-
-// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
-// FEATURE_WEB_STATUS_ENABLED == 0)
-inline void web_sendConfigPage(const char*, const char*) {}
 
 // Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
 // FEATURE_WEB_STATUS_ENABLED == 0)

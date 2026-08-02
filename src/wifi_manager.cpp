@@ -167,48 +167,9 @@ int wifi_get_rssi() {
 }
 
 #if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
-void wifi_start_ap(const char* ssid) {
-  WiFi.setAutoReconnect(false);
-  WiFi.disconnect(true, true);
-  
-  delay(100);
-  XLOG_INFO(CAT_WIFI, "Starting AP mode: %s", ssid);
 
-  // WiFi.mode(WIFI_AP);
 
-#ifdef ESP8266
-  IPAddress apIP;
-  apIP.fromString(AP_IP_ADDRESS);
-  WiFi.mode(WIFI_AP);
-  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-#elif defined(ESP32)
-  // ================================================================
-  // ESP32-C3 SuperMini: снижаем TX мощность из-за аппаратных проблем
-  // ================================================================
 
-  IPAddress apIP;
-  apIP.fromString(AP_IP_ADDRESS);
-  WiFi.mode(WIFI_AP);
-
-  // Снижаем мощность передачи (решает проблему с AP на некоторых C3)
-  WiFi.setTxPower(WIFI_POWER_11dBm);  // или WIFI_POWER_11dBm
-  delay(50);
-
-  WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-  delay(50);
-#endif
-
-  WiFi.softAP(ssid);
-
-  XLOG_DEBUG(CAT_WIFI,
-             "AP started. SSID: " ANSI_BOLD
-             "%s" ANSI_BOLD_RESET ", IP: " ANSI_BOLD "%s",
-             ssid, AP_IP_ADDRESS);
-}
-
-void wifi_stop_ap() {
-  WiFi.softAPdisconnect(true);
-}
 
 #endif  // PROVISIONING_METHOD
 #endif  // TRANSPORT_TYPE

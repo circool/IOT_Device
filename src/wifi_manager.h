@@ -2,9 +2,9 @@
  * @file wifi_manager.h
  * @brief 
  */
- 
-#ifndef WIFI_H
-#define WIFI_H
+
+#ifndef WIFI_MANAGER_H
+#define WIFI_MANAGER_H
 
 #include <Arduino.h>
 #include "settings.h"
@@ -96,34 +96,7 @@ int wifi_get_rssi();
  */
 int wifi_scan_and_log(const char* targetSsid);
 
-#if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
 
-/** @brief IP адрес точки доступа */
-#ifndef AP_IP_ADDRESS
-#define AP_IP_ADDRESS "192.168.4.1"
-#endif
-
-/** @brief Веб-интерфейс нужен для провизионинга
- * @todo: найти место где можно безопасно переиниировать эту константу
- */
-#ifndef FEATURE_WEB_ENABLED
-#define FEATURE_WEB_ENABLED 1
-#endif
-
-/**
- * @brief Запустить режим точки доступа (AP)
- * @param ssid Имя WiFi сети (SSID) для точки доступа
- * @note IP адрес точки доступа задаётся макросом AP_IP_ADDRESS
- */
-void wifi_start_ap(const char* ssid);
-
-/**
- * @brief Остановить режим точки доступа (AP)
- * @note Оставлен для симметрии с wifi_start_ap
- */
-void wifi_stop_ap();
-
-#endif  // PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
 
 #else  // TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI
 
@@ -134,8 +107,8 @@ inline void wifi_manager_update() {};
 inline String wifi_get_local_ip() { return "0.0.0.0"; };
 inline int wifi_get_rssi() {return 0;};
 inline int wifi_scan_and_log(const char* /*targetSsid*/) { return -1; };
-inline void wifi_start_ap(const char* ssid) {};
-inline void wifi_stop_ap(){};
+
+
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
-#endif  // WIFI_H
+#endif  // WIFI_MANAGER_H

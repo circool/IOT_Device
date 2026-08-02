@@ -234,7 +234,7 @@ void loop() {
     wifi_fail_start = 0;
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
     if (!web_started && (bits & STATE_WIFI_OK)) {
-      web_init(false);
+      web_init();
       web_started = true;
     }
 #endif
@@ -262,11 +262,17 @@ void loop() {
   } else {
     // TODO> web_update();
   }
+  
+  // Потребуется и для кнопки и для LED. Обновляем только когда STATE_BUTTON_PRESSED
+  ResetButtonStage stage = RELEASED;  
+  
+
   // =========================================================================
   // КНОПКА СБРОСА
   // =========================================================================
-  ResetButtonStage stage = resetBtn_get_stage();
+   
   if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
+    ResetButtonStage stage = resetBtn_get_stage(); 
     if (stage == STAGE_3S) {
       XLOG_WARN(CAT_MAIN, "Reset button triggered.");
       wdt_stop();

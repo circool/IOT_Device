@@ -162,6 +162,15 @@
 #define FEATURE_WEB_STATUS_ENABLED 1
 #endif
 
+#if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
+/** @brief Веб-интерфейс нужен для провизионинга
+ * @todo: найти место где можно безопасно переиниировать эту константу
+ */
+#ifndef FEATURE_WEB_ENABLED
+#define FEATURE_WEB_ENABLED 1
+#endif
+#endif  // PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
+
 /**
  * @brief Включить Matter
  * @details Требует TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI (WIFI) ИЛИ 3 (THREAD)
@@ -256,6 +265,24 @@
  */
 #ifndef PROVISIONING_METHOD
 #define PROVISIONING_METHOD 2  // AP по умолчанию
+#endif
+
+/**
+ * @brief Включить AP-провизионинг (производная константа)
+ */
+#if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
+#define USE_AP_PROVISIONING 1
+#else
+#define USE_AP_PROVISIONING 0
+#endif
+
+/**
+ * @brief Включить BLE-провизионинг (производная константа)
+ */
+#if PROVISIONING_METHOD == 1 || PROVISIONING_METHOD == 3
+#define USE_BLE_PROVISIONING 1
+#else
+#define USE_BLE_PROVISIONING 0
 #endif
 
 // ============================================================================
