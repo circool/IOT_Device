@@ -225,7 +225,7 @@ void loop() {
 
 ```cpp
 // web_manager.cpp — обработчик /save
-void web_saveConfig() {
+void web_handle_save() {
     if (g_configManager.save()) {
         g_webRestartPending = true;
         // Оркестратор в loop() вызовет restart_request(500)
