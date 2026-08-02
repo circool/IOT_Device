@@ -5,9 +5,9 @@
  */
 
 #include "web_manager.h"
-#include "web_ota_manager.h"
-#include "web_common.h"
 #include "html_templates.h"
+#include "web_common.h"
+#include "web_ota_manager.h"
 
 #include "settings.h"
 
@@ -15,11 +15,8 @@
 
 #include "config_manager.h"
 #include "logger.h"
-#include "provisioning_manager.h" //@deprecated see FIXME 1.10
 #include "sensor.h"
 #include "system_state.h"
-
-
 #include "wifi_manager.h"
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI && FEATURE_WEB_STATUS_ENABLED == 1
@@ -31,7 +28,6 @@ ConfigData g_webPendingConfig;
 WebCommand g_webCommand;
 
 WebServerClass server(80);
-static bool g_setupMode = false;
 static IWebStatusProvider* g_statusProvider = nullptr;
 
 /**
@@ -393,25 +389,501 @@ void web_sendStatusPage(int refreshInterval) {
   web_sendPageEnd(webSendContent, &server);
 }
 
-void web_sendConfigPage(const char* errorMsg, const char* successMsg) {
-  const ConfigData* cfg = g_configManager.get();
-  bool isApMode = system_state_has_bit(STATE_PROVISIONING);
+static void sendConfigPage(WebSendCallback send,
+                           void* context,
+                           const ConfigData* cfg,
+                           const char* currentMode,
+                           const char* currentSsid,
+                           const char* currentIp,
+                           int refreshSeconds,
+                           const char* errorMsg,
+                           const char* successMsg) {
+  if (!send || !cfg)
+    return;
+
+  char buf[384];
   const char* deviceId = g_configManager.getDeviceId();
 
-  const char* currentMode = isApMode ? "Access Point" : "Client WiFi";
-  const char* currentSsid = isApMode ? deviceId : cfg->wifiSsid;
+  send((const char*)FPSTR(HTML_PAGE_START), context);
 
-  String currentIp = wifi_get_local_ip();
+  if (refreshSeconds > 0) {
+    char refresh[64];
+    snprintf_P(refresh, sizeof(refresh),
+               PSTR("<meta http-equiv='refresh' content='%d'>"),
+               refreshSeconds);
+    send(refresh, context);
+  }
 
-  int refreshSeconds =
-      (successMsg && strlen(successMsg) > 0) ? DEFAULT_WEB_REFRESH : 0;
+  send((const char*)"<title>", context);
+  send(deviceId, context);
+  send((const char*)" Configuration</title>", context);
+  send((const char*)FPSTR(HTML_STYLE), context);
+  send((const char*)"</head><body><div class='container'>", context);
 
-  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server.send(200, "text/html", "");
+  snprintf(buf, sizeof(buf), "<h1>Settings %s v. %s</h1>", deviceId, VERSION);
+  send(buf, context);
 
-  sendConfigPage(webSendContent, &server, cfg, currentMode, currentSsid,
-                 currentIp.c_str(), refreshSeconds, g_setupMode, errorMsg,
-                 successMsg);
+  snprintf(buf, sizeof(buf),
+           "<h3>State</h3><div class='info'>"
+           "Mode: <strong>%s</strong><br>"
+           "SSID: <strong>%s</strong><br>"
+           "IP: <strong>%s</strong></div>",
+           currentMode ? currentMode : "N/A", currentSsid ? currentSsid : "N/A",
+           currentIp ? currentIp : "N/A");
+  send(buf, context);
+
+  if (errorMsg && errorMsg[0] != '\0') {
+    snprintf(buf, sizeof(buf),
+             "<div class='error'><strong>Error:</strong> %s</div>", errorMsg);
+    send(buf, context);
+  }
+  if (successMsg && successMsg[0] != '\0') {
+    snprintf(buf, sizeof(buf),
+             "<div class='success'><strong>Config saved!</strong> %s</div>",
+             successMsg);
+    send(buf, context);
+  }
+
+  send((const char*)"<form method='POST' action='/save'>", context);
+
+  // ===== WiFi =====
+  send((const char*)"<h3>WiFi setup</h3>", context);
+
+  FieldDef ssidField;
+  ssidField.type = FIELD_TYPE_TEXT;
+  ssidField.label = "WiFi SSID";
+  ssidField.name = "wifiSsid";
+  ssidField.value = cfg->wifiSsid;
+  ssidField.placeholder = NULL;
+  ssidField.note = NULL;
+  ssidField.min = NULL;
+  ssidField.max = NULL;
+  ssidField.step = NULL;
+  ssidField.link = NULL;
+  ssidField.buttonText = NULL;
+  ssidField.checked = false;
+  ssidField.required = true;
+  web_renderField(buf, sizeof(buf), &ssidField);
+  send(buf, context);
+
+  FieldDef pwdField;
+  pwdField.type = FIELD_TYPE_PASSWORD;
+  pwdField.label = "WiFi Password";
+  pwdField.name = "wifiPassword";
+  pwdField.value = NULL;
+  pwdField.placeholder = "(hidden)";
+  pwdField.note = "Leave empty to keep current password";
+  pwdField.min = NULL;
+  pwdField.max = NULL;
+  pwdField.step = NULL;
+  pwdField.link = NULL;
+  pwdField.buttonText = NULL;
+  pwdField.checked = false;
+  pwdField.required = false;
+  web_renderField(buf, sizeof(buf), &pwdField);
+  send(buf, context);
+
+  // ===== MQTT =====
+#if FEATURE_MQTT_ENABLED == 1
+  send((const char*)"<h3>MQTT setup</h3>", context);
+
+  FieldDef brokerField;
+  brokerField.type = FIELD_TYPE_TEXT;
+  brokerField.label = "MQTT Broker";
+  brokerField.name = "mqttBroker";
+  brokerField.value = cfg->mqttBroker;
+  brokerField.placeholder = NULL;
+  brokerField.note = NULL;
+  brokerField.min = NULL;
+  brokerField.max = NULL;
+  brokerField.step = NULL;
+  brokerField.link = NULL;
+  brokerField.buttonText = NULL;
+  brokerField.checked = false;
+  brokerField.required = true;
+  web_renderField(buf, sizeof(buf), &brokerField);
+  send(buf, context);
+
+  char portStr[8];
+  snprintf(portStr, sizeof(portStr), "%d", cfg->mqttPort);
+  FieldDef portField;
+  portField.type = FIELD_TYPE_NUMBER;
+  portField.label = "MQTT Port";
+  portField.name = "mqttPort";
+  portField.value = portStr;
+  portField.placeholder = NULL;
+  portField.note = NULL;
+  portField.min = "1";
+  portField.max = "65535";
+  portField.step = "1";
+  portField.link = NULL;
+  portField.buttonText = NULL;
+  portField.checked = false;
+  portField.required = true;
+  web_renderField(buf, sizeof(buf), &portField);
+  send(buf, context);
+
+  FieldDef userField;
+  userField.type = FIELD_TYPE_TEXT;
+  userField.label = "MQTT User";
+  userField.name = "mqttUser";
+  userField.value = cfg->mqttUser;
+  userField.placeholder = NULL;
+  userField.note = NULL;
+  userField.min = NULL;
+  userField.max = NULL;
+  userField.step = NULL;
+  userField.link = NULL;
+  userField.buttonText = NULL;
+  userField.checked = false;
+  userField.required = false;
+  web_renderField(buf, sizeof(buf), &userField);
+  send(buf, context);
+
+  FieldDef mqttPwdField;
+  mqttPwdField.type = FIELD_TYPE_PASSWORD;
+  mqttPwdField.label = "MQTT Password";
+  mqttPwdField.name = "mqttPassword";
+  mqttPwdField.value = NULL;
+  mqttPwdField.placeholder = "(hidden)";
+  mqttPwdField.note = "Leave empty to keep current password";
+  mqttPwdField.min = NULL;
+  mqttPwdField.max = NULL;
+  mqttPwdField.step = NULL;
+  mqttPwdField.link = NULL;
+  mqttPwdField.buttonText = NULL;
+  mqttPwdField.checked = false;
+  mqttPwdField.required = false;
+  web_renderField(buf, sizeof(buf), &mqttPwdField);
+  send(buf, context);
+
+  FieldDef clientField;
+  clientField.type = FIELD_TYPE_TEXT;
+  clientField.label = "MQTT Client ID";
+  clientField.name = "mqttClientId";
+  clientField.value = cfg->mqttClientId;
+  clientField.placeholder = NULL;
+  clientField.note = NULL;
+  clientField.min = NULL;
+  clientField.max = NULL;
+  clientField.step = NULL;
+  clientField.link = NULL;
+  clientField.buttonText = NULL;
+  clientField.checked = false;
+  clientField.required = true;
+  web_renderField(buf, sizeof(buf), &clientField);
+  send(buf, context);
+#endif
+
+  // ===== TYPE 1 =====
+#if DEVICE_TYPE == 1
+  send((const char*)"<h3>Sensor</h3>", context);
+
+  char tempBuf[16];
+  snprintf(tempBuf, sizeof(tempBuf), "%.1f", cfg->lowTemp);
+  FieldDef lowTempField;
+  lowTempField.type = FIELD_TYPE_NUMBER;
+  lowTempField.label = "Low Temp (\u00B0C)";
+  lowTempField.name = "lowTemp";
+  lowTempField.value = tempBuf;
+  lowTempField.placeholder = NULL;
+  lowTempField.note = NULL;
+  lowTempField.min = "-40";
+  lowTempField.max = "85";
+  lowTempField.step = "0.1";
+  lowTempField.link = NULL;
+  lowTempField.buttonText = NULL;
+  lowTempField.checked = false;
+  lowTempField.required = true;
+  web_renderField(buf, sizeof(buf), &lowTempField);
+  send(buf, context);
+
+  snprintf(tempBuf, sizeof(tempBuf), "%.1f", cfg->highTemp);
+  FieldDef highTempField;
+  highTempField.type = FIELD_TYPE_NUMBER;
+  highTempField.label = "High Temp (\u00B0C)";
+  highTempField.name = "highTemp";
+  highTempField.value = tempBuf;
+  highTempField.placeholder = NULL;
+  highTempField.note = NULL;
+  highTempField.min = "-40";
+  highTempField.max = "85";
+  highTempField.step = "0.1";
+  highTempField.link = NULL;
+  highTempField.buttonText = NULL;
+  highTempField.checked = false;
+  highTempField.required = true;
+  web_renderField(buf, sizeof(buf), &highTempField);
+  send(buf, context);
+
+  char humBuf[16];
+  snprintf(humBuf, sizeof(humBuf), "%.1f", cfg->lowHum);
+  FieldDef lowHumField;
+  lowHumField.type = FIELD_TYPE_NUMBER;
+  lowHumField.label = "Low Hum (%)";
+  lowHumField.name = "lowHum";
+  lowHumField.value = humBuf;
+  lowHumField.placeholder = NULL;
+  lowHumField.note = NULL;
+  lowHumField.min = "0";
+  lowHumField.max = "100";
+  lowHumField.step = "0.1";
+  lowHumField.link = NULL;
+  lowHumField.buttonText = NULL;
+  lowHumField.checked = false;
+  lowHumField.required = true;
+  web_renderField(buf, sizeof(buf), &lowHumField);
+  send(buf, context);
+
+  snprintf(humBuf, sizeof(humBuf), "%.1f", cfg->highHum);
+  FieldDef highHumField;
+  highHumField.type = FIELD_TYPE_NUMBER;
+  highHumField.label = "High Hum (%)";
+  highHumField.name = "highHum";
+  highHumField.value = humBuf;
+  highHumField.placeholder = NULL;
+  highHumField.note = NULL;
+  highHumField.min = "0";
+  highHumField.max = "100";
+  highHumField.step = "0.1";
+  highHumField.link = NULL;
+  highHumField.buttonText = NULL;
+  highHumField.checked = false;
+  highHumField.required = true;
+  web_renderField(buf, sizeof(buf), &highHumField);
+  send(buf, context);
+
+  char intervalBuf[8];
+  snprintf(intervalBuf, sizeof(intervalBuf), "%d", cfg->sensorInterval);
+  FieldDef intervalField;
+  intervalField.type = FIELD_TYPE_NUMBER;
+  intervalField.label = "Sensor polling interval (sec)";
+  intervalField.name = "sensorInterval";
+  intervalField.value = intervalBuf;
+  intervalField.placeholder = NULL;
+  intervalField.note = NULL;
+  intervalField.min = "1";
+  intervalField.max = "50";
+  intervalField.step = "1";
+  intervalField.link = NULL;
+  intervalField.buttonText = NULL;
+  intervalField.checked = false;
+  intervalField.required = true;
+  web_renderField(buf, sizeof(buf), &intervalField);
+  send(buf, context);
+
+  char maxOnBuf[16];
+  snprintf(maxOnBuf, sizeof(maxOnBuf), "%lu", cfg->maxOnTime);
+  FieldDef maxOnField;
+  maxOnField.type = FIELD_TYPE_NUMBER;
+  maxOnField.label = "Emergency timeout (sec)";
+  maxOnField.name = "maxOnTime";
+  maxOnField.value = maxOnBuf;
+  maxOnField.placeholder = NULL;
+  maxOnField.note = "0 = disabled";
+  maxOnField.min = "0";
+  maxOnField.max = "86400";
+  maxOnField.step = "1";
+  maxOnField.link = NULL;
+  maxOnField.buttonText = NULL;
+  maxOnField.checked = false;
+  maxOnField.required = true;
+  web_renderField(buf, sizeof(buf), &maxOnField);
+  send(buf, context);
+
+  char delayBuf[16];
+  snprintf(delayBuf, sizeof(delayBuf), "%d", cfg->delaySeconds);
+  FieldDef delayField;
+  delayField.type = FIELD_TYPE_NUMBER;
+  delayField.label = "Turn on after (sec)";
+  delayField.name = "delaySeconds";
+  delayField.value = delayBuf;
+  delayField.placeholder = NULL;
+  delayField.note = "0 = disabled";
+  delayField.min = "0";
+  delayField.max = "86400";
+  delayField.step = "1";
+  delayField.link = NULL;
+  delayField.buttonText = NULL;
+  delayField.checked = false;
+  delayField.required = true;
+  web_renderField(buf, sizeof(buf), &delayField);
+  send(buf, context);
+
+  char speedBuf[8];
+  snprintf(speedBuf, sizeof(speedBuf), "%d", cfg->speedPercent);
+  FieldDef speedField;
+  speedField.type = FIELD_TYPE_NUMBER;
+  speedField.label = "Speed (0-100%)";
+  speedField.name = "speedPercent";
+  speedField.value = speedBuf;
+  speedField.placeholder = NULL;
+  speedField.note = "0% - off, 100% - maximal speed";
+  speedField.min = "0";
+  speedField.max = "100";
+  speedField.step = "1";
+  speedField.link = NULL;
+  speedField.buttonText = NULL;
+  speedField.checked = false;
+  speedField.required = true;
+  web_renderField(buf, sizeof(buf), &speedField);
+  send(buf, context);
+
+  FieldDef adaptiveField;
+  adaptiveField.type = FIELD_TYPE_CHECKBOX;
+  adaptiveField.label = "Enable adaptive mode";
+  adaptiveField.name = "adaptiveMode";
+  adaptiveField.value = NULL;
+  adaptiveField.placeholder = NULL;
+  adaptiveField.note =
+      "Automatically adjusts speed to maintain temperature and humidity";
+  adaptiveField.min = NULL;
+  adaptiveField.max = NULL;
+  adaptiveField.step = NULL;
+  adaptiveField.link = NULL;
+  adaptiveField.buttonText = NULL;
+  adaptiveField.checked = cfg->adaptiveMode;
+  adaptiveField.required = false;
+  web_renderField(buf, sizeof(buf), &adaptiveField);
+  send(buf, context);
+
+  FieldDef bootField;
+  bootField.type = FIELD_TYPE_CHECKBOX;
+  bootField.label = "Turn on at startup";
+  bootField.name = "bootState";
+  bootField.value = NULL;
+  bootField.placeholder = NULL;
+  bootField.note = "Fan turns on immediately after power is applied";
+  bootField.min = NULL;
+  bootField.max = NULL;
+  bootField.step = NULL;
+  bootField.link = NULL;
+  bootField.buttonText = NULL;
+  bootField.checked = cfg->bootState;
+  bootField.required = false;
+  web_renderField(buf, sizeof(buf), &bootField);
+  send(buf, context);
+
+  FieldDef sensorModeField;
+  sensorModeField.type = FIELD_TYPE_CHECKBOX;
+  sensorModeField.label = "Sensor control";
+  sensorModeField.name = "sensorControlMode";
+  sensorModeField.value = NULL;
+  sensorModeField.placeholder = NULL;
+  sensorModeField.note = "When enabled, fan is controlled by sensors";
+  sensorModeField.min = NULL;
+  sensorModeField.max = NULL;
+  sensorModeField.step = NULL;
+  sensorModeField.link = NULL;
+  sensorModeField.buttonText = NULL;
+  sensorModeField.checked = cfg->sensorControlMode;
+  sensorModeField.required = false;
+  web_renderField(buf, sizeof(buf), &sensorModeField);
+  send(buf, context);
+
+#elif DEVICE_TYPE == 2
+  char intervalBuf[8];
+  snprintf(intervalBuf, sizeof(intervalBuf), "%d", cfg->sensorInterval);
+  FieldDef intervalField;
+  intervalField.type = FIELD_TYPE_NUMBER;
+  intervalField.label = "Reading interval (sec)";
+  intervalField.name = "sensorInterval";
+  intervalField.value = intervalBuf;
+  intervalField.placeholder = NULL;
+  intervalField.note = NULL;
+  intervalField.min = "1";
+  intervalField.max = "50";
+  intervalField.step = "1";
+  intervalField.link = NULL;
+  intervalField.buttonText = NULL;
+  intervalField.checked = false;
+  intervalField.required = true;
+  web_renderField(buf, sizeof(buf), &intervalField);
+  send(buf, context);
+
+#elif DEVICE_TYPE == 3
+  char maxOnBuf[16];
+  snprintf(maxOnBuf, sizeof(maxOnBuf), "%lu", cfg->maxOnTime);
+  FieldDef maxOnField;
+  maxOnField.type = FIELD_TYPE_NUMBER;
+  maxOnField.label = "Emergency timeout (sec)";
+  maxOnField.name = "maxOnTime";
+  maxOnField.value = maxOnBuf;
+  maxOnField.placeholder = NULL;
+  maxOnField.note = "0 = disabled";
+  maxOnField.min = "0";
+  maxOnField.max = "86400";
+  maxOnField.step = "1";
+  maxOnField.link = NULL;
+  maxOnField.buttonText = NULL;
+  maxOnField.checked = false;
+  maxOnField.required = true;
+  web_renderField(buf, sizeof(buf), &maxOnField);
+  send(buf, context);
+
+  char delayBuf[16];
+  snprintf(delayBuf, sizeof(delayBuf), "%d", cfg->delaySeconds);
+  FieldDef delayField;
+  delayField.type = FIELD_TYPE_NUMBER;
+  delayField.label = "Turn on after (sec)";
+  delayField.name = "delaySeconds";
+  delayField.value = delayBuf;
+  delayField.placeholder = NULL;
+  delayField.note = "0 = disabled";
+  delayField.min = "0";
+  delayField.max = "86400";
+  delayField.step = "1";
+  delayField.link = NULL;
+  delayField.buttonText = NULL;
+  delayField.checked = false;
+  delayField.required = true;
+  web_renderField(buf, sizeof(buf), &delayField);
+  send(buf, context);
+
+  FieldDef bootField;
+  bootField.type = FIELD_TYPE_CHECKBOX;
+  bootField.label = "Turn on at startup";
+  bootField.name = "bootState";
+  bootField.value = NULL;
+  bootField.placeholder = NULL;
+  bootField.note = "Switch turns on immediately after power is applied";
+  bootField.min = NULL;
+  bootField.max = NULL;
+  bootField.step = NULL;
+  bootField.link = NULL;
+  bootField.buttonText = NULL;
+  bootField.checked = cfg->bootState;
+  bootField.required = false;
+  web_renderField(buf, sizeof(buf), &bootField);
+  send(buf, context);
+#endif
+
+  FieldDef confirmField;
+  confirmField.type = FIELD_TYPE_CHECKBOX;
+  confirmField.label = "Confirm saving";
+  confirmField.name = "confirmSave";
+  confirmField.value = NULL;
+  confirmField.placeholder = NULL;
+  confirmField.note = NULL;
+  confirmField.min = NULL;
+  confirmField.max = NULL;
+  confirmField.step = NULL;
+  confirmField.link = NULL;
+  confirmField.buttonText = NULL;
+  confirmField.checked = false;
+  confirmField.required = true;
+  web_renderField(buf, sizeof(buf), &confirmField);
+  send(buf, context);
+
+  send((const char*)"<input type='submit' value='Save and reboot'>", context);
+  send((const char*)"</form>", context);
+
+  if (ota_is_available()) {
+    send((const char*)"<a href='/update' class='link-btn'>Upgrade firmware (OTA)</a>", context);
+  }
+
+  send((const char*)"<a href='/' class='link-btn'>Home</a>", context);
+  send((const char*)FPSTR(HTML_PAGE_END), context);
 }
 
 void web_saveConfig(void) {
@@ -429,7 +901,14 @@ void web_saveConfig(void) {
       g_webPendingConfig.wifiSsid[sizeof(g_webPendingConfig.wifiSsid) - 1] =
           '\0';
     } else {
-      web_sendConfigPage("WiFi SSID is empty or too long", "");
+      // Ошибка — отправить страницу с ошибкой
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "WiFi SSID is empty or too long",
+                     "");
       return;
     }
   }
@@ -443,7 +922,13 @@ void web_saveConfig(void) {
         g_webPendingConfig
             .wifiPassword[sizeof(g_webPendingConfig.wifiPassword) - 1] = '\0';
       } else {
-        web_sendConfigPage("WiFi password too long", "");
+        const ConfigData* cfg = g_configManager.get();
+        String currentIp = wifi_get_local_ip();
+        server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+        server.send(200, "text/html", "");
+        sendConfigPage(webSendContent, &server, cfg, "Client WiFi",
+                       cfg->wifiSsid, currentIp.c_str(), 0,
+                       "WiFi password too long", "");
         return;
       }
     }
@@ -460,7 +945,13 @@ void web_saveConfig(void) {
       g_webPendingConfig.mqttBroker[sizeof(g_webPendingConfig.mqttBroker) - 1] =
           '\0';
     } else {
-      web_sendConfigPage("MQTT Broker is empty or too long", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "MQTT Broker is empty or too long",
+                     "");
       return;
     }
   }
@@ -470,7 +961,12 @@ void web_saveConfig(void) {
     if (port >= 1 && port <= 65535) {
       g_webPendingConfig.mqttPort = (uint16_t)port;
     } else {
-      web_sendConfigPage("MQTT Port must be 1-65535", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "MQTT Port must be 1-65535", "");
       return;
     }
   }
@@ -505,7 +1001,13 @@ void web_saveConfig(void) {
       g_webPendingConfig
           .mqttClientId[sizeof(g_webPendingConfig.mqttClientId) - 1] = '\0';
     } else {
-      web_sendConfigPage("MQTT Client ID is empty or too long", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0,
+                     "MQTT Client ID is empty or too long", "");
       return;
     }
   }
@@ -518,7 +1020,12 @@ void web_saveConfig(void) {
     if (interval >= SENSOR_INTERVAL_MIN && interval <= SENSOR_INTERVAL_MAX) {
       g_webPendingConfig.sensorInterval = (uint16_t)interval;
     } else {
-      web_sendConfigPage("Sensor interval out of range", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "Sensor interval out of range", "");
       return;
     }
   }
@@ -531,7 +1038,12 @@ void web_saveConfig(void) {
     if (val >= TEMP_MIN && val <= TEMP_MAX) {
       g_webPendingConfig.lowTemp = val;
     } else {
-      web_sendConfigPage("Low Temp out of range", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "Low Temp out of range", "");
       return;
     }
   }
@@ -541,7 +1053,12 @@ void web_saveConfig(void) {
     if (val >= TEMP_MIN && val <= TEMP_MAX) {
       g_webPendingConfig.highTemp = val;
     } else {
-      web_sendConfigPage("High Temp out of range", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "High Temp out of range", "");
       return;
     }
   }
@@ -551,7 +1068,12 @@ void web_saveConfig(void) {
     if (val >= HUM_MIN && val <= HUM_MAX) {
       g_webPendingConfig.lowHum = val;
     } else {
-      web_sendConfigPage("Low Hum out of range", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "Low Hum out of range", "");
       return;
     }
   }
@@ -561,7 +1083,12 @@ void web_saveConfig(void) {
     if (val >= HUM_MIN && val <= HUM_MAX) {
       g_webPendingConfig.highHum = val;
     } else {
-      web_sendConfigPage("High Hum out of range", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "High Hum out of range", "");
       return;
     }
   }
@@ -571,7 +1098,12 @@ void web_saveConfig(void) {
     if (val <= MAX_ON_TIME_MAX) {
       g_webPendingConfig.maxOnTime = val;
     } else {
-      web_sendConfigPage("MaxOnTime out of range", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "MaxOnTime out of range", "");
       return;
     }
   }
@@ -581,7 +1113,12 @@ void web_saveConfig(void) {
     if (val >= DELAY_SECONDS_MIN && val <= DELAY_SECONDS_MAX) {
       g_webPendingConfig.delaySeconds = val;
     } else {
-      web_sendConfigPage("Delay seconds out of range", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "Delay seconds out of range", "");
       return;
     }
   }
@@ -591,7 +1128,12 @@ void web_saveConfig(void) {
     if (val >= 0 && val <= 100) {
       g_webPendingConfig.speedPercent = (uint16_t)val;
     } else {
-      web_sendConfigPage("Speed must be 0-100%", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "Speed must be 0-100%", "");
       return;
     }
   }
@@ -608,7 +1150,12 @@ void web_saveConfig(void) {
     if (val <= MAX_ON_TIME_MAX) {
       g_webPendingConfig.maxOnTime = val;
     } else {
-      web_sendConfigPage("MaxOnTime out of range", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "MaxOnTime out of range", "");
       return;
     }
   }
@@ -618,7 +1165,12 @@ void web_saveConfig(void) {
     if (val >= DELAY_SECONDS_MIN && val <= DELAY_SECONDS_MAX) {
       g_webPendingConfig.delaySeconds = val;
     } else {
-      web_sendConfigPage("Delay seconds out of range", "");
+      const ConfigData* cfg = g_configManager.get();
+      String currentIp = wifi_get_local_ip();
+      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+      server.send(200, "text/html", "");
+      sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                     currentIp.c_str(), 0, "Delay seconds out of range", "");
       return;
     }
   }
@@ -629,71 +1181,62 @@ void web_saveConfig(void) {
   g_webConfigPending = true;
   XLOG_INFO(CAT_WEB, "Config parsed, pending for main to apply");
 
-  web_sendResultPage(webSendContent, &server, "Configuration saved", true);
+  // Отправить страницу успеха
+  const ConfigData* cfg = g_configManager.get();
+  String currentIp = wifi_get_local_ip();
+  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+  server.send(200, "text/html", "");
+  sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                 currentIp.c_str(), DEFAULT_WEB_REFRESH, "",
+                 "Configuration saved. Device will reboot.");
 }
 
 // ============================================================================
 // ИНИЦИАЛИЗАЦИЯ WEB
 // ============================================================================
 
-void web_init(bool setupMode) {
-  g_setupMode = setupMode;
-
-  if (setupMode) {
-    // ===== AP-режим: вся логика в provisioning =====
-    server.on("/", []() { provisioning_send_ap_page(&server); });
-
-    server.on("/savewifi", HTTP_POST,
-              []() { provisioning_handle_ap_save(&server); });
-
-    // Перенаправляем /config на / для единообразия
-    server.on("/config", []() {
-      server.sendHeader("Location", "/");
-      server.send(302, "text/plain", "Redirecting...");
-    });
-
-    server.on("/favicon.ico", []() { server.send(404); });
-
-  } else {
-    // ===== Обычный режим =====
-    int refreshInterval = DEFAULT_WEB_REFRESH;
+void web_init(void) {
+  int refreshInterval = DEFAULT_WEB_REFRESH;
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-    refreshInterval = g_configManager.getSensorInterval();
+  refreshInterval = g_configManager.getSensorInterval();
 #endif
 
-    server.on("/", [refreshInterval]() {
-      XLOG_DEBUG(CAT_WEB, "GET / - serving status page");
+  server.on("/", [refreshInterval]() {
+    XLOG_DEBUG(CAT_WEB, "GET / - serving status page");
 #ifdef ESP32
-      server.client().setNoDelay(true);
+    server.client().setNoDelay(true);
 #endif
-      web_sendStatusPage(refreshInterval);
-    });
+    web_sendStatusPage(refreshInterval);
+  });
 
-    server.on("/config", []() {
-      XLOG_DEBUG(CAT_WEB, "GET /config - serving config page");
-      web_sendConfigPage("", "");
-    });
+  server.on("/config", []() {
+    XLOG_DEBUG(CAT_WEB, "GET /config - serving config page");
+    const ConfigData* cfg = g_configManager.get();
+    String currentIp = wifi_get_local_ip();
+    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    server.send(200, "text/html", "");
+    sendConfigPage(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
+                   currentIp.c_str(), 0, "", "");
+  });
 
-    server.on("/save", web_saveConfig);
-    server.on("/favicon.ico", []() { server.send(404); });
-    server.on("/set", handleSetCommand);
+  server.on("/save", web_saveConfig);
+  server.on("/favicon.ico", []() { server.send(404); });
+  server.on("/set", handleSetCommand);
 
 #if WEB_RESET_ENABLED == 1
-    server.on("/resetall", []() {
-      g_webRestartPending = true;
-      web_sendResultPage(webSendContent, &server,
-                         "Configuration was reset, rebooting...", true);
-    });
+  server.on("/resetall", []() {
+    g_webRestartPending = true;
+    web_sendResultPage(webSendContent, &server,
+                       "Configuration was reset, rebooting...", true);
+  });
 #endif
 
-    if (ota_is_available()) {
-      web_ota_manager_init(&server);
-    }
+  if (ota_is_available()) {
+    web_ota_manager_init(&server);
   }
 
   server.begin();
-  XLOG_DEBUG(CAT_WEB, "Web server started. (Mode: %s)",
-             setupMode ? "SETUP" : "NORMAL");
+  XLOG_DEBUG(CAT_WEB, "Web server started (NORMAL mode)");
 }
 
 void web_update(void) {
