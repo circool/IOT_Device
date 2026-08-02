@@ -35,7 +35,7 @@ input[type=submit]:hover,button:hover,.link-btn:hover{background: #030303;}
 .text_header{font-size:1.2em;font-weight:bold;}
 .row{display:flex;gap:10px;}.row>div{flex:1;}
 .password-hint{color:#7f8c8d;margin-top:-2px;margin-bottom:8px;}
-.note{margin-top:10px;font-size:0.9em;color:#050505;display:flex;gap:8px;align-items:flex-start;}
+.note{margin-top:10px;font-size:0.9em;color:#050505;display:flex;gap:8px;align-items:center;}
 .note::before{content:"ℹ️";font-weight:bold;flex-shrink:0;display:inline-block;}
 .flex-container{display:flex;flex-wrap:wrap;justify-content:center;}
 .sensor-card{display:inline-block;width:45%;margin:10px;padding:15px;border-radius:10px;text-align:center;}
