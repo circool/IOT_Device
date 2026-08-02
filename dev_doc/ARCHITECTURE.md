@@ -27,7 +27,7 @@
 | [ ] | `TRANSPORT_ABSTRACTION.md` | Создание транспорта через фабрику (`begin()`, `update()`) |
 | [ ] | `WEB_MANAGER.md` | Веб-интерфейс (`init()`, `update()`) |
 | [ ] | `HTML_TEMPLATES.md` | Шаблоны формирование html |
-| [ ] | `OTA_MANAGER.md` | Обновление прошивки (`init()`, `update()`) |
+| [ ] | `WEB_OTA_MANAGER.md` | Обновление прошивки (`init()`, `update()`) |
 | [ ] | `LED_MANAGER.md` | Светодиодная индикация (`init()`, `set_mode()`, `update()`) |
 | [ ] | `RESET_BUTTON_MANAGER.md` | Кнопка сброса (`init()`, `update()`, чтение стадии) |
 | [ ] | `RESTART_MANAGER.md` | Централизованная перезагрузка (`update()` — последним в `loop()`) |
@@ -58,7 +58,7 @@
     - [3.2.6. transport — Транспортный слой](#326-transport--транспортный-слой)
     - [3.2.7. web_manager — Веб-сервер и интерфейс взаимодействия](#327-web_manager--веб-сервер-и-интерфейс-взаимодействия)
     - [3.2.8. provisioning_manager — Комиссионинг (настройка)](#328-provisioning_manager--комиссионинг-настройка)
-    - [3.2.9. ota_manager — Обновление прошивки](#329-ota_manager--обновление-прошивки)
+    - [3.2.9. web_ota_manager — Обновление прошивки](#329-web_ota_manager--обновление-прошивки)
     - [3.2.10. led_manager — Светодиодная индикация](#3210-led_manager--светодиодная-индикация)
     - [3.2.11. reset_btn — Кнопка сброса](#3211-reset_btn--кнопка-сброса)
     - [3.2.12. restart_manager — Менеджер перезагрузок](#3212-restart_manager--менеджер-перезагрузок)
@@ -141,7 +141,7 @@ src/
 ├── web_common.h/cpp                      # Общий рендеринг Web-страниц
 ├── web_status_provider.h/cpp             # Интерфейс IWebStatusProvider
 ├── html_templates.h                      # HTML-шаблоны
-├── ota_manager.h/cpp                     # OTA через веб-интерфейс
+├── web_ota_manager.h/cpp                     # OTA через веб-интерфейс
 │
 ├── led_manager.h/cpp                     # LED-индикация
 ├── reset_button_manager.h/cpp            # Кнопка сброса
@@ -220,7 +220,7 @@ src/
 
 **Назначение:** реализует сервер и HTTP-интерфейс для мониторинга состояния и настройки параметров.
 
-**Детали:** `TRANSPORT_WEB.md`, `OTA_MANAGER.md`
+**Детали:** `TRANSPORT_WEB.md`, `WEB_OTA_MANAGER.md`
 
 ### 3.2.8. provisioning_manager — Комиссионинг (настройка)
 
@@ -234,10 +234,10 @@ src/
 
 **Детали:** `PROVISIONING_MANAGER.md`
 
-### 3.2.9. ota_manager
+### 3.2.9. web_ota_manager
 **Назначение:** реализует механизм обновления прошивки по воздуху.
 **Особенности**: обертка для методов стандартной библиотеки 
-**Детали:** `OTA_MANAGER.md`
+**Детали:** `WEB_OTA_MANAGER.md`
 
 ### 3.2.10. led_manager — Светодиодная индикация
 

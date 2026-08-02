@@ -11,7 +11,7 @@
 
 #include <Arduino.h>
 #include "config_manager.h"
-#include "ota_manager.h"
+#include "web_ota_manager.h"
 #include "web_common.h"
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI

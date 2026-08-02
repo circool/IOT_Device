@@ -42,9 +42,9 @@
 
 | Функция | Назначение |
 |---------|------------|
-| `ota_manager_init(server)` | Инициализация OTA (регистрация маршрута `/update`) |
+| `web_ota_manager_init(server)` | Инициализация OTA (регистрация маршрута `/update`) |
 | `ota_is_available()` | Проверка доступности OTA (размер Flash) |
-| `ota_manager_update()` | Заглушка |
+| `web_ota_manager_update()` | Заглушка |
 
 ---
 

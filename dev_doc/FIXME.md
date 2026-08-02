@@ -21,6 +21,9 @@
 | | | Убрать AP-страницу из `web_manager.cpp` | ✅ | |
 | | | Обновить `web_manager.cpp` для вызова функций provisioning | ✅ | |
 | | | Создать легковесный HTTP-сервер внутри `startApProvisioning()` | ✅ | |
+|**1.2.2** | Вынести AP сервер из в `ap_server`| | ⬜ | |
+| | | перенести AP сервер из `provisioning_manager` в `ap_server`| ⬜ | |
+| | | удалить функционал AP сервера из `web_manager`| ⬜ | |
 | **1.3** | **Вынести управление железом в `DeviceController`** | В `DeviceController::init()` инициализировать актуатор и датчик | ⬜ | 🔴 Критично |
 | | | В `DeviceController::update()` обновлять актуатор и датчик | ⬜ | |
 | | | Убрать `sensor_update()` из `main.cpp` | ⬜ | |
@@ -43,19 +46,19 @@
 | | | Обновить `main.cpp`: после сохранения вызывать `provisioning_stop()` вместо `restart_request()` | ⬜ | |
 | | | Проверить работу WiFi/MQTT без перезагрузки после AP-провизионинга | ⬜ | |
 | **1.8** | **Привести имена слоёв к единому стандарту** | | ⬜ | 🟡 Средний |
-| 1.8.1 | | Переименовать `led_manager.h/cpp` → `led_manager.h/cpp` | ⬜ | |
-| 1.8.2 | | Переименовать `ota.h/cpp` → `ota_manager.h/cpp` | ⬜ | |
-| 1.8.3 | | Переименовать `mqtt_manager.h/cpp` → `mqtt_manager.h/cpp` | ⬜ | |
-| 1.8.4 | | Переименовать `web_manager.h/cpp` → `web_server.h/cpp` | ⬜ | |
-| 1.8.5 | | Переименовать `zigbee.h/cpp` → `zigbee_manager.h/cpp` | ⬜ | |
+| 1.8.1 | | Переименовать `led.h/cpp` → `led_manager.h/cpp` | ✅ | |
+| 1.8.2 | | Переименовать `ota.h/cpp` → `web_ota_manager.h/cpp` | ✅ | |
+| 1.8.3 | | Переименовать `mqtt.h/cpp` → `mqtt_manager.h/cpp` | ⬜ | |
+| 1.8.4 | | Переименовать `web.h/cpp` → `web_server.h/cpp` | ✅ | |
+| 1.8.5 | | Переименовать `zigbee.h/cpp` → `zigbee_manager.h/cpp` | ✅ | |
 | 1.8.6 | | Переименовать `transport_mqtt.h/cpp` → `mqtt_transport.h/cpp` | ⬜ | |
 | 1.8.7 | | Переименовать `transport_zigbee.h/cpp` → `zigbee_transport.h/cpp` | ⬜ | |
-| 1.8.8 | | Переименовать `reset_btn.h/cpp` → `reset_button_manager.h/cpp` | ⬜ | |
-| 1.8.9 | | Переименовать `provisioning_manager.h/cpp` → `provisioning_manager.h/cpp` | ⬜ | |
+| 1.8.8 | | Переименовать `reset_btn.h/cpp` → `reset_button_manager.h/cpp` | ✅ | |
+| 1.8.9 | | Переименовать `provisioning.h/cpp` → `provisioning_manager.h/cpp` | ✅ | |
 | 1.8.10| | Переименовать `sensor.h/cpp` → `sensor_reader.h/cpp` | ⬜ | |
 | 1.8.11| | Переименовать `ble_server.h` → `ble_provisioning_server.h` | ⬜ | |
 | 1.8.12| | Переименовать `web_common.h/cpp` → `http_common.h/cpp` | ⬜ | |
-| 1.8.13| | Переименовать `web_templates.h` → `html_templates.h` | [+] | |
+| 1.8.13| | Переименовать `web_templates.h` → `html_templates.h` | [✅] | |
 | 1.8.14| | Обновить все `#include` в проекте после переименований | ⬜ | |
 | 1.8.15| | Обновить `platformio.ini` (если есть ссылки на файлы) | ⬜ | |
 | | | | | |
@@ -63,11 +66,19 @@
 | 1.9.1 | | Создать `LOGGER.md` (описание уровней, категорий, макросов) | ✅ | |
 | 1.9.2 | | Создать `WDT_MANAGER.md` (описание WDT, таймауты, API) | ✅ | |
 | 1.9.3 | | Создать `RESTART_MANAGER.md` (централизованная перезагрузка) | ✅ | |
-| 1.9.4 | | Создать `RESET_BUTTON_MANAGER.md` (кнопка сброса, стадии нажатия) | ⬜ | |
-| 1.9.5 | | Создать `WIFI_MANAGER.md` (WiFi подключение, STA/AP, сканирование) | ⬜ | |
-| 1.9.6 | | Создать `DEBUG_TOOLS.md` (отладочные утилиты) | ⬜ | |
-| 1.9.7 | | Создать `CREDENTIALS.md` (заводские настройки) | ⬜ | |
-| 1.9.8 | | Обновить `ARCHITECTURE.md` (раздел 10) — добавить ссылки на новые документы | ⬜ | |
+| 1.9.4 | | Создать `RESET_BUTTON_MANAGER.md` (кнопка сброса, стадии нажатия) | ✅ | |
+| 1.9.5 | | Создать `WIFI_MANAGER.md` (WiFi подключение, STA/AP, сканирование) | ✅ | |
+| 1.9.6 | | Создать `DEBUG_TOOLS.md` (отладочные утилиты) | ✅ | |
+| 1.9.7 | | Создать `CREDENTIALS.md` (заводские настройки) | ✅ | |
+| 1.9.8 | | Обновить `ARCHITECTURE.md` (раздел 10) — добавить ссылки на новые документы | ✅ | |
+| **1.10** | **Рефакторинг HTML-шаблонов** | | ⬜ | 🟡 Средний |
+| 1.10.1 | | Убрать `sendConfigPage()` из `html_templates.h` — это логика Web-слоя | ⬜ | |
+| 1.10.2 | | Перенести `sendConfigPage()` в `web_manager.cpp` как статическую функцию | ⬜ | |
+| 1.10.3 | | Добавить параметр `bool showOtaButton` в `sendConfigPage()` | ⬜ | |
+| 1.10.4 | | Убрать `#include "web_ota_manager.h"` из `html_templates.h` | ⬜ | |
+| 1.10.5 | | Обновить вызов `sendConfigPage()` в `web_manager.cpp` с передачей `ota_is_available()` | ⬜ | |
+
+
 
 ## 2. Исправление найденных ошибок
 
@@ -82,7 +93,7 @@
 | | | Исправить отображение текущего режима | ⬜ | |
 | | | Исправить выравнивание иконок | ⬜ | |
 | | | Добавить отказ от сохранения при снятой галке Confirm saving | ⬜ | |
-| **2.4** | **Дублирование Zigbee** | Удалить `zigbee.h/cpp` | ⬜ | 🟡 Средний |
+| **2.4** | **Дублирование Zigbee** | Удалить `zigbee.h/cpp` | ✅ | 🟡 Средний |
 | **2.5** | **Web не должен вызывать `sensor_*()` напрямую** | В `web_manager.cpp` заменить вызовы `sensor_*()` на методы `IWebStatusProvider` | ⬜ | 🟡 Средний |
 | **2.6** | **Инкапсуляция слоев** | Убрать прямые вызовы `g_configManager` из `wifi_manager` | ✅ | 🟡 Средний |
 | | | Убрать прямые вызовы `g_configManager` из `provisioning` (передавать `deviceId` через параметры в `ProvisioningManager::begin(deviceId)`) | ⬜ | 🟡 Средний |

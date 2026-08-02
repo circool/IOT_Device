@@ -1,9 +1,9 @@
 /**
- * @file ota_manager.cpp
+ * @file web_ota_manager.cpp
  * @brief Обновления прошивки по воздухуъ
  */
-#ifndef OTA_NAMAGER_H
-#define OTA_NAMAGER_H
+#ifndef WEB_OTA_MANAGER_H
+#define WEB_OTA_MANAGER_H
 
 #include <Arduino.h>
 #include "web_manager.h"
@@ -14,7 +14,7 @@
 
 #if FEATURE_OTA_ENABLED == 1
 
-void ota_manager_init(WebServerClass* server);
+void web_ota_manager_init(WebServerClass* server);
 bool ota_is_available();
 
 /**
@@ -23,12 +23,12 @@ bool ota_is_available();
  */
 String ota_getButtonHtml();
 
-void ota_manager_update();
+void web_ota_manager_update();
 
 #else
 
 // Заглушка - OTA слой отключён (FEATURE_OTA_ENABLED=0)
-inline void ota_manager_init(WebServerClass* server) {
+inline void web_ota_manager_init(WebServerClass* server) {
   (void)server;
 }
 
@@ -43,8 +43,8 @@ inline String ota_getButtonHtml() {
 }
 
 // Заглушка - OTA слой отключён (FEATURE_OTA_ENABLED=0)
-inline void ota_manager_update() {}
+inline void web_ota_manager_update() {}
 
 #endif
 
-#endif  // OTA_NAMAGER_H
+#endif  // WEB_OTA_MANAGER_H

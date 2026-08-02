@@ -8,7 +8,7 @@
 #include <cstring>
 #include "config_manager.h"
 #include "logger.h"
-#include "ota.h"
+#include "web_ota_manager.h"
 #include "provisioning_manager.h"
 #include "sensor.h"
 #include "settings.h"
@@ -682,7 +682,7 @@ void web_init(bool setupMode) {
 #endif
 
     if (ota_is_available()) {
-      ota_init(&server);
+      web_ota_manager_init(&server);
     }
   }
 

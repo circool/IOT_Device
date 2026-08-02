@@ -1,12 +1,12 @@
 ```cpp
 /**
- * @file OTA_MANAGER.md
+ * @file WEB_OTA_MANAGER.md
  * @brief Обновление прошивки по воздуху
  * @note Статус: Закончен
  */
 ```
 
-# OTA_MANAGER.md
+# WEB_OTA_MANAGER.md
 
 ## Оглавление
 
@@ -23,6 +23,9 @@
 
 OTA (Over-The-Air) — механизм обновления прошивки через веб-интерфейс без физического подключения.
 
+`web_ota_manager` — подсистема Web-слоя. Инициализация и обработка OTA инкапсулированы внутри `web_manager_init()`. Оркестратор управляет только Web-слоем, OTA является его внутренней деталью реализации.
+
+
 **Ответственность:**
 - Проверка доступности OTA (Flash ≥ 2MB)
 - Инициализация ElegantOTA на Web-сервере
@@ -30,11 +33,12 @@ OTA (Over-The-Air) — механизм обновления прошивки ч
 
 ## 2. API
 
+
 | Функция | Назначение |
 |---------|------------|
-| `ota_manager_init(WebServerClass* server)` | Инициализация OTA. Регистрирует маршрут `/update` через ElegantOTA. Если OTA недоступна — ничего не делает. |
+| `web_ota_manager_init(WebServerClass* server)` | Инициализация OTA. Регистрирует маршрут `/update` через ElegantOTA. Если OTA недоступна — ничего не делает. |
 | `ota_is_available()` | Проверка доступности OTA. Возвращает `false` при `FEATURE_OTA_ENABLED=0` или недостаточном Flash. |
-| `ota_manager_update()` | Пустышка. ElegantOTA 2.2.x не требует отдельного вызова в `loop()`, вся обработка внутри `server.handleClient()`. |
+| `web_ota_manager_update()` | Пустышка. ElegantOTA 2.2.x не требует отдельного вызова в `loop()`, вся обработка внутри `server.handleClient()`. |
 
 ---
 
@@ -81,7 +85,7 @@ if (ota_is_available()) {
 
 | Слой | Взаимодействие |
 |------|----------------|
-| **Оркестратор** | Вызывает `ota_manager_init(server)` в `setup()` и `ota_manager_update()` в `loop()` |
+| **Оркестратор** | Вызывает `web_ota_manager_init(server)` в `setup()` и `web_ota_manager_update()` в `loop()` |
 | **Web** | Вызывает `ota_is_available()` для отображения кнопки. Маршрут `/update` уже зарегистрирован OTA-слоем. |
 
 ---
