@@ -30,9 +30,10 @@ static WebServerClass* _apServer = nullptr;
 static bool _apServerStarted = false;
 
 static void startApServer() {
-  if (_apServerStarted)
+  if (_apServerStarted){
     XLOG_WARN(CAT_PROVISIONING, "AP server already running");
     return;
+  }
 
   XLOG_DEBUG(CAT_PROVISIONING, "Creating AP HTTP server on port 80");
 
