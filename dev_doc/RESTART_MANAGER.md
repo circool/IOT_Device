@@ -264,7 +264,7 @@ if (stage == STAGE_3S) {
 
 ```cpp
 // ota.cpp
-void ota_update() {
+void web_ota_manager_update() {
     ElegantOTA.loop();
     if (ElegantOTA.isFinished()) {
         XLOG_INFO(CAT_OTA, "OTA update complete, restarting...");

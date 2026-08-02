@@ -1,3 +1,11 @@
+```cpp
+/**
+ * @file WIFI_MANAGER.md
+ * @brief Управление WiFi в STA-режиме
+ * @note Статус: В процессе
+ */
+
+```
 # WIFI_MANAGER.md
 
 ## Управление WiFi (STA-режим)

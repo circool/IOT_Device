@@ -22,7 +22,7 @@
 | [ ] | `WDT_MANAGER.md` | Сторожевой таймер|
 | [ ] | `ACTUATOR_SENSOR.md` | Управление физическими выходами и датчиками |
 | [ ] | `DEVICE_CONTROLLER.md` | Бизнес-логика |
-| [ ] | `WIFI_MANAGER.md` | Управление STA-режимом |
+| [В процессе ] | `WIFI_MANAGER.md` | Управление STA-режимом |
 | [ ] | `PROVISIONING_MANAGER.md` | Управление AP-режимом |
 | [ ] | `TRANSPORT_ABSTRACTION.md` | Создание транспорта через фабрику (`begin()`, `update()`) |
 | [ ] | `WEB_MANAGER.md` | Веб-интерфейс (`init()`, `update()`) |
