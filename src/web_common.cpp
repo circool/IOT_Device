@@ -15,184 +15,159 @@
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
 // ============================================================================
-// РЕНДЕРИНГ ПОЛЕЙ
+// render_field() — ПЕРЕГРУЗКА ДЛЯ TextField
 // ============================================================================
 
-void render_text(char* buf, size_t size, const FieldText* field) {
-  if (!buf || size == 0 || !field)
+void render_field(char* buf, size_t size, const TextField& field) {
+  if (!buf || size == 0)
     return;
   buf[0] = '\0';
 
-  char temp[256];
+  char temp[512];
   temp[0] = '\0';
 
-  const char* inputType = field->hideInput ? "password" : "text";
+  strncat(temp, "<div class='field-group'>", sizeof(temp) - strlen(temp) - 1);
 
-  if (field->label) {
-    snprintf(temp, sizeof(temp), "<label>%s</label>", field->label);
-    strncat(buf, temp, size - 1);
+  if (field.label) {
+    char lbl[128];
+    snprintf(lbl, sizeof(lbl), "<label>%s</label>", field.label);
+    strncat(temp, lbl, sizeof(temp) - strlen(temp) - 1);
   }
 
-  snprintf(temp, sizeof(temp), "<input type='%s' name='%s'", inputType,
-           field->name ? field->name : "");
-  if (field->value) {
+  const char* inputType = field.hideInput ? "password" : "text";
+  char input[256];
+  snprintf(input, sizeof(input), "<input type='%s' name='%s'", inputType,
+           field.name ? field.name : "");
+  if (field.value) {
     char val[64];
-    snprintf(val, sizeof(val), " value='%s'", field->value);
-    strncat(temp, val, sizeof(temp) - strlen(temp) - 1);
+    snprintf(val, sizeof(val), " value='%s'", field.value);
+    strncat(input, val, sizeof(input) - strlen(input) - 1);
   }
-  if (field->placeholder) {
+  if (field.placeholder) {
     char ph[64];
-    snprintf(ph, sizeof(ph), " placeholder='%s'", field->placeholder);
-    strncat(temp, ph, sizeof(temp) - strlen(temp) - 1);
+    snprintf(ph, sizeof(ph), " placeholder='%s'", field.placeholder);
+    strncat(input, ph, sizeof(input) - strlen(input) - 1);
   }
-  if (field->required) {
-    strncat(temp, " required", sizeof(temp) - strlen(temp) - 1);
+  if (field.required) {
+    strncat(input, " required", sizeof(input) - strlen(input) - 1);
   }
-  strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
-  strncat(buf, temp, size - 1);
+  strncat(input, ">", sizeof(input) - strlen(input) - 1);
+  strncat(temp, input, sizeof(temp) - strlen(temp) - 1);
 
-  if (field->note) {
+  if (field.note) {
     char note[128];
-    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field->note);
-    strncat(buf, note, size - 1);
+    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field.note);
+    strncat(temp, note, sizeof(temp) - strlen(temp) - 1);
   }
+
+  strncat(temp, "</div>", sizeof(temp) - strlen(temp) - 1);
+  strncat(buf, temp, size - 1);
 }
 
-void render_number(char* buf, size_t size, const FieldNumber* field) {
-  if (!buf || size == 0 || !field)
+// ============================================================================
+// render_field() — ПЕРЕГРУЗКА ДЛЯ NumberField
+// ============================================================================
+
+void render_field(char* buf, size_t size, const NumberField& field) {
+  if (!buf || size == 0)
     return;
   buf[0] = '\0';
 
-  char temp[256];
+  char temp[512];
   temp[0] = '\0';
 
-  if (field->label) {
-    snprintf(temp, sizeof(temp), "<label>%s</label>", field->label);
-    strncat(buf, temp, size - 1);
+  strncat(temp, "<div class='field-group'>", sizeof(temp) - strlen(temp) - 1);
+
+  if (field.label) {
+    char lbl[128];
+    snprintf(lbl, sizeof(lbl), "<label>%s</label>", field.label);
+    strncat(temp, lbl, sizeof(temp) - strlen(temp) - 1);
   }
 
-  snprintf(temp, sizeof(temp), "<input type='number' name='%s'",
-           field->name ? field->name : "");
-  if (field->value) {
+  char input[256];
+  snprintf(input, sizeof(input), "<input type='number' name='%s'",
+           field.name ? field.name : "");
+  if (field.value) {
     char val[64];
-    snprintf(val, sizeof(val), " value='%s'", field->value);
-    strncat(temp, val, sizeof(temp) - strlen(temp) - 1);
+    snprintf(val, sizeof(val), " value='%s'", field.value);
+    strncat(input, val, sizeof(input) - strlen(input) - 1);
   }
-  if (field->placeholder) {
+  if (field.placeholder) {
     char ph[64];
-    snprintf(ph, sizeof(ph), " placeholder='%s'", field->placeholder);
-    strncat(temp, ph, sizeof(temp) - strlen(temp) - 1);
+    snprintf(ph, sizeof(ph), " placeholder='%s'", field.placeholder);
+    strncat(input, ph, sizeof(input) - strlen(input) - 1);
   }
-  if (field->min) {
+  if (field.min) {
     char mn[32];
-    snprintf(mn, sizeof(mn), " min='%s'", field->min);
-    strncat(temp, mn, sizeof(temp) - strlen(temp) - 1);
+    snprintf(mn, sizeof(mn), " min='%s'", field.min);
+    strncat(input, mn, sizeof(input) - strlen(input) - 1);
   }
-  if (field->max) {
+  if (field.max) {
     char mx[32];
-    snprintf(mx, sizeof(mx), " max='%s'", field->max);
-    strncat(temp, mx, sizeof(temp) - strlen(temp) - 1);
+    snprintf(mx, sizeof(mx), " max='%s'", field.max);
+    strncat(input, mx, sizeof(input) - strlen(input) - 1);
   }
-  if (field->step) {
+  if (field.step) {
     char st[32];
-    snprintf(st, sizeof(st), " step='%s'", field->step);
-    strncat(temp, st, sizeof(temp) - strlen(temp) - 1);
+    snprintf(st, sizeof(st), " step='%s'", field.step);
+    strncat(input, st, sizeof(input) - strlen(input) - 1);
   }
-  if (field->required) {
-    strncat(temp, " required", sizeof(temp) - strlen(temp) - 1);
+  if (field.required) {
+    strncat(input, " required", sizeof(input) - strlen(input) - 1);
   }
-  strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
-  strncat(buf, temp, size - 1);
+  strncat(input, ">", sizeof(input) - strlen(input) - 1);
+  strncat(temp, input, sizeof(temp) - strlen(temp) - 1);
 
-  if (field->note) {
+  if (field.note) {
     char note[128];
-    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field->note);
-    strncat(buf, note, size - 1);
+    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field.note);
+    strncat(temp, note, sizeof(temp) - strlen(temp) - 1);
   }
+
+  strncat(temp, "</div>", sizeof(temp) - strlen(temp) - 1);
+  strncat(buf, temp, size - 1);
 }
 
-void render_float(char* buf, size_t size, const FieldFloat* field) {
-  if (!buf || size == 0 || !field)
+// ============================================================================
+// render_field() — ПЕРЕГРУЗКА ДЛЯ CheckboxField
+// ============================================================================
+
+void render_field(char* buf, size_t size, const CheckboxField& field) {
+  if (!buf || size == 0)
     return;
   buf[0] = '\0';
 
   char temp[256];
   temp[0] = '\0';
 
-  if (field->label) {
-    snprintf(temp, sizeof(temp), "<label>%s</label>", field->label);
-    strncat(buf, temp, size - 1);
-  }
+  strncat(temp, "<div class='field-group'>", sizeof(temp) - strlen(temp) - 1);
 
-  snprintf(temp, sizeof(temp), "<input type='number' name='%s'",
-           field->name ? field->name : "");
-  if (field->value) {
-    char val[64];
-    snprintf(val, sizeof(val), " value='%s'", field->value);
-    strncat(temp, val, sizeof(temp) - strlen(temp) - 1);
-  }
-  if (field->placeholder) {
-    char ph[64];
-    snprintf(ph, sizeof(ph), " placeholder='%s'", field->placeholder);
-    strncat(temp, ph, sizeof(temp) - strlen(temp) - 1);
-  }
-  if (field->min) {
-    char mn[32];
-    snprintf(mn, sizeof(mn), " min='%s'", field->min);
-    strncat(temp, mn, sizeof(temp) - strlen(temp) - 1);
-  }
-  if (field->max) {
-    char mx[32];
-    snprintf(mx, sizeof(mx), " max='%s'", field->max);
-    strncat(temp, mx, sizeof(temp) - strlen(temp) - 1);
-  }
-  if (field->step) {
-    char st[32];
-    snprintf(st, sizeof(st), " step='%s'", field->step);
-    strncat(temp, st, sizeof(temp) - strlen(temp) - 1);
-  }
-  if (field->required) {
-    strncat(temp, " required", sizeof(temp) - strlen(temp) - 1);
-  }
-  strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
-  strncat(buf, temp, size - 1);
-
-  if (field->note) {
-    char note[128];
-    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field->note);
-    strncat(buf, note, size - 1);
-  }
-}
-
-void render_checkbox(char* buf, size_t size, const FieldCheckbox* field) {
-  if (!buf || size == 0 || !field)
-    return;
-  buf[0] = '\0';
-
-  char temp[128];
-  temp[0] = '\0';
-  snprintf(temp, sizeof(temp),
+  char chk[128];
+  snprintf(chk, sizeof(chk),
            "<label><input type='checkbox' name='%s' value='1'",
-           field->name ? field->name : "");
-  if (field->checked) {
-    strncat(temp, " checked", sizeof(temp) - strlen(temp) - 1);
+           field.name ? field.name : "");
+  if (field.checked) {
+    strncat(chk, " checked", sizeof(chk) - strlen(chk) - 1);
   }
-  if (field->required) {
-    strncat(temp, " required", sizeof(temp) - strlen(temp) - 1);
+  if (field.required) {
+    strncat(chk, " required", sizeof(chk) - strlen(chk) - 1);
   }
-  strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
-  if (field->label) {
-    strncat(temp, " ", sizeof(temp) - strlen(temp) - 1);
-    strncat(temp, field->label, sizeof(temp) - strlen(temp) - 1);
+  strncat(chk, ">", sizeof(chk) - strlen(chk) - 1);
+  if (field.label) {
+    strncat(chk, " ", sizeof(chk) - strlen(chk) - 1);
+    strncat(chk, field.label, sizeof(chk) - strlen(chk) - 1);
   }
-  strncat(temp, "</label>", sizeof(temp) - strlen(temp) - 1);
-  strncat(buf, temp, size - 1);
+  strncat(chk, "</label>", sizeof(chk) - strlen(chk) - 1);
+  strncat(temp, chk, sizeof(temp) - strlen(temp) - 1);
 
-  if (field->note) {
+  if (field.note) {
     char note[128];
-    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field->note);
-    strncat(buf, note, size - 1);
+    snprintf(note, sizeof(note), "<div class='note'>%s</div>", field.note);
+    strncat(temp, note, sizeof(temp) - strlen(temp) - 1);
   }
+
+  strncat(temp, "</div>", sizeof(temp) - strlen(temp) - 1);
+  strncat(buf, temp, size - 1);
 }
 
 // ============================================================================

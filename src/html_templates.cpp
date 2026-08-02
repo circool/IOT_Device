@@ -47,6 +47,23 @@ input[type=submit]:hover,button:hover,.link-btn:hover{background: #030303;}
 .duty-fill{background:#2c3e50;height:100%;border-radius:10px;transition:width 0.3s;}
 .button-group{display:flex;justify-content:center;gap:10px;margin-top:20px;flex-wrap:wrap;}
 a{text-decoration:none;}
+.field-group {
+    margin-bottom: 16px;    
+}
+.field-group label {
+    display: block;
+    margin-top: 0;
+    font-weight: bold;
+}
+.field-group .note {
+    margin-top: 2px;
+    margin-bottom: 0;       
+    font-size: 0.85em;
+    color: #666;
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
 </style>
 )rawliteral";
 

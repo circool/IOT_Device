@@ -4,7 +4,6 @@
  * @details Содержит унифицированные функции рендеринга HTML-элементов
  *          и отправки страниц. Используется как в обычном режиме,
  *          так и в AP-режиме (провизионинг).
- * @date 2026-07-28
  */
 
 #ifndef WEB_COMMON_H
@@ -43,71 +42,85 @@ typedef enum {
 typedef void (*WebSendCallback)(const char* chunk, void* context);
 
 // ============================================================================
-// СПЕЦИАЛИЗИРОВАННЫЕ СТРУКТУРЫ ДЛЯ ПОЛЕЙ
+// БАЗОВАЯ СТРУКТУРА ДЛЯ ВСЕХ ПОЛЕЙ
+// ============================================================================
+
+/**
+ * @brief Базовая структура для всех полей ввода
+ * @details Содержит общие поля, которые наследуются всеми типами полей
+ */
+struct FieldBase {
+  const char* label; /**< Подпись поля */
+  const char* name;  /**< Имя поля (атрибут name) */
+  const char* note;  /**< Примечание (отображается под полем) */
+};
+
+// ============================================================================
+// СПЕЦИАЛИЗИРОВАННЫЕ СТРУКТУРЫ (наследуют FieldBase)
 // ============================================================================
 
 /**
  * @brief Текстовое поле (TEXT / PASSWORD)
+ * @details Используется для SSID, паролей, MQTT Broker, User, Client ID
  */
-typedef struct {
-  const char* label;
-  const char* name;
-  const char* value;
-  const char* placeholder;
-  const char* note;
-  bool hideInput;  // true: type='password', false: type='text'
-  bool required;
-} FieldText;
+struct TextField : FieldBase {
+  const char* value;       /**< Текущее значение */
+  const char* placeholder; /**< Подсказка (placeholder) */
+  bool hideInput;          /**< true → type='password', false → type='text' */
+  bool required;           /**< Обязательное поле */
+};
 
 /**
- * @brief Числовое поле (NUMBER) — целые числа
+ * @brief Числовое поле (NUMBER / FLOAT)
+ * @details Используется для портов, интервалов, скорости, температуры,
+ *          влажности, таймаутов и задержек
  */
-typedef struct {
-  const char* label;
-  const char* name;
-  const char* value;
-  const char* placeholder;
-  const char* note;
-  const char* min;
-  const char* max;
-  const char* step;
-  bool required;
-} FieldNumber;
-
-/**
- * @brief Числовое поле (FLOAT) — числа с плавающей точкой
- */
-typedef struct {
-  const char* label;
-  const char* name;
-  const char* value;
-  const char* placeholder;
-  const char* note;
-  const char* min;
-  const char* max;
-  const char* step;
-  bool required;
-} FieldFloat;
+struct NumberField : FieldBase {
+  const char* value;       /**< Текущее значение */
+  const char* placeholder; /**< Подсказка (placeholder) */
+  const char* min;         /**< Минимальное значение */
+  const char* max;         /**< Максимальное значение */
+  const char* step;        /**< Шаг изменения */
+  bool required;           /**< Обязательное поле */
+};
 
 /**
  * @brief Чекбокс (CHECKBOX)
+ * @details Используется для адаптивного режима, состояния при старте,
+ *          сенсорного управления и подтверждения сохранения
  */
-typedef struct {
-  const char* label;
-  const char* name;
-  const char* note;
-  bool checked;
-  bool required;
-} FieldCheckbox;
+struct CheckboxField : FieldBase {
+  bool checked;  /**< Состояние: true — отмечен, false — не отмечен */
+  bool required; /**< Обязательное поле (требует отметки) */
+};
 
 // ============================================================================
-// РЕНДЕРИНГ ПОЛЕЙ
+// ОДНА ФУНКЦИЯ С ПЕРЕГРУЗКАМИ
 // ============================================================================
 
-void render_text(char* buf, size_t size, const FieldText* field);
-void render_number(char* buf, size_t size, const FieldNumber* field);
-void render_float(char* buf, size_t size, const FieldFloat* field);
-void render_checkbox(char* buf, size_t size, const FieldCheckbox* field);
+/**
+ * @brief Рендеринг текстового поля
+ * @param buf Буфер для записи HTML
+ * @param size Размер буфера
+ * @param field Структура с параметрами поля
+ */
+void render_field(char* buf, size_t size, const TextField& field);
+
+/**
+ * @brief Рендеринг числового поля
+ * @param buf Буфер для записи HTML
+ * @param size Размер буфера
+ * @param field Структура с параметрами поля
+ */
+void render_field(char* buf, size_t size, const NumberField& field);
+
+/**
+ * @brief Рендеринг чекбокса
+ * @param buf Буфер для записи HTML
+ * @param size Размер буфера
+ * @param field Структура с параметрами поля
+ */
+void render_field(char* buf, size_t size, const CheckboxField& field);
 
 // ============================================================================
 // ОБЩИЕ ФУНКЦИИ РЕНДЕРИНГА

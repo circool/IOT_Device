@@ -3,7 +3,6 @@
  * @file WEB_MANAGER.md
  * @brief Веб-интерфейс устройства
  * @note Статус: Закончен
- * @todo FIXME.md #1.12
  */
 ```
 
@@ -49,12 +48,21 @@
 
 ### 2.2. Рендеринг полей
 
+#### 2.2.1 Единая функция для рендеринга полей
+
 | Функция | Назначение |
 |---------|------------|
-| `render_text(buf, size, field)` | Рендеринг текстового поля |
-| `render_number(buf, size, field)` | Рендеринг числового поля |
-| `render_float(buf, size, field)` | Рендеринг поля с плавающей точкой |
-| `render_checkbox(buf, size, field)` | Рендеринг чекбокса |
+| `render_field(buf, size, field)` | Рендеринг поля (перегрузка для TextField, NumberField, CheckboxField) |
+
+#### 2.2.1 Структуры для рендеринга полей
+
+| Структура | Используется для | Поля |
+|-----------|------------------|------|
+| `TextField` | TEXT / PASSWORD | label, name, value, placeholder, note, hideInput, required |
+| `NumberField` | NUMBER / FLOAT | label, name, value, placeholder, note, min, max, step, required |
+| `CheckboxField` | CHECKBOX | label, name, note, checked, required |
+
+
 
 ### 2.3. Обработчики
 
@@ -62,6 +70,7 @@
 |---------|------------|
 | `web_handle_save()` | Обработчик POST `/save` |
 | `web_handle_set()` | Обработчик GET `/set` |
+| `web_handle_reset()` | Обработчик GET `/resetall` (опционально) |
 
 ### 2.4. Управление
 
@@ -82,8 +91,6 @@
 | `/update` | GET/POST | OTA (регистрируется `web_ota_manager`) |
 | `/resetall` | GET | Сброс настроек (опционально) |
 
----
-
 ## 4. IWebStatusProvider
 
 Web-слой получает данные через интерфейс `IWebStatusProvider`.
@@ -99,8 +106,6 @@ Web-слой получает данные через интерфейс `IWebSt
 | `FanWebStatusProvider` | TYPE 1 | Вентилятор с датчиком |
 | `SensorWebStatusProvider` | TYPE 2 | Автономный датчик |
 | `SwitchWebStatusProvider` | TYPE 3 | Управляемый выключатель |
-
----
 
 ## 5. Команды от Web
 
@@ -120,8 +125,6 @@ Web-слой получает данные через интерфейс `IWebSt
 | `speed` | 0-100 | TYPE 1 |
 | `manualMode` | `1`/`0` | TYPE 1 |
 
----
-
 ## 6. Интеграция с OTA
 
 OTA реализована как подсистема Web-слоя в отдельном модуле `web_ota_manager`.
@@ -133,8 +136,6 @@ OTA реализована как подсистема Web-слоя в отде�
 - `ota_is_available()` — проверка доступности OTA на этапе выполнения
 - Web-слой вызывает `ota_is_available()` для отображения кнопки OTA на странице конфигурации
 
----
-
 ## 7. Флаги компиляции
 
 | Флаг | По умолчанию | Описание |
@@ -144,11 +145,7 @@ OTA реализована как подсистема Web-слоя в отде�
 | `DEFAULT_WEB_REFRESH` | 5 | Интервал автообновления (сек) |
 | `WEB_RESET_ENABLED` | 0 | Сброс настроек через Web |
 
----
-
 ## 8. Заглушки
 
 При `TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI` или `FEATURE_WEB_STATUS_ENABLED == 0` все методы становятся пустыми.
-
----
 

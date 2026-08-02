@@ -6,16 +6,15 @@
 
 #include "web_manager.h"
 #include "html_templates.h"
-#include "web_common.h"
 #include "web_ota_manager.h"
-
-#include <cstring>
-#include "sensor.h"
 
 #include "settings.h"
 
+#include <cstring>
+
 #include "config_manager.h"
 #include "logger.h"
+#include "sensor.h"
 #include "system_state.h"
 #include "wifi_manager.h"
 
@@ -450,7 +449,7 @@ void web_send_config_page(WebSendCallback send,
   // ===== WiFi =====
   send((const char*)"<h3>WiFi setup</h3>", context);
 
-  FieldText ssidField;
+  TextField ssidField;
   ssidField.label = "WiFi SSID";
   ssidField.name = "wifiSsid";
   ssidField.value = cfg->wifiSsid;
@@ -458,10 +457,10 @@ void web_send_config_page(WebSendCallback send,
   ssidField.note = NULL;
   ssidField.hideInput = false;
   ssidField.required = true;
-  render_text(buf, sizeof(buf), &ssidField);
+  render_field(buf, sizeof(buf), ssidField);
   send(buf, context);
 
-  FieldText pwdField;
+  TextField pwdField;
   pwdField.label = "WiFi Password";
   pwdField.name = "wifiPassword";
   pwdField.value = NULL;
@@ -469,14 +468,14 @@ void web_send_config_page(WebSendCallback send,
   pwdField.note = "Leave empty to keep current password";
   pwdField.hideInput = true;
   pwdField.required = false;
-  render_text(buf, sizeof(buf), &pwdField);
+  render_field(buf, sizeof(buf), pwdField);
   send(buf, context);
 
   // ===== MQTT =====
 #if FEATURE_MQTT_ENABLED == 1
   send((const char*)"<h3>MQTT setup</h3>", context);
 
-  FieldText brokerField;
+  TextField brokerField;
   brokerField.label = "MQTT Broker";
   brokerField.name = "mqttBroker";
   brokerField.value = cfg->mqttBroker;
@@ -484,12 +483,12 @@ void web_send_config_page(WebSendCallback send,
   brokerField.note = NULL;
   brokerField.hideInput = false;
   brokerField.required = true;
-  render_text(buf, sizeof(buf), &brokerField);
+  render_field(buf, sizeof(buf), brokerField);
   send(buf, context);
 
   char portStr[8];
   snprintf(portStr, sizeof(portStr), "%d", cfg->mqttPort);
-  FieldNumber portField;
+  NumberField portField;
   portField.label = "MQTT Port";
   portField.name = "mqttPort";
   portField.value = portStr;
@@ -499,10 +498,10 @@ void web_send_config_page(WebSendCallback send,
   portField.max = "65535";
   portField.step = "1";
   portField.required = true;
-  render_number(buf, sizeof(buf), &portField);
+  render_field(buf, sizeof(buf), portField);
   send(buf, context);
 
-  FieldText userField;
+  TextField userField;
   userField.label = "MQTT User";
   userField.name = "mqttUser";
   userField.value = cfg->mqttUser;
@@ -510,10 +509,10 @@ void web_send_config_page(WebSendCallback send,
   userField.note = NULL;
   userField.hideInput = false;
   userField.required = false;
-  render_text(buf, sizeof(buf), &userField);
+  render_field(buf, sizeof(buf), userField);
   send(buf, context);
 
-  FieldText mqttPwdField;
+  TextField mqttPwdField;
   mqttPwdField.label = "MQTT Password";
   mqttPwdField.name = "mqttPassword";
   mqttPwdField.value = NULL;
@@ -521,10 +520,10 @@ void web_send_config_page(WebSendCallback send,
   mqttPwdField.note = "Leave empty to keep current password";
   mqttPwdField.hideInput = true;
   mqttPwdField.required = false;
-  render_text(buf, sizeof(buf), &mqttPwdField);
+  render_field(buf, sizeof(buf), mqttPwdField);
   send(buf, context);
 
-  FieldText clientField;
+  TextField clientField;
   clientField.label = "MQTT Client ID";
   clientField.name = "mqttClientId";
   clientField.value = cfg->mqttClientId;
@@ -532,7 +531,7 @@ void web_send_config_page(WebSendCallback send,
   clientField.note = NULL;
   clientField.hideInput = false;
   clientField.required = true;
-  render_text(buf, sizeof(buf), &clientField);
+  render_field(buf, sizeof(buf), clientField);
   send(buf, context);
 #endif
 
@@ -542,7 +541,7 @@ void web_send_config_page(WebSendCallback send,
 
   char tempBuf[16];
   snprintf(tempBuf, sizeof(tempBuf), "%.1f", cfg->lowTemp);
-  FieldFloat lowTempField;
+  NumberField lowTempField;
   lowTempField.label = "Low Temp (\u00B0C)";
   lowTempField.name = "lowTemp";
   lowTempField.value = tempBuf;
@@ -552,11 +551,11 @@ void web_send_config_page(WebSendCallback send,
   lowTempField.max = "85";
   lowTempField.step = "0.1";
   lowTempField.required = true;
-  render_float(buf, sizeof(buf), &lowTempField);
+  render_field(buf, sizeof(buf), lowTempField);
   send(buf, context);
 
   snprintf(tempBuf, sizeof(tempBuf), "%.1f", cfg->highTemp);
-  FieldFloat highTempField;
+  NumberField highTempField;
   highTempField.label = "High Temp (\u00B0C)";
   highTempField.name = "highTemp";
   highTempField.value = tempBuf;
@@ -566,12 +565,12 @@ void web_send_config_page(WebSendCallback send,
   highTempField.max = "85";
   highTempField.step = "0.1";
   highTempField.required = true;
-  render_float(buf, sizeof(buf), &highTempField);
+  render_field(buf, sizeof(buf), highTempField);
   send(buf, context);
 
   char humBuf[16];
   snprintf(humBuf, sizeof(humBuf), "%.1f", cfg->lowHum);
-  FieldFloat lowHumField;
+  NumberField lowHumField;
   lowHumField.label = "Low Hum (%)";
   lowHumField.name = "lowHum";
   lowHumField.value = humBuf;
@@ -581,11 +580,11 @@ void web_send_config_page(WebSendCallback send,
   lowHumField.max = "100";
   lowHumField.step = "0.1";
   lowHumField.required = true;
-  render_float(buf, sizeof(buf), &lowHumField);
+  render_field(buf, sizeof(buf), lowHumField);
   send(buf, context);
 
   snprintf(humBuf, sizeof(humBuf), "%.1f", cfg->highHum);
-  FieldFloat highHumField;
+  NumberField highHumField;
   highHumField.label = "High Hum (%)";
   highHumField.name = "highHum";
   highHumField.value = humBuf;
@@ -595,12 +594,12 @@ void web_send_config_page(WebSendCallback send,
   highHumField.max = "100";
   highHumField.step = "0.1";
   highHumField.required = true;
-  render_float(buf, sizeof(buf), &highHumField);
+  render_field(buf, sizeof(buf), highHumField);
   send(buf, context);
 
   char intervalBuf[8];
   snprintf(intervalBuf, sizeof(intervalBuf), "%d", cfg->sensorInterval);
-  FieldNumber intervalField;
+  NumberField intervalField;
   intervalField.label = "Sensor polling interval (sec)";
   intervalField.name = "sensorInterval";
   intervalField.value = intervalBuf;
@@ -610,12 +609,12 @@ void web_send_config_page(WebSendCallback send,
   intervalField.max = "50";
   intervalField.step = "1";
   intervalField.required = true;
-  render_number(buf, sizeof(buf), &intervalField);
+  render_field(buf, sizeof(buf), intervalField);
   send(buf, context);
 
   char maxOnBuf[16];
   snprintf(maxOnBuf, sizeof(maxOnBuf), "%lu", cfg->maxOnTime);
-  FieldNumber maxOnField;
+  NumberField maxOnField;
   maxOnField.label = "Emergency timeout (sec)";
   maxOnField.name = "maxOnTime";
   maxOnField.value = maxOnBuf;
@@ -625,12 +624,12 @@ void web_send_config_page(WebSendCallback send,
   maxOnField.max = "86400";
   maxOnField.step = "1";
   maxOnField.required = true;
-  render_number(buf, sizeof(buf), &maxOnField);
+  render_field(buf, sizeof(buf), maxOnField);
   send(buf, context);
 
   char delayBuf[16];
   snprintf(delayBuf, sizeof(delayBuf), "%d", cfg->delaySeconds);
-  FieldNumber delayField;
+  NumberField delayField;
   delayField.label = "Turn on after (sec)";
   delayField.name = "delaySeconds";
   delayField.value = delayBuf;
@@ -640,12 +639,12 @@ void web_send_config_page(WebSendCallback send,
   delayField.max = "86400";
   delayField.step = "1";
   delayField.required = true;
-  render_number(buf, sizeof(buf), &delayField);
+  render_field(buf, sizeof(buf), delayField);
   send(buf, context);
 
   char speedBuf[8];
   snprintf(speedBuf, sizeof(speedBuf), "%d", cfg->speedPercent);
-  FieldNumber speedField;
+  NumberField speedField;
   speedField.label = "Speed (0-100%)";
   speedField.name = "speedPercent";
   speedField.value = speedBuf;
@@ -655,41 +654,41 @@ void web_send_config_page(WebSendCallback send,
   speedField.max = "100";
   speedField.step = "1";
   speedField.required = true;
-  render_number(buf, sizeof(buf), &speedField);
+  render_field(buf, sizeof(buf), speedField);
   send(buf, context);
 
-  FieldCheckbox adaptiveField;
+  CheckboxField adaptiveField;
   adaptiveField.label = "Enable adaptive mode";
   adaptiveField.name = "adaptiveMode";
   adaptiveField.note =
       "Automatically adjusts speed to maintain temperature and humidity";
   adaptiveField.checked = cfg->adaptiveMode;
   adaptiveField.required = false;
-  render_checkbox(buf, sizeof(buf), &adaptiveField);
+  render_field(buf, sizeof(buf), adaptiveField);
   send(buf, context);
 
-  FieldCheckbox bootField;
+  CheckboxField bootField;
   bootField.label = "Turn on at startup";
   bootField.name = "bootState";
   bootField.note = "Fan turns on immediately after power is applied";
   bootField.checked = cfg->bootState;
   bootField.required = false;
-  render_checkbox(buf, sizeof(buf), &bootField);
+  render_field(buf, sizeof(buf), bootField);
   send(buf, context);
 
-  FieldCheckbox sensorModeField;
+  CheckboxField sensorModeField;
   sensorModeField.label = "Sensor control";
   sensorModeField.name = "sensorControlMode";
   sensorModeField.note = "When enabled, fan is controlled by sensors";
   sensorModeField.checked = cfg->sensorControlMode;
   sensorModeField.required = false;
-  render_checkbox(buf, sizeof(buf), &sensorModeField);
+  render_field(buf, sizeof(buf), sensorModeField);
   send(buf, context);
 
 #elif DEVICE_TYPE == 2
   char intervalBuf[8];
   snprintf(intervalBuf, sizeof(intervalBuf), "%d", cfg->sensorInterval);
-  FieldNumber intervalField;
+  NumberField intervalField;
   intervalField.label = "Reading interval (sec)";
   intervalField.name = "sensorInterval";
   intervalField.value = intervalBuf;
@@ -699,13 +698,13 @@ void web_send_config_page(WebSendCallback send,
   intervalField.max = "50";
   intervalField.step = "1";
   intervalField.required = true;
-  render_number(buf, sizeof(buf), &intervalField);
+  render_field(buf, sizeof(buf), intervalField);
   send(buf, context);
 
 #elif DEVICE_TYPE == 3
   char maxOnBuf[16];
   snprintf(maxOnBuf, sizeof(maxOnBuf), "%lu", cfg->maxOnTime);
-  FieldNumber maxOnField;
+  NumberField maxOnField;
   maxOnField.label = "Emergency timeout (sec)";
   maxOnField.name = "maxOnTime";
   maxOnField.value = maxOnBuf;
@@ -715,12 +714,12 @@ void web_send_config_page(WebSendCallback send,
   maxOnField.max = "86400";
   maxOnField.step = "1";
   maxOnField.required = true;
-  render_number(buf, sizeof(buf), &maxOnField);
+  render_field(buf, sizeof(buf), maxOnField);
   send(buf, context);
 
   char delayBuf[16];
   snprintf(delayBuf, sizeof(delayBuf), "%d", cfg->delaySeconds);
-  FieldNumber delayField;
+  NumberField delayField;
   delayField.label = "Turn on after (sec)";
   delayField.name = "delaySeconds";
   delayField.value = delayBuf;
@@ -730,27 +729,27 @@ void web_send_config_page(WebSendCallback send,
   delayField.max = "86400";
   delayField.step = "1";
   delayField.required = true;
-  render_number(buf, sizeof(buf), &delayField);
+  render_field(buf, sizeof(buf), delayField);
   send(buf, context);
 
-  FieldCheckbox bootField;
+  CheckboxField bootField;
   bootField.label = "Turn on at startup";
   bootField.name = "bootState";
   bootField.note = "Switch turns on immediately after power is applied";
   bootField.checked = cfg->bootState;
   bootField.required = false;
-  render_checkbox(buf, sizeof(buf), &bootField);
+  render_field(buf, sizeof(buf), bootField);
   send(buf, context);
 #endif
 
   // ===== CONFIRM SAVING =====
-  FieldCheckbox confirmField;
+  CheckboxField confirmField;
   confirmField.label = "Confirm saving";
   confirmField.name = "confirmSave";
   confirmField.note = "Required — check to confirm changes";
   confirmField.checked = false;
   confirmField.required = true;
-  render_checkbox(buf, sizeof(buf), &confirmField);
+  render_field(buf, sizeof(buf), confirmField);
   send(buf, context);
 
   // ===== SUBMIT =====

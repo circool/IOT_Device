@@ -41,7 +41,7 @@
 #define WEB_RESET_ENABLED 0
 #endif
 
-#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+#endif
 
 // ============================================================================
 // ПУБЛИЧНЫЙ API
@@ -59,18 +59,21 @@ extern WebServerClass server;
 void web_register_status_provider(IWebStatusProvider* provider);
 
 /**
- * @brief Инициализация веб-сервера в обычном режиме (STA)
+ * @brief Инициализация веб-сервера
+ * @details Регистрирует все маршруты: /, /config, /save, /set, /update
+ * @note Вызывается один раз после подключения WiFi
  */
 void web_init(void);
 
 /**
- * @brief Периодическая обработка HTTP-запросов. Вызывается в loop()
+ * @brief Периодическая обработка HTTP-запросов
+ * @details Вызывается в loop(), обрабатывает входящие запросы
  */
 void web_update(void);
 
 /**
  * @brief Построить HTML-код страницы состояния
- * @return HTML-строка
+ * @return HTML-строка с данными устройства
  */
 String web_build_status_html(void);
 
@@ -85,7 +88,7 @@ void web_send_status_page(int refreshInterval);
  * @param send Колбэк для отправки контента
  * @param context Контекст для колбэка
  * @param cfg Указатель на структуру ConfigData
- * @param currentMode Текущий режим (AP/STA)
+ * @param currentMode Текущий режим (Client WiFi / Access Point)
  * @param currentSsid Текущий SSID
  * @param currentIp Текущий IP-адрес
  * @param refreshSeconds Интервал автообновления (0 = отключено)
@@ -103,12 +106,18 @@ void web_send_config_page(WebSendCallback send,
                           const char* successMsg);
 
 /**
- * @brief Обработчик сохранения конфигурации (POST /save)
+ * @brief Обработчик сохранения конфигурации
+ * @details Обрабатывает POST-запрос на /save.
+ *          Парсит и валидирует параметры формы.
+ *          Устанавливает флаг g_webConfigPending для оркестратора.
  */
 void web_handle_save(void);
 
 /**
- * @brief Обработчик оперативных команд (/set)
+ * @brief Обработчик оперативных команд
+ * @details Обрабатывает GET-запрос на /set.
+ *          Поддерживает команды: state, speed, manualMode.
+ *          Устанавливает флаг g_webCommandPending для оркестратора.
  */
 void web_handle_set(void);
 
@@ -118,16 +127,25 @@ void web_handle_set(void);
 
 /**
  * @brief Флаг: есть новые настройки от Web (/save)
+ * @details Устанавливается в web_handle_save(), сбрасывается в main.cpp
  */
 extern volatile bool g_webConfigPending;
 
 /**
  * @brief Флаг: запрошена перезагрузка от Web (/resetall)
+ * @details Устанавливается в обработчике /resetall, сбрасывается в main.cpp
  */
 extern volatile bool g_webRestartPending;
 
 /**
+ * @brief Флаг: есть команда от Web (/set)
+ * @details Устанавливается в web_handle_set(), сбрасывается в main.cpp
+ */
+extern volatile bool g_webCommandPending;
+
+/**
  * @brief Временный буфер с новыми настройками
+ * @details Заполняется в web_handle_save(), применяется в main.cpp
  */
 extern ConfigData g_webPendingConfig;
 
@@ -156,11 +174,6 @@ typedef struct {
 } WebCommand;
 
 /**
- * @brief Флаг: есть команда от Web (/set)
- */
-extern volatile bool g_webCommandPending;
-
-/**
  * @brief Буфер команды от Web
  */
 extern WebCommand g_webCommand;
@@ -172,32 +185,38 @@ extern WebCommand g_webCommand;
 // ЗАГЛУШКИ
 // ============================================================================
 
-// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
-// FEATURE_WEB_STATUS_ENABLED == 0)
+/**
+ * @brief Заглушка — Web отключён
+ */
 inline void web_register_status_provider(IWebStatusProvider* provider) {
   (void)provider;
 }
 
-// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
-// FEATURE_WEB_STATUS_ENABLED == 0)
+/**
+ * @brief Заглушка — Web отключён
+ */
 inline void web_init(void) {}
 
-// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
-// FEATURE_WEB_STATUS_ENABLED == 0)
+/**
+ * @brief Заглушка — Web отключён
+ */
 inline void web_update(void) {}
 
-// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
-// FEATURE_WEB_STATUS_ENABLED == 0)
+/**
+ * @brief Заглушка — Web отключён
+ */
 inline String web_build_status_html(void) {
   return String();
 }
 
-// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
-// FEATURE_WEB_STATUS_ENABLED == 0)
+/**
+ * @brief Заглушка — Web отключён
+ */
 inline void web_send_status_page(int) {}
 
-// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
-// FEATURE_WEB_STATUS_ENABLED == 0)
+/**
+ * @brief Заглушка — Web отключён
+ */
 inline void web_send_config_page(WebSendCallback send,
                                  void* context,
                                  const ConfigData* cfg,
@@ -218,12 +237,14 @@ inline void web_send_config_page(WebSendCallback send,
   (void)successMsg;
 }
 
-// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
-// FEATURE_WEB_STATUS_ENABLED == 0)
+/**
+ * @brief Заглушка — Web отключён
+ */
 inline void web_handle_save(void) {}
 
-// Заглушка - Web отключён (TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI или
-// FEATURE_WEB_STATUS_ENABLED == 0)
+/**
+ * @brief Заглушка — Web отключён
+ */
 inline void web_handle_set(void) {}
 
 #endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI && FEATURE_WEB_STATUS_ENABLED
