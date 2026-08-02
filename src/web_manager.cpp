@@ -864,7 +864,7 @@ void web_send_config_page(WebSendCallback send,
   confirmField.name = "confirmSave";
   confirmField.value = NULL;
   confirmField.placeholder = NULL;
-  confirmField.note = NULL;
+  confirmField.note = "Required — check to confirm changes";
   confirmField.min = NULL;
   confirmField.max = NULL;
   confirmField.step = NULL;
@@ -875,7 +875,8 @@ void web_send_config_page(WebSendCallback send,
   web_renderField(buf, sizeof(buf), &confirmField);
   send(buf, context);
 
-  send((const char*)"<input type='submit' value='Save and reboot'>", context);
+  // ===== SUBMIT =====
+  send((const char*)"<input type='submit' value='Save'>", context);
   send((const char*)"</form>", context);
 
   if (ota_is_available()) {
@@ -1186,9 +1187,8 @@ void web_handle_save(void) {
   String currentIp = wifi_get_local_ip();
   server.setContentLength(CONTENT_LENGTH_UNKNOWN);
   server.send(200, "text/html", "");
-  web_send_config_page(webSendContent, &server, cfg, "Client WiFi", cfg->wifiSsid,
-                 currentIp.c_str(), DEFAULT_WEB_REFRESH, "",
-                 "Configuration saved. Device will reboot.");
+  web_send_result_page(webSendContent, &server,
+                       "Configuration saved. Page will reloaded.", true);
 }
 
 // ============================================================================

@@ -80,6 +80,10 @@ void web_renderField(char* buf, size_t size, const FieldDef* field) {
       if (field->checked) {
         strncat(temp, " checked", sizeof(temp) - strlen(temp) - 1);
       }
+      if (field->required) {
+        strncat(temp, " required",
+                sizeof(temp) - strlen(temp) - 1);  
+      }
       strncat(temp, ">", sizeof(temp) - strlen(temp) - 1);
       if (field->label) {
         strncat(temp, " ", sizeof(temp) - strlen(temp) - 1);
