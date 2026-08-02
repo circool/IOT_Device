@@ -59,20 +59,11 @@ ElegantOTA — библиотека-обёртка, которая **самос�
 
 ### 4.1. Маршрут `/update`
 
-Маршрут регистрируется внутри `ElegantOTA.begin(server)`. OTA-слой не регистрирует маршруты вручную.
+Маршрут регистрируется внутри `ElegantOTA.begin(server)` средствами ElegantOTA.
 
 ### 4.2. Кнопка OTA
 
-Web-слой **не знает** о `FEATURE_OTA_ENABLED`. Кнопка отображается на основе `ota_is_available()`:
-
-```cpp
-// html_templates.h
-if (ota_is_available()) {
-    // отобразить кнопку
-}
-```
-
-**Принцип:** `ota_is_available()` возвращает `false` при `FEATURE_OTA_ENABLED=0` (заглушка), поэтому Web-слой не требует `#ifdef`.
+Web-слой информируется о необходимости отображения кнопки при инициализации: `ota_is_available()` передаётся как параметр вызова.
 
 ## 5. Флаги компиляции
 
@@ -85,8 +76,8 @@ if (ota_is_available()) {
 
 | Слой | Взаимодействие |
 |------|----------------|
-| **Оркестратор** | Вызывает `web_ota_manager_init(server)` в `setup()` и `web_ota_manager_update()` в `loop()` |
-| **Web** | Вызывает `ota_is_available()` для отображения кнопки. Маршрут `/update` уже зарегистрирован OTA-слоем. |
+| **web_manager** | Вызывает `web_ota_manager_init(server)` в `web_manager_init()`  |
+| | Получает `ota_is_available()` в виде параметра инициализации. |
 
 ---
 

@@ -27,7 +27,7 @@
 | [ ] | `TRANSPORT_ABSTRACTION.md` | Создание транспорта через фабрику (`begin()`, `update()`) |
 | [ ] | `WEB_MANAGER.md` | Веб-интерфейс (`init()`, `update()`) |
 | [ ] | `HTML_TEMPLATES.md` | Шаблоны формирование html |
-| [ ] | `WEB_OTA_MANAGER.md` | Обновление прошивки (`init()`, `update()`) |
+| [x] | `WEB_OTA_MANAGER.md` | Обновление прошивки (`init()`, `update()`) |
 | [ ] | `LED_MANAGER.md` | Светодиодная индикация (`init()`, `set_mode()`, `update()`) |
 | [ ] | `RESET_BUTTON_MANAGER.md` | Кнопка сброса (`init()`, `update()`, чтение стадии) |
 | [ ] | `RESTART_MANAGER.md` | Централизованная перезагрузка (`update()` — последним в `loop()`) |
@@ -141,7 +141,7 @@ src/
 ├── web_common.h/cpp                      # Общий рендеринг Web-страниц
 ├── web_status_provider.h/cpp             # Интерфейс IWebStatusProvider
 ├── html_templates.h                      # HTML-шаблоны
-├── web_ota_manager.h/cpp                     # OTA через веб-интерфейс
+├── web_ota_manager.h/cpp                 # OTA через веб-интерфейс
 │
 ├── led_manager.h/cpp                     # LED-индикация
 ├── reset_button_manager.h/cpp            # Кнопка сброса

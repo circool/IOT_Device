@@ -48,7 +48,7 @@
 | **1.8** | **Привести имена слоёв к единому стандарту** | | ⬜ | 🟡 Средний |
 | 1.8.1 | | Переименовать `led.h/cpp` → `led_manager.h/cpp` | ✅ | |
 | 1.8.2 | | Переименовать `ota.h/cpp` → `web_ota_manager.h/cpp` | ✅ | |
-| 1.8.3 | | Переименовать `mqtt.h/cpp` → `mqtt_manager.h/cpp` | ⬜ | |
+| 1.8.3 | | Переименовать `mqtt.h/cpp` → `mqtt_manager.h/cpp` | ✅ | |
 | 1.8.4 | | Переименовать `web.h/cpp` → `web_server.h/cpp` | ✅ | |
 | 1.8.5 | | Переименовать `zigbee.h/cpp` → `zigbee_manager.h/cpp` | ✅ | |
 | 1.8.6 | | Переименовать `transport_mqtt.h/cpp` → `mqtt_transport.h/cpp` | ⬜ | |
