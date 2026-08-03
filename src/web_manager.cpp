@@ -173,10 +173,6 @@ void web_handle_set(void) {
   web_send_result_page(webSendContent, &server, "Unknown command", false);
 }
 
-// ============================================================================
-// ПОСТРОЕНИЕ СТРАНИЦЫ СОСТОЯНИЯ
-// ============================================================================
-
 String web_build_status_html(void) {
   if (!g_statusProvider) {
     return F(
@@ -184,7 +180,7 @@ String web_build_status_html(void) {
   }
 
   String html;
-  char buf[512];
+  char buf[256];
   bool sensorOk = g_statusProvider->isSensorOk();
   bool state = g_statusProvider->isDeviceOn();
 
@@ -217,13 +213,21 @@ String web_build_status_html(void) {
              g_statusProvider->getLowHum(), g_statusProvider->getHighHum());
 #endif
 
-    html += F("<div class='flex-container'>");
-    web_renderSensorCard(buf, sizeof(buf), temp, "Temperature", "°C",
-                         tempColorClass, tempNote);
+    char tempStr[16];
+    char humStr[16];
+    snprintf(tempStr, sizeof(tempStr), "%.1f", temp);
+    snprintf(humStr, sizeof(humStr), "%.1f", hum);
+
+    html += F("<div class='flex'>");
+
+    TextBlockParams card1 = {"Temperature", tempStr, "°C", tempColorClass};
+    render(buf, sizeof(buf), card1);
     html += buf;
-    web_renderSensorCard(buf, sizeof(buf), hum, "Humidity", "%", humColorClass,
-                         humNote);
+
+    TextBlockParams card2 = {"Humidity", humStr, "%", humColorClass};
+    render(buf, sizeof(buf), card2);
     html += buf;
+
     html += F("</div>");
   } else {
     html +=
@@ -236,20 +240,21 @@ String web_build_status_html(void) {
   if (g_statusProvider->isEmergencyStop()) {
     html +=
         F("<div class='block error'>"
-          "<div class='text_header'>EMERGENCY STOPPED</div>"
-          "<div class='text_small'>Device was automatically turned off "
+          "<div class='large'>EMERGENCY STOPPED</div>"
+          "<div class='small'>Device was automatically turned off "
           "after exceeding the maximum allowed runtime.</div>"
           "</div>");
   }
 
   html +=
       F("<div class='block info center'>"
-        "<div class='text_header'>Mode: ");
+        "<div class='large'>Mode: ");
   html += getCurrentModeText();
   html += F("</div></div>");
 
   const char* stateText = state ? "ON" : "OFF";
-  web_renderStatusCard(buf, sizeof(buf), stateText, state);
+  StatusBlockParams status = {state, stateText};
+  render(buf, sizeof(buf), status);
   html += buf;
 
 #if DEVICE_TYPE == 1
@@ -257,13 +262,16 @@ String web_build_status_html(void) {
     int speed = g_statusProvider->getSpeedPercent();
     html +=
         F("<div class='block info center'>"
-          "<div class='text_header'>Speed: ");
+          "<div class='large'>Speed: ");
     html += String(speed);
     html += F("%</div>");
-    web_renderSpeedBar(buf, sizeof(buf), speed);
+
+    ProgressParams progress = {speed};
+    render(buf, sizeof(buf), progress);
     html += buf;
+
     if (speed < 100) {
-      html += F("<div class='text_small'>Quiet mode active");
+      html += F("<div class='small'>Quiet mode active");
       if (g_statusProvider->isAdaptiveModeActive())
         html += F(" + adaptive");
       html += F("</div>");
@@ -302,41 +310,48 @@ String web_build_status_html(void) {
 
   html += F("</div>");
 
-  html += F("<div class='button-group'>");
+  html += F("<div class='group'>");
 
   const char* onOffLabel = state ? "Turn OFF" : "Turn ON";
   const char* onOffValue = state ? "off" : "on";
   char url[64];
   snprintf(url, sizeof(url), "/set?param=state&value=%s", onOffValue);
-  web_renderButton(buf, sizeof(buf), onOffLabel, url, "link-btn");
+
+  ButtonParams btnOnOff = {onOffLabel, url, "link-btn"};
+  render(buf, sizeof(buf), btnOnOff);
   html += buf;
 
 #if DEVICE_TYPE == 1
   if (state) {
-    web_renderButton(buf, sizeof(buf), "25%", "/set?param=speed&value=25",
-                     NULL);
+    ButtonParams btn25 = {"25%", "/set?param=speed&value=25", NULL};
+    render(buf, sizeof(buf), btn25);
     html += buf;
-    web_renderButton(buf, sizeof(buf), "50%", "/set?param=speed&value=50",
-                     NULL);
+
+    ButtonParams btn50 = {"50%", "/set?param=speed&value=50", NULL};
+    render(buf, sizeof(buf), btn50);
     html += buf;
-    web_renderButton(buf, sizeof(buf), "75%", "/set?param=speed&value=75",
-                     NULL);
+
+    ButtonParams btn75 = {"75%", "/set?param=speed&value=75", NULL};
+    render(buf, sizeof(buf), btn75);
     html += buf;
-    web_renderButton(buf, sizeof(buf), "100%", "/set?param=speed&value=100",
-                     NULL);
+
+    ButtonParams btn100 = {"100%", "/set?param=speed&value=100", NULL};
+    render(buf, sizeof(buf), btn100);
     html += buf;
   }
 #endif
 
 #if DEVICE_TYPE == 1
   if (g_statusProvider->isSensorControlMode()) {
-    web_renderButton(buf, sizeof(buf), "Manual mode",
-                     "/set?param=manualMode&value=1", NULL);
+    ButtonParams btnManual = {"Manual mode", "/set?param=manualMode&value=1",
+                              NULL};
+    render(buf, sizeof(buf), btnManual);
+    html += buf;
   } else {
-    web_renderButton(buf, sizeof(buf), "Auto mode",
-                     "/set?param=manualMode&value=0", NULL);
+    ButtonParams btnAuto = {"Auto mode", "/set?param=manualMode&value=0", NULL};
+    render(buf, sizeof(buf), btnAuto);
+    html += buf;
   }
-  html += buf;
 #endif
 
   html += F("</div>");
@@ -423,24 +438,27 @@ void web_send_config_page(WebSendCallback send,
   snprintf(buf, sizeof(buf), "<h1>Settings %s v. %s</h1>", deviceId, VERSION);
   send(buf, context);
 
-  snprintf(buf, sizeof(buf),
-           "<h3>State</h3><div class='info'>"
+  // ===== STATE BLOCK =====
+  char stateText[128];
+  snprintf(stateText, sizeof(stateText),
            "Mode: <strong>%s</strong><br>"
            "SSID: <strong>%s</strong><br>"
-           "IP: <strong>%s</strong></div>",
+           "IP: <strong>%s</strong>",
            currentMode ? currentMode : "N/A", currentSsid ? currentSsid : "N/A",
            currentIp ? currentIp : "N/A");
+
+  InfoBlockParams info = {"State", stateText, "info"};
+  render(buf, sizeof(buf), info);
   send(buf, context);
 
   if (errorMsg && errorMsg[0] != '\0') {
-    snprintf(buf, sizeof(buf),
-             "<div class='error'><strong>Error:</strong> %s</div>", errorMsg);
+    InfoBlockParams error = {"Error", errorMsg, "error"};
+    render(buf, sizeof(buf), error);
     send(buf, context);
   }
   if (successMsg && successMsg[0] != '\0') {
-    snprintf(buf, sizeof(buf),
-             "<div class='success'><strong>Config saved!</strong> %s</div>",
-             successMsg);
+    InfoBlockParams success = {"Success", successMsg, "success"};
+    render(buf, sizeof(buf), success);
     send(buf, context);
   }
 
@@ -457,7 +475,7 @@ void web_send_config_page(WebSendCallback send,
   ssidField.note = NULL;
   ssidField.hideInput = false;
   ssidField.required = true;
-  render_field(buf, sizeof(buf), ssidField);
+  render(buf, sizeof(buf), ssidField);
   send(buf, context);
 
   TextField pwdField;
@@ -468,7 +486,7 @@ void web_send_config_page(WebSendCallback send,
   pwdField.note = "Leave empty to keep current password";
   pwdField.hideInput = true;
   pwdField.required = false;
-  render_field(buf, sizeof(buf), pwdField);
+  render(buf, sizeof(buf), pwdField);
   send(buf, context);
 
   // ===== MQTT =====
@@ -483,7 +501,7 @@ void web_send_config_page(WebSendCallback send,
   brokerField.note = NULL;
   brokerField.hideInput = false;
   brokerField.required = true;
-  render_field(buf, sizeof(buf), brokerField);
+  render(buf, sizeof(buf), brokerField);
   send(buf, context);
 
   char portStr[8];
@@ -498,7 +516,7 @@ void web_send_config_page(WebSendCallback send,
   portField.max = "65535";
   portField.step = "1";
   portField.required = true;
-  render_field(buf, sizeof(buf), portField);
+  render(buf, sizeof(buf), portField);
   send(buf, context);
 
   TextField userField;
@@ -509,7 +527,7 @@ void web_send_config_page(WebSendCallback send,
   userField.note = NULL;
   userField.hideInput = false;
   userField.required = false;
-  render_field(buf, sizeof(buf), userField);
+  render(buf, sizeof(buf), userField);
   send(buf, context);
 
   TextField mqttPwdField;
@@ -520,7 +538,7 @@ void web_send_config_page(WebSendCallback send,
   mqttPwdField.note = "Leave empty to keep current password";
   mqttPwdField.hideInput = true;
   mqttPwdField.required = false;
-  render_field(buf, sizeof(buf), mqttPwdField);
+  render(buf, sizeof(buf), mqttPwdField);
   send(buf, context);
 
   TextField clientField;
@@ -531,7 +549,7 @@ void web_send_config_page(WebSendCallback send,
   clientField.note = NULL;
   clientField.hideInput = false;
   clientField.required = true;
-  render_field(buf, sizeof(buf), clientField);
+  render(buf, sizeof(buf), clientField);
   send(buf, context);
 #endif
 
@@ -551,7 +569,7 @@ void web_send_config_page(WebSendCallback send,
   lowTempField.max = "85";
   lowTempField.step = "0.1";
   lowTempField.required = true;
-  render_field(buf, sizeof(buf), lowTempField);
+  render(buf, sizeof(buf), lowTempField);
   send(buf, context);
 
   snprintf(tempBuf, sizeof(tempBuf), "%.1f", cfg->highTemp);
@@ -565,7 +583,7 @@ void web_send_config_page(WebSendCallback send,
   highTempField.max = "85";
   highTempField.step = "0.1";
   highTempField.required = true;
-  render_field(buf, sizeof(buf), highTempField);
+  render(buf, sizeof(buf), highTempField);
   send(buf, context);
 
   char humBuf[16];
@@ -580,7 +598,7 @@ void web_send_config_page(WebSendCallback send,
   lowHumField.max = "100";
   lowHumField.step = "0.1";
   lowHumField.required = true;
-  render_field(buf, sizeof(buf), lowHumField);
+  render(buf, sizeof(buf), lowHumField);
   send(buf, context);
 
   snprintf(humBuf, sizeof(humBuf), "%.1f", cfg->highHum);
@@ -594,7 +612,7 @@ void web_send_config_page(WebSendCallback send,
   highHumField.max = "100";
   highHumField.step = "0.1";
   highHumField.required = true;
-  render_field(buf, sizeof(buf), highHumField);
+  render(buf, sizeof(buf), highHumField);
   send(buf, context);
 
   char intervalBuf[8];
@@ -609,7 +627,7 @@ void web_send_config_page(WebSendCallback send,
   intervalField.max = "50";
   intervalField.step = "1";
   intervalField.required = true;
-  render_field(buf, sizeof(buf), intervalField);
+  render(buf, sizeof(buf), intervalField);
   send(buf, context);
 
   char maxOnBuf[16];
@@ -624,7 +642,7 @@ void web_send_config_page(WebSendCallback send,
   maxOnField.max = "86400";
   maxOnField.step = "1";
   maxOnField.required = true;
-  render_field(buf, sizeof(buf), maxOnField);
+  render(buf, sizeof(buf), maxOnField);
   send(buf, context);
 
   char delayBuf[16];
@@ -639,7 +657,7 @@ void web_send_config_page(WebSendCallback send,
   delayField.max = "86400";
   delayField.step = "1";
   delayField.required = true;
-  render_field(buf, sizeof(buf), delayField);
+  render(buf, sizeof(buf), delayField);
   send(buf, context);
 
   char speedBuf[8];
@@ -654,7 +672,7 @@ void web_send_config_page(WebSendCallback send,
   speedField.max = "100";
   speedField.step = "1";
   speedField.required = true;
-  render_field(buf, sizeof(buf), speedField);
+  render(buf, sizeof(buf), speedField);
   send(buf, context);
 
   CheckboxField adaptiveField;
@@ -664,7 +682,7 @@ void web_send_config_page(WebSendCallback send,
       "Automatically adjusts speed to maintain temperature and humidity";
   adaptiveField.checked = cfg->adaptiveMode;
   adaptiveField.required = false;
-  render_field(buf, sizeof(buf), adaptiveField);
+  render(buf, sizeof(buf), adaptiveField);
   send(buf, context);
 
   CheckboxField bootField;
@@ -673,7 +691,7 @@ void web_send_config_page(WebSendCallback send,
   bootField.note = "Fan turns on immediately after power is applied";
   bootField.checked = cfg->bootState;
   bootField.required = false;
-  render_field(buf, sizeof(buf), bootField);
+  render(buf, sizeof(buf), bootField);
   send(buf, context);
 
   CheckboxField sensorModeField;
@@ -682,7 +700,7 @@ void web_send_config_page(WebSendCallback send,
   sensorModeField.note = "When enabled, fan is controlled by sensors";
   sensorModeField.checked = cfg->sensorControlMode;
   sensorModeField.required = false;
-  render_field(buf, sizeof(buf), sensorModeField);
+  render(buf, sizeof(buf), sensorModeField);
   send(buf, context);
 
 #elif DEVICE_TYPE == 2
@@ -698,7 +716,7 @@ void web_send_config_page(WebSendCallback send,
   intervalField.max = "50";
   intervalField.step = "1";
   intervalField.required = true;
-  render_field(buf, sizeof(buf), intervalField);
+  render(buf, sizeof(buf), intervalField);
   send(buf, context);
 
 #elif DEVICE_TYPE == 3
@@ -714,7 +732,7 @@ void web_send_config_page(WebSendCallback send,
   maxOnField.max = "86400";
   maxOnField.step = "1";
   maxOnField.required = true;
-  render_field(buf, sizeof(buf), maxOnField);
+  render(buf, sizeof(buf), maxOnField);
   send(buf, context);
 
   char delayBuf[16];
@@ -729,7 +747,7 @@ void web_send_config_page(WebSendCallback send,
   delayField.max = "86400";
   delayField.step = "1";
   delayField.required = true;
-  render_field(buf, sizeof(buf), delayField);
+  render(buf, sizeof(buf), delayField);
   send(buf, context);
 
   CheckboxField bootField;
@@ -738,7 +756,7 @@ void web_send_config_page(WebSendCallback send,
   bootField.note = "Switch turns on immediately after power is applied";
   bootField.checked = cfg->bootState;
   bootField.required = false;
-  render_field(buf, sizeof(buf), bootField);
+  render(buf, sizeof(buf), bootField);
   send(buf, context);
 #endif
 
@@ -749,7 +767,7 @@ void web_send_config_page(WebSendCallback send,
   confirmField.note = "Required — check to confirm changes";
   confirmField.checked = false;
   confirmField.required = true;
-  render_field(buf, sizeof(buf), confirmField);
+  render(buf, sizeof(buf), confirmField);
   send(buf, context);
 
   // ===== SUBMIT =====
@@ -768,21 +786,24 @@ void web_send_config_page(WebSendCallback send,
 // ОБРАБОТЧИК СОХРАНЕНИЯ /save
 // ============================================================================
 
+// ============================================================================
+// ОБРАБОТЧИК СОХРАНЕНИЯ /save
+// ============================================================================
+
+// Макрос для единообразной обработки ошибок валидации
+#define VALIDATION_ERROR(msg, ...)                                       \
+  do {                                                                   \
+    XLOG_WARN(CAT_WEB, "Validation error: " msg, ##__VA_ARGS__);         \
+    web_send_result_page(webSendContent, &server, "Error: " msg, false); \
+    return;                                                              \
+  } while (0)
+
 void web_handle_save(void) {
   XLOG_INFO(CAT_WEB, "Processing config form...");
 
   // Проверка подтверждения
   if (!server.hasArg("confirmSave") || server.arg("confirmSave") != "1") {
-    XLOG_WARN(CAT_WEB, "Save cancelled: confirmSave not checked");
-    const ConfigData* cfg = g_configManager.get();
-    String currentIp = wifi_get_local_ip();
-    server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-    server.send(200, "text/html", "");
-    web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                         cfg->wifiSsid, currentIp.c_str(), 0,
-                         "Please confirm saving by checking 'Confirm saving'",
-                         "");
-    return;
+    VALIDATION_ERROR("Please confirm saving by checking 'Confirm saving'");
   }
 
   memcpy(&g_webPendingConfig, g_configManager.get(), sizeof(ConfigData));
@@ -797,15 +818,11 @@ void web_handle_save(void) {
       g_webPendingConfig.wifiSsid[sizeof(g_webPendingConfig.wifiSsid) - 1] =
           '\0';
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "WiFi SSID is empty or too long", "");
-      return;
+      VALIDATION_ERROR("WiFi SSID is empty or too long (max 31 chars) (len=%d)",
+                       ssid.length());
     }
+  } else {
+    VALIDATION_ERROR("WiFi SSID is required");
   }
 
   if (server.hasArg("wifiPassword")) {
@@ -817,14 +834,8 @@ void web_handle_save(void) {
         g_webPendingConfig
             .wifiPassword[sizeof(g_webPendingConfig.wifiPassword) - 1] = '\0';
       } else {
-        const ConfigData* cfg = g_configManager.get();
-        String currentIp = wifi_get_local_ip();
-        server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-        server.send(200, "text/html", "");
-        web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                             cfg->wifiSsid, currentIp.c_str(), 0,
-                             "WiFi password too long", "");
-        return;
+        VALIDATION_ERROR("WiFi password too long (max 63 chars) (len=%d)",
+                         pwd.length());
       }
     }
   }
@@ -840,15 +851,11 @@ void web_handle_save(void) {
       g_webPendingConfig.mqttBroker[sizeof(g_webPendingConfig.mqttBroker) - 1] =
           '\0';
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "MQTT Broker is empty or too long", "");
-      return;
+      VALIDATION_ERROR("MQTT Broker is empty or too long (len=%d)",
+                       broker.length());
     }
+  } else {
+    VALIDATION_ERROR("MQTT Broker is required");
   }
 
   if (server.hasArg("mqttPort")) {
@@ -856,15 +863,10 @@ void web_handle_save(void) {
     if (port >= 1 && port <= 65535) {
       g_webPendingConfig.mqttPort = (uint16_t)port;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "MQTT Port must be 1-65535", "");
-      return;
+      VALIDATION_ERROR("MQTT Port must be 1-65535 (port=%d)", port);
     }
+  } else {
+    VALIDATION_ERROR("MQTT Port is required");
   }
 
   if (server.hasArg("mqttUser")) {
@@ -874,6 +876,8 @@ void web_handle_save(void) {
               sizeof(g_webPendingConfig.mqttUser) - 1);
       g_webPendingConfig.mqttUser[sizeof(g_webPendingConfig.mqttUser) - 1] =
           '\0';
+    } else {
+      VALIDATION_ERROR("MQTT User is too long (len=%d)", user.length());
     }
   }
 
@@ -885,6 +889,8 @@ void web_handle_save(void) {
               sizeof(g_webPendingConfig.mqttPassword) - 1);
       g_webPendingConfig
           .mqttPassword[sizeof(g_webPendingConfig.mqttPassword) - 1] = '\0';
+    } else if (pwd.length() > 0) {
+      VALIDATION_ERROR("MQTT Password is too long (len=%d)", pwd.length());
     }
   }
 
@@ -897,15 +903,11 @@ void web_handle_save(void) {
       g_webPendingConfig
           .mqttClientId[sizeof(g_webPendingConfig.mqttClientId) - 1] = '\0';
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "MQTT Client ID is empty or too long", "");
-      return;
+      VALIDATION_ERROR("MQTT Client ID is empty or too long (len=%d)",
+                       cid.length());
     }
+  } else {
+    VALIDATION_ERROR("MQTT Client ID is required");
   }
 #endif
 
@@ -916,15 +918,11 @@ void web_handle_save(void) {
     if (interval >= SENSOR_INTERVAL_MIN && interval <= SENSOR_INTERVAL_MAX) {
       g_webPendingConfig.sensorInterval = (uint16_t)interval;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "Sensor interval out of range", "");
-      return;
+      VALIDATION_ERROR("Sensor interval must be %d-%d sec (interval=%d)",
+                       SENSOR_INTERVAL_MIN, SENSOR_INTERVAL_MAX, interval);
     }
+  } else {
+    VALIDATION_ERROR("Sensor interval is required");
   }
 #endif
 
@@ -935,14 +933,8 @@ void web_handle_save(void) {
     if (val >= TEMP_MIN && val <= TEMP_MAX) {
       g_webPendingConfig.lowTemp = val;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "Low Temp out of range", "");
-      return;
+      VALIDATION_ERROR("Low Temp must be %.1f..%.1f °C (val=%.1f)", TEMP_MIN,
+                       TEMP_MAX, val);
     }
   }
 
@@ -951,14 +943,8 @@ void web_handle_save(void) {
     if (val >= TEMP_MIN && val <= TEMP_MAX) {
       g_webPendingConfig.highTemp = val;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "High Temp out of range", "");
-      return;
+      VALIDATION_ERROR("High Temp must be %.1f..%.1f °C (val=%.1f)", TEMP_MIN,
+                       TEMP_MAX, val);
     }
   }
 
@@ -967,14 +953,8 @@ void web_handle_save(void) {
     if (val >= HUM_MIN && val <= HUM_MAX) {
       g_webPendingConfig.lowHum = val;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "Low Hum out of range", "");
-      return;
+      VALIDATION_ERROR("Low Hum must be %.1f..%.1f %% (val=%.1f)", HUM_MIN,
+                       HUM_MAX, val);
     }
   }
 
@@ -983,14 +963,8 @@ void web_handle_save(void) {
     if (val >= HUM_MIN && val <= HUM_MAX) {
       g_webPendingConfig.highHum = val;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "High Hum out of range", "");
-      return;
+      VALIDATION_ERROR("High Hum must be %.1f..%.1f %% (val=%.1f)", HUM_MIN,
+                       HUM_MAX, val);
     }
   }
 
@@ -999,14 +973,8 @@ void web_handle_save(void) {
     if (val <= MAX_ON_TIME_MAX) {
       g_webPendingConfig.maxOnTime = val;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "MaxOnTime out of range", "");
-      return;
+      VALIDATION_ERROR("Emergency timeout must be 0..%d sec (val=%lu)",
+                       MAX_ON_TIME_MAX, val);
     }
   }
 
@@ -1015,14 +983,8 @@ void web_handle_save(void) {
     if (val >= DELAY_SECONDS_MIN && val <= DELAY_SECONDS_MAX) {
       g_webPendingConfig.delaySeconds = val;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "Delay seconds out of range", "");
-      return;
+      VALIDATION_ERROR("Delay seconds must be %d..%d sec (val=%d)",
+                       DELAY_SECONDS_MIN, DELAY_SECONDS_MAX, val);
     }
   }
 
@@ -1031,14 +993,7 @@ void web_handle_save(void) {
     if (val >= 0 && val <= 100) {
       g_webPendingConfig.speedPercent = (uint16_t)val;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "Speed must be 0-100%", "");
-      return;
+      VALIDATION_ERROR("Speed must be 0..100%% (val=%d)", val);
     }
   }
 
@@ -1054,14 +1009,8 @@ void web_handle_save(void) {
     if (val <= MAX_ON_TIME_MAX) {
       g_webPendingConfig.maxOnTime = val;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "MaxOnTime out of range", "");
-      return;
+      VALIDATION_ERROR("Emergency timeout must be 0..%d sec (val=%lu)",
+                       MAX_ON_TIME_MAX, val);
     }
   }
 
@@ -1070,14 +1019,8 @@ void web_handle_save(void) {
     if (val >= DELAY_SECONDS_MIN && val <= DELAY_SECONDS_MAX) {
       g_webPendingConfig.delaySeconds = val;
     } else {
-      const ConfigData* cfg = g_configManager.get();
-      String currentIp = wifi_get_local_ip();
-      server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-      server.send(200, "text/html", "");
-      web_send_config_page(webSendContent, &server, cfg, "Client WiFi",
-                           cfg->wifiSsid, currentIp.c_str(), 0,
-                           "Delay seconds out of range", "");
-      return;
+      VALIDATION_ERROR("Delay seconds must be %d..%d sec (val=%d)",
+                       DELAY_SECONDS_MIN, DELAY_SECONDS_MAX, val);
     }
   }
 
@@ -1087,18 +1030,11 @@ void web_handle_save(void) {
   g_webConfigPending = true;
   XLOG_INFO(CAT_WEB, "Config parsed, pending for main to apply");
 
-  // Отправить страницу успеха
-  const ConfigData* cfg = g_configManager.get();
-  String currentIp = wifi_get_local_ip();
-  server.setContentLength(CONTENT_LENGTH_UNKNOWN);
-  server.send(200, "text/html", "");
   web_send_result_page(webSendContent, &server,
-                       "Configuration saved. Page will reloaded.", true);
+                       "Configuration saved successfully", true);
 }
 
-// ============================================================================
-// ИНИЦИАЛИЗАЦИЯ WEB
-// ============================================================================
+#undef VALIDATION_ERROR
 
 void web_init(void) {
   int refreshInterval = DEFAULT_WEB_REFRESH;

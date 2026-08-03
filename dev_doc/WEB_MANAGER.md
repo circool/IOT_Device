@@ -12,6 +12,10 @@
 
 - [1. Назначение](#1-назначение)
 - [2. API](#2-api)
+  - [2.1. Отправка страниц](#21-отправка-страниц)
+  - [2.2. Рендеринг](#22-рендеринг)
+  - [2.3. Обработчики](#23-обработчики)
+  - [2.4. Управление](#24-управление)
 - [3. Маршруты](#3-маршруты)
 - [4. IWebStatusProvider](#4-iwebstatusprovider)
 - [5. Команды от Web](#5-команды-от-web)
@@ -46,15 +50,15 @@
 | `web_send_config_page(send, context, cfg, currentMode, currentSsid, currentIp, refreshSeconds, errorMsg, successMsg)` | Отправить страницу конфигурации |
 | `web_send_result_page(action, success)` | Отправить страницу результата операции |
 
-### 2.2. Рендеринг полей
+### 2.2. Рендеринг
 
-#### 2.2.1 Единая функция для рендеринга полей
+#### 2.2.1 Единая функция рендеринга
 
 | Функция | Назначение |
 |---------|------------|
-| `render_field(buf, size, field)` | Рендеринг поля (перегрузка для TextField, NumberField, CheckboxField) |
+| `render(buf, size, data)` | Универсальный рендеринг. Перегрузки для всех типов: TextField, NumberField, CheckboxField, TextBlockParams, StatusBlockParams, ButtonParams, ProgressParams, InfoBlockParams |
 
-#### 2.2.1 Структуры для рендеринга полей
+#### 2.2.2 Структуры для полей
 
 | Структура | Используется для | Поля |
 |-----------|------------------|------|
@@ -62,7 +66,15 @@
 | `NumberField` | NUMBER / FLOAT | label, name, value, placeholder, note, min, max, step, required |
 | `CheckboxField` | CHECKBOX | label, name, note, checked, required |
 
+#### 2.2.3 Структуры для блоков
 
+| Структура | Назначение | Поля |
+|-----------|------------|------|
+| `TextBlockParams` | Текстовый блок (заголовок + значение + единица) | title, value, unit, colorClass |
+| `StatusBlockParams` | Блок статуса (ON/OFF) | isOn, label |
+| `ButtonParams` | Кнопка | label, url, colorClass |
+| `ProgressParams` | Индикатор прогресса (шкала) | percent |
+| `InfoBlockParams` | Информационный блок (многострочный) | title, text, colorClass |
 
 ### 2.3. Обработчики
 
@@ -80,6 +92,8 @@
 | `web_update()` | Периодическая обработка HTTP-запросов |
 | `web_register_status_provider(provider)` | Регистрация провайдера статуса |
 
+---
+
 ## 3. Маршруты
 
 | URL | Метод | Назначение |
@@ -90,6 +104,8 @@
 | `/set` | GET | Оперативная команда |
 | `/update` | GET/POST | OTA (регистрируется `web_ota_manager`) |
 | `/resetall` | GET | Сброс настроек (опционально) |
+
+---
 
 ## 4. IWebStatusProvider
 
@@ -106,6 +122,8 @@ Web-слой получает данные через интерфейс `IWebSt
 | `FanWebStatusProvider` | TYPE 1 | Вентилятор с датчиком |
 | `SensorWebStatusProvider` | TYPE 2 | Автономный датчик |
 | `SwitchWebStatusProvider` | TYPE 3 | Управляемый выключатель |
+
+---
 
 ## 5. Команды от Web
 
@@ -125,6 +143,8 @@ Web-слой получает данные через интерфейс `IWebSt
 | `speed` | 0-100 | TYPE 1 |
 | `manualMode` | `1`/`0` | TYPE 1 |
 
+---
+
 ## 6. Интеграция с OTA
 
 OTA реализована как подсистема Web-слоя в отдельном модуле `web_ota_manager`.
@@ -136,6 +156,8 @@ OTA реализована как подсистема Web-слоя в отде�
 - `ota_is_available()` — проверка доступности OTA на этапе выполнения
 - Web-слой вызывает `ota_is_available()` для отображения кнопки OTA на странице конфигурации
 
+---
+
 ## 7. Флаги компиляции
 
 | Флаг | По умолчанию | Описание |
@@ -145,7 +167,87 @@ OTA реализована как подсистема Web-слоя в отде�
 | `DEFAULT_WEB_REFRESH` | 5 | Интервал автообновления (сек) |
 | `WEB_RESET_ENABLED` | 0 | Сброс настроек через Web |
 
+---
+
 ## 8. Заглушки
 
 При `TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI` или `FEATURE_WEB_STATUS_ENABLED == 0` все методы становятся пустыми.
 
+## 9. Тестирование
+
+### 9.1. Скрипт валидации
+
+В директории `debug_tools/` находится скрипт `test_validation.sh` для проверки серверной валидации формы конфигурации.
+
+**Назначение:**
+- Проверка обработки валидных и невалидных данных
+- Проверка обязательных полей (`wifiSsid`, `mqttBroker`, `mqttPort`, `mqttClientId`, `confirmSave`)
+- Проверка диапазонов значений (порт, температура, скорость)
+- Восстановление исходных значений после тестов
+
+**Запуск:**
+```bash
+./debug_tools/test_validation.sh [IP_ADDRESS]
+```
+
+**Принцип работы:**
+
+1. Чтение текущих значений через парсинг страницы `/config`
+2. Запуск тестов с валидными и невалидными данными
+3. Проверка целостности данных после тестов
+4. Восстановление исходных значений
+
+**Тесты:**
+
+| Тест | Что проверяет | Ожидаемый результат |
+|------|---------------|---------------------|
+| 1 | Валидные данные | Страница успеха |
+| 2 | Отсутствует `confirmSave` | Страница ошибки |
+| 3 | Порт = 99999 | Страница ошибки |
+| 4 | Пустой SSID | Страница ошибки |
+| 5 | Температура = 999 | Страница ошибки |
+| 6 | Скорость = 150 | Страница ошибки |
+
+**Успешный вывод:**
+```
+==========================================
+VALIDATION TEST SUITE
+Target: http://192.168.100.97
+==========================================
+[INFO] Reading current configuration...
+  Current values:
+    SSID: iot
+    Broker: 192.168.100.223
+    Port: 1883
+    Client: fan_F860
+    Temp: 27.0
+    Speed: 50
+    Interval: 10
+
+[INFO] Running tests...
+  Valid data ... PASS
+  No confirmSave ... PASS
+  Invalid port (99999) ... PASS
+  Empty SSID ... PASS
+  Invalid temp (999) ... PASS
+  Invalid speed (150) ... PASS
+
+==========================================
+SUMMARY: 6/6 passed
+ALL TESTS PASSED
+==========================================
+[INFO] Restoring original values...
+```
+
+**Логирование ошибок:**
+
+При запуске скрипта в логах устройства появляются записи:
+
+```log
+[WARN] [WEB] Validation error: MQTT Port out of range (port=99999)
+[WARN] [WEB] Validation error: WiFi SSID is empty or too long (len=0)
+[WARN] [WEB] Validation error: Low Temp out of range (val=999.0)
+[WARN] [WEB] Validation error: Speed percent out of range (val=150)
+```
+
+**Примечание:** Скрипт использует IP-адрес `192.168.100.97` по умолчанию. Для другого устройства передайте IP как аргумент: `./test_validation.sh 192.168.1.100`

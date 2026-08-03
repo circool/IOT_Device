@@ -15,10 +15,10 @@
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
 // ============================================================================
-// render_field() — ПЕРЕГРУЗКА ДЛЯ TextField
+// РЕНДЕРИНГ ПОЛЕЙ
 // ============================================================================
 
-void render_field(char* buf, size_t size, const TextField& field) {
+void render(char* buf, size_t size, const TextField& field) {
   if (!buf || size == 0)
     return;
   buf[0] = '\0';
@@ -64,11 +64,7 @@ void render_field(char* buf, size_t size, const TextField& field) {
   strncat(buf, temp, size - 1);
 }
 
-// ============================================================================
-// render_field() — ПЕРЕГРУЗКА ДЛЯ NumberField
-// ============================================================================
-
-void render_field(char* buf, size_t size, const NumberField& field) {
+void render(char* buf, size_t size, const NumberField& field) {
   if (!buf || size == 0)
     return;
   buf[0] = '\0';
@@ -128,11 +124,7 @@ void render_field(char* buf, size_t size, const NumberField& field) {
   strncat(buf, temp, size - 1);
 }
 
-// ============================================================================
-// render_field() — ПЕРЕГРУЗКА ДЛЯ CheckboxField
-// ============================================================================
-
-void render_field(char* buf, size_t size, const CheckboxField& field) {
+void render(char* buf, size_t size, const CheckboxField& field) {
   if (!buf || size == 0)
     return;
   buf[0] = '\0';
@@ -171,84 +163,93 @@ void render_field(char* buf, size_t size, const CheckboxField& field) {
 }
 
 // ============================================================================
-// ОБЩИЕ ФУНКЦИИ РЕНДЕРИНГА
+// РЕНДЕРИНГ БЛОКОВ
 // ============================================================================
 
-void web_renderSensorCard(char* buf,
-                          size_t size,
-                          float value,
-                          const char* label,
-                          const char* unit,
-                          const char* colorClass,
-                          const char* note) {
+void render(char* buf, size_t size, const TextBlockParams& params) {
   if (!buf || size == 0)
     return;
   buf[0] = '\0';
 
-  char valueStr[16];
-  snprintf(valueStr, sizeof(valueStr), "%.1f", value);
-
-  char temp[256];
+  char temp[128];
   snprintf(temp, sizeof(temp),
-           "<div class='sensor-card block %s'>"
-           "<div class='sensor-value'>%s %s</div>"
-           "<div class='sensor-label'>%s",
-           colorClass, valueStr, unit, label);
-
-  if (note) {
-    char nt[128];
-    snprintf(nt, sizeof(nt), "<br><span class='text_small'>%s</span>", note);
-    strncat(temp, nt, sizeof(temp) - strlen(temp) - 1);
-  }
-
-  strncat(temp, "</div></div>", sizeof(temp) - strlen(temp) - 1);
+           "<div class='card %s'>"
+           "<div class='value'>%s %s</div>"
+           "<div class='label'>%s</div>"
+           "</div>",
+           params.colorClass ? params.colorClass : "",
+           params.value ? params.value : "", params.unit ? params.unit : "",
+           params.title ? params.title : "");
   strncat(buf, temp, size - 1);
 }
 
-void web_renderStatusCard(char* buf,
-                          size_t size,
-                          const char* status,
-                          bool isOn) {
+void render(char* buf, size_t size, const StatusBlockParams& params) {
   if (!buf || size == 0)
     return;
   buf[0] = '\0';
 
-  char temp[256];
-  const char* colorClass = isOn ? "error" : "info";
+  const char* colorClass = params.isOn ? "error" : "info";
+  const char* label =
+      params.label ? params.label : (params.isOn ? "ON" : "OFF");
+
+  char temp[128];
   snprintf(temp, sizeof(temp),
            "<div class='block center %s'>"
-           "<div class='text_header'>%s</div></div>",
-           colorClass, status);
+           "<div class='large'>%s</div>"
+           "</div>",
+           colorClass, label);
   strncat(buf, temp, size - 1);
 }
 
-void web_renderButton(char* buf,
-                      size_t size,
-                      const char* text,
-                      const char* url,
-                      const char* style) {
+void render(char* buf, size_t size, const ButtonParams& params) {
   if (!buf || size == 0)
     return;
   buf[0] = '\0';
 
-  const char* btnStyle = style ? style : "link-btn";
+  const char* colorClass = params.colorClass ? params.colorClass : "link-btn";
+  const char* url = params.url ? params.url : "#";
+  const char* label = params.label ? params.label : "Button";
+
   char temp[128];
   snprintf(temp, sizeof(temp),
-           "<a href='%s'><button class='%s'>%s</button></a>", url, btnStyle,
-           text);
+           "<a href='%s'><button class='%s'>%s</button></a>", url, colorClass,
+           label);
   strncat(buf, temp, size - 1);
 }
 
-void web_renderSpeedBar(char* buf, size_t size, int speed) {
+void render(char* buf, size_t size, const ProgressParams& params) {
   if (!buf || size == 0)
     return;
   buf[0] = '\0';
 
+  int percent = params.percent;
+  if (percent < 0)
+    percent = 0;
+  if (percent > 100)
+    percent = 100;
+
   char temp[128];
+  snprintf(
+      temp, sizeof(temp),
+      "<div class='bar'><div class='fill' style='width:%d%%;'></div></div>",
+      percent);
+  strncat(buf, temp, size - 1);
+}
+
+void render(char* buf, size_t size, const InfoBlockParams& params) {
+  if (!buf || size == 0)
+    return;
+  buf[0] = '\0';
+
+  char temp[256];
+  const char* colorClass = params.colorClass ? params.colorClass : "info";
   snprintf(temp, sizeof(temp),
-           "<div class='duty-bar'><div class='duty-fill' "
-           "style='width:%d%%;'></div></div>",
-           speed);
+           "<div class='block %s'>"
+           "<h3>%s</h3>"
+           "%s"
+           "</div>",
+           colorClass, params.title ? params.title : "",
+           params.text ? params.text : "");
   strncat(buf, temp, size - 1);
 }
 

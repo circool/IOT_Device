@@ -28,155 +28,124 @@ typedef WebServer WebServerClass;
 /**
  * @brief Режим отображения страницы
  */
-typedef enum {
-  PAGE_MODE_NORMAL, /**< Обычный режим (полный функционал) */
-  PAGE_MODE_AP,     /**< AP-режим (упрощённая страница) */
-  PAGE_MODE_RESULT  /**< Страница результата операции */
-} PageMode;
+typedef enum { PAGE_MODE_NORMAL, PAGE_MODE_AP, PAGE_MODE_RESULT } PageMode;
 
 /**
  * @brief Колбэк для отправки HTML-контента
- * @param chunk Строка для отправки (null-terminated)
+ * @param chunk Строка для отправки
  * @param context Контекст (указатель на WebServerClass)
  */
 typedef void (*WebSendCallback)(const char* chunk, void* context);
 
 // ============================================================================
-// БАЗОВАЯ СТРУКТУРА ДЛЯ ВСЕХ ПОЛЕЙ
+// БАЗОВАЯ СТРУКТУРА ДЛЯ ПОЛЕЙ
 // ============================================================================
 
 /**
- * @brief Базовая структура для всех полей ввода
- * @details Содержит общие поля, которые наследуются всеми типами полей
+ * @brief Базовая структура для полей ввода
  */
 struct FieldBase {
-  const char* label; /**< Подпись поля */
-  const char* name;  /**< Имя поля (атрибут name) */
-  const char* note;  /**< Примечание (отображается под полем) */
+  const char* label;
+  const char* name;
+  const char* note;
 };
 
 // ============================================================================
-// СПЕЦИАЛИЗИРОВАННЫЕ СТРУКТУРЫ (наследуют FieldBase)
+// СТРУКТУРЫ ПОЛЕЙ
 // ============================================================================
 
 /**
  * @brief Текстовое поле (TEXT / PASSWORD)
- * @details Используется для SSID, паролей, MQTT Broker, User, Client ID
  */
 struct TextField : FieldBase {
-  const char* value;       /**< Текущее значение */
-  const char* placeholder; /**< Подсказка (placeholder) */
-  bool hideInput;          /**< true → type='password', false → type='text' */
-  bool required;           /**< Обязательное поле */
+  const char* value;
+  const char* placeholder;
+  bool hideInput;
+  bool required;
 };
 
 /**
  * @brief Числовое поле (NUMBER / FLOAT)
- * @details Используется для портов, интервалов, скорости, температуры,
- *          влажности, таймаутов и задержек
  */
 struct NumberField : FieldBase {
-  const char* value;       /**< Текущее значение */
-  const char* placeholder; /**< Подсказка (placeholder) */
-  const char* min;         /**< Минимальное значение */
-  const char* max;         /**< Максимальное значение */
-  const char* step;        /**< Шаг изменения */
-  bool required;           /**< Обязательное поле */
+  const char* value;
+  const char* placeholder;
+  const char* min;
+  const char* max;
+  const char* step;
+  bool required;
 };
 
 /**
- * @brief Чекбокс (CHECKBOX)
- * @details Используется для адаптивного режима, состояния при старте,
- *          сенсорного управления и подтверждения сохранения
+ * @brief Чекбокс
  */
 struct CheckboxField : FieldBase {
-  bool checked;  /**< Состояние: true — отмечен, false — не отмечен */
-  bool required; /**< Обязательное поле (требует отметки) */
+  bool checked;
+  bool required;
 };
 
 // ============================================================================
-// ОДНА ФУНКЦИЯ С ПЕРЕГРУЗКАМИ
+// СТРУКТУРЫ БЛОКОВ (по внешнему виду)
 // ============================================================================
 
 /**
- * @brief Рендеринг текстового поля
- * @param buf Буфер для записи HTML
- * @param size Размер буфера
- * @param field Структура с параметрами поля
+ * @brief Параметры текстового блока (заголовок + значение + единица измерения)
  */
-void render_field(char* buf, size_t size, const TextField& field);
+struct TextBlockParams {
+  const char* title;
+  const char* value;
+  const char* unit;
+  const char* colorClass;
+};
 
 /**
- * @brief Рендеринг числового поля
- * @param buf Буфер для записи HTML
- * @param size Размер буфера
- * @param field Структура с параметрами поля
+ * @brief Параметры блока статуса (ON / OFF)
  */
-void render_field(char* buf, size_t size, const NumberField& field);
+struct StatusBlockParams {
+  bool isOn;
+  const char* label;
+};
 
 /**
- * @brief Рендеринг чекбокса
- * @param buf Буфер для записи HTML
- * @param size Размер буфера
- * @param field Структура с параметрами поля
+ * @brief Параметры кнопки
  */
-void render_field(char* buf, size_t size, const CheckboxField& field);
+struct ButtonParams {
+  const char* label;
+  const char* url;
+  const char* colorClass;
+};
+
+/**
+ * @brief Параметры индикатора прогресса (шкала)
+ */
+struct ProgressParams {
+  int percent;
+};
+
+/**
+ * @brief Параметры информационного блока (многострочный текст)
+ */
+struct InfoBlockParams {
+  const char* title;
+  const char* text;
+  const char* colorClass;
+};
 
 // ============================================================================
-// ОБЩИЕ ФУНКЦИИ РЕНДЕРИНГА
+// ЕДИНАЯ ФУНКЦИЯ РЕНДЕРИНГА (перегрузки)
 // ============================================================================
 
-/**
- * @brief Сгенерировать карточку датчика
- * @param buf Буфер для записи
- * @param size Размер буфера
- * @param value Значение датчика
- * @param label Подпись
- * @param unit Единица измерения
- * @param colorClass CSS-класс цвета (info/error/success)
- * @param note Примечание (опционально)
- */
-void web_renderSensorCard(char* buf,
-                          size_t size,
-                          float value,
-                          const char* label,
-                          const char* unit,
-                          const char* colorClass,
-                          const char* note);
+// ---- ПОЛЯ ----
+void render(char* buf, size_t size, const TextField& field);
+void render(char* buf, size_t size, const NumberField& field);
+void render(char* buf, size_t size, const CheckboxField& field);
 
-/**
- * @brief Сгенерировать статусную карточку
- * @param buf Буфер для записи
- * @param size Размер буфера
- * @param status Текст статуса (ON/OFF)
- * @param isOn true = включено (error), false = выключено (info)
- */
-void web_renderStatusCard(char* buf,
-                          size_t size,
-                          const char* status,
-                          bool isOn);
-
-/**
- * @brief Сгенерировать кнопку
- * @param buf Буфер для записи
- * @param size Размер буфера
- * @param text Текст кнопки
- * @param url Ссылка
- * @param style CSS-класс кнопки (опционально, по умолчанию "link-btn")
- */
-void web_renderButton(char* buf,
-                      size_t size,
-                      const char* text,
-                      const char* url,
-                      const char* style);
-
-/**
- * @brief Сгенерировать шкалу скорости
- * @param buf Буфер для записи
- * @param size Размер буфера
- * @param speed Скорость (0-100)
- */
-void web_renderSpeedBar(char* buf, size_t size, int speed);
+// ---- БЛОКИ ----
+void render(char* buf, size_t size, const TextBlockParams& params);
+void render(char* buf, size_t size, const StatusBlockParams& params);
+void render(char* buf, size_t size, const ButtonParams& params);
+void render(char* buf, size_t size, const ProgressParams& params);
+void render(char* buf, size_t size, const InfoBlockParams& params);
 
 // ============================================================================
 // ОТПРАВКА СТРАНИЦ
@@ -184,7 +153,7 @@ void web_renderSpeedBar(char* buf, size_t size, int speed);
 
 /**
  * @brief Отправить HTML-контент через WebServer
- * @param chunk Строка для отправки (null-terminated)
+ * @param chunk Строка для отправки
  * @param context Контекст (указатель на WebServerClass)
  */
 void webSendContent(const char* chunk, void* context);
@@ -213,7 +182,7 @@ void web_sendPageEnd(WebSendCallback send, void* context);
  * @param send Колбэк для отправки
  * @param context Контекст
  * @param refreshSeconds Интервал обновления (сек)
- * @param url URL для перехода (NULL = обновить текущую страницу)
+ * @param url URL для перехода
  */
 void web_sendRefreshMeta(WebSendCallback send,
                          void* context,
@@ -233,10 +202,9 @@ void web_send_result_page(WebSendCallback send,
                           bool success);
 
 /**
- * @brief Отправить страницу AP-провизионинга (настройка WiFi)
+ * @brief Отправить страницу AP-провизионинга
  * @param send Колбэк для отправки
  * @param context Контекст
- * @note Только рендеринг HTML. Логика сохранения — в provisioning.
  */
 void web_sendApProvisioningPage(WebSendCallback send, void* context);
 
