@@ -42,7 +42,7 @@
 | 1.13.7 | `web_manager.cpp` | Обновить `web_build_status_html()` — использовать `isSensorControlMode()` | ⬜ | |
 | 1.13.8 | `web_manager.cpp` | Обновить `getCurrentModeText()` — использовать `isSensorControlMode()` | ⬜ | |
 | | | | | |
-| **1.14** | **Внедрение StateProvider (единый источник правды)** | | В процессе | 🟡 Средний |
+| **1.14** | **Внедрение StateProvider (единый источник правды)** | | В процессе | 🔴 Критично |
 | 1.14.1 | `state_provider.h/cpp` | Создать класс StateProvider (синглтон) с `DeviceState` структурой | ✅ | |
 | 1.14.2 | `state_provider.h/cpp` | Реализовать методы обновления состояния от всех слоёв | ✅ | |
 | 1.14.3 | `device_controller.h/cpp` | Убрать `operational_state_t _state` из DeviceController | ⬜ | |
@@ -66,10 +66,11 @@
 | 1.14.13 | `main.cpp` | Читать StateProvider для определения режима | ✅ | |
 | 1.14.14 | `sensor.cpp` | Обновлять StateProvider после чтения датчика | ⬜ | |
 | 1.14.15 | `restart_manager.cpp` | Обновлять StateProvider при запросе перезагрузки | ✅ | |
-| 1.14.16 | `transport_*.cpp` | Читать StateProvider для публикации состояния | ⬜ | |
+| 1.14.16 | `transport_*.cpp` | Читать StateProvider для публикации состояния | Частично (+MQTT) | |
 | 1.14.17 | `system_state.h/cpp` | Удалить (интегрирован в StateProvider) | ⬜ | |
 | 1.14.18 | `web_status_provider.h/cpp` | Удалить (заменён на StateProvider) | ⬜ | |
-| 1.14.19 | | Обновить архитектурную документацию | ⬜ | |
+| 1.14.19 | | Переосмыслить содержание *_connected - нужна абстракция которая буден не завязана на конкретный транспорт - mqtt/zigbee | ⬜ |🔴 Критично |
+| 1.14.20 | | Обновить архитектурную документацию | ⬜ | 🟡 Средний|
 | **1.15** | **Актуализация документации под StateProvider** | | ⬜ | 🟡 Средний |
 | 1.15.1 | `ARCHITECTURE.md` | Обновить архитектурную документацию | ⬜ | |
 | 1.15.2 | `WEB_MANAGER.md` | Обновить описание Web-слоя | ⬜ | |
