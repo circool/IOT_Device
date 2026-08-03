@@ -1,3 +1,10 @@
+```cpp
+/**
+ * @file TRANSPORT_WEB.md
+ * @brief Web-транспорт
+ * @note Статус: Закончен
+ */
+```
 # TRANSPORT_WEB.md
 
 ## Web-транспорт

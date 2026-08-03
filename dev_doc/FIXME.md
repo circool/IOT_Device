@@ -31,43 +31,72 @@
 | **1.10** | **Рефакторинг HTML-шаблонов** | ... | ✅ | 🟡 Средний |
 | **1.11** | **Привести ProvisioningManager к единому интерфейсу слоёв** | ... | ⬜ | 🟡 Средний |
 | **1.12** | **Привести имена функций Web-слоя к `snake_case`** | ... | ✅ | 🟡 Средний |
-| **1.13** | **Рефакторинг IWebStatusProvider — передача DeviceController** | | ⬜ | 🔴 Критично |
+| **1.13** | **Рефакторинг IWebStatusProvider (подготовка к StateProvider)** | | ⬜ | 🟡 Средний |
 | 1.13.1 | `web_status_provider.h` | Добавить `DeviceController*` в конструкторы провайдеров | ⬜ | |
 | 1.13.2 | `web_status_provider.cpp` | Переделать `isDeviceOn()` — читать из `_controller->get_state()->is_on` | ⬜ | |
 | 1.13.3 | `web_status_provider.cpp` | Переделать `getSpeedPercent()` — читать из `_controller->get_state()->speed` | ⬜ | |
 | 1.13.4 | `web_status_provider.cpp` | Переделать `isSensorControlMode()` — читать из `!_controller->get_state()->manual_mode` | ⬜ | |
-| 1.13.5 | `web_status_provider.cpp` | Убрать прямые вызовы `g_configManager` из провайдера (кроме параметров для `/config`) | ⬜ | |
+| 1.13.5 | `web_status_provider.cpp` | Убрать прямые вызовы `g_configManager` из провайдера | ⬜ | |
 | 1.13.6 | `main.cpp` | Обновить создание провайдера — передавать `&deviceController` | ⬜ | |
-| 1.13.7 | `web_manager.cpp` | Обновить `web_build_status_html()` — использовать `isSensorControlMode()` для кнопок | ⬜ | |
-| 1.13.8 | `web_manager.cpp` | Обновить `getCurrentModeText()` — использовать `isSensorControlMode()` для отображения режима | ⬜ | |
+| 1.13.7 | `web_manager.cpp` | Обновить `web_build_status_html()` — использовать `isSensorControlMode()` | ⬜ | |
+| 1.13.8 | `web_manager.cpp` | Обновить `getCurrentModeText()` — использовать `isSensorControlMode()` | ⬜ | |
+| | | | | |
+| **1.14** | **Внедрение StateProvider (единый источник правды)** | | ⬜ | 🟡 Средний |
+| 1.14.1 | `state_provider.h/cpp` | Создать класс StateProvider (синглтон) с `DeviceState` структурой | ⬜ | |
+| 1.14.2 | `state_provider.h/cpp` | Реализовать методы обновления состояния от всех слоёв | ⬜ | |
+| 1.14.3 | `device_controller.h/cpp` | Убрать `operational_state_t _state` из DeviceController | ⬜ | |
+| 1.14.4 | `device_controller.h/cpp` | DeviceController получает `StateProvider*` и работает с ним | ⬜ | |
+| 1.14.5 | `system_state.h/cpp` | Интегрировать битовую маску в StateProvider | ⬜ | |
+| 1.14.6 | `web_status_provider.h/cpp` | Удалить IWebStatusProvider (заменён на StateProvider) | ⬜ | |
+| 1.14.7 | `web_manager.cpp` | Переделать на чтение из StateProvider вместо IWebStatusProvider | ⬜ | |
+| 1.14.8 | `main.cpp` | Передать StateProvider во все слои | ⬜ | |
+| 1.14.9 | `wifi_manager.cpp` | Обновлять StateProvider при изменении WiFi | ⬜ | |
+| 1.14.10 | `mqtt_manager.cpp` | Обновлять StateProvider при изменении MQTT | ⬜ | |
+| 1.14.11 | `provisioning_manager.cpp` | Обновлять StateProvider при изменении режима | ⬜ | |
+| 1.14.12 | `reset_button_manager.cpp` | Обновлять StateProvider при нажатии кнопки | ⬜ | |
+| 1.14.13 | `led_manager.cpp` | Читать StateProvider для определения режима | ⬜ | |
+| 1.14.14 | `sensor.cpp` | Обновлять StateProvider после чтения датчика | ⬜ | |
+| 1.14.15 | `restart_manager.cpp` | Обновлять StateProvider при запросе перезагрузки | ⬜ | |
+| 1.14.16 | `transport_*.cpp` | Читать StateProvider для публикации состояния | ⬜ | |
+| 1.14.17 | `system_state.h/cpp` | Удалить (интегрирован в StateProvider) | ⬜ | |
+| 1.14.18 | `web_status_provider.h/cpp` | Удалить (заменён на StateProvider) | ⬜ | |
+| 1.14.19 | | Обновить архитектурную документацию | ⬜ | |
+| **1.15** | **Актуализация документации под StateProvider** | | ⬜ | 🟡 Средний |
+| 1.15.1 | `ARCHITECTURE.md` | Обновить архитектурную документацию | ⬜ | |
+| 1.15.2 | `WEB_MANAGER.md` | Обновить описание Web-слоя | ⬜ | |
+| 1.15.3 | `DEVICE_CONTROLLER.md` | Обновить описание контроллера | ⬜ | |
+| 1.15.4 | `ORCHESTRATOR.md` | Обновить описание оркестратора | ⬜ | |
+| 1.15.5 | `TRANSPORT_ABSTRACTION.md` | Обновить описание транспорта | ⬜ | |
+| 1.15.6 | `PROVISIONING_MANAGER.md` | Обновить описание провизионинга | ⬜ | |
+| 1.15.7 | `LED_MANAGER.md` | Обновить описание LED | ⬜ | |
+| 1.15.8 | `WIFI_MANAGER.md` | Обновить описание WiFi | ⬜ | |
+| 1.15.9 | `RESTART_MANAGER.md` | Обновить описание перезагрузок | ⬜ | |
+| 1.15.10| `RESET_BUTTON_MANAGER.md` | Обновить описание кнопки | ⬜ | |
+| 1.15.11| `WDT_MANAGER.md` | Обновить описание WDT | ⬜ | |
+| 1.15.12| `LOGGER.md` | Обновить описание логирования | ⬜ | |
+| 1.15.13| `PROJECT.md` | Обновить описание проекта | ⬜ | |
+| 1.15.14| `ACTUATOR_SENSOR.md` | Обновить описание актуатора/датчика | ⬜ | |
+| 1.15.15| `TRANSPORT_MQTT.md` | Обновить описание MQTT | ⬜ | |
+| 1.15.16| `TRANSPORT_ZIGBEE.md` | Обновить описание Zigbee | ⬜ | |
+| 1.15.17| `WEB_OTA_MANAGER.md` | Обновить описание OTA | ⬜ | |
 
 ## 2. Исправление найденных ошибок
 
 | # | Задача | Подзадачи | Статус | Приоритет |
 |---|--------|-----------|--------|-----------|
-| **2.1** | **LEDC API несовместим с ESP32-C6** | Добавить условную компиляцию для ESP32-C6/H2 | ✅ | 🔴 Критично |
-| | | `fan_actuator.cpp` | ✅ | |
-| | | `wdt_manager.cpp` | ✅ | |
-| **2.2** | **Сохранение конфигурации не происходит** | Исправить обработку `/save` в `web_manager.cpp` | ⬜ | 🔴 Критично |
-| | | Убедиться, что `g_webConfigPending` обрабатывается в `main.cpp` | ⬜ | |
+| **2.1** | **LEDC API несовместим с ESP32-C6** || ✅ | 🔴 Критично |
+| **2.2** | **Сохранение конфигурации не происходит** |(зависит от 1.14)| ⬜ | 🔴 Критично |
 | **2.3** | **Интерфейс web-страницы** | | ⬜ | 🔴 Критично |
-| 2.3.1 | Исправить отображение состояния | | ⬜ | |
-| |2.3.1.1 | Блок "Mode:" — показывает SENSOR/MANUAL на основе `manual_mode` | ⬜ | |
-|  |2.3.1.2 | Turn ON/OFF — показывать только одну кнопку (в зависимости от состояния) | ✅ | |
-| |2.3.1.3 | Кнопка "Manual mode" — только когда `manual_mode == false` | ⬜ | |
-| | 2.3.1.4| Кнопка "Auto mode" — только когда `manual_mode == true` | ⬜ | |
-| 2.3.1 | 2.3.1.5| Speed buttons (25%, 50%, 75%, 100%) — только когда устройство включено | ✅ | |
+| 2.3.1 | | Исправить отображение состояния (зависит от 1.13) | ⬜ | |
 | 2.3.2 | | Исправить выравнивание иконок | ✅ | |
 | 2.3.3 | | Добавить отказ от сохранения при снятой галке Confirm saving | ✅ | |
-| **2.4** | **Дублирование Zigbee** | Удалить `zigbee.h/cpp` | ✅ | 🟡 Средний |
-| **2.5** | **Web не должен вызывать `sensor_*()` напрямую** | В `web_manager.cpp` заменить вызовы `sensor_*()` на методы `IWebStatusProvider` | ⬜ | 🟡 Средний |
-| **2.6** | **Инкапсуляция слоев** | Убрать прямые вызовы `g_configManager` из `wifi_manager` | ✅ | 🟡 Средний |
-| | | Убрать прямые вызовы `g_configManager` из `provisioning` | ⬜ | |
-| **2.7** | **Транспорт (MQTT)** | В `transport_mqtt.cpp` в `update()` добавить публикацию всего состояния при подключении | ⬜ | 🔴 Критично |
-| **2.8** | **Актуализация ARCHITECTURE.md** | | ⬜ | 🟡 Средний |
-| **2.9** | **Транспорт создаётся в режиме провизионинга** | Добавить проверку WiFi перед созданием транспорта | ⬜ | 🟡 Средний |
-| **2.11** | **Рефакторинг оркестратора (main.cpp)** | | ⬜ | 🔴 Критично |
-| **2.12** | **Вынести константы датчика из `sensor.h` в `settings.h`** | | ⬜ | 🟡 Средний |
+| **2.4** | **Дублирование Zigbee** || ✅ | 🟡 Средний |
+| **2.5** | **Web не должен вызывать `sensor_*()` напрямую** |(зависит от 1.14) | ⬜ | 🟡 Средний |
+| **2.6** | **Инкапсуляция слоев** || Частично | 🟡 Средний |
+| **2.7** | **Транспорт (MQTT)** || ⬜ | 🔴 Критично |
+| **2.8** | **Актуализация ARCHITECTURE.md** |(зависит от 1.14) | ⬜ | 🟡 Средний |
+| **2.9** | **Транспорт создаётся в режиме провизионинга** || ⬜ | 🟡 Средний |
+
 
 ## 3. Косметические улучшения
 

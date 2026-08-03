@@ -3,6 +3,7 @@
  * @file LED_MANAGER.md
  * @brief Светодиодная индикация
  * @note Статус: Закончен
+  * @todo Необходима актуализация - см STATUS_PROVIDER.md
  */
 
 ```

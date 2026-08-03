@@ -1,3 +1,12 @@
+```cpp
+/**
+ * @file RESTART_MANAGER.md
+ * @brief Менеджер перезагрузок
+ * @note Статус: Закончен
+ * @todo Необходима актуализация - см STATUS_PROVIDER.md
+ */
+```
+
 # RESTART_MANAGER.md
 
 ## Менеджер перезагрузок

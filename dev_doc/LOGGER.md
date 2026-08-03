@@ -3,6 +3,7 @@
  * @file LOGGER.md
  * @brief Система логирования
  * @note Статус: Закончен
+  * @todo Необходима актуализация - см STATUS_PROVIDER.md
  */
 ```
 # LOGGER.md

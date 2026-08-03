@@ -1,3 +1,10 @@
+```cpp
+/**
+ * @file TRANSPORT_MQTT.md
+ * @brief MQTT-транспорт
+ * @note Статус: Закончен
+ */
+```
 # TRANSPORT_MQTT.md
 
 ## MQTT-транспорт

@@ -1,3 +1,11 @@
+```cpp
+/**
+ * @file ACTUATOR_SENSOR.md
+ * @brief Исполнительные механизмы и датчик
+ * @note Статус: Закончен
+ * @todo Необходима актуализация - см STATUS_PROVIDER.md
+ */
+```
 # ACTUATOR_SENSOR.md
 
 ## Исполнительные механизмы и датчик

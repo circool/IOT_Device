@@ -1,3 +1,10 @@
+```cpp
+/**
+ * @file TRANSPORT_ZIGBEE.md
+ * @brief Zigbee-транспорт
+ * @note Статус: Закончен
+ */
+```
 # TRANSPORT_ZIGBEE.md
 
 ## Zigbee-транспорт

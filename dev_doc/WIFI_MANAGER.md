@@ -3,6 +3,7 @@
  * @file WIFI_MANAGER.md
  * @brief Управление WiFi в STA-режиме
  * @note Статус: В процессе
+ * @todo Необходима актуализация - см STATUS_PROVIDER.md
  */
 
 ```

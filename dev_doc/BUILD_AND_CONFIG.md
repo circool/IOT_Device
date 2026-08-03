@@ -1,3 +1,10 @@
+```cpp
+/**
+ * @file BUILD_AND_CONFIG.md
+ * @brief Описание процесса сборки
+ * @note Статус: Закончен
+ */
+```
 # BUILD_AND_CONFIG.md
 
 ## Оглавление

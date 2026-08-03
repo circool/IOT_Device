@@ -1,3 +1,11 @@
+```cpp
+/**
+ * @file PROVISIONING_MANAGER.md
+ * @brief Провизионинг
+ * @note Статус: Закончен
+  * @todo Необходима актуализация - см STATUS_PROVIDER.md
+ */
+```
 # PROVISIONING_MANAGER.md
 
 ## Провизионинг (первоначальная настройка)

@@ -1,3 +1,11 @@
+```cpp
+/**
+ * @file CONFIG_AND_STATE.md
+ * @brief Конфигурация и состояние устройства
+ * @deprecated See STATUS_PROVIDER.md
+ */
+```
+
 # CONFIG_AND_STATE.md
 
 ## Конфигурация и состояние устройства

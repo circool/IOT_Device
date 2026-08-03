@@ -1,3 +1,11 @@
+```cpp
+/**
+ * @file DEVICE_CONTROLLER.md
+ * @brief Бизнес-логика устройства
+ * @note Статус: Закончен
+ * @todo Необходима актуализация - см STATUS_PROVIDER.md
+ */
+```
 # DEVICE_CONTROLLER.md
 
 ## Бизнес-логика устройства

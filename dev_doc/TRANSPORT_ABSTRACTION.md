@@ -1,3 +1,11 @@
+```cpp
+/**
+ * @file TRANSPORT_ABSTRACTION.md
+ * @brief Транспортная абстракция
+ * @note Статус: Закончен
+ * @todo Необходима актуализация - см STATUS_PROVIDER.md
+ */
+```
 # TRANSPORT_ABSTRACTION.md
 
 ## Транспортная абстракция

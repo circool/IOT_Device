@@ -1,3 +1,10 @@
+```cpp
+/**
+ * @file TRANSPORT_MATTER.md
+ * @brief Matter-транспорт
+ * @note Статус: Закончен
+ */
+```
 # TRANSPORT_MATTER.md
 
 ## Matter-транспорт

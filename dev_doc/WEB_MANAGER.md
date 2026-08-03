@@ -3,6 +3,7 @@
  * @file WEB_MANAGER.md
  * @brief Веб-интерфейс устройства
  * @note Статус: Закончен
+ * @todo Необходима актуализация - см STATUS_PROVIDER.md
  */
 ```
 

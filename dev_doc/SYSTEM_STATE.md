@@ -3,6 +3,7 @@
  * @file SYSTEM_STATE.md
  * @brief Состояние системы
  * @note Статус: Закончен
+ * @deprecated See STATUS_PROVIDER.md
  */
 ```
 

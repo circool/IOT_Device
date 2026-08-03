@@ -1,3 +1,11 @@
+```cpp
+/**
+ * @file RESET_BUTTON_MANAGER.md
+ * @brief Обработка нажатия кнопки
+ * @note Статус: Закончен
+ * @todo Необходима актуализация - см STATUS_PROVIDER.md
+ */
+```
 # RESET_BUTTON_MANAGER.md
 
 ## Кнопка сброса

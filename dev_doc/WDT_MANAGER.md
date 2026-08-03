@@ -1,3 +1,11 @@
+```cpp
+/**
+ * @file WDT_MANAGER.md
+ * @brief Сторожевой таймер
+ * @note Статус: Закончен
+ * @todo Необходима актуализация - см STATUS_PROVIDER.md
+ */
+```
 # WDT_MANAGER.md
 
 ## Сторожевой таймер (Watchdog Timer)
