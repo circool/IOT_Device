@@ -5,7 +5,7 @@
 
 #include "provisioning_ap_server.h"
 #include "logger.h"
-#include "system_state.h"
+#include "state_provider.h"
 #include "web_common.h"
 
 #if USE_AP_PROVISIONING == 1

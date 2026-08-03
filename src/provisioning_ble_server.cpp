@@ -1,9 +1,18 @@
-#include "ble_server.h"
+/**
+ * @file provisioning_ble_server.cpp
+ * @brief BLE-сервер для провизионинга
+ */
+
+#include "provisioning_ble_server.h"
 #include "logger.h"
 #include "provisioning_manager.h"
 #include "settings.h"
 
+
+
+
 #ifdef ESP32
+BleProvisioningServer* g_bleServer = nullptr;
 
 #include <WiFi.h>
 #include <WiFiProv.h>  // Этот заголовок есть для всех ESP32 (включая C6)

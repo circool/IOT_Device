@@ -65,7 +65,7 @@ void setup() {
   // =========================================================================
   if (strlen(g_configManager.getWifiSsid()) < 1) {
     XLOG_INFO(CAT_MAIN, "Set provisioning mode due invalid WiFi configuration");
-    startProvisioning();  // ← менеджер сам установит STATE_PROVISIONING
+    provisioning_start(g_configManager.getDeviceId());
   } else {
     wifi_manager_connect(g_configManager.getWifiSsid(),
                          g_configManager.getWifiPassword());
@@ -245,8 +245,6 @@ void loop() {
       XLOG_WARN(CAT_MAIN, "Reset button triggered.");
       wdt_stop();
       if (g_configManager.reset()) {
-        // @deprecated Будет удалён после перехода на StateProvider
-        // system_state_set_bit(STATE_RESTART);
         StateProvider::getInstance().update_restart(true);
         restart_request(500);
       }
@@ -294,17 +292,17 @@ void loop() {
   // =========================================================================
   // ПЕРЕХОД В РЕЖИМ ПРОВИЗИОНИНГА ПРИ ПОТЕРЕ WIFI
   // =========================================================================
-  if (!(bits & STATE_WIFI_OK) && !(bits & STATE_PROVISIONING)) {
+  if (!state->wifi_connected && !state->provisioning){
     if (wifi_fail_start == 0) {
-      wifi_fail_start = millis();
-    } else if (millis() - wifi_fail_start > WIFI_FALLBACK_TIMEOUT_MS) {
-      XLOG_DEBUG(
-          CAT_MAIN,
-          "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
-      startProvisioning();  
-    }
-  } else {
-    wifi_fail_start = 0;
+        wifi_fail_start = millis();
+      } else if (millis() - wifi_fail_start > WIFI_FALLBACK_TIMEOUT_MS) {
+        XLOG_DEBUG(
+            CAT_MAIN,
+            "Calling provisioning_start due WIFI_FALLBACK_TIMEOUT_MS expired");
+        provisioning_start(g_configManager.getDeviceId());
+      }
+    } else {
+      wifi_fail_start = 0;
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
     if (!web_started && (bits & STATE_WIFI_OK)) {
       web_init();
@@ -313,21 +311,20 @@ void loop() {
 #endif
   }
 
-  if (system_state_has_bit(STATE_PROVISIONING)) {
+  if (state->provisioning) {
     ProvisioningManager::getInstance().update();
 
     const auto* data = getProvisioningData();
 
     if (data && data->type == 0 && strlen(data->wifiSsid) > 0) {
       XLOG_INFO(CAT_MAIN, "Provisioning complete! SSID: %s", data->wifiSsid);
-
-      g_configManager.setDefaults();
+      // @todo: переписывать только если до этого конфиг был не валидным
+      g_configManager.setDefaults(); 
       g_configManager.setWifiSsid(data->wifiSsid);
       g_configManager.setWifiPassword(data->wifiPassword);
 
       if (g_configManager.save()) {
-        system_state_clear_bit(STATE_PROVISIONING);
-        restart_request(500);
+        restart_request(500); // @todo удалить после того как система будет готова работать с новой конфигурации без перезагрузки
       } else {
         XLOG_ERROR(CAT_MAIN, "Failed to save config!");
       }
@@ -335,54 +332,8 @@ void loop() {
   } else {
     // TODO> web_update();
   }
-  
-  // Потребуется и для кнопки и для LED. Обновляем только когда STATE_BUTTON_PRESSED
-  ResetButtonStage stage = RELEASED;  
-  
 
-  // =========================================================================
-  // КНОПКА СБРОСА
-  // =========================================================================
-
-  // if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
-  //   ResetButtonStage stage = resetBtn_get_stage();
-  //   if (stage == STAGE_3S) {
-  //     XLOG_WARN(CAT_MAIN, "Reset button triggered.");
-  //     wdt_stop();
-  //     if (g_configManager.reset()) {
-  //       system_state_set_bit(STATE_RESTART);
-  //       restart_request(500);
-  //     }
-  //   }
-  // }
   
-
-  // =========================================================================
-  // LED ИНДИКАЦИЯ
-  // =========================================================================
-//   if (bits & STATE_RESTART) {
-//     led_set_mode(LED_OFF);
-//   } else if (bits & STATE_EMERGENCY) {
-//     led_set_mode(LED_SLOW_BLINK);
-//   } else if (bits & STATE_PROVISIONING) {
-//     led_set_mode(LED_MORZE_S);
-//   } else if (bits & STATE_BUTTON_PRESSED) {
-//     if (stage == STAGE_3S || stage == STAGE_2S) {
-//       led_set_mode(LED_MORZE_S);
-//     } else if (stage == STAGE_1S) {
-//       led_set_mode(LED_MORZE_I);
-//     } else {
-//       led_set_mode(LED_MORZE_E);
-//     }
-//   } else if (!(bits & STATE_WIFI_OK)) {
-//     led_set_mode(LED_MORZE_E);
-// #if FEATURE_MQTT_ENABLED
-//   } else if (!(bits & STATE_MQTT_OK)) {
-//     led_set_mode(LED_MORZE_I);
-// #endif
-//   } else {
-//     led_set_mode(LED_ON);
-//   }
 
 
   // =========================================================================

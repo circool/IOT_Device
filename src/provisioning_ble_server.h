@@ -1,11 +1,22 @@
-#ifndef BLE_SERVER_H
-#define BLE_SERVER_H
+/**
+ * @file provisioning_ble_server.cpp
+ * @brief BLE-сервер для провизионинга
+ */
+
+#ifndef PROVISIONING_BLE_SERVER_H
+#define PROVISIONING_BLE_SERVER_H
 
 #include <Arduino.h>
 
 #ifndef BLE_PROVISIONING_PIN
 #define BLE_PROVISIONING_PIN "abcd1234"
 #endif
+
+#ifndef MAX_RETRIES
+#define MAX_RETRIES 3
+#endif
+
+
 
 struct BleWifiConfig {
   char wifiSsid[32];
@@ -21,11 +32,14 @@ class BleProvisioningServer {
 
   bool begin();
   void stop();
+  bool isActive() const { return _active; }
 
  private:
   bool _active = false;
   char _deviceName[32];
 };
+
+extern BleProvisioningServer* g_bleServer;
 
 #else
 
@@ -38,8 +52,12 @@ class BleProvisioningServer {
 
   bool begin() { return false; }
   void stop() {}
+  bool isActive() const { return false; }
 };
 
-#endif
+// Заглушка для g_bleServer
+inline BleProvisioningServer* g_bleServer = nullptr;
 
 #endif
+
+#endif  // PROVISIONING_BLE_SERVER_H

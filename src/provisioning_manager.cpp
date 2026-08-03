@@ -4,48 +4,51 @@
  */
 
 #include "provisioning_manager.h"
-#include "config_manager.h"
 #include "logger.h"
-#include "provisioning_ap_server.h"
-#include "system_state.h"
+#include "state_provider.h"
 
 #if PROVISIONING_METHOD != 0
 
+#if USE_AP_PROVISIONING == 1
+#include "provisioning_ap_server.h"
+#endif
+
 #if USE_BLE_PROVISIONING == 1
-#include "ble_server.h"
+#include <WiFiProv.h>
+#include "provisioning_ble_server.h"
 #endif
 
 // ============================================================================
 // BLE КОЛБЭКИ
 // ============================================================================
 
-#if USE_BLE_PROVISIONING == 1
-static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
-  (void)context;
-  auto& prov = ProvisioningManager::getInstance();
+// #if USE_BLE_PROVISIONING == 1
+// static void onBleConfigReceived(const BleWifiConfig* bleConfig, void* context) {
+//   (void)context;
+//   auto& prov = ProvisioningManager::getInstance();
 
-  if (!bleConfig) {
-    XLOG_ERROR(CAT_PROVISIONING, "BLE config is null!");
-    prov.onBleStatus(ARDUINO_EVENT_PROV_CRED_FAIL);
-    return;
-  }
+//   if (!bleConfig) {
+//     XLOG_ERROR(CAT_PROVISIONING, "BLE config is null!");
+//     prov.onBleStatus(ARDUINO_EVENT_PROV_CRED_FAIL);
+//     return;
+//   }
 
-  XLOG_INFO(CAT_PROVISIONING, "WiFi config received via BLE: %s",
-            bleConfig->wifiSsid);
+//   XLOG_INFO(CAT_PROVISIONING, "WiFi config received via BLE: %s",
+//             bleConfig->wifiSsid);
 
-  ProvisioningData data;
-  memset(&data, 0, sizeof(data));
-  data.type = 0;
+//   ProvisioningData data;
+//   memset(&data, 0, sizeof(data));
+//   data.type = 0;
 
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-  strncpy(data.wifiSsid, bleConfig->wifiSsid, sizeof(data.wifiSsid) - 1);
-  strncpy(data.wifiPassword, bleConfig->wifiPassword,
-          sizeof(data.wifiPassword) - 1);
-#endif
+// #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+//   strncpy(data.wifiSsid, bleConfig->wifiSsid, sizeof(data.wifiSsid) - 1);
+//   strncpy(data.wifiPassword, bleConfig->wifiPassword,
+//           sizeof(data.wifiPassword) - 1);
+// #endif
 
-  prov.onDataReceived(data);
-}
-#endif
+//   prov.onDataReceived(data);
+// }
+// #endif
 
 // ============================================================================
 // PROVISIONING MANAGER — РЕАЛИЗАЦИЯ
@@ -56,21 +59,32 @@ ProvisioningManager& ProvisioningManager::getInstance() {
   return instance;
 }
 
-bool ProvisioningManager::begin(ProvisioningCallback callback, void* context) {
+bool ProvisioningManager::begin(const char* deviceId,
+                                ProvisioningCallback callback,
+                                void* context) {
   if (_started) {
     XLOG_WARN(CAT_PROVISIONING, "Provisioning already started");
     return false;
   }
 
   XLOG_DEBUG(CAT_PROVISIONING, "Provisioning begin() called");
+  
+  
 
   _callback = callback;
   _context = context;
   _started = true;
   _retryCount = 0;
   memset(&_data, 0, sizeof(_data));
+  
+  if (deviceId) {
+    strncpy(_deviceId, deviceId, sizeof(_deviceId) - 1);
+    _deviceId[sizeof(_deviceId) - 1] = '\0';
+  } else {
+    _deviceId[0] = '\0';
+  }
 
-  system_state_set_bit(STATE_PROVISIONING);
+  StateProvider::getInstance().update_provisioning(true);
   selectProvisioningMethod();
   return true;
 }
@@ -82,6 +96,37 @@ void ProvisioningManager::update() {
 #endif
 
   // BLE: НЕ ТРЕБУЕТ update() — работает через события
+}
+
+void ProvisioningManager::stop() {
+  if (!_started)
+    return;
+
+  XLOG_INFO(CAT_PROVISIONING, "Stopping provisioning...");
+
+  // Останавливаем AP-сервер
+#if USE_AP_PROVISIONING == 1
+  if (ap_server_is_running()) {
+    ap_server_stop();
+  }
+#endif
+
+  // Останавливаем BLE-сервер
+#if USE_BLE_PROVISIONING == 1
+  if (g_bleServer) {
+    g_bleServer->stop();
+    delete g_bleServer;
+    g_bleServer = nullptr;
+  }
+#endif
+
+  // Снимаем флаг провизионинга
+  StateProvider::getInstance().update_provisioning(false);
+
+  _started = false;
+  memset(&_data, 0, sizeof(_data));
+
+  XLOG_INFO(CAT_PROVISIONING, "Provisioning stopped");
 }
 
 const ProvisioningData* ProvisioningManager::getProvisioningData() {
@@ -117,21 +162,24 @@ void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
 
   memcpy(&_data, &data, sizeof(ProvisioningData));
 
-#if USE_BLE_PROVISIONING == 1
-  if (g_bleServer) {
-    g_bleServer->stop();
-    delete g_bleServer;
-    g_bleServer = nullptr;
-    XLOG_DEBUG(CAT_BLE, "BLE stopped");
-  }
-#endif
-
-  // Останавливаем AP-сервер
+  // Останавливаем серверы (без сброса _started, чтобы можно было получить
+  // данные)
 #if USE_AP_PROVISIONING == 1
   if (ap_server_is_running()) {
     ap_server_stop();
   }
 #endif
+
+#if USE_BLE_PROVISIONING == 1
+  if (g_bleServer) {
+    g_bleServer->stop();
+    delete g_bleServer;
+    g_bleServer = nullptr;
+  }
+#endif
+
+  // Снимаем флаг провизионинга
+  StateProvider::getInstance().update_provisioning(false);
 
   if (_callback) {
     _callback(true, _context);
@@ -140,6 +188,7 @@ void ProvisioningManager::onDataReceived(const ProvisioningData& data) {
 
 void ProvisioningManager::onBleStatus(uint8_t status) {
 #if USE_BLE_PROVISIONING == 1
+  
   if (status == ARDUINO_EVENT_PROV_CRED_FAIL) {
     XLOG_WARN(CAT_PROVISIONING, "BLE credentials failed (attempt %d/%d)",
               _retryCount + 1, MAX_RETRIES);
@@ -188,8 +237,7 @@ void ProvisioningManager::selectProvisioningMethod() {
 #if USE_BLE_PROVISIONING == 1
 void ProvisioningManager::startBleProvisioning() {
 #if defined(ESP32) && !defined(ESP8266)
-  const char* deviceId = ConfigManager::getInstance().getDeviceId();
-  g_bleServer = new BleProvisioningServer(deviceId);
+  g_bleServer = new BleProvisioningServer(_deviceId);
   if (g_bleServer->begin()) {
     XLOG_INFO(CAT_PROVISIONING, "BLE provisioning started");
   } else {
@@ -210,8 +258,8 @@ void ProvisioningManager::startBleProvisioning() {
 
 #if USE_AP_PROVISIONING == 1
 void ProvisioningManager::startApProvisioning() {
-  const char* deviceId = ConfigManager::getInstance().getDeviceId();
-  ap_server_start(deviceId);
+  // const char* deviceId = ConfigManager::getInstance().getDeviceId();
+  ap_server_start(_deviceId);
 }
 #endif
 
@@ -226,9 +274,15 @@ static void onProvisioningComplete(bool success, void* context) {
   }
 }
 
-void startProvisioning() {
-  ProvisioningManager::getInstance().begin(onProvisioningComplete, nullptr);
+void provisioning_start(const char* deviceId) {
+  ProvisioningManager::getInstance().begin(deviceId ? deviceId : "",
+                                           onProvisioningComplete, nullptr);
 }
+
+void provisioning_stop() {
+  ProvisioningManager::getInstance().stop();
+}
+
 
 void provisioning_update() {
   ProvisioningManager::getInstance().update();

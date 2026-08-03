@@ -333,7 +333,7 @@ void loop() {
     
     // Запуск провизионинга
     if (!state->wifi_connected && !state->provisioning) {
-        startProvisioning();
+        provisioning_start();
     }
     
     // Реакция на кнопку

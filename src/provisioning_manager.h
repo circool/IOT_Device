@@ -46,16 +46,26 @@ class ProvisioningManager {
 
   /**
    * @brief Запустить процесс провизионинга
+   * @param deviceId Имя для точки доступа или BLE сервера
    * @param callback Колбэк по завершении
    * @param context Контекст для колбэка
    * @return true при успешном запуске
    */
-  bool begin(ProvisioningCallback callback = nullptr, void* context = nullptr);
+  bool begin(const char* deviceId,
+             ProvisioningCallback callback = nullptr,
+             void* context = nullptr);
 
   /**
    * @brief Периодическая обработка (вызывается в loop)
    */
   void update();
+
+  /**
+   * @brief Остановить провизионинг
+   * @details Останавливает AP/BLE серверы, снимает флаг provisioning,
+   *          очищает данные
+   */
+  void stop();
 
   /**
    * @brief Получить данные провизионинга
@@ -84,12 +94,15 @@ class ProvisioningManager {
   void selectProvisioningMethod();
   void startBleProvisioning();
   void startApProvisioning();
+  
+  
 
   ProvisioningCallback _callback = nullptr;
   void* _context = nullptr;
   ProvisioningData _data;
   bool _started = false;
   int _retryCount = 0;
+  char _deviceId[32] = "";
 };
 
 // ============================================================================
@@ -100,7 +113,13 @@ class ProvisioningManager {
  * @brief Запустить провизионинг
  * @details Обёртка для ProvisioningManager::begin()
  */
-void startProvisioning();
+void provisioning_start(const char* deviceId);
+
+/**
+ * @brief Остановить провизионинг
+ * @details Обёртка для ProvisioningManager::stop()
+ */
+void provisioning_stop();
 
 /**
  * @brief Обновление состояния провизионинга
@@ -121,7 +140,10 @@ const ProvisioningData* getProvisioningData();
 // ============================================================================
 
 // Заглушка — провизионинг отключён (PROVISIONING_METHOD=0)
-inline void startProvisioning() {}
+inline void provisioning_start(const char* deviceId) {}
+
+// Заглушка — провизионинг отключён (PROVISIONING_METHOD=0)
+inline void provisioning_stop() {}
 
 // Заглушка — провизионинг отключён (PROVISIONING_METHOD=0)
 inline void provisioning_update() {}
