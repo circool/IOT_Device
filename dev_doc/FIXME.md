@@ -42,8 +42,8 @@
 | 1.13.8 | `web_manager.cpp` | Обновить `getCurrentModeText()` — использовать `isSensorControlMode()` | ⬜ | |
 | | | | | |
 | **1.14** | **Внедрение StateProvider (единый источник правды)** | | ⬜ | 🟡 Средний |
-| 1.14.1 | `state_provider.h/cpp` | Создать класс StateProvider (синглтон) с `DeviceState` структурой | ⬜ | |
-| 1.14.2 | `state_provider.h/cpp` | Реализовать методы обновления состояния от всех слоёв | ⬜ | |
+| 1.14.1 | `state_provider.h/cpp` | Создать класс StateProvider (синглтон) с `DeviceState` структурой | ✅ | |
+| 1.14.2 | `state_provider.h/cpp` | Реализовать методы обновления состояния от всех слоёв | ✅ | |
 | 1.14.3 | `device_controller.h/cpp` | Убрать `operational_state_t _state` из DeviceController | ⬜ | |
 | 1.14.4 | `device_controller.h/cpp` | DeviceController получает `StateProvider*` и работает с ним | ⬜ | |
 | 1.14.5 | `system_state.h/cpp` | Интегрировать битовую маску в StateProvider | ⬜ | |
@@ -53,8 +53,8 @@
 | 1.14.9 | `wifi_manager.cpp` | Обновлять StateProvider при изменении WiFi | ⬜ | |
 | 1.14.10 | `mqtt_manager.cpp` | Обновлять StateProvider при изменении MQTT | ⬜ | |
 | 1.14.11 | `provisioning_manager.cpp` | Обновлять StateProvider при изменении режима | ⬜ | |
-| 1.14.12 | `reset_button_manager.cpp` | Обновлять StateProvider при нажатии кнопки | ⬜ | |
-| 1.14.13 | `led_manager.cpp` | Читать StateProvider для определения режима | ⬜ | |
+| 1.14.12 | `reset_button_manager.cpp` | Обновлять StateProvider при нажатии кнопки | ✅ | |
+| 1.14.13 | `main.cpp` | Читать StateProvider для определения режима | ✅ | |
 | 1.14.14 | `sensor.cpp` | Обновлять StateProvider после чтения датчика | ⬜ | |
 | 1.14.15 | `restart_manager.cpp` | Обновлять StateProvider при запросе перезагрузки | ⬜ | |
 | 1.14.16 | `transport_*.cpp` | Читать StateProvider для публикации состояния | ⬜ | |

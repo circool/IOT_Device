@@ -5,7 +5,7 @@
 
 #include "reset_button_manager.h"
 #include "logger.h"
-#include "system_state.h"
+#include "state_provider.h"
 
 #if FEATURE_RESET_BUTTON_ENABLED == 1
 
@@ -18,6 +18,9 @@ void resetBtn_init() {
   _isPressed = false;
   _pressStartTime = 0;
   _stage = RELEASED;
+
+  StateProvider::getInstance().update_button(false, RELEASED);
+
   XLOG_INFO(CAT_RESET_BTN, "Reset button initialized on pin %d", RESET_PIN);
 }
 
@@ -28,7 +31,9 @@ void resetBtn_update() {
     _isPressed = true;
     _pressStartTime = millis();
     _stage = PRESSED;
-    system_state_set_bit(STATE_BUTTON_PRESSED);
+
+    StateProvider::getInstance().update_button(true, _stage);
+
     XLOG_DEBUG(CAT_RESET_BTN, "Button PRESSED");
     return;
   }
@@ -49,6 +54,9 @@ void resetBtn_update() {
 
     if (newStage != _stage) {
       _stage = newStage;
+
+      StateProvider::getInstance().update_button(true, _stage);
+
       XLOG_DEBUG(CAT_RESET_BTN, "Button stage: %d (%lu ms)", _stage, duration);
     }
     return;
@@ -58,7 +66,9 @@ void resetBtn_update() {
     _isPressed = false;
     _pressStartTime = 0;
     _stage = RELEASED;
-    system_state_clear_bit(STATE_BUTTON_PRESSED);
+
+    StateProvider::getInstance().update_button(false, RELEASED);
+
     XLOG_DEBUG(CAT_RESET_BTN, "Button RELEASED");
   }
 }

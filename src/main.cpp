@@ -5,7 +5,10 @@
 
 #include <Arduino.h>
 #include "debug_tools.h"
+
 #include "device_controller.h"
+#include "state_provider.h"
+
 #include "fan_actuator.h"
 #include "led_manager.h"
 #include "logger.h"
@@ -43,7 +46,10 @@ void setup() {
   XLOG_INFO(CAT_MAIN, "Provisioning method: %d", PROVISIONING_METHOD);
   XLOG_INFO(CAT_MAIN, "========================================");
 
-  system_state_init();
+  StateProvider::getInstance();
+
+  system_state_init();  // ← @deprecated, будет удалён после перехода на
+                        // StateProvider
   wdt_init();
   g_configManager.init();
   g_configManager.print();
@@ -212,10 +218,78 @@ void setup() {
 }
 
 void loop() {
+  
   wdt_feed();
+
+  
+  // Периодическая обработка слоев
   resetBtn_update();
   wifi_manager_update();
+  // wifi_manager_update();
+  // sensor_update();
 
+
+
+  // Получение текущего статуса
+  StateProvider::getInstance().update_uptime(millis());
+  const DeviceState* state = StateProvider::getInstance().get_state();
+
+  // =========================================================================
+  // Принятие решений
+  // =========================================================================
+
+  // -------------------------------------------------------------------------
+  // КНОПКА СБРОСА
+  // -------------------------------------------------------------------------
+  if (state->button_pressed && !state->restart_pending) {
+    if (state->button_stage == STAGE_3S) {
+      XLOG_WARN(CAT_MAIN, "Reset button triggered.");
+      wdt_stop();
+      if (g_configManager.reset()) {
+        // @deprecated Будет удалён после перехода на StateProvider
+        // system_state_set_bit(STATE_RESTART);
+        StateProvider::getInstance().update_restart(true);
+        restart_request(500);
+      }
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // ФАЗА 3: LED ИНДИКАЦИЯ
+  // -------------------------------------------------------------------------
+  if (state->restart_pending) {
+    led_set_mode(LED_OFF);
+  }
+  else if (state->emergency) {
+    led_set_mode(LED_SLOW_BLINK);
+  }
+  else if (state->button_pressed) {
+    if (state->button_stage == STAGE_3S || state->button_stage == STAGE_2S) {
+      led_set_mode(LED_MORZE_S);  // 3 вспышки
+    } else if (state->button_stage == STAGE_1S) {
+      led_set_mode(LED_MORZE_I);  // 2 вспышки
+    } else {
+      led_set_mode(LED_MORZE_E);  // 1 вспышка
+    }
+  }
+  else if (state->provisioning) {
+    led_set_mode(LED_MORZE_S);
+  }
+  else if (!state->wifi_connected) {
+    led_set_mode(LED_MORZE_E);
+  }
+  else if (!state->mqtt_connected) {
+    led_set_mode(LED_MORZE_I);
+  }
+  else {
+    led_set_mode(LED_ON);
+  }
+  led_update();
+
+  
+  
+  
+  
   uint16_t bits = system_state_get_bits();
 
   // =========================================================================
@@ -228,7 +302,7 @@ void loop() {
       XLOG_DEBUG(
           CAT_MAIN,
           "Calling startProvisioning due WIFI_FALLBACK_TIMEOUT_MS expired");
-      startProvisioning();  // ← МЕНЕДЖЕР САМ УСТАНОВИТ STATE_PROVISIONING
+      startProvisioning();  
     }
   } else {
     wifi_fail_start = 0;
@@ -270,46 +344,47 @@ void loop() {
   // =========================================================================
   // КНОПКА СБРОСА
   // =========================================================================
-   
-  if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
-    ResetButtonStage stage = resetBtn_get_stage(); 
-    if (stage == STAGE_3S) {
-      XLOG_WARN(CAT_MAIN, "Reset button triggered.");
-      wdt_stop();
-      if (g_configManager.reset()) {
-        system_state_set_bit(STATE_RESTART);
-        restart_request(500);
-      }
-    }
-  }
+
+  // if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
+  //   ResetButtonStage stage = resetBtn_get_stage();
+  //   if (stage == STAGE_3S) {
+  //     XLOG_WARN(CAT_MAIN, "Reset button triggered.");
+  //     wdt_stop();
+  //     if (g_configManager.reset()) {
+  //       system_state_set_bit(STATE_RESTART);
+  //       restart_request(500);
+  //     }
+  //   }
+  // }
+  
 
   // =========================================================================
   // LED ИНДИКАЦИЯ
   // =========================================================================
-  if (bits & STATE_RESTART) {
-    led_set_mode(LED_OFF);
-  } else if (bits & STATE_EMERGENCY) {
-    led_set_mode(LED_SLOW_BLINK);
-  } else if (bits & STATE_PROVISIONING) {
-    led_set_mode(LED_MORZE_S);
-  } else if (bits & STATE_BUTTON_PRESSED) {
-    if (stage == STAGE_3S || stage == STAGE_2S) {
-      led_set_mode(LED_MORZE_S);
-    } else if (stage == STAGE_1S) {
-      led_set_mode(LED_MORZE_I);
-    } else {
-      led_set_mode(LED_MORZE_E);
-    }
-  } else if (!(bits & STATE_WIFI_OK)) {
-    led_set_mode(LED_MORZE_E);
-#if FEATURE_MQTT_ENABLED
-  } else if (!(bits & STATE_MQTT_OK)) {
-    led_set_mode(LED_MORZE_I);
-#endif
-  } else {
-    led_set_mode(LED_ON);
-  }
-  led_update();
+//   if (bits & STATE_RESTART) {
+//     led_set_mode(LED_OFF);
+//   } else if (bits & STATE_EMERGENCY) {
+//     led_set_mode(LED_SLOW_BLINK);
+//   } else if (bits & STATE_PROVISIONING) {
+//     led_set_mode(LED_MORZE_S);
+//   } else if (bits & STATE_BUTTON_PRESSED) {
+//     if (stage == STAGE_3S || stage == STAGE_2S) {
+//       led_set_mode(LED_MORZE_S);
+//     } else if (stage == STAGE_1S) {
+//       led_set_mode(LED_MORZE_I);
+//     } else {
+//       led_set_mode(LED_MORZE_E);
+//     }
+//   } else if (!(bits & STATE_WIFI_OK)) {
+//     led_set_mode(LED_MORZE_E);
+// #if FEATURE_MQTT_ENABLED
+//   } else if (!(bits & STATE_MQTT_OK)) {
+//     led_set_mode(LED_MORZE_I);
+// #endif
+//   } else {
+//     led_set_mode(LED_ON);
+//   }
+
 
   // =========================================================================
   // ОБНОВЛЕНИЕ СЛОЁВ

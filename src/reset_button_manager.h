@@ -2,7 +2,7 @@
  * @file reset_button_manager.h
  * @brief Кнопка сброса
  * @details Обрабатывает нажатие кнопки, определяет стадию удержания.
- *          Устанавливает/снимает STATE_BUTTON_PRESSED в SystemState.
+ *          Пишет состояние в SystemState (deprecated) и StateProvider.
  */
 
 #ifndef RESET_BTN_H
@@ -36,7 +36,7 @@ void resetBtn_init();
 /**
  * @brief Обновление состояния кнопки
  * @details Вызывается в loop(). Обновляет внутреннее состояние
- *          и устанавливает/снимает STATE_BUTTON_PRESSED.
+ *          и записывает состояние в SystemState (deprecated) и StateProvider.
  */
 void resetBtn_update();
 
@@ -49,8 +49,13 @@ ResetButtonStage resetBtn_get_stage();
 
 #else  // FEATURE_RESET_BUTTON_ENABLED == 0
 
+// Заглушка - кнопка сброса отключена (FEATURE_RESET_BUTTON_ENABLED=0)
 inline void resetBtn_init() {}
+
+// Заглушка - кнопка сброса отключена (FEATURE_RESET_BUTTON_ENABLED=0)
 inline void resetBtn_update() {}
+
+// Заглушка - кнопка сброса отключена (FEATURE_RESET_BUTTON_ENABLED=0)
 inline ResetButtonStage resetBtn_get_stage() {
   return RELEASED;
 }
