@@ -21,3 +21,6 @@
 
 ## TRANSPORT_ZIGBEE.md
 Реализация работы по протоколу ZIGBEE
+
+## TRANSPORT_HTTP.md
+Реализация взаимодействия по протоколу HTTP
