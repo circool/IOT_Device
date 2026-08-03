@@ -1,6 +1,6 @@
 /**
  * @file wifi_manager.h
- * @brief 
+ * @brief Менеджер соединения с WiFi
  */
 
 #ifndef WIFI_MANAGER_H

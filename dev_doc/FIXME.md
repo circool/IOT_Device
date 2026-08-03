@@ -51,7 +51,12 @@
 | 1.14.6 | `web_status_provider.h/cpp` | Удалить IWebStatusProvider (заменён на StateProvider) | ⬜ | |
 | 1.14.7 | `web_manager.cpp` | Переделать на чтение из StateProvider вместо IWebStatusProvider | ⬜ | |
 | 1.14.8 | `main.cpp` | Передать StateProvider во все слои | ⬜ | |
-| 1.14.9 | `wifi_manager.cpp` | Обновлять StateProvider при изменении WiFi | ⬜ | |
+| 1.14.9 | `wifi_manager.cpp` | Обновлять StateProvider при изменении WiFi | ✅ | |
+| 1.14.9.1 | `wifi_manager.cpp` | Заменить `#include "system_state.h"` на `#include "state_provider.h"` | ✅ | |
+| 1.14.9.2 | `wifi_manager.cpp` | В `wifi_manager_update()` заменить `system_state_set_bit(STATE_WIFI_OK)` на `StateProvider::getInstance().update_connection(true, false, WiFi.RSSI())` | ✅ | |
+| 1.14.9.3 | `wifi_manager.cpp` | В `wifi_manager_update()` заменить `system_state_clear_bit(STATE_WIFI_OK)` на `StateProvider::getInstance().update_connection(false, false,0)` | В процессе | |
+| 1.14.9.4 | `wifi_manager.cpp` | Заменить проверку `system_state_has_bit(STATE_WIFI_OK)` (на StateProvider::getInstance().get_state()->wifi_connected ) | ✅ | |
+| 1.14.9.4 | `main.cpp` | Заменить обращения к `STATE_WIFI_OK` на `state->wifi_connected` | ✅ | |
 | 1.14.10 | `mqtt_manager.cpp` | Обновлять StateProvider при изменении MQTT | ⬜ | |
 | 1.14.11 | `provisioning_manager.cpp` | Обновлять StateProvider при изменении режима | ✅ | |
 | 1.14.12 | `reset_button_manager.cpp` | Обновлять StateProvider при нажатии кнопки | ✅ | |

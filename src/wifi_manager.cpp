@@ -5,9 +5,8 @@
  */
 
 #include "wifi_manager.h"
-#include "system_state.h"
 #include "logger.h"
-
+#include "state_provider.h"
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 
@@ -39,13 +38,13 @@ void wifi_manager_connect(const char* ssid, const char* password) {
 
 void wifi_manager_update() {
   if (WiFi.status() == WL_CONNECTED) {
-    if (!system_state_has_bit(STATE_WIFI_OK)) {
+    if (!StateProvider::getInstance().get_state()->wifi_connected) {
       XLOG_INFO(CAT_WIFI, "Connected! IP: " ANSI_BOLD "%s" ANSI_BOLD_RESET ", RSSI: " ANSI_BOLD "%d" ANSI_BOLD_RESET " dBm.", WiFi.localIP().toString().c_str(), WiFi.RSSI());
-      system_state_set_bit(STATE_WIFI_OK);
+      StateProvider::getInstance().update_connection(true, false, WiFi.RSSI());
     }
-     
+
   } else {
-    system_state_clear_bit(STATE_WIFI_OK);
+    StateProvider::getInstance().update_connection(false, false, 0);
   }
 }
 

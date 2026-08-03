@@ -303,11 +303,13 @@ void loop() {
       }
     } else {
       wifi_fail_start = 0;
+
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-    if (!web_started && (bits & STATE_WIFI_OK)) {
-      web_init();
-      web_started = true;
-    }
+      if (!web_started && state->wifi_connected) {
+        // if (!web_started && (bits & STATE_WIFI_OK)) { //@deprecated 
+          web_init();
+          web_started = true;
+        }
 #endif
   }
 
@@ -381,7 +383,8 @@ void loop() {
 
   
 
-  if (g_transport && (bits & STATE_WIFI_OK)) {
+  // if (g_transport && (bits & STATE_WIFI_OK)) {
+  if (g_transport && (bits & state->wifi_connected)) {
     g_transport->update();
   }
 }
