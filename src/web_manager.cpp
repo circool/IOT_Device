@@ -252,6 +252,7 @@ String web_build_status_html(void) {
   html += getCurrentModeText();
   html += F("</div></div>");
 
+  // ===== STATUS =====
   const char* stateText = state ? "ON" : "OFF";
   StatusBlockParams status = {state, stateText};
   render(buf, sizeof(buf), status);
@@ -310,18 +311,23 @@ String web_build_status_html(void) {
 
   html += F("</div>");
 
+  // ===== BUTTONS =====
   html += F("<div class='group'>");
 
-  const char* onOffLabel = state ? "Turn OFF" : "Turn ON";
-  const char* onOffValue = state ? "off" : "on";
-  char url[64];
-  snprintf(url, sizeof(url), "/set?param=state&value=%s", onOffValue);
-
-  ButtonParams btnOnOff = {onOffLabel, url, "link-btn"};
-  render(buf, sizeof(buf), btnOnOff);
-  html += buf;
+  // Turn ON / Turn OFF — только одна кнопка
+  if (state) {
+    ButtonParams btnOff = {"Turn OFF", "/set?param=state&value=off",
+                           "link-btn"};
+    render(buf, sizeof(buf), btnOff);
+    html += buf;
+  } else {
+    ButtonParams btnOn = {"Turn ON", "/set?param=state&value=on", "link-btn"};
+    render(buf, sizeof(buf), btnOn);
+    html += buf;
+  }
 
 #if DEVICE_TYPE == 1
+  // Speed buttons — только если устройство включено
   if (state) {
     ButtonParams btn25 = {"25%", "/set?param=speed&value=25", NULL};
     render(buf, sizeof(buf), btn25);
@@ -339,9 +345,8 @@ String web_build_status_html(void) {
     render(buf, sizeof(buf), btn100);
     html += buf;
   }
-#endif
 
-#if DEVICE_TYPE == 1
+  // Manual / Auto — только одна кнопка
   if (g_statusProvider->isSensorControlMode()) {
     ButtonParams btnManual = {"Manual mode", "/set?param=manualMode&value=1",
                               NULL};
@@ -358,10 +363,6 @@ String web_build_status_html(void) {
 
   return html;
 }
-
-// ============================================================================
-// ОТПРАВКА СТРАНИЦЫ СОСТОЯНИЯ
-// ============================================================================
 
 void web_send_status_page(int refreshInterval) {
   if (!g_statusProvider) {
