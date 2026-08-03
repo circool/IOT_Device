@@ -56,7 +56,7 @@
 | 1.14.12 | `reset_button_manager.cpp` | Обновлять StateProvider при нажатии кнопки | ✅ | |
 | 1.14.13 | `main.cpp` | Читать StateProvider для определения режима | ✅ | |
 | 1.14.14 | `sensor.cpp` | Обновлять StateProvider после чтения датчика | ⬜ | |
-| 1.14.15 | `restart_manager.cpp` | Обновлять StateProvider при запросе перезагрузки | ⬜ | |
+| 1.14.15 | `restart_manager.cpp` | Обновлять StateProvider при запросе перезагрузки | ✅ | |
 | 1.14.16 | `transport_*.cpp` | Читать StateProvider для публикации состояния | ⬜ | |
 | 1.14.17 | `system_state.h/cpp` | Удалить (интегрирован в StateProvider) | ⬜ | |
 | 1.14.18 | `web_status_provider.h/cpp` | Удалить (заменён на StateProvider) | ⬜ | |

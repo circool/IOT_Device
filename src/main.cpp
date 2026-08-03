@@ -227,8 +227,7 @@ void loop() {
   wifi_manager_update();
   // wifi_manager_update();
   // sensor_update();
-
-
+  restart_update();
 
   // Получение текущего статуса
   StateProvider::getInstance().update_uptime(millis());
@@ -429,7 +428,7 @@ void loop() {
     restart_request(500);
   }
 
-  restart_update();
+  
 
   if (g_transport && (bits & STATE_WIFI_OK)) {
     g_transport->update();
