@@ -5,7 +5,7 @@
 
 #include "logger.h"
 #include "mqtt_manager.h"
-#include "system_state.h"
+#include "state_provider.h"
 
 #if FEATURE_MQTT_ENABLED == 1
 
@@ -97,6 +97,10 @@ void MQTTManager::disconnect() {
     _mqttClient.publish(_topics.online, "Offline", true);
     _mqttClient.disconnect();
   }
+
+  const DeviceState* state = StateProvider::getInstance().get_state();
+  StateProvider::getInstance().update_connection(state->wifi_connected, false,
+                                                 state->wifi_rssi);
 }
 
 // ============================================================================
@@ -104,10 +108,12 @@ void MQTTManager::disconnect() {
 // ============================================================================
 
 void MQTTManager::reconnect() {
-
   if (!_initialized)
     return;
-  if (isConnected())
+
+  // Проверяем статус через StateProvider
+  const DeviceState* state = StateProvider::getInstance().get_state();
+  if (state->mqtt_connected)
     return;
 
   unsigned long now = millis();
@@ -117,13 +123,12 @@ void MQTTManager::reconnect() {
       return;
   }
 
-  
   _lastReconnectAttempt = now;
-  
+
   if (firstAttempt) {
     XLOG_DEBUG(CAT_MQTT,
                "Connecting to broker " ANSI_BOLD "%s" ANSI_BOLD_RESET
-               ", client " ANSI_BOLD  "%s",
+               ", client " ANSI_BOLD "%s",
                _broker, _clientId);
     firstAttempt = false;
   } else {
@@ -141,12 +146,14 @@ void MQTTManager::reconnect() {
 
   if (connected) {
     XLOG_INFO(CAT_MQTT, "Connected to " ANSI_BOLD "%s." ANSI_RESET, _broker);
-    
+
     firstAttempt = true;
     publishOnline();
     subscribe();
-    system_state_set_bit(STATE_MQTT_OK);
 
+    // Обновляем StateProvider
+    StateProvider::getInstance().update_connection(state->wifi_connected, true,
+                                                   state->wifi_rssi);
   } else {
     XLOG_ERROR(CAT_MQTT, "Failed, state=%d", _mqttClient.state());
   }

@@ -105,8 +105,9 @@ void StateProvider::update_connection(bool wifi, bool mqtt, int rssi) {
   }
 
   if (changed) {
-    XLOG_DEBUG(CAT_WIFI, "Connection: wifi=%d, mqtt=%d, rssi=%d", wifi, mqtt,
-               rssi);
+    XLOG_DEBUG(CAT_WIFI, "Connection: WiFi: %s, MQTT: %s, RSSI=%d dBm",
+               wifi ? "CONNECTED" : "NOT CONNECTED",
+               mqtt ? "CONNECTED" : "NOT CONNECTED", rssi);
   }
 }
 

@@ -225,7 +225,6 @@ void loop() {
   // Периодическая обработка слоев
   resetBtn_update();
   wifi_manager_update();
-  // wifi_manager_update();
   // sensor_update();
   restart_update();
 
@@ -384,7 +383,7 @@ void loop() {
   
 
   // if (g_transport && (bits & STATE_WIFI_OK)) {
-  if (g_transport && (bits & state->wifi_connected)) {
+  if (g_transport && (state->wifi_connected)) {
     g_transport->update();
   }
 }
