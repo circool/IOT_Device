@@ -75,7 +75,8 @@ struct ConfigData {
     bool adaptiveMode;         // Адаптивный режим включён (true/false)
     
     // ===== TYPE 1 и TYPE 2 (датчик) =====
-    uint16_t sensorInterval;   // Интервал опроса датчика (сек)
+    // @deprecated Нужен для более комфортной отладки
+    uint16_t sensorInterval;   // Интервал опроса датчика (сек) 
 };
 ```
 
