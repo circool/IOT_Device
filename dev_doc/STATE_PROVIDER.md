@@ -2,7 +2,8 @@
 /**
  * @file STATE_PROVIDER.md
  * @brief Единый источник данных о состоянии устройства
- * @note Статус: Проектирование
+ * @note Статус: Проектирование - рефакторинг под версию 0.11
+ * @version 0.11
  */
 ```
 
@@ -98,12 +99,15 @@ struct DeviceState {
     const char* sensor_error;
 
     // ===== ПОДКЛЮЧЕНИЯ =====
-    bool wifi_connected;
-    bool mqtt_connected;
-    int wifi_rssi;
+    bool link_ok;
+    bool gateway_ok; 
+    bool setup_mode;
+    #if USE_WIFI == 1
+    int link_quality;
+    #endif
 
     // ===== СИСТЕМНЫЕ ФЛАГИ =====
-    bool provisioning;
+    
     bool emergency;
     bool restart_pending;
     bool button_pressed;
@@ -164,7 +168,7 @@ void set_button(bool pressed, uint8_t stage);
 | **MQTTManager** | ❌ | mqtt_connected |
 | **ProvisioningManager** | ❌ | provisioning |
 | **RestartManager** | ❌ | restart_pending |
-| **ResetButton** | ❌ | button_pressed, button_stage |
+| **Button** | ❌ | button_pressed, button_stage |
 | **Web** | is_on, speed, manual_mode, temperature, humidity, wifi_connected, mqtt_connected, provisioning, emergency, restart_pending | ❌ |
 | **LED** | provisioning, emergency, restart_pending, wifi_connected, mqtt_connected, button_stage | ❌ |
 | **Transport** | is_on, speed, manual_mode, temperature, humidity, wifi_connected, mqtt_connected | ❌ |
@@ -265,12 +269,12 @@ void restart_update() {
 }
 ```
 
-### 5.7. ResetButton
+### 5.7. Button
 
-ResetButton пишет состояние кнопки:
+Button пишет состояние кнопки:
 
 ```cpp
-void resetBtn_update() {
+void button_update() {
     // ... чтение пина и подсчёт времени ...
     StateProvider::getInstance().set_button(pressed, stage);
 }
