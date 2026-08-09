@@ -5,6 +5,8 @@
 
 #include "debug_tools.h"
 #include "logger.h"
+#include "common_types.h"
+#include "config_manager.h"
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
@@ -245,4 +247,97 @@ void print_system_info() {
   );
   XLOG_INFO(CAT_ALL, "Firmware ver. %s", VERSION);
   XLOG_INFO(CAT_ALL, "Reset reason: %s", getResetReason());
+}
+
+void printConfig(const TransportConfig& transport,
+                 const DeviceConfig& device) {
+  XLOG_INFO(CAT_CONFIG, "========== CONFIG DUMP ==========");
+
+  XLOG_INFO(CAT_CONFIG, ANSI_BOLD "TRANSPORT CONFIG" ANSI_RESET);
+  XLOG_INFO(CAT_CONFIG, "  Device ID: '%s'", transport.deviceId);
+
+#ifdef USE_WIFI
+  XLOG_INFO(CAT_CONFIG, "  WiFi SSID: '%s'", transport.wifiSsid);
+  XLOG_INFO(CAT_CONFIG, "  WiFi Password: %d chars",
+            strnlen(transport.wifiPassword, sizeof(transport.wifiPassword)));
+#endif
+
+#ifdef USE_MQTT
+  XLOG_INFO(CAT_CONFIG, "  MQTT Broker: '%s'", transport.mqttBroker);
+  XLOG_INFO(CAT_CONFIG, "  MQTT Port: %d", transport.mqttPort);
+  XLOG_INFO(CAT_CONFIG, "  MQTT Client ID: '%s'", transport.mqttClientId);
+#endif
+
+#ifdef USE_ZIGBEE
+  XLOG_INFO(CAT_CONFIG, "  ZigBee PAN ID: 0x%04X", transport.zigbeePanId);
+  XLOG_INFO(CAT_CONFIG, "  ZigBee Channel: %d", transport.zigbeeChannel);
+#endif
+
+  XLOG_INFO(CAT_CONFIG, ANSI_BOLD "DEVICE CONFIG" ANSI_RESET);
+
+#if DEVICE_TYPE == 1
+  XLOG_INFO(CAT_CONFIG, "  Sensor Control Mode: %s",
+            device.sensorControlMode ? "ON" : "OFF");
+  XLOG_INFO(CAT_CONFIG, "  Adaptive Mode: %s",
+            device.adaptiveMode ? "ON" : "OFF");
+  XLOG_INFO(CAT_CONFIG, "  Low Temp: %.1f°C", device.lowTemp);
+  XLOG_INFO(CAT_CONFIG, "  High Temp: %.1f°C", device.highTemp);
+  XLOG_INFO(CAT_CONFIG, "  Low Hum: %.1f%%", device.lowHum);
+  XLOG_INFO(CAT_CONFIG, "  High Hum: %.1f%%", device.highHum);
+  XLOG_INFO(CAT_CONFIG, "  Speed Percent: %d%%", device.speedPercent);
+#endif
+
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+  XLOG_INFO(CAT_CONFIG, "  Delay Seconds: %lu", device.delaySeconds);
+  XLOG_INFO(CAT_CONFIG, "  Max On Time: %lu", device.maxOnTime);
+  XLOG_INFO(CAT_CONFIG, "  Boot State: %s", device.bootState ? "ON" : "OFF");
+#endif
+
+}
+
+/**
+ * @brief Генерация случайного имени устройства
+ * @param buffer Буфер для записи ID (должен быть минимум 32 байта)
+ * @param size Размер буфера
+ */
+void generateRandomDeviceId(char* buffer, size_t size) {
+  if (buffer == nullptr || size < 16) {
+    strncpy(buffer, "device", size - 1);
+    buffer[size - 1] = '\0';
+    return;
+  }
+
+  // Список прилагательных для создания "живых" имён
+  static const char* adjectives[] = {
+      "brave", "calm",   "eager", "fierce", "gentle",  "happy", "jolly",
+      "kind",  "lively", "noble", "proud",  "quick",   "rapid", "swift",
+      "wise",  "bold",   "cool",  "daring", "elegant", "fancy"};
+
+  // Список существительных
+  static const char* nouns[] = {"panda", "tiger", "eagle", "dolphin", "falcon",
+                                "raven", "wolf",  "lynx",  "fox",     "bear",
+                                "owl",   "hawk",  "lion",  "deer",    "snake",
+                                "whale", "shark", "mouse", "rabbit",  "otter"};
+
+  // Инициализация генератора случайных чисел
+  // Используем esp_random() для ESP32 или random() для ESP8266
+#ifdef ESP8266
+  randomSeed(analogRead(A0) + micros());
+  uint8_t adjIdx = random(0, sizeof(adjectives) / sizeof(adjectives[0]));
+  uint8_t nounIdx = random(0, sizeof(nouns) / sizeof(nouns[0]));
+  uint16_t suffix = random(1000, 9999);
+#elif defined(ESP32)
+  // esp_random() возвращает 32-битное случайное число
+  uint32_t randVal = esp_random();
+  uint8_t adjIdx = randVal % (sizeof(adjectives) / sizeof(adjectives[0]));
+  uint8_t nounIdx = (randVal >> 8) % (sizeof(nouns) / sizeof(nouns[0]));
+  uint16_t suffix = (randVal >> 16) % 9000 + 1000;
+#else
+  uint8_t adjIdx = 0;
+  uint8_t nounIdx = 0;
+  uint16_t suffix = 0;
+#endif
+
+  snprintf(buffer, size, "%s-%s-%04d", adjectives[adjIdx], nouns[nounIdx],
+           suffix);
 }
