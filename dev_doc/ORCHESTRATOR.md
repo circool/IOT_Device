@@ -222,7 +222,7 @@ void onStateChange(const operational_state_t* state, bool need_save) {
 
 ...
 if ((bits & STATE_BUTTON_PRESSED) && !(bits & STATE_RESTART)) {
-    ButtonStage stage = button_get_stage();
+    ButtonStage stage = buttonGetStage();
     if (stage == STAGE_3S) {
         g_configManager.reset();
         restart_request(500);
