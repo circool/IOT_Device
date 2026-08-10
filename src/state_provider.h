@@ -34,8 +34,6 @@ public:
     bool gateway_ok;     ///< Соединение с брокером/шлюзом (MQTT/HTTP)
     bool setup_mode;     ///< Режим настройки (AP режим)
 
-    // ===== СОБЫТИЯ КНОПКИ =====
-    ButtonStage button_stage;  ///< Стадия нажатия
 };
 
 /**

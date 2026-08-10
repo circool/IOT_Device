@@ -14,7 +14,6 @@ bool StateProvider::init() {
     link_ok = false;
     gateway_ok = false;
     setup_mode = false;
-    button_stage = BUTTON_IDLE;
     XLOG_INFO(CAT_STATE, "StateProvider initialized");
     return true;
 }
