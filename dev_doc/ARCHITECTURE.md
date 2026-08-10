@@ -121,7 +121,7 @@
 │    Zigbee, Matter)│  │  • Управляет      │  │  • gateway_ok               │
 │  • Протоколы      │  │    актуатором     │  │  • setup_mode               │
 │    (HTTP, MQTT)   │  │  • Читает датчик  │  │  • button_pressed           │
-│  • Настройка      │  │  • Хранит         │  │  • button_stage             │
+│  • Настройка      │  │  • Хранит         │  │                             │
 │                   │  │  _state/_settings │  │                             │
 └───────────────────┘  └───────────────────┘  └─────────────────────────────┘
           │                    │                    │
@@ -131,7 +131,7 @@
 │                              common_types.h                               │
 │                                                                           │
 │  • TransportConfig                                                        │
-│  • DeviceConfig                                                         │
+│  • DeviceConfig                                                           │
 │  • DeviceState                                                            │
 │  • ResetReason                                                            │
 └───────────────────────────────────────────────────────────────────────────┘
@@ -251,11 +251,16 @@
 
 ---
 
-#### Button —  аппаратная кнопка
+#### Button — аппаратная кнопка
 
-**Назначение:** Обработка нажатий кнопки с определением длительности.
+**Назначение:** Обработка нажатий кнопки с определением стадий удержания.
 
-**Особенности:** Определяет стадию нажатия (`ButtonStage`). Пишет события в StateProvider.
+**Особенности:** 
+- Инкапсулирует чтение GPIO и детектирование фронтов
+- Предоставляет оркестратору стадию через метод `getStage()`
+- Не зависит от `StateProvider`
+- Поддерживает стадии: `BUTTON_SHORT` (событие), `BUTTON_MID`, `BUTTON_LONG`, `BUTTON_WARN`, `BUTTON_HOLD` (событие)
+- Опциональный слой (включается флагом `FEATURE_BUTTON_ENABLED == 1`)
 
 **Документация:** `BUTTON_MANAGER.md`
 
@@ -364,12 +369,14 @@ MQTT-команда → on_command() → set_command(CMD_STATE, ON)
 
 ### 5.2. Входящие события (кнопка → устройство)
 
-```
-Кнопка → StateProvider.button_pressed → Оркестратор → DeviceController.set_command()
+```text
+Кнопка → ButtonManager.update() → Оркестратор.getStage() → DeviceController.set_command()
+Кнопка нажата и отпущена (<0.5с) → getStage() = BUTTON_SHORT → Оркестратор → set_command(CMD_TOGGLE)
+Кнопка удерживается 4-5с и отпущена → getStage() = BUTTON_HOLD → Оркестратор → ConfigManager.reset() + restartRequest()
 ```
 
 **Пример:**
-```
+```text
 Кнопка нажата → StateProvider.button_stage = SHORT → Оркестратор → set_command(CMD_TOGGLE)
 ```
 
@@ -401,11 +408,11 @@ ConfigManager.get(deviceConfig) → Оркестратор → DeviceController.
 │                              main.cpp                                       │
 │                           (Оркестратор)                                     │
 └─────────────────────────────────────────────────────────────────────────────┘
-          │                    │                    │
-          ▼                    ▼                    ▼
-┌───────────────────┐   ┌───────────────────┐   ┌─────────────────────────────┐
-│  device_controller│   │  transport_*.cpp  │   │  state_provider             │
-└───────────────────┘   └───────────────────┘   └─────────────────────────────┘
+          │                    │                    │                    │
+          ▼                    ▼                    ▼                    ▼
+┌───────────────────┐ ┌──────────────────┐ ┌─────────────────┐ ┌──────────────┐
+│ device_controller │ │ transport_*.cpp  │ │  state_provider │ │button_manager│
+└───────────────────┘ └──────────────────┘ └─────────────────┘ └──────────────┘
           │                    │                    │
           └────────────────────┼────────────────────┘
                                ▼
@@ -497,9 +504,7 @@ inline void foo_init(){};
 ```cpp
 XLOG_ERROR(CAT_SENROR,"Sensor error!");
 ```
-
 ---
-
 
 ### 6.2. Единообразие в наименованиях 
 
@@ -668,6 +673,7 @@ project_root/
 │   ├── config_manager.cpp/h             # Менеджер конфигураций и настроек
 │   ├── state_provider.cpp/h             # Шина данных
 │   ├── sensor.cpp/h                     # Датчик 
+│   ├── button_manager.cpp/h             # Кнопка 
 │   ├── actuator.cpp/h                   # Актуатор 
 │   ├── button_manager.cpp/h             # Кнопка
 │   ├── led_manager.cpp/h                # LED
@@ -714,6 +720,7 @@ project_root/
 | `ORCHESTRATOR.md` | Оркестратор |
 | `common_types.h` | Единые структуры данных |
 | `DEVICE_TYPES.md` | Типы устройств |
+| `BUTTON_MANAGER.md` | Обработка нажатий кнопки |
 
 ---
 

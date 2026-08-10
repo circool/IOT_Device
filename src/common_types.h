@@ -100,4 +100,18 @@ typedef struct {
   ResetReason resetReason;  // CHECK ENGINE (причина нештатной перезагрузки)
 } DeviceState;
 
+// ===== СТАДИИ НАЖАТИЯ КНОПКИ =====
+/**
+ * @brief Стадии нажатия кнопки
+ * @note Используется StateProvider и ButtonManager
+ */
+enum ButtonStage : uint8_t {
+  BUTTON_IDLE = 0,    ///< Кнопка отпущена
+  BUTTON_SHORT = 1,   ///< Нажата 0-1с
+  BUTTON_MID = 2,     ///< Нажата 1-2с
+  BUTTON_LONG = 3,    ///< Нажата 2-3с
+  BUTTON_WARN = 4,    ///< Нажата >3с
+  BUTTON_HOLD = 5     ///< Нажата >3с и отпущена до 5с
+};
+
 #endif  // COMMON_TYPES_H

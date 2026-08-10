@@ -1,389 +1,100 @@
 /**
  * @file main.cpp
- * @brief Оркестратор — связывает все слои
+ * @brief Оркестратор — пример использования транспортной абстракции
  */
 
 #include <Arduino.h>
-#include "debug_tools.h"
+#include "common_types.h"
+#include "settings.h"
 
-#include "device_controller.h"
+#include "config_manager.h"
 #include "state_provider.h"
 
-#include "fan_actuator.h"
-#include "led_manager.h"
+#include "button_manager.h"
+#include "debug_tools.h"
+
 #include "logger.h"
-#include "mqtt_manager.h"
-#include "provisioning_manager.h"
-#include "reset_button_manager.h"
 #include "restart_manager.h"
-#include "settings.h"
-#include "switch_actuator.h"
-#include "system_state.h"
-#include "transport_factory.h"
-#include "wdt_manager.h"
-#include "web_manager.h"
-#include "web_status_provider.h"
-#include "wifi_manager.h"
+#include "led_manager.h"
 
-WiFiClient wifiClient;
-
-static DeviceController deviceController;
-static FanActuator* fan = nullptr;
-static SwitchActuator* switchActuator = nullptr;
-static unsigned long wifi_fail_start = 0;
-static bool web_started = false;
-static IWebStatusProvider* statusProvider = nullptr;
+ConfigManager g_configManager;
+TransportConfig g_transportConfig;
+DeviceConfig g_deviceConfig;
+StateProvider g_stateProvider;
+ButtonManager g_buttonManager;
 
 void setup() {
-  delay(2000);
+  delay(3000);
   Logger::getInstance().init((LogLevel)XLOG_LEVEL, XLOG_CATEGORIES,
-                              XLOG_USE_COLOR);
-  print_system_info();
+                             XLOG_USE_COLOR);
+
   XLOG_INFO(CAT_MAIN, "========================================");
-  XLOG_INFO(CAT_MAIN, "SYSTEM STARTING...");
+  XLOG_INFO(CAT_MAIN, "PROTOTYPE STARTING...");
   XLOG_INFO(CAT_MAIN, "Version: %s", VERSION);
   XLOG_INFO(CAT_MAIN, "Device: %s (TYPE %d)", DEVICE_PREFIX, DEVICE_TYPE);
-  XLOG_INFO(CAT_MAIN, "Provisioning method: %d", PROVISIONING_METHOD);
   XLOG_INFO(CAT_MAIN, "========================================");
 
-  StateProvider::getInstance();
+  print_system_info();
 
-  system_state_init();  // ← @deprecated, будет удалён после перехода на
-                        // StateProvider
-  wdt_init();
+  XLOG_DEBUG(CAT_MAIN, "Init config manager");
   g_configManager.init();
-  g_configManager.print();
-  resetBtn_init();
+  if (!g_configManager.get(g_deviceConfig)) {
+    g_configManager.reset(g_deviceConfig);
+  };
+  if (!g_configManager.get(g_transportConfig)) {
+    g_configManager.reset(g_transportConfig);
+  };
+  printConfig(g_transportConfig, g_deviceConfig);
+
+  if (!g_stateProvider.init()) {
+    XLOG_ERROR(CAT_MAIN, "StateProvider init failed");
+  }
+  g_buttonManager.init();
   led_init();
-  sensor_init();
-
-  wifi_scan_and_log(g_configManager.getWifiSsid());
-  wifi_manager_init();
-
-  // =========================================================================
-  // РЕЖИМ ПРОВИЗИОНИНГА ИЛИ ОБЫЧНАЯ РАБОТА
-  // =========================================================================
-  if (strlen(g_configManager.getWifiSsid()) < 1) {
-    XLOG_INFO(CAT_MAIN, "Set provisioning mode due invalid WiFi configuration");
-    provisioning_start(g_configManager.getDeviceId());
-  } else {
-    wifi_manager_connect(g_configManager.getWifiSsid(),
-                         g_configManager.getWifiPassword());
-  }
-
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-#if DEVICE_TYPE == 1
-  fan = new FanActuator();
-  if (fan == nullptr) {
-    XLOG_ERROR(CAT_MAIN, "Failed to allocate FanActuator!");
-  } else {
-    XLOG_INFO(CAT_MAIN, "FanActuator allocated successfully!");
-    fan->init(
-        SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
-        g_configManager.getSpeedPercent(), g_configManager.getAdaptiveMode(),
-        g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
-#if FEATURE_MQTT_ENABLED == 1
-    statusProvider = new FanWebStatusProvider(fan, &mqttManager);
-#else
-    statusProvider = new FanWebStatusProvider(fan);
-#endif
-  }
-
-#elif DEVICE_TYPE == 2
-
-#if FEATURE_MQTT_ENABLED == 1
-  statusProvider = new SensorWebStatusProvider(&mqttManager);
-#else
-  statusProvider = new SensorWebStatusProvider();
-#endif
-
-#elif DEVICE_TYPE == 3
-  switchActuator = new SwitchActuator();
-  switchActuator->init(
-      SWITCH_PIN, RELAY_ON_LEVEL, g_configManager.getBootState(),
-      g_configManager.getDelaySeconds(), g_configManager.getMaxOnTime());
-
-#if FEATURE_MQTT_ENABLED == 1
-  statusProvider = new SwitchWebStatusProvider(switchActuator, &mqttManager);
-#else
-  statusProvider = new SwitchWebStatusProvider(switchActuator);
-#endif
-#endif
-
-  web_register_status_provider(statusProvider);
-#endif  // TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-
-  // ===== ТРАНСПОРТ =====
-  g_transport = createTransport();
-  if (g_transport) {
-    XLOG_INFO(CAT_MAIN, "Transport created: %s", g_transport->getName());
-    g_transport->begin(&wifiClient, g_configManager.get());
-  } else {
-    XLOG_ERROR(CAT_MAIN, "No transport available!");
-  }
-
-  // ===== DEVICE CONTROLLER =====
-#if DEVICE_TYPE == 1
-  deviceController.init(g_configManager.get(), fan);
-#elif DEVICE_TYPE == 3
-  deviceController.init(g_configManager.get(), switchActuator);
-#elif DEVICE_TYPE == 2
-  deviceController.init(g_configManager.get());
-#endif
-
-  deviceController.set_state_callback(
-      [](const operational_state_t* state, bool need_save) {
-        if (need_save) {
-          g_configManager.save();
-        }
-        if (g_transport && g_transport->isConnected()) {
-          g_transport->publishState(state->is_on);
-#if DEVICE_TYPE == 1
-          g_transport->publishSpeed(state->speed);
-          g_transport->publishSensorControlMode(!state->manual_mode);
-          g_transport->publishAdaptiveMode(state->adaptive_mode_active);
-#endif
-        }
-      });
-
-  // ===== MQTT КОЛБЭКИ =====
-#if FEATURE_MQTT_ENABLED == 1
-  mqttManager.onState(
-      [](bool value, void* context) {
-        deviceController.handle_command(CMD_SET_ACTUATOR, value ? 1.0f : 0.0f);
-      },
-      nullptr);
-#if DEVICE_TYPE == 1
-  mqttManager.onSpeed(
-      [](int value, void* context) {
-        deviceController.handle_command(CMD_SET_SPEED, (float)value);
-      },
-      nullptr);
-#endif
-
-  mqttManager.onDelaySec(
-      [](int value, void* context) {
-        deviceController.handle_command(CMD_SET_DELAY_SEC, (float)value);
-      },
-      nullptr);
-
-  mqttManager.onMaxOnTime(
-      [](uint32_t value, void* context) {
-        deviceController.handle_command(CMD_SET_MAX_ON_TIME, (float)value);
-      },
-      nullptr);
-
-#if DEVICE_TYPE == 1
-  mqttManager.onAdaptiveMode(
-      [](bool value, void* context) {
-        deviceController.handle_command(CMD_SET_ADAPTIVE_MODE,
-                                        value ? 1.0f : 0.0f);
-      },
-      nullptr);
-
-  mqttManager.onLowTemp(
-      [](float value, void* context) {
-        deviceController.handle_command(CMD_SET_LOW_TEMP, value);
-      },
-      nullptr);
-
-  mqttManager.onHighTemp(
-      [](float value, void* context) {
-        deviceController.handle_command(CMD_SET_HIGH_TEMP, value);
-      },
-      nullptr);
-
-  mqttManager.onLowHum(
-      [](float value, void* context) {
-        deviceController.handle_command(CMD_SET_LOW_HUM, value);
-      },
-      nullptr);
-
-  mqttManager.onHighHum(
-      [](float value, void* context) {
-        deviceController.handle_command(CMD_SET_HIGH_HUM, value);
-      },
-      nullptr);
-
-  mqttManager.onSensorControlMode(
-      [](bool value, void* context) {
-        deviceController.handle_command(CMD_SET_SENSOR_CONTROL_MODE,
-                                        value ? 1.0f : 0.0f);
-      },
-      nullptr);
-#endif
-#endif
-
-  XLOG_INFO(CAT_MAIN, "Setup complete");
+  XLOG_INFO(CAT_MAIN, "Setup complete.");
 }
 
 void loop() {
-  
-  wdt_feed();
-
-  
-  // Периодическая обработка слоев
-  resetBtn_update();
-  wifi_manager_update();
-  // sensor_update();
-  restart_update();
-
-  // Получение текущего статуса
-  StateProvider::getInstance().update_uptime(millis());
-  const DeviceState* state = StateProvider::getInstance().get_state();
-
-  // =========================================================================
-  // Принятие решений
-  // =========================================================================
-
-  // -------------------------------------------------------------------------
-  // КНОПКА СБРОСА
-  // -------------------------------------------------------------------------
-  if (state->button_pressed && !state->restart_pending) {
-    if (state->button_stage == STAGE_3S) {
-      XLOG_WARN(CAT_MAIN, "Reset button triggered.");
-      wdt_stop();
-      if (g_configManager.reset()) {
-        StateProvider::getInstance().update_restart(true);
-        restart_request(500);
-      }
-    }
-  }
-
-  // -------------------------------------------------------------------------
-  // ФАЗА 3: LED ИНДИКАЦИЯ
-  // -------------------------------------------------------------------------
-  if (state->restart_pending) {
-    led_set_mode(LED_OFF);
-  }
-  else if (state->emergency) {
-    led_set_mode(LED_SLOW_BLINK);
-  }
-  else if (state->button_pressed) {
-    if (state->button_stage == STAGE_3S || state->button_stage == STAGE_2S) {
-      led_set_mode(LED_MORZE_S);  // 3 вспышки
-    } else if (state->button_stage == STAGE_1S) {
-      led_set_mode(LED_MORZE_I);  // 2 вспышки
-    } else {
-      led_set_mode(LED_MORZE_E);  // 1 вспышка
-    }
-  }
-  else if (state->provisioning) {
-    led_set_mode(LED_MORZE_S);
-  }
-  else if (!state->wifi_connected) {
-    led_set_mode(LED_MORZE_E);
-  }
-  else if (!state->mqtt_connected) {
-    led_set_mode(LED_MORZE_I);
-  }
-  else {
-    led_set_mode(LED_ON);
-  }
+  delay(10);
   led_update();
-
+  g_buttonManager.update();
   
-  
-  
-  
-  uint16_t bits = system_state_get_bits();
-
-  // =========================================================================
-  // ПЕРЕХОД В РЕЖИМ ПРОВИЗИОНИНГА ПРИ ПОТЕРЕ WIFI
-  // =========================================================================
-  if (!state->wifi_connected && !state->provisioning){
-    if (wifi_fail_start == 0) {
-        wifi_fail_start = millis();
-      } else if (millis() - wifi_fail_start > WIFI_FALLBACK_TIMEOUT_MS) {
-        XLOG_DEBUG(
-            CAT_MAIN,
-            "Calling provisioning_start due WIFI_FALLBACK_TIMEOUT_MS expired");
-        provisioning_start(g_configManager.getDeviceId());
-      }
+  ButtonStage stage = g_buttonManager.getStage();
+  if (stage == BUTTON_IDLE) {
+    // Кнопка не нажата — логика по StateProvider
+    if (g_stateProvider.link_ok && g_stateProvider.gateway_ok) {
+      led_set_mode(LED_ON);
+    } else if (!g_stateProvider.link_ok) {
+      led_set_mode(LED_MORZE_E);
+    } else if (!g_stateProvider.setup_mode) {
+      led_set_mode(LED_MORZE_I);
     } else {
-      wifi_fail_start = 0;
-
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-      if (!web_started && state->wifi_connected) {
-        // if (!web_started && (bits & STATE_WIFI_OK)) { //@deprecated 
-          web_init();
-          web_started = true;
-        }
-#endif
-  }
-
-  if (state->provisioning) {
-    ProvisioningManager::getInstance().update();
-
-    const auto* data = getProvisioningData();
-
-    if (data && data->type == 0 && strlen(data->wifiSsid) > 0) {
-      XLOG_INFO(CAT_MAIN, "Provisioning complete! SSID: %s", data->wifiSsid);
-      // @todo: переписывать только если до этого конфиг был не валидным
-      g_configManager.setDefaults(); 
-      g_configManager.setWifiSsid(data->wifiSsid);
-      g_configManager.setWifiPassword(data->wifiPassword);
-
-      if (g_configManager.save()) {
-        restart_request(500); // @todo удалить после того как система будет готова работать с новой конфигурации без перезагрузки
-      } else {
-        XLOG_ERROR(CAT_MAIN, "Failed to save config!");
-      }
+      led_set_mode(LED_OFF);
     }
   } else {
-    // TODO> web_update();
-  }
-
-  
-
-
-  // =========================================================================
-  // ОБНОВЛЕНИЕ СЛОЁВ
-  // =========================================================================
-  sensor_update();
-  if (fan)
-    fan->update();
-  if (switchActuator)
-    switchActuator->update(g_configManager.getDelaySeconds(),
-                           g_configManager.getMaxOnTime());
-  deviceController.update();
-
-  // =========================================================================
-  // HTTP-СЕРВЕРЫ (ОБА!)
-  // =========================================================================
-  web_update();
-
-  // =========================================================================
-  // КОМАНДЫ ОТ WEB (/set)
-  // =========================================================================
-  if (g_webCommandPending) {
-    switch (g_webCommand.type) {
-      case CMD_STATE:
-        deviceController.set_state(g_webCommand.value.boolVal);
+    // Кнопка нажата — логика по стадии
+    switch (stage) {
+      case BUTTON_MID:
+        led_set_mode(LED_MORZE_I);
         break;
-      case CMD_SPEED:
-        deviceController.set_speed(g_webCommand.value.intVal);
+      case BUTTON_LONG:
+      case BUTTON_WARN:
+        led_set_mode(LED_MORZE_S);
         break;
-      case CMD_MANUAL_MODE:
-        deviceController.set_manual_mode(g_webCommand.value.boolVal);
+      case BUTTON_HOLD:
+        // Сброс
+        break;
+      default:
         break;
     }
-    g_webCommandPending = false;
+  }
+  // Обработка события короткого нажатия
+  if (stage == BUTTON_SHORT) {
+    XLOG_INFO(CAT_MAIN, "Short press — toggling actuator");
+    // device_controller_toggle(); // или другая команда
+    // Сброс стадии, чтобы не обрабатывать повторно
+    g_buttonManager.clearEvent();
   }
 
-  // =========================================================================
-  // СБРОС НАСТРОЕК ОТ WEB (/resetall)
-  // =========================================================================
-  if (g_webRestartPending) {
-    g_configManager.reset();
-    g_webRestartPending = false;
-    restart_request(500);
-  }
-
-  
-
-  // if (g_transport && (bits & STATE_WIFI_OK)) {
-  if (g_transport && (state->wifi_connected)) {
-    g_transport->update();
-  }
+  restartUpdate();
 }
