@@ -1,45 +1,44 @@
+### **RESTART_MANAGER.md**
+
 ```cpp
 /**
  * @file RESTART_MANAGER.md
- * @brief Менеджер перезагрузок
- * @note Статус: Закончен
- * @todo Необходима актуализация - см STATUS_PROVIDER.md
+ * @brief Централизованное управление перезагрузкой
+ * @version 0.12
+ * @date 10.08.2026
+ * @note Статус: Актуален
  */
 ```
 
 # RESTART_MANAGER.md
-
-## Менеджер перезагрузок
-
-Централизованное управление перезагрузкой устройства. Единственный слой, который вызывает `ESP.restart()`.
-
----
 
 ## Оглавление
 
 - [1. Назначение](#1-назначение)
 - [2. Принцип работы](#2-принцип-работы)
 - [3. API](#3-api)
-  - [3.1. restart_request()](#31-restart_request)
-  - [3.2. restart_update()](#32-restart_update)
-  - [3.3. restart_is_pending()](#33-restart_is_pending-опционально)
-  - [3.4. restart_cancel()](#34-restart_cancel-опционально)
+  - [3.1. request()](#31-request)
+  - [3.2. update()](#32-update)
+  - [3.3. isPending()](#33-ispending)
+  - [3.4. cancel()](#34-cancel)
 - [4. Интеграция с оркестратором](#4-интеграция-с-оркестратором)
-- [5. Примеры использования](#5-примеры-использования)
-- [6. Особенности реализации](#6-особенности-реализации)
-- [7. Рекомендации по использованию](#7-рекомендации-по-использованию)
-- [8. Проверка причин перезагрузки](#8-проверка-причин-перезагрузки)
+- [5. Настройка](#5-настройка)
+- [6. Файлы](#6-файлы)
+- [7. Связь с документацией](#7-связь-с-документацией)
 
 ---
 
 ## 1. Назначение
 
-Предотвращает хаотичные перезагрузки из разных мест кода. Все слои, которым нужно перезагрузить устройство, вызывают `restart_request()`, а фактический вызов `ESP.restart()` происходит централизованно в `restart_update()`.
+Слой `RestartManager` обеспечивает централизованное управление перезагрузкой устройства. Является единственным местом в проекте, где вызывается `ESP.restart()`.
 
 **Цели:**
-- **Единая точка управления** — легко добавить логирование, задержки, отмену
+- **Единая точка управления** — все перезагрузки проходят через один слой
 - **Предотвращение коллизий** — защита от множественных вызовов `ESP.restart()`
 - **Гарантированная отправка логов** — задержка перед перезагрузкой даёт время на отправку данных
+- **Отменяемость** — возможность отложить или отменить запланированную перезагрузку
+
+Слой не содержит логики работы с RTC — это задача `debug_tools`.
 
 ---
 
@@ -50,45 +49,40 @@
 │                          ЛЮБОЙ СЛОЙ КОДА                                    │
 │                                                                             │
 │  • ConfigManager: ошибка EEPROM                                             │
-│  • Web: пользователь нажал "Save"                                           │                       
-│                                                                             │
+│  • ButtonManager: удержание кнопки >3с (factory reset)                      │
+│  • Web: пользователь нажал "Save"                                           │
 │  • MQTT: команда reset                                                      │
-│  • Кнопка: удержание 3 секунды                                              │
-│  • OTA: обновление завершено                                               
-│
+│  • OTA: обновление завершено                                                │
 │  • И т.д.                                                                   │
 │                                                                             │
-│  ВСЕ ВЫЗЫВАЮТ: restart_request(500)                                         │
+│  ВСЕ ВЫЗЫВАЮТ: g_restartManager.request(500)                                │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                         restart_manager.cpp                                 │
+│                         RestartManager::request()                           │
 │                                                                             │
-│  static bool _pending = false;                                              │
-│  static unsigned long _requestTime = 0;                                     │
-│  static unsigned long _delayMs = 0;                                         │
+│  1. Проверяет, не запрошена ли уже перезагрузка                             │
+│  2. Устанавливает флаг _pending = true                                      │
+│  3. Запоминает время запроса и задержку                                     │
+│  4. Логирует запрос                                                         │
+└─────────────────────────────────────────────────────────────────────────────┘
+                                    │
+                                    ▼
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                         RestartManager::update()                            │
 │                                                                             │
-│  void restart_request(delayMs) {                                            │
-│      if (!_pending) {                                                      │
-│          _pending = true;                                                  │
-│          _requestTime = millis();                                           │
-│          _delayMs = delayMs;                                               │
-│          XLOG_INFO(CAT_RESTART, "Restart requested in %lu ms", delayMs);    │
-│      }                                                                      │
-│  }                                                                          │
-│                                                                             │
-│  void restart_update() {                                                    │
-│      if (_pending && millis() - _requestTime >= _delayMs) {                │
-│          XLOG_INFO(CAT_RESTART, "Executing restart...");                    │
-│          ESP.restart();   // ← ЕДИНСТВЕННЫЙ ВЫЗОВ В ПРОЕКТЕ                 │
-│      }                                                                      │
-│  }                                                                          │
+│  Вызывается в loop() последним                                              │
+│  1. Проверяет: _pending && (millis() - _requestTime >= _delayMs)            │
+│  2. Задерживается на 100 мс для отправки логов                              │
+│  3. Вызывает ESP.restart()                                                  │
 └─────────────────────────────────────────────────────────────────────────────┘
                                     │
                                     ▼
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              ESP.restart()                                  │
+│                                                                             │
+│  Единственный вызов в проекте                                               │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -96,10 +90,10 @@
 
 ## 3. API
 
-### 3.1. restart_request()
+### 3.1. request()
 
 ```cpp
-void restart_request(unsigned long delayMs = 500);
+void request(unsigned long delayMs = 500);
 ```
 
 **Назначение:** запросить перезагрузку устройства с задержкой.
@@ -120,21 +114,21 @@ void restart_request(unsigned long delayMs = 500);
 **Пример:**
 ```cpp
 // Запросить перезагрузку с задержкой 500 мс (по умолчанию)
-restart_request();
+g_restartManager.request();
 
 // Запросить перезагрузку с задержкой 2 секунды
-restart_request(2000);
+g_restartManager.request(2000);
 ```
 
 ---
 
-### 3.2. restart_update()
+### 3.2. update()
 
 ```cpp
-void restart_update();
+void update();
 ```
 
-**Назначение:** периодическая проверка необходимости перезагрузки. Вызывается в `loop()`.
+**Назначение:** периодическая проверка необходимости перезагрузки.
 
 **Параметры:** отсутствуют.
 
@@ -142,22 +136,24 @@ void restart_update();
 
 **Поведение:**
 - Если перезагрузка запрошена и задержка истекла — вызывает `ESP.restart()`
+- Останавливает WDT перед перезагрузкой
+- Даёт 100 мс на отправку логов
 - **Единственное место в проекте**, где вызывается `ESP.restart()`
 
 **Пример:**
 ```cpp
 void loop() {
     // ... все update() слоёв
-    restart_update();  // ← ПОСЛЕДНИЙ ВЫЗОВ В ЦИКЛЕ
+    g_restartManager.update();  // ← ПОСЛЕДНИЙ ВЫЗОВ В ЦИКЛЕ
 }
 ```
 
 ---
 
-### 3.3. restart_is_pending() (опционально)
+### 3.3. isPending()
 
 ```cpp
-bool restart_is_pending();
+bool isPending() const;
 ```
 
 **Назначение:** проверить, запрошена ли перезагрузка.
@@ -170,17 +166,17 @@ bool restart_is_pending();
 
 **Пример:**
 ```cpp
-if (restart_is_pending()) {
+if (g_restartManager.isPending()) {
     XLOG_DEBUG(CAT_MAIN, "Restart is pending, skipping some operations");
 }
 ```
 
 ---
 
-### 3.4. restart_cancel() (опционально)
+### 3.4. cancel()
 
 ```cpp
-void restart_cancel();
+void cancel();
 ```
 
 **Назначение:** отменить запланированную перезагрузку.
@@ -197,7 +193,7 @@ void restart_cancel();
 ```cpp
 // Внезапно отменили перезагрузку
 if (some_condition) {
-    restart_cancel();
+    g_restartManager.cancel();
     XLOG_INFO(CAT_MAIN, "Restart cancelled due to condition");
 }
 ```
@@ -210,8 +206,9 @@ if (some_condition) {
 
 ```cpp
 void setup() {
-    // ... инициализация всех слоёв
+    // ...
     // restart_manager не требует инициализации
+    // ...
 }
 ```
 
@@ -219,159 +216,69 @@ void setup() {
 
 ```cpp
 void loop() {
-    // ... все update() слоёв
-    restart_update();  // ← ПОСЛЕДНИЙ ВЫЗОВ В ЦИКЛЕ
+    // ... все update() слоёв ...
+    g_restartManager.update();  // ← ПОСЛЕДНИЙ ВЫЗОВ В ЦИКЛЕ
 }
 ```
 
 **Почему последний?** Чтобы все остальные операции (отправка логов, сохранение данных) успели завершиться до перезагрузки.
 
----
-
-## 5. Примеры использования
-
-### 5.1. Из Web-слоя (сохранение настроек)
+### Пример использования из оркестратора:
 
 ```cpp
-// web_manager.cpp — обработчик /save
-void web_handle_save() {
-    if (g_configManager.save()) {
-        g_webRestartPending = true;
-        // Оркестратор в loop() вызовет restart_request(500)
-    }
-}
-```
-
-### 5.2. Из ConfigManager (CRC ошибка)
-
-```cpp
-// config_manager.cpp
-bool ConfigManager::init() {
-    if (!isValid()) {
-        XLOG_ERROR(CAT_CONFIG, "Config corrupted, resetting to defaults");
-        setDefaults();
-        save();
-        restart_request(1000);  // ← перезагрузка через 1 секунду
-        return false;
-    }
-    return true;
-}
-```
-
-### 5.3. Из кнопки сброса
-
-```cpp
-// main.cpp — обработка кнопки
-if (stage == STAGE_3S) {
-    XLOG_WARN(CAT_MAIN, "Reset button held 3s - factory reset");
-    g_configManager.reset();
-    restart_request(500);
-}
-```
-
-### 5.4. Из OTA (после обновления)
-
-```cpp
-// ota.cpp
-void web_ota_manager_update() {
-    ElegantOTA.loop();
-    if (ElegantOTA.isFinished()) {
-        XLOG_INFO(CAT_OTA, "OTA update complete, restarting...");
-        restart_request(500);
-    }
+// main.cpp — обработка factory reset
+if (stage == BUTTON_HOLD) {
+    XLOG_WARN(CAT_MAIN, "Factory reset triggered!");
+    
+    // Сохраняем контекст для диагностики (debug_tools)
+    saveResetContext(RESET_REASON_FACTORY_RESET, getUptimeSeconds());
+    
+    g_ledManager.setMode(LED_OFF);
+    g_configManager.reset(g_transportConfig);
+    g_restartManager.request(500);  // ← Запрос перезагрузки
+    g_buttonManager.clearEvent();
 }
 ```
 
 ---
 
-## 6. Особенности реализации
+## 5. Настройка
 
-### 6.1. Защита от множественных вызовов
+| Флаг | По умолчанию | Описание |
+|------|--------------|----------|
+| `FEATURE_RESTART_ENABLED` | — | Пользовательский флаг включения слоя |
+| `USE_RESTART` | — | Внутренний флаг (определяется в `settings.h`) |
 
-```cpp
-static bool _pending = false;
+Внутренний флаг `USE_RESTART` определяется в `settings.h` на основе `FEATURE_RESTART_ENABLED`. При отключении слоя все методы становятся пустыми заглушками.
 
-void restart_request(unsigned long delayMs) {
-    if (!_pending) {
-        _pending = true;
-        _requestTime = millis();
-        _delayMs = delayMs;
-        XLOG_INFO(CAT_RESTART, "Restart requested in %lu ms", delayMs);
-    } else {
-        XLOG_DEBUG(CAT_RESTART, "Restart already pending, ignoring duplicate");
-    }
-}
-```
-
-### 6.2. Логирование перед перезагрузкой
-
-```cpp
-void restart_update() {
-    if (_pending && millis() - _requestTime >= _delayMs) {
-        XLOG_INFO(CAT_RESTART, "Executing restart...");
-        delay(100);  // Дать время на отправку логов
-        ESP.restart();
-    }
-}
-```
-
-### 6.3. Остановка WDT перед перезагрузкой
-
-```cpp
-void restart_update() {
-    if (_pending && millis() - _requestTime >= _delayMs) {
-        wdt_stop();  // Остановить WDT, чтобы не сработал во время перезагрузки
-        XLOG_INFO(CAT_RESTART, "Executing restart...");
-        delay(100);
-        ESP.restart();
-    }
-}
-```
-
-### 6.4. Внутреннее состояние (restart_manager.cpp)
-
-```cpp
-static bool _pending = false;
-static unsigned long _requestTime = 0;
-static unsigned long _delayMs = 0;
+**Пример включения:**
+```ini
+build_flags =
+    -D FEATURE_RESTART_ENABLED=1
 ```
 
 ---
 
-## 7. Рекомендации по использованию
+## 6. Файлы
 
-| Ситуация | Рекомендуемая задержка |
-|----------|------------------------|
-| Обычная перезагрузка | 500 мс |
-| После сохранения EEPROM | 500-1000 мс |
-| После OTA-обновления | 1000-2000 мс |
-| Сброс настроек (factory reset) | 500 мс |
-| Аварийная перезагрузка | 100 мс (минимальная) |
-
-**Общее правило:** задержка должна быть достаточной для отправки всех логов и завершения операций записи.
+| Файл | Описание |
+|------|----------|
+| `restart_manager.h` | Объявление класса |
+| `restart_manager.cpp` | Реализация |
 
 ---
 
-## 8. Проверка причин перезагрузки
+## 7. Связь с документацией
 
-При запуске можно определить, почему устройство перезагрузилось:
+| Документ | Описание связи |
+|----------|----------------|
+| `ARCHITECTURE.md` | Слой `RestartManager` является опциональным системным слоем, обеспечивающим единую точку вызова `ESP.restart()`. |
+| `ORCHESTRATOR.md` | Оркестратор вызывает `update()` в конце цикла и использует `request()` при необходимости перезагрузки. |
+| `BUTTON_MANAGER.md` | Оркестратор вызывает `request()` при получении стадии `BUTTON_HOLD` (factory reset). |
+| `LED_MANAGER.md` | Оркестратор управляет LED-индикацией перед вызовом `request()`. |
+| `CONFIG_MANAGER.md` | Оркестратор вызывает `reset()` перед `request()` при factory reset. |
+| `DEBUG_TOOLS.md` | Оркестратор вызывает `saveResetContext()` перед `request()` для сохранения диагностической информации. |
 
-```cpp
-// В setup()
-void setup() {
-    esp_reset_reason_t reason = esp_reset_reason();
-    switch (reason) {
-        case ESP_RST_POWERON:
-            XLOG_INFO(CAT_SYSTEM, "Reset reason: Power ON");
-            break;
-        case ESP_RST_WDT:
-            XLOG_WARN(CAT_SYSTEM, "Reset reason: Watchdog timeout");
-            break;
-        case ESP_RST_SW:
-            XLOG_INFO(CAT_SYSTEM, "Reset reason: Software restart (restart_manager)");
-            break;
-        // ... и т.д.
-    }
-}
-```
+---
 
+*Конец документа*

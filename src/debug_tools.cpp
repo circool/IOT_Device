@@ -1,12 +1,14 @@
 /**
  * @file debug_tools.cpp
  * @brief Различные процедуры для отладки
+ * @version 0.12
+ * @date 10.08.2026
  */
 
 #include "debug_tools.h"
-#include "logger.h"
 #include "common_types.h"
 #include "config_manager.h"
+#include "logger.h"
 
 #ifdef ESP8266
 #include <ESP8266WiFi.h>
@@ -14,7 +16,20 @@
 #elif defined(ESP32)
 #include <WiFi.h>
 #include <esp_chip_info.h>
+#include <esp_system.h>
 #endif
+
+// ============ RTC-память для сохранения контекста ============
+
+#ifdef ESP32
+static RTC_NOINIT_ATTR PersistentResetInfo s_resetInfo;
+#else
+static PersistentResetInfo s_resetInfo;
+#endif
+
+#define RESET_INFO_MAGIC 0xDEADBEEF
+
+// ============ Реализация ============
 
 float getChipTemperature() {
 #ifdef ESP32
@@ -24,66 +39,142 @@ float getChipTemperature() {
 #endif
 }
 
-const char* getResetReason() {
+ResetReason getResetReasonEnum() {
 #ifdef ESP8266
   struct rst_info* resetInfo = system_get_rst_info();
   uint8_t reason = resetInfo->reason;
   switch (reason) {
     case REASON_DEFAULT_RST:
-      return "POWER_ON";
+      return RESET_REASON_POWER_ON;
     case REASON_WDT_RST:
-      return "WATCHDOG_CRASH";
+      return RESET_REASON_WATCHDOG;
     case REASON_EXCEPTION_RST:
-      return "EXCEPTION_CRASH";
+      return RESET_REASON_EXCEPTION;
     case REASON_SOFT_WDT_RST:
-      return "SOFT_WDT_CRASH";
+      return RESET_REASON_WATCHDOG;
     case REASON_SOFT_RESTART:
-      return "SOFT_RESTART";
+      return RESET_REASON_SOFT_RESET;
     case REASON_DEEP_SLEEP_AWAKE:
-      return "DEEP_SLEEP_WAKE";
+      return RESET_REASON_DEEP_SLEEP_AWAKE;
     case REASON_EXT_SYS_RST:
-      return "EXT_RESET";
+      return RESET_REASON_EXT_SYS_RST;
     default:
-      return "UNKNOWN";
+      return RESET_REASON_NONE;
   }
 #elif defined(ESP32)
   esp_reset_reason_t reason = esp_reset_reason();
   switch (reason) {
     case ESP_RST_POWERON:
-      return "POWER_ON";
+      return RESET_REASON_POWER_ON;
     case ESP_RST_EXT:
-      return "EXT_RESET";
+      return RESET_REASON_EXT_SYS_RST;
     case ESP_RST_SW:
-      return "SOFT_RESTART";
+      return RESET_REASON_SOFT_RESET;
     case ESP_RST_PANIC:
-      return "PANIC_CRASH";
+      return RESET_REASON_EXCEPTION;
     case ESP_RST_INT_WDT:
-      return "INT_WDT_CRASH";
+      return RESET_REASON_WATCHDOG;
     case ESP_RST_TASK_WDT:
-      return "TASK_WDT_CRASH";
+      return RESET_REASON_SW_CPU_RESET;
     case ESP_RST_WDT:
-      return "WDT_CRASH";
+      return RESET_REASON_WATCHDOG;
     case ESP_RST_DEEPSLEEP:
-      return "DEEP_SLEEP_WAKE";
+      return RESET_REASON_DEEP_SLEEP_AWAKE;
+    case ESP_RST_BROWNOUT:
+      return RESET_REASON_BROWNOUT;
+    case ESP_RST_SDIO:
+      return RESET_REASON_EXT_SYS_RST;
+#ifdef ESP_RST_USB
+    case ESP_RST_USB:
+      return RESET_REASON_EXT_SYS_RST;
+#endif
+#ifdef ESP_RST_EFUSE
+    case ESP_RST_EFUSE:
+      return RESET_REASON_EXT_SYS_RST;
+#endif
     default:
-      return "UNKNOWN";
+      return RESET_REASON_NONE;
   }
 #else
-  return "UNKNOWN_PLATFORM";
+  return RESET_REASON_NONE;
 #endif
 }
 
-void print_system_info() {
+const char* getResetReason() {
+  ResetReason reason = getResetReasonEnum();
+  switch (reason) {
+    case RESET_REASON_NONE:
+      return "NONE";
+    case RESET_REASON_POWER_ON:
+      return "POWER_ON";
+    case RESET_REASON_WATCHDOG:
+      return "WATCHDOG";
+    case RESET_REASON_EXCEPTION:
+      return "EXCEPTION";
+    case RESET_REASON_SOFT_RESET:
+      return "SOFT_RESET";
+    case RESET_REASON_FACTORY_RESET:
+      return "FACTORY_RESET";
+    case RESET_REASON_BROWNOUT:
+      return "BROWNOUT";
+    case RESET_REASON_SW_CPU_RESET:
+      return "SW_CPU_RESET";
+    case RESET_REASON_DEEP_SLEEP_AWAKE:
+      return "DEEP_SLEEP_AWAKE";
+    case RESET_REASON_EXT_SYS_RST:
+      return "EXT_SYS_RST";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+uint32_t getUptimeSeconds() {
+  return millis() / 1000;
+}
+
+bool isRtcAvailable() {
+#ifdef ESP32
+  return true;
+#else
+  return false;
+#endif
+}
+
+bool isRtcPersistent() {
+  return (s_resetInfo.magic == RESET_INFO_MAGIC);
+}
+
+void saveResetContext(ResetReason reason, uint32_t uptime) {
+  s_resetInfo.reason = reason;
+  s_resetInfo.uptimeSeconds = uptime;
+  s_resetInfo.magic = RESET_INFO_MAGIC;
+}
+
+bool readResetContext(PersistentResetInfo* info) {
+  if (s_resetInfo.magic != RESET_INFO_MAGIC) {
+    return false;
+  }
+  if (info) {
+    *info = s_resetInfo;
+  }
+  return true;
+}
+
+void clearResetContext() {
+  s_resetInfo.magic = 0;
+  s_resetInfo.reason = RESET_REASON_NONE;
+  s_resetInfo.uptimeSeconds = 0;
+}
+
+// ============ printSystemInfo() ============
+
+void printSystemInfo() {
 #ifdef ESP32
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
 
-  // ================================================================
-  // ОПРЕДЕЛЕНИЕ ИМЕНИ ЧИПА
-  // ================================================================
   const char* chip_name = "Unknown";
 
-  // Пробуем определить через chip_info.model
   switch (chip_info.model) {
     case CHIP_ESP32:
       chip_name = "ESP32";
@@ -108,9 +199,6 @@ void print_system_info() {
       break;
 #endif
     default:
-      // ============================================================
-      // Если chip_info.model не распознан, пробуем определить по макросам
-      // ============================================================
 #if defined(CONFIG_IDF_TARGET_ESP32C6)
       chip_name = "ESP32-C6";
 #elif defined(CONFIG_IDF_TARGET_ESP32H2)
@@ -198,22 +286,20 @@ void print_system_info() {
   }
 
   XLOG_INFO(CAT_ALL, "Protocols: %s", protocols.c_str());
-  XLOG_INFO(CAT_ALL, "  WiFi: " ANSI_BOLD "%s" ,
-            hasWifi ? ANSI_GREEN "Yes" ANSI_RESET
-                    : ANSI_RED "No" ANSI_RESET);
-  XLOG_INFO(CAT_ALL, "  BLE: " ANSI_BOLD "%s" ,
+  XLOG_INFO(CAT_ALL, "  WiFi: " ANSI_BOLD "%s",
+            hasWifi ? ANSI_GREEN "Yes" ANSI_RESET : ANSI_RED "No" ANSI_RESET);
+  XLOG_INFO(CAT_ALL, "  BLE: " ANSI_BOLD "%s",
             hasBle ? ANSI_GREEN "Yes" ANSI_RESET : ANSI_RED "No" ANSI_RESET);
-  XLOG_INFO(CAT_ALL, "  IEEE 802.15.4: " ANSI_BOLD "%s" ,
+  XLOG_INFO(CAT_ALL, "  IEEE 802.15.4: " ANSI_BOLD "%s",
             has802154 ? ANSI_GREEN "Yes" ANSI_RESET : ANSI_RED "No" ANSI_RESET);
   if (hasBt) {
-    XLOG_INFO(CAT_ALL, "  BT Classic: " ANSI_BOLD "%s" ,
-              ANSI_GREEN "Yes" ANSI_RESET);
+    XLOG_INFO(CAT_ALL, "  BT Classic: " ANSI_GREEN "Yes" ANSI_RESET);
   }
 
   float temp = getChipTemperature();
   if (temp > -50.0f && temp < 150.0f) {
     XLOG_INFO(CAT_ALL, "Chip temperature: %.1f °C / %.1f °F", temp,
-              (temp * 9.0 / 5.0) + 32.0);
+              (temp * 9.0f / 5.0f) + 32.0f);
   } else {
     XLOG_INFO(CAT_ALL, "Chip temperature: Not available");
   }
@@ -247,10 +333,68 @@ void print_system_info() {
   );
   XLOG_INFO(CAT_ALL, "Firmware ver. %s", VERSION);
   XLOG_INFO(CAT_ALL, "Reset reason: %s", getResetReason());
+
+#ifdef ESP32
+  XLOG_INFO(CAT_ALL, "RTC memory: " ANSI_GREEN "Available" ANSI_RESET);
+  if (isRtcPersistent()) {
+    XLOG_INFO(CAT_ALL, "  - Status: " ANSI_GREEN "Data stored" ANSI_RESET);
+  } else {
+    ResetReason reason = getResetReasonEnum();
+    const char* note = "first boot or no data";
+    if (reason == RESET_REASON_EXT_SYS_RST) {
+      note = "hardware reset (RESET button)";
+    } else if (reason == RESET_REASON_POWER_ON) {
+      note = "power-on reset (data lost)";
+    }
+    XLOG_INFO(CAT_ALL, "  - Status: " ANSI_YELLOW "No data (%s)" ANSI_RESET,
+              note);
+  }
+#else
+  XLOG_INFO(CAT_ALL, "RTC memory: " ANSI_RED "Not supported" ANSI_RESET);
+#endif
+
+  PersistentResetInfo savedInfo;
+  if (readResetContext(&savedInfo)) {
+    const char* reasonStr = "UNKNOWN";
+    switch (savedInfo.reason) {
+      case RESET_REASON_FACTORY_RESET:
+        reasonStr = "FACTORY_RESET";
+        break;
+      case RESET_REASON_SOFT_RESET:
+        reasonStr = "SOFT_RESET";
+        break;
+      case RESET_REASON_WATCHDOG:
+        reasonStr = "WATCHDOG";
+        break;
+      case RESET_REASON_EXCEPTION:
+        reasonStr = "EXCEPTION";
+        break;
+      case RESET_REASON_BROWNOUT:
+        reasonStr = "BROWNOUT";
+        break;
+      default:
+        break;
+    }
+
+    XLOG_INFO(CAT_ALL, "Previous reset context:");
+    XLOG_INFO(CAT_ALL, "  - Reason: %s", reasonStr);
+    XLOG_INFO(CAT_ALL, "  - Uptime: %lu seconds (%.2f hours)",
+              savedInfo.uptimeSeconds, savedInfo.uptimeSeconds / 3600.0f);
+
+    if (savedInfo.reason == RESET_REASON_FACTORY_RESET) {
+      XLOG_INFO(CAT_ALL,
+                ANSI_YELLOW "  *** FACTORY RESET COMPLETED ***" ANSI_RESET);
+    }
+
+    clearResetContext();
+  } else {
+    XLOG_INFO(CAT_ALL, "Previous reset context: " ANSI_BOLD "none" ANSI_RESET);
+  }
 }
 
-void printConfig(const TransportConfig& transport,
-                 const DeviceConfig& device) {
+// ============ printConfig() ============
+
+void printConfig(const TransportConfig& transport, const DeviceConfig& device) {
   XLOG_INFO(CAT_CONFIG, "========== CONFIG DUMP ==========");
 
   XLOG_INFO(CAT_CONFIG, ANSI_BOLD "TRANSPORT CONFIG" ANSI_RESET);
@@ -293,41 +437,36 @@ void printConfig(const TransportConfig& transport,
   XLOG_INFO(CAT_CONFIG, "  Boot State: %s", device.bootState ? "ON" : "OFF");
 #endif
 
+  XLOG_INFO(CAT_CONFIG, "==================================");
 }
 
-/**
- * @brief Генерация случайного имени устройства
- * @param buffer Буфер для записи ID (должен быть минимум 32 байта)
- * @param size Размер буфера
- */
+// ============ generateRandomDeviceId() ============
+
 void generateRandomDeviceId(char* buffer, size_t size) {
   if (buffer == nullptr || size < 16) {
-    strncpy(buffer, "device", size - 1);
-    buffer[size - 1] = '\0';
+    if (buffer && size > 0) {
+      strncpy(buffer, "device", size - 1);
+      buffer[size - 1] = '\0';
+    }
     return;
   }
 
-  // Список прилагательных для создания "живых" имён
   static const char* adjectives[] = {
       "brave", "calm",   "eager", "fierce", "gentle",  "happy", "jolly",
       "kind",  "lively", "noble", "proud",  "quick",   "rapid", "swift",
       "wise",  "bold",   "cool",  "daring", "elegant", "fancy"};
 
-  // Список существительных
   static const char* nouns[] = {"panda", "tiger", "eagle", "dolphin", "falcon",
                                 "raven", "wolf",  "lynx",  "fox",     "bear",
                                 "owl",   "hawk",  "lion",  "deer",    "snake",
                                 "whale", "shark", "mouse", "rabbit",  "otter"};
 
-  // Инициализация генератора случайных чисел
-  // Используем esp_random() для ESP32 или random() для ESP8266
 #ifdef ESP8266
   randomSeed(analogRead(A0) + micros());
   uint8_t adjIdx = random(0, sizeof(adjectives) / sizeof(adjectives[0]));
   uint8_t nounIdx = random(0, sizeof(nouns) / sizeof(nouns[0]));
   uint16_t suffix = random(1000, 9999);
 #elif defined(ESP32)
-  // esp_random() возвращает 32-битное случайное число
   uint32_t randVal = esp_random();
   uint8_t adjIdx = randVal % (sizeof(adjectives) / sizeof(adjectives[0]));
   uint8_t nounIdx = (randVal >> 8) % (sizeof(nouns) / sizeof(nouns[0]));
