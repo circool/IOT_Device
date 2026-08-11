@@ -1,427 +1,627 @@
 /**
  * @file device_controller.cpp
  * @brief Реализация бизнес-логики устройства
+ * @version 0.13
+ * @date 11.08.2026
  */
 
 #include "device_controller.h"
+#include <string.h>
 #include "logger.h"
-#include "system_state.h"
+#include "settings.h"
+
+// ============================================================
+// КОНСТРУКТОР
+// ============================================================
 
 DeviceController::DeviceController()
-    : _config(nullptr)
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-      ,
-      _actuator(nullptr)
-#endif
-      ,
-      _callback(nullptr) {
-  _state.is_on = false;
-  _state.speed = 0;
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  _state.manual_mode = false;
-  _state.timer_mode = false;
-  _state.delay_remain_sec = 0;
-#endif
-
-#if DEVICE_TYPE == 1
-  _state.adaptive_mode_active = false;
-#endif
+    : _config(nullptr),
+      _changed(false),
+      _callback(nullptr),
+      _delayTimerRunning(false),
+      _delayTimerStart(0) {
+  memset(&_state, 0, sizeof(_state));
 }
 
-void DeviceController::init(const ConfigData* config
-#if DEVICE_TYPE == 1
-                            ,
-                            FanActuator* actuator
-#elif DEVICE_TYPE == 3
-                            ,
-                            SwitchActuator* actuator
-#endif
-) {
+// ============================================================
+// ИНИЦИАЛИЗАЦИЯ
+// ============================================================
+
+void DeviceController::init(const DeviceConfig* config,
+                            const DeviceState*& outState) {
+  if (!config) {
+    XLOG_ERROR(CAT_DEVICE, "init: config is NULL");
+    outState = nullptr;
+    return;
+  }
+
   _config = config;
 
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  _actuator = actuator;
+  // Датчик
+#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
+  sensor_init(&_sensor, SENSOR_TYPE, SENSOR_PIN);
+  XLOG_INFO(CAT_DEVICE, "Sensor initialized: type=%d", SENSOR_TYPE);
 #endif
 
-  if (_config) {
-    _state.is_on = _config->bootState;
-
+  // Актуатор
 #if DEVICE_TYPE == 1
-    _state.speed = _config->speedPercent;
-    _state.adaptive_mode_active = _config->adaptiveMode;
-#endif
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    _state.manual_mode = false;  // всегда начинаем с AUTO
-    _state.timer_mode = false;
-    _state.delay_remain_sec = 0;
-#endif
-  }
-
-  XLOG_INFO(CAT_DEVICE, "DeviceController initialized");
-}
-
-void DeviceController::update() {
-#if DEVICE_TYPE == 1
-  update_fan();
-#elif DEVICE_TYPE == 2
-  update_sensor();
+  _actuator.init(SWITCH_PIN, RELAY_ON_LEVEL, _config->bootState,
+                 _config->speedPercent, _config->adaptiveMode,
+                 _config->delaySeconds, _config->maxOnTime);
+  XLOG_INFO(CAT_DEVICE, "FanActuator initialized: pin=%d", SWITCH_PIN);
 #elif DEVICE_TYPE == 3
-  update_switch();
+  _actuator.init(SWITCH_PIN, RELAY_ON_LEVEL, _config->bootState,
+                 _config->delaySeconds, _config->maxOnTime);
+  XLOG_INFO(CAT_DEVICE, "SwitchActuator initialized: pin=%d", SWITCH_PIN);
 #endif
-}
 
-// ===== TYPE 1: FAN =====
+  // Состояние из конфига
+  _state.isOn = _config->bootState;
+  _state.speed = _config->speedPercent;
 
-#if DEVICE_TYPE == 1
-void DeviceController::update_fan() {
-  if (!_config || !_actuator)
-    return;
-
-  // 1. Проверка аварийного отключения
-  if (_actuator->isEmergencyStop()) {
-    // Если авария, блокируем логику
-    return;
-  }
-
-  // 2. Проверка ручного режима
-  if (_state.manual_mode) {
-    // В ручном режиме датчик и таймер игнорируются
-    return;
-  }
-  
-  if (!sensor_isOk()) {
-    // Датчик невалиден — ничего не делаем
-    return;
-  }
-  
-  float temp = sensor_getTemperature();
-  float hum = sensor_getHumidity();
-
-  // 4. Автоматический режим (пороги)
-  bool should_be_on = false;
-  if (temp >= _config->highTemp || hum >= _config->highHum) {
-    should_be_on = true;
-  } else if (temp < _config->lowTemp && hum < _config->lowHum) {
-    should_be_on = false;
+  if (_config->bootState) {
+    _state.manualMode = true;
+    _state.sensorMode = false;
+    _state.adaptiveMode = false;
   } else {
-    // В зоне гистерезиса — сохраняем текущее состояние
-    should_be_on = _state.is_on;
+    _state.manualMode = !_config->sensorControlMode;
+    _state.sensorMode = _config->sensorControlMode;
+    _state.adaptiveMode = _config->adaptiveMode;
   }
 
-  // 5. Применяем решение
-  bool state_changed = false;
+  _state.delayRemain = _config->delaySeconds;
+  _state.maxOnRemain = _config->maxOnTime;
+  _state.sensorValid = false;
+  _state.temperature = 0.0f;
+  _state.humidity = 0.0f;
 
-  if (should_be_on && !_state.is_on) {
-    // Включение
-    _state.is_on = true;
-    _actuator->set(true, false);  // auto mode
-    state_changed = true;
-  } else if (!should_be_on && _state.is_on) {
-    // Выключение
-    _state.is_on = false;
-    _state.speed = _config->speedPercent;  // сброс скорости
-    _actuator->set(false, false);          // auto mode
-    state_changed = true;
-  }
+  _delayTimerRunning = false;
+  _delayTimerStart = 0;
 
-  // 6. Адаптивный режим
-  if (_state.is_on && _state.adaptive_mode_active && _config->adaptiveMode &&
-      _state.speed < 100) {
-    // Адаптивная логика
-    int new_speed = _state.speed;
+  applyStateToActuator();
+  _changed = true;
 
-    if (temp > _config->highTemp + 1.0f || hum > _config->highHum + 5.0f) {
-      // Ухудшение → увеличиваем скорость
-      new_speed += 10;
-      if (new_speed > 100)
-        new_speed = 100;
-    } else if (temp < _config->lowTemp - 1.0f && hum < _config->lowHum - 5.0f) {
-      // Улучшение → снижаем скорость
-      new_speed -= 10;
-      if (new_speed < _config->speedPercent)
-        new_speed = _config->speedPercent;
-    }
+  // ===== ПЕРЕДАЁМ УКАЗАТЕЛЬ НА _state НАРУЖУ =====
+  outState = &_state;
 
-    if (new_speed != _state.speed) {
-      _state.speed = new_speed;
-      _actuator->setSpeed(_state.speed, false);
-      state_changed = true;
-    }
-  }
+  notifyChange(0xFFFFFFFF);
 
-  // 7. Уведомление об изменении
-  if (state_changed) {
-    notify_change(false);
-  }
+  XLOG_INFO(CAT_DEVICE, "Init complete: isOn=%d, speed=%d, manualMode=%d",
+            _state.isOn, _state.speed, _state.manualMode);
 }
-#endif
 
-// ===== TYPE 2: SENSOR =====
+// ============================================================
+// СЕТТЕРЫ
+// ============================================================
 
-#if DEVICE_TYPE == 2
-void DeviceController::update_sensor() {
-  // TYPE 2 ничего не делает, только публикует данные через колбэк
-  // Публикация будет в оркестраторе
-}
-#endif
-
-// ===== TYPE 3: SWITCH =====
-
-#if DEVICE_TYPE == 3
-void DeviceController::update_switch() {
-  if (!_config || !_actuator)
+void DeviceController::setOn(bool on) {
+  if (_state.isOn == on)
     return;
 
-  // 1. Проверка аварийного отключения
-  if (_actuator->isEmergencyStop()) {
-    return;
+  uint32_t changes = 0;
+
+  _state.isOn = on;
+  changes |= STATE_CHANGED_IS_ON;
+
+  if (!_state.manualMode) {
+    _state.manualMode = true;
+    changes |= STATE_CHANGED_MANUAL_MODE;
+  }
+  if (!on && _state.speed != _config->speedPercent) {
+    _state.speed = _config->speedPercent;
+    changes |= STATE_CHANGED_SPEED;
   }
 
-  // 2. Ручной режим — ничего не делаем
-  if (_state.manual_mode) {
-    return;
+  if (_state.sensorMode) {
+    _state.sensorMode = false;
+    changes |= STATE_CHANGED_SENSOR_MODE;
   }
 
-  // 3. Таймер отложенного включения (только в автоматическом режиме)
-  if (_config->delaySeconds > 0 && !_state.is_on && !_state.timer_mode) {
-    _state.timer_mode = true;
-    _state.delay_remain_sec = _config->delaySeconds;
-    XLOG_INFO(CAT_DEVICE, "Delay timer started: %d sec", _config->delaySeconds);
+  if (_state.adaptiveMode) {
+    _state.adaptiveMode = false;
+    changes |= STATE_CHANGED_ADAPTIVE_MODE;
   }
 
-  if (_state.timer_mode) {
-    if (_state.delay_remain_sec > 0) {
-      _state.delay_remain_sec--;
-      // Каждую секунду обновляем
-      if (_state.delay_remain_sec % 5 == 0) {
-        notify_change(false);
-      }
-    } else {
-      // Таймер сработал
-      _state.is_on = true;
-      _state.timer_mode = false;
-      _state.manual_mode = true;  // переход в ручной режим
-      _actuator->set(true, true);
-      notify_change(false);
-      XLOG_INFO(CAT_DEVICE, "Delay timer expired, switch ON (manual mode)");
-    }
-  }
-}
-#endif
+  XLOG_DEBUG(CAT_DEVICE, "setOn: %s", on ? "ON" : "OFF");
 
-// ===== ОБЩИЕ МЕТОДЫ =====
-
-void DeviceController::handle_command(command_type_t type, float value) {
-  bool need_save = false;
-
-  switch (type) {
-    case CMD_DO_RESET:
-      // Сброс к заводским — оркестратор сам обработает
-      XLOG_WARN(CAT_DEVICE, "Factory reset requested");
-      break;
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-    case CMD_SET_ACTUATOR:
-      set_state((bool)value);
-      break;
-
-    case CMD_SET_DELAY_SEC:
-      if (_config) {
-        const_cast<ConfigData*>(_config)->delaySeconds = (int)value;
-        need_save = true;
-        XLOG_INFO(CAT_DEVICE, "Delay seconds set to %d", (int)value);
-      }
-      break;
-
-    case CMD_SET_MAX_ON_TIME:
-      if (_config) {
-        const_cast<ConfigData*>(_config)->maxOnTime = (uint32_t)value;
-        need_save = true;
-        XLOG_INFO(CAT_DEVICE, "Max on time set to %lu", (uint32_t)value);
-      }
-      break;
-
-    case CMD_SET_BOOT_STATE:
-      if (_config) {
-        const_cast<ConfigData*>(_config)->bootState = (bool)value;
-        need_save = true;
-        XLOG_INFO(CAT_DEVICE, "Boot state set to %s", (bool)value ? "ON" : "OFF");
-      }
-      break;
-#endif
-
-#if DEVICE_TYPE == 1
-    case CMD_SET_SPEED:
-      set_speed((int)value);
-      break;
-
-    case CMD_SET_LOW_TEMP:
-      if (_config) {
-        const_cast<ConfigData*>(_config)->lowTemp = value;
-        need_save = true;
-        XLOG_INFO(CAT_DEVICE, "Low temp set to %.1f", value);
-      }
-      break;
-
-    case CMD_SET_HIGH_TEMP:
-      if (_config) {
-        const_cast<ConfigData*>(_config)->highTemp = value;
-        need_save = true;
-        XLOG_INFO(CAT_DEVICE, "High temp set to %.1f", value);
-      }
-      break;
-
-    case CMD_SET_LOW_HUM:
-      if (_config) {
-        const_cast<ConfigData*>(_config)->lowHum = value;
-        need_save = true;
-        XLOG_INFO(CAT_DEVICE, "Low hum set to %.1f", value);
-      }
-      break;
-
-    case CMD_SET_HIGH_HUM:
-      if (_config) {
-        const_cast<ConfigData*>(_config)->highHum = value;
-        need_save = true;
-        XLOG_INFO(CAT_DEVICE, "High hum set to %.1f", value);
-      }
-      break;
-
-    case CMD_SET_SENSOR_CONTROL_MODE:
-      if (_config) {
-        const_cast<ConfigData*>(_config)->sensorControlMode = (bool)value;
-        need_save = true;
-        // Если включаем AUTO — выходим из ручного режима
-        if ((bool)value) {
-          _state.manual_mode = false;
-        }
-        XLOG_INFO(CAT_DEVICE, "Sensor control mode: %s",
-                  (bool)value ? "AUTO" : "MANUAL");
-      }
-      break;
-
-    case CMD_SET_ADAPTIVE_MODE:
-      if (_config) {
-        const_cast<ConfigData*>(_config)->adaptiveMode = (bool)value;
-        _state.adaptive_mode_active = (bool)value;
-        need_save = true;
-        XLOG_INFO(CAT_DEVICE, "Adaptive mode: %s", (bool)value ? "ON" : "OFF");
-      }
-      break;
-#endif
-
-    default:
-      XLOG_WARN(CAT_DEVICE, "Unknown command: %d", type);
-      break;
-  }
-
-  if (need_save) {
-    notify_change(true);
-  }
+  _changed = true;
+  applyStateToActuator();
+  notifyChange(changes);
 }
 
-void DeviceController::set_state(bool on) {
-  if (_state.is_on == on)
-    return;
-
-  _state.is_on = on;
-  _state.manual_mode = true;
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  if (_actuator) {
-    _actuator->set(on, true);
-  }
-#endif
-
-  if (!on) {
-    // При выключении сбрасываем скорость
-#if DEVICE_TYPE == 1
-    if (_config) {
-      _state.speed = _config->speedPercent;
-    }
-#endif
-  }
-
-  notify_change(false);
-  XLOG_INFO(CAT_DEVICE, "State set to %s (manual mode)", on ? "ON" : "OFF");
-}
-
-void DeviceController::set_speed(int percent) {
-#if DEVICE_TYPE == 1
-  if (percent < 0)
-    percent = 0;
+void DeviceController::setSpeed(uint8_t percent) {
   if (percent > 100)
     percent = 100;
-
+  if (!_state.isOn) {
+    XLOG_DEBUG(CAT_DEVICE, "setSpeed: %d%% ignored (actuator OFF)", percent);
+    return;
+  }
   if (_state.speed == percent)
     return;
 
-  _state.speed = percent;
-  _state.manual_mode = true;
+  uint32_t changes = 0;
 
-  if (_actuator) {
-    _actuator->setSpeed(percent, true);
+  _state.speed = percent;
+  changes |= STATE_CHANGED_SPEED;
+
+  if (!_state.manualMode) {
+    _state.manualMode = true;
+    changes |= STATE_CHANGED_MANUAL_MODE;
   }
 
-  notify_change(false);
-  XLOG_INFO(CAT_DEVICE, "Speed set to %d%% (manual mode)", percent);
-#else
-  // TYPE 2 и TYPE 3 не имеют скорости
-  (void)percent;
-#endif
+  if (_state.adaptiveMode) {
+    _state.adaptiveMode = false;
+    changes |= STATE_CHANGED_ADAPTIVE_MODE;
+  }
+
+  XLOG_DEBUG(CAT_DEVICE, "setSpeed: %d%%", percent);
+
+  _changed = true;
+  applyStateToActuator();
+  notifyChange(changes);
 }
 
-void DeviceController::set_manual_mode(bool enabled) {
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  if (_state.manual_mode == enabled)
+void DeviceController::setSensorMode(bool on) {
+  if (_state.sensorMode == on)
     return;
 
-  _state.manual_mode = enabled;
+  uint32_t changes = 0;
 
-  if (!enabled && _config) {
-    XLOG_INFO(CAT_DEVICE, "Manual mode OFF, returning to AUTO");
-  } else if (enabled) {
-    XLOG_INFO(CAT_DEVICE, "Manual mode ON");
+  _state.sensorMode = on;
+  changes |= STATE_CHANGED_SENSOR_MODE;
+
+  if (on && _state.manualMode) {
+    _state.manualMode = false;
+    changes |= STATE_CHANGED_MANUAL_MODE;
   }
 
-  notify_change(false);
-#else
-  // TYPE 2 не имеет ручного режима
-  (void)enabled;
-#endif
+  XLOG_DEBUG(CAT_DEVICE, "setSensorMode: %s", on ? "ON" : "OFF");
+
+  _changed = true;
+  notifyChange(changes);
 }
 
-const operational_state_t* DeviceController::get_state() const {
-  return &_state;
+void DeviceController::setAdaptiveMode(bool on) {
+  if (_state.adaptiveMode == on)
+    return;
+
+  uint32_t changes = 0;
+
+  _state.adaptiveMode = on;
+  changes |= STATE_CHANGED_ADAPTIVE_MODE;
+
+  if (on) {
+    if (_state.manualMode) {
+      _state.manualMode = false;
+      changes |= STATE_CHANGED_MANUAL_MODE;
+    }
+  } else {
+    if (_state.isOn && _state.speed != _config->speedPercent) {
+      _state.speed = _config->speedPercent;
+      changes |= STATE_CHANGED_SPEED;
+    }
+  }
+
+  XLOG_DEBUG(CAT_DEVICE, "setAdaptiveMode: %s",on ? "ON" : "OFF");
+
+  _changed = true;
+  applyStateToActuator();
+  notifyChange(changes);
 }
 
-void DeviceController::set_state_callback(state_callback_t callback) {
+// ============================================================
+// ВНУТРЕННИЕ МЕТОДЫ — ТАЙМЕРЫ
+// ============================================================
+
+bool DeviceController::updateDelayTimer(uint32_t& changes) {
+  bool changed = false;
+  changes = 0;
+
+  static unsigned long lastUpdateTime = 0;
+  unsigned long now = millis();
+  if (now - lastUpdateTime < 1000)
+    return false;
+  lastUpdateTime = now;
+
+  // ===== ЗАПУСК ТАЙМЕРА =====
+  if (_config->delaySeconds > 0 && !_state.isOn && !_delayTimerRunning &&
+      !_state.manualMode) {
+    _delayTimerRunning = true;
+    _delayTimerStart = millis();
+    _state.delayRemain = _config->delaySeconds;
+    changed = true;
+    changes |= STATE_CHANGED_DELAY_REMAIN;
+    XLOG_INFO(CAT_DEVICE, "Delay timer started: %lu sec",
+              _config->delaySeconds);
+    return changed;
+  }
+
+  // ===== ПРОВЕРКА ТАЙМЕРА =====
+  if (_delayTimerRunning) {
+    unsigned long elapsed = (millis() - _delayTimerStart) / 1000UL;
+    if (elapsed >= _config->delaySeconds) {
+      _delayTimerRunning = false;
+
+      _state.delayRemain = 0;
+      changes |= STATE_CHANGED_DELAY_REMAIN;
+
+      if (!_state.isOn) {
+        _state.isOn = true;
+        changes |= STATE_CHANGED_IS_ON;
+      }
+
+      if (!_state.manualMode) {
+        _state.manualMode = true;
+        changes |= STATE_CHANGED_MANUAL_MODE;
+      }
+
+      if (_state.sensorMode) {
+        _state.sensorMode = false;
+        changes |= STATE_CHANGED_SENSOR_MODE;
+      }
+
+      if (_state.adaptiveMode) {
+        _state.adaptiveMode = false;
+        changes |= STATE_CHANGED_ADAPTIVE_MODE;
+      }
+
+      changed = true;
+      XLOG_INFO(CAT_DEVICE, "Delay timer expired: %lu sec",
+                _config->delaySeconds);
+    } else {
+      uint32_t remain = _config->delaySeconds - elapsed;
+      if (remain != _state.delayRemain) {
+        _state.delayRemain = remain;
+        changed = true;
+        changes |= STATE_CHANGED_DELAY_REMAIN;
+      }
+    }
+  }
+
+  // ===== ОТМЕНА ТАЙМЕРА =====
+  if (_state.isOn && _delayTimerRunning) {
+    _delayTimerRunning = false;
+    if (_state.delayRemain != 0) {
+      _state.delayRemain = 0;
+      changes |= STATE_CHANGED_DELAY_REMAIN;
+    }
+    changed = true;
+    XLOG_DEBUG(CAT_DEVICE, "Delay timer cancelled");
+  }
+
+  if (!_delayTimerRunning && _state.delayRemain != 0) {
+    _state.delayRemain = 0;
+    changed = true;
+    changes |= STATE_CHANGED_DELAY_REMAIN;
+  }
+
+  return changed;
+}
+
+bool DeviceController::updateTimerRemains(uint32_t& changes) {
+  bool changed = false;
+  changes = 0;
+
+  static unsigned long lastUpdateTime = 0;
+  unsigned long now = millis();
+  if (now - lastUpdateTime < 1000)
+    return false;
+  lastUpdateTime = now;
+
+  uint32_t maxOnRemain = 0;
+  if (_config->maxOnTime > 0 && _config->maxOnTime <= 86400) {
+    if (_state.isOn) {
+      unsigned long elapsed = (millis() - _actuator.getStartTime()) / 1000UL;
+      if (elapsed >= _config->maxOnTime) {
+        maxOnRemain = (uint32_t)-1;
+      } else {
+        maxOnRemain = _config->maxOnTime - elapsed;
+      }
+    } else {
+      maxOnRemain = _config->maxOnTime;
+    }
+  }
+
+  if (maxOnRemain != _state.maxOnRemain) {
+    _state.maxOnRemain = maxOnRemain;
+    changed = true;
+    changes |= STATE_CHANGED_MAX_ON_REMAIN;
+    XLOG_DEBUG(CAT_DEVICE, "TIMER: maxOnRemain=%lu", maxOnRemain);
+  }
+
+  return changed;
+}
+
+// ============================================================
+// АДАПТИВНЫЙ РЕЖИМ
+// ============================================================
+
+int DeviceController::calculateAdaptiveSpeed() const {
+  if (!_state.adaptiveMode || _state.manualMode || !_state.isOn ||
+      _state.speed >= 100 || !_state.sensorValid) {
+    return -1;
+  }
+
+  int newSpeed = _state.speed;
+
+  if (_state.temperature > _config->highTemp + 1.0f ||
+      _state.humidity > _config->highHum + 5.0f) {
+    newSpeed += 10;
+    if (newSpeed > 100)
+      newSpeed = 100;
+  } else if (_state.temperature < _config->lowTemp - 1.0f &&
+             _state.humidity < _config->lowHum - 5.0f) {
+    newSpeed -= 10;
+    if (newSpeed < _config->speedPercent) {
+      newSpeed = _config->speedPercent;
+    }
+  } else {
+    return -1;
+  }
+
+  if (newSpeed == _state.speed)
+    return -1;
+  return newSpeed;
+}
+
+// ============================================================
+// UPDATE
+// ============================================================
+
+void DeviceController::update() {
+  if (!_config)
+    return;
+
+#if DEVICE_TYPE == 1
+  bool changed = false;
+  uint32_t changes = 0;
+  // ===== АКТУАТОР (обработка стартового импульса, таймеров) =====
+  _actuator.update();
+  
+  // ===== 1. ДАТЧИК =====
+  sensor_update(&_sensor);
+  float newTemp = sensor_getTemperature(&_sensor);
+  float newHum = sensor_getHumidity(&_sensor);
+  bool newValid = sensor_isOk(&_sensor);
+
+  if (newTemp != _state.temperature) {
+    _state.temperature = newTemp;
+    changed = true;
+    changes |= STATE_CHANGED_TEMPERATURE;
+  }
+  if (newHum != _state.humidity) {
+    _state.humidity = newHum;
+    changed = true;
+    changes |= STATE_CHANGED_HUMIDITY;
+  }
+  if (newValid != _state.sensorValid) {
+    _state.sensorValid = newValid;
+    changed = true;
+    changes |= STATE_CHANGED_SENSOR_VALID;
+    XLOG_DEBUG(CAT_DEVICE, "SENSOR: valid=%d, temp=%.1f, hum=%.1f", newValid,
+               newTemp, newHum);
+  }
+
+  // ===== 2. АВАРИЯ =====
+  if (_actuator.isEmergencyStop()) {
+    if (changed) {
+      _changed = true;
+      notifyChange(changes);
+    }
+    return;
+  }
+
+  // ===== 3. ТАЙМЕР ОТЛОЖЕННОГО ВКЛЮЧЕНИЯ =====
+  uint32_t timerChanges = 0;
+  if (updateDelayTimer(timerChanges)) {
+    changed = true;
+    changes |= timerChanges;
+
+    if (!_delayTimerRunning && _state.delayRemain == 0 && !_state.isOn) {
+      _state.isOn = true;
+      changes |= STATE_CHANGED_IS_ON;
+
+      _state.manualMode = true;
+      changes |= STATE_CHANGED_MANUAL_MODE;
+
+      _state.sensorMode = false;
+      changes |= STATE_CHANGED_SENSOR_MODE;
+
+      _state.adaptiveMode = false;
+      changes |= STATE_CHANGED_ADAPTIVE_MODE;
+
+      XLOG_INFO(CAT_DEVICE, "Delay timer expired: turning ON (manual mode)");
+    }
+  }
+
+  // ===== 4. АВТОМАТИКА ПО ПОРОГАМ =====
+  if (_state.sensorMode && !_state.manualMode && _state.sensorValid) {
+    bool shouldBeOn = false;
+    if (_state.temperature >= _config->highTemp ||
+        _state.humidity >= _config->highHum) {
+      shouldBeOn = true;
+    } else if (_state.temperature < _config->lowTemp &&
+               _state.humidity < _config->lowHum) {
+      shouldBeOn = false;
+    } else {
+      shouldBeOn = _state.isOn;
+    }
+
+    if (shouldBeOn != _state.isOn) {
+      _state.isOn = shouldBeOn;
+      changed = true;
+      changes |= STATE_CHANGED_IS_ON;
+
+      if (!shouldBeOn) {
+        _state.speed = _config->speedPercent;
+        changes |= STATE_CHANGED_SPEED;
+      }
+      XLOG_DEBUG(CAT_DEVICE, "AUTO: isOn=%d", shouldBeOn);
+    }
+  }
+
+  // ===== 5. АДАПТИВНЫЙ РЕЖИМ =====
+  int newSpeed = calculateAdaptiveSpeed();
+  if (newSpeed >= 0) {
+    _state.speed = newSpeed;
+    changed = true;
+    changes |= STATE_CHANGED_SPEED;
+    XLOG_DEBUG(CAT_DEVICE, "ADAPTIVE: speed=%d%%", newSpeed);
+  }
+
+  // ===== 6. ТАЙМЕРЫ =====
+  uint32_t remainChanges = 0;
+  if (updateTimerRemains(remainChanges)) {
+    changed = true;
+    changes |= remainChanges;
+  }
+
+  // ===== 7. ПРИМЕНЕНИЕ =====
+  if (changed) {
+    applyStateToActuator();
+    _changed = true;
+    notifyChange(changes);
+  }
+
+#elif DEVICE_TYPE == 2
+  bool changed = false;
+  uint32_t changes = 0;
+
+  sensor_update(&_sensor);
+  float newTemp = sensor_getTemperature(&_sensor);
+  float newHum = sensor_getHumidity(&_sensor);
+  bool newValid = sensor_isOk(&_sensor);
+
+  if (newTemp != _state.temperature) {
+    _state.temperature = newTemp;
+    changed = true;
+    changes |= STATE_CHANGED_TEMPERATURE;
+  }
+  if (newHum != _state.humidity) {
+    _state.humidity = newHum;
+    changed = true;
+    changes |= STATE_CHANGED_HUMIDITY;
+  }
+  if (newValid != _state.sensorValid) {
+    _state.sensorValid = newValid;
+    changed = true;
+    changes |= STATE_CHANGED_SENSOR_VALID;
+    XLOG_DEBUG(CAT_DEVICE, "SENSOR: valid=%d, temp=%.1f, hum=%.1f", newValid,
+               newTemp, newHum);
+  }
+
+  if (changed) {
+    _changed = true;
+    notifyChange(changes);
+  }
+
+#elif DEVICE_TYPE == 3
+  bool changed = false;
+  uint32_t changes = 0;
+
+  _actuator.update(_config->delaySeconds, _config->maxOnTime);
+
+  if (_actuator.isEmergencyStop()) {
+    if (changed) {
+      _changed = true;
+      notifyChange(changes);
+    }
+    return;
+  }
+
+  // ===== ТАЙМЕР ОТЛОЖЕННОГО ВКЛЮЧЕНИЯ =====
+  uint32_t timerChanges = 0;
+  if (updateDelayTimer(timerChanges)) {
+    changed = true;
+    changes |= timerChanges;
+
+    if (!_delayTimerRunning && _state.delayRemain == 0 && !_state.isOn) {
+      _state.isOn = true;
+      changes |= STATE_CHANGED_IS_ON;
+
+      _state.manualMode = true;
+      changes |= STATE_CHANGED_MANUAL_MODE;
+
+      _state.sensorMode = false;
+      changes |= STATE_CHANGED_SENSOR_MODE;
+
+      _state.adaptiveMode = false;
+      changes |= STATE_CHANGED_ADAPTIVE_MODE;
+
+      XLOG_INFO(CAT_DEVICE, "Delay timer expired: turning ON (manual mode)");
+    }
+  }
+
+  // ===== ТАЙМЕРЫ =====
+  uint32_t remainChanges = 0;
+  if (updateTimerRemains(remainChanges)) {
+    changed = true;
+    changes |= remainChanges;
+  }
+
+  // ===== СИНХРОНИЗАЦИЯ =====
+  bool actuatorState = _actuator.getState();
+  if (actuatorState != _state.isOn) {
+    _state.isOn = actuatorState;
+    changed = true;
+    changes |= STATE_CHANGED_IS_ON;
+  }
+
+  if (changed) {
+    applyStateToActuator();
+    _changed = true;
+    notifyChange(changes);
+  }
+
+#endif  // DEVICE_TYPE
+}
+
+// ============================================================
+// КОЛБЭК
+// ============================================================
+
+void DeviceController::onStateChanged(DeviceControllerCallback callback) {
   _callback = callback;
 }
 
-void DeviceController::apply_state() {
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-  if (!_actuator)
+// ============================================================
+// ВНУТРЕННИЕ МЕТОДЫ
+// ============================================================
+
+void DeviceController::notifyChange(uint32_t changes) {
+  if (!_callback)
+    return;
+  if (!_changed)
     return;
 
-  bool current_on = _actuator->getState();
-  if (current_on != _state.is_on) {
-    _actuator->set(_state.is_on, !_state.manual_mode);
-  }
+  _callback(changes);
+  _changed = false;
 
-#if DEVICE_TYPE == 1
-  int current_speed = _actuator->getSpeed();
-  if (current_speed != _state.speed) {
-    _actuator->setSpeed(_state.speed, !_state.manual_mode);
-  }
-#endif
-#endif
+  // XLOG_DEBUG(CAT_DEVICE, "notifyChange: changes=0x%08X", changes);
 }
 
-void DeviceController::notify_change(bool need_save) {
-  if (_callback) {
-    _callback(&_state, need_save);
+void DeviceController::applyStateToActuator() {
+#if DEVICE_TYPE == 1
+  bool currentOn = _actuator.getState();
+  if (currentOn != _state.isOn) {
+    _actuator.set(_state.isOn, _state.manualMode);
+    XLOG_DEBUG(CAT_ACTUATOR, "APPLY: isOn %s -> %s", currentOn ? "ON" : "OFF",
+               _state.isOn ? "ON" : "OFF");
   }
+
+  int currentSpeed = _actuator.getSpeed();
+  if (currentSpeed != _state.speed) {
+    _actuator.setSpeed(_state.speed, _state.manualMode);
+    XLOG_DEBUG(CAT_ACTUATOR, "APPLY: speed %d%% -> %d%%", currentSpeed,
+               _state.speed);
+  }
+
+#elif DEVICE_TYPE == 3
+  bool currentOn = _actuator.getState();
+  if (currentOn != _state.isOn) {
+    _actuator.set(_state.isOn, _state.manualMode);
+    XLOG_DEBUG(CAT_ACTUATOR, "APPLY: isOn %s -> %s", currentOn ? "ON" : "OFF",
+               _state.isOn ? "ON" : "OFF");
+  }
+#endif
 }

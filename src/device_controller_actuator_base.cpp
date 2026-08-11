@@ -1,20 +1,26 @@
-#include "actuator_base.h"
+/**
+ * @file device_controller_actuator_base.cpp
+ * @brief Реализация базового класса актуатора
+ */
+
+#include "device_controller_actuator_base.h"
 #include "logger.h"
 
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
+
+
 
 ActuatorBase::ActuatorBase()
-    : onSetPhysicalCallback(nullptr),
-      onForceStopCallback(nullptr),
-      onManualCommandCallback(nullptr),
-      callbackContext(nullptr),
-      _pin(0),
+    : _pin(0),
       _relayOnLevel(LOW),
       _state(false),
       _startTime(0),
       _delayActive(false),
       _delayTimer(0),
-      _emergencyStop(false) {}
+      _emergencyStop(false),
+      onSetPhysicalCallback(nullptr),
+      onForceStopCallback(nullptr),
+      onManualCommandCallback(nullptr),
+      callbackContext(nullptr) {}
 
 void ActuatorBase::init(uint8_t pin,
                         uint8_t relayOnLevel,
@@ -26,40 +32,39 @@ void ActuatorBase::init(uint8_t pin,
 
   _pin = pin;
   _relayOnLevel = relayOnLevel;
-
-  pinMode(_pin, OUTPUT);
   _delayActive = false;
   _delayTimer = 0;
   _startTime = 0;
   _emergencyStop = false;
 
+  pinMode(_pin, OUTPUT);
+
   if (bootState) {
-    if (onSetPhysicalCallback)
+    if (onSetPhysicalCallback) {
       onSetPhysicalCallback(callbackContext, true);
+    }
     _state = true;
     _startTime = millis();
   } else {
-    if (onSetPhysicalCallback)
+    if (onSetPhysicalCallback) {
       onSetPhysicalCallback(callbackContext, false);
+    }
     _state = false;
     _startTime = 0;
   }
 
-  XLOG_INFO(CAT_ACTUATOR, "Init: pin=%d, state=%s, bootState=%s", _pin,
-            _state ? "ON" : "OFF", bootState ? "ON" : "OFF");
+  XLOG_INFO(CAT_ACTUATOR, "Init: pin=%d, state=%s", _pin,
+            _state ? "ON" : "OFF");
 }
 
 void ActuatorBase::set(bool on, bool manual) {
-  // Обработка ручного режима выполняется всегда, даже если состояние не
-  // меняется
   if (manual) {
     if (onManualCommandCallback) {
       onManualCommandCallback(callbackContext);
     }
-
     if (_delayActive) {
       _delayActive = false;
-      XLOG_INFO(CAT_ACTUATOR, "Manual - delay cancelled");
+      XLOG_DEBUG(CAT_ACTUATOR, "Manual command: delay cancelled");
     }
   }
 
@@ -74,14 +79,11 @@ void ActuatorBase::set(bool on, bool manual) {
 
   if (_state) {
     _emergencyStop = false;
-  }
-
-  if (_state) {
     _startTime = millis();
-    XLOG_INFO(CAT_ACTUATOR, "ON");
+    // XLOG_DEBUG(CAT_ACTUATOR, "ON");
   } else {
     _startTime = 0;
-    XLOG_INFO(CAT_ACTUATOR, "OFF");
+    // XLOG_DEBUG(CAT_ACTUATOR, "OFF");
   }
 }
 
@@ -103,11 +105,12 @@ void ActuatorBase::update(int delaySeconds, uint32_t maxOnTime) {
 }
 
 void ActuatorBase::forceStop() {
-  XLOG_INFO(CAT_ACTUATOR, "Force stop!");
+  XLOG_WARN(CAT_ACTUATOR, "Force stop!");
   set(false, true);
   _emergencyStop = true;
-  if (onForceStopCallback)
+  if (onForceStopCallback) {
     onForceStopCallback(callbackContext);
+  }
 }
 
 void ActuatorBase::checkMaxOnTime(uint32_t maxOnTime) {
@@ -128,17 +131,15 @@ bool ActuatorBase::delayTimer(bool start, int delaySeconds) {
     if (delaySeconds > 0 && !_delayActive && !_state) {
       _delayActive = true;
       _delayTimer = millis() + delaySeconds * 1000UL;
-      XLOG_INFO(CAT_ACTUATOR, "Delay start: %d sec", delaySeconds);
+      XLOG_INFO(CAT_ACTUATOR, "Delay started: %d sec", delaySeconds);
     }
     return false;
   } else {
     if (_delayActive && millis() >= _delayTimer) {
       _delayActive = false;
-      XLOG_INFO(CAT_ACTUATOR, "Delay expired");
+      XLOG_DEBUG(CAT_ACTUATOR, "Delay expired");
       return true;
     }
     return false;
   }
 }
-
-#endif
