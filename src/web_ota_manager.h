@@ -13,7 +13,7 @@
 #define FEATURE_OTA_ENABLED 1
 #endif
 
-#if FEATURE_OTA_ENABLED == 1
+#ifdef USE_OTA
 
 /**
  * @brief Инициализация OTA-подсистемы

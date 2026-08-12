@@ -1,18 +1,17 @@
 /**
  * @file web_common.cpp
  * @brief Реализация общих Web-функций
- * @date 2026-07-28
  */
 
 #include "web_common.h"
 #include "html_templates.h"
-
-#include <cstring>
 #include "logger.h"
-#include "settings.h"
-#include "system_state.h"
 
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
+
+// ============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ МАКРОСЫ
+// ============================================================================
 
 // ============================================================================
 // РЕНДЕРИНГ ПОЛЕЙ
@@ -54,7 +53,7 @@ void render(char* buf, size_t size, const TextField& field) {
   strncat(input, ">", sizeof(input) - strlen(input) - 1);
   strncat(temp, input, sizeof(temp) - strlen(temp) - 1);
 
-  if (field.note) {
+  if (field.note && strlen(field.note) > 0) {
     char note[128];
     snprintf(note, sizeof(note), "<div class='note'>%s</div>", field.note);
     strncat(temp, note, sizeof(temp) - strlen(temp) - 1);
@@ -114,7 +113,7 @@ void render(char* buf, size_t size, const NumberField& field) {
   strncat(input, ">", sizeof(input) - strlen(input) - 1);
   strncat(temp, input, sizeof(temp) - strlen(temp) - 1);
 
-  if (field.note) {
+  if (field.note && strlen(field.note) > 0) {
     char note[128];
     snprintf(note, sizeof(note), "<div class='note'>%s</div>", field.note);
     strncat(temp, note, sizeof(temp) - strlen(temp) - 1);
@@ -152,7 +151,7 @@ void render(char* buf, size_t size, const CheckboxField& field) {
   strncat(chk, "</label>", sizeof(chk) - strlen(chk) - 1);
   strncat(temp, chk, sizeof(temp) - strlen(temp) - 1);
 
-  if (field.note) {
+  if (field.note && strlen(field.note) > 0) {
     char note[128];
     snprintf(note, sizeof(note), "<div class='note'>%s</div>", field.note);
     strncat(temp, note, sizeof(temp) - strlen(temp) - 1);
@@ -254,6 +253,118 @@ void render(char* buf, size_t size, const InfoBlockParams& params) {
 }
 
 // ============================================================================
+// РЕНДЕРИНГ ОБЩИХ БЛОКОВ (WiFi + MQTT) — ИСПРАВЛЕНО
+// ============================================================================
+
+void renderWifiBlock(char* buf,
+                     size_t size,
+                     const TransportConfig* config,
+                     PageMode mode) {
+  if (!buf || size == 0)
+    return;
+  buf[0] = '\0';
+  (void)mode;
+
+  char temp[256];
+
+  snprintf(temp, sizeof(temp), "<h2>WiFi Settings</h2>");
+  SAFE_STRCAT(buf, temp, size);
+
+  // SSID
+  TextField ssidField;
+  ssidField.label = "WiFi SSID";
+  ssidField.name = "wifiSsid";
+  ssidField.note = "Required";
+  ssidField.value = config ? config->wifiSsid : "";
+  ssidField.placeholder = "Enter WiFi name";
+  ssidField.hideInput = false;
+  ssidField.required = true;
+  render(temp, sizeof(temp), ssidField);
+  SAFE_STRCAT(buf, temp, size);
+
+  // Password
+  TextField passField;
+  passField.label = "WiFi Password";
+  passField.name = "wifiPassword";
+  passField.note = "Leave empty if not changed";
+  passField.value = "";
+  passField.placeholder = "Enter WiFi password";
+  passField.hideInput = true;
+  passField.required = false;
+  render(temp, sizeof(temp), passField);
+  SAFE_STRCAT(buf, temp, size);
+}
+
+void renderMQTTBlock(char* buf, size_t size, const TransportConfig* config) {
+  if (!buf || size == 0)
+    return;
+  buf[0] = '\0';
+
+#if FEATURE_MQTT_ENABLED == 1
+  char temp[256];
+
+  snprintf(temp, sizeof(temp), "<h2>MQTT Settings</h2>");
+  SAFE_STRCAT(buf, temp, size);
+
+  // Broker
+  TextField brokerField;
+  brokerField.label = "MQTT Broker";
+  brokerField.name = "mqttBroker";
+  brokerField.note = "IP or hostname";
+  brokerField.value = config ? config->mqttBroker : "";
+  brokerField.placeholder = "192.168.1.100";
+  brokerField.hideInput = false;
+  brokerField.required = false;
+  render(temp, sizeof(temp), brokerField);
+  SAFE_STRCAT(buf, temp, size);
+
+  // Port
+  NumberField portField;
+  portField.label = "MQTT Port";
+  portField.name = "mqttPort";
+  portField.note = "1-65535";
+  char portStr[8];
+  if (config && config->mqttPort > 0) {
+    snprintf(portStr, sizeof(portStr), "%d", config->mqttPort);
+  } else {
+    portStr[0] = '\0';
+  }
+  portField.value = portStr;
+  portField.placeholder = "1883";
+  portField.min = "1";
+  portField.max = "65535";
+  portField.step = "1";
+  portField.required = false;
+  render(temp, sizeof(temp), portField);
+  SAFE_STRCAT(buf, temp, size);
+
+  // User
+  TextField userField;
+  userField.label = "MQTT User";
+  userField.name = "mqttUser";
+  userField.note = "Optional";
+  userField.value = config ? config->mqttUser : "";
+  userField.placeholder = "Username";
+  userField.hideInput = false;
+  userField.required = false;
+  render(temp, sizeof(temp), userField);
+  SAFE_STRCAT(buf, temp, size);
+
+  // Password
+  TextField mqttPassField;
+  mqttPassField.label = "MQTT Password";
+  mqttPassField.name = "mqttPassword";
+  mqttPassField.note = "Optional";
+  mqttPassField.value = "";
+  mqttPassField.placeholder = "Password";
+  mqttPassField.hideInput = true;
+  mqttPassField.required = false;
+  render(temp, sizeof(temp), mqttPassField);
+  SAFE_STRCAT(buf, temp, size);
+#endif
+}
+
+// ============================================================================
 // ОТПРАВКА СТРАНИЦ
 // ============================================================================
 
@@ -336,27 +447,6 @@ void web_send_result_page(WebSendCallback send,
            className, action, success ? "successful" : "failed",
            success ? "Redirecting..." : "Please try again.");
   send(temp, context);
-  web_sendPageEnd(send, context);
-}
-
-void web_sendApProvisioningPage(WebSendCallback send, void* context) {
-  if (!send)
-    return;
-
-  web_sendPageStart(send, context, "WiFi Setup", PAGE_MODE_AP);
-
-  send((const char*)"<div class='container'>"
-         "<h1>WiFi Setup</h1>"
-         "<form method='POST' action='/savewifi'>"
-         "<label>WiFi SSID</label>"
-         "<input type='text' name='wifiSsid' required placeholder='Enter WiFi name'>"
-         "<label>WiFi Password</label>"
-         "<input type='password' name='wifiPassword' placeholder='Leave empty for open network'>"
-         "<input type='submit' value='Save and Reboot'>"
-         "</form>"
-         "<div class='note'>Device will reboot and connect to your WiFi network.</div>"
-         "</div>", context);
-
   web_sendPageEnd(send, context);
 }
 

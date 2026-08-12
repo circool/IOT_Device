@@ -29,10 +29,8 @@ input[type=checkbox]{width:20px;height:20px;margin-right:10px;vertical-align:mid
 
 input[type=submit],button,.link-btn{color:white;background:#050505;padding:10px 20px;margin-top:20px;border:none;border-radius:4px;cursor:pointer;width:100%;font-size:1em;text-align:center;text-decoration:none;display:block;box-sizing:border-box;}
 input[type=submit]:hover,button:hover,.link-btn:hover{background:#030303;}
-
-.block,.card{border-style:solid;border-width:1px;}
-.block{padding:15px;border-radius:8px;margin:10px 0;}
-.card{display:inline-block;width:45%;margin:10px;padding:15px;border-radius:10px;text-align:center;}
+.block, .card {padding:15px;margin:10px;border-radius:10px;border-style:solid;border-width:1px;}
+.card{text-align:center;}
 
 .info{background:#e7f3ff;border-color:#b8d4f0;}
 .warning{background:#fff3cd;color:#856404;border-color:#ffc107;}

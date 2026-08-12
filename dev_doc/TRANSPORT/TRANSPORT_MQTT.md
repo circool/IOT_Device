@@ -178,16 +178,16 @@ void MqttProtocol::publishState(const DeviceState* state) {
     }
 }
 
-void MqttProtocol::publishSettings(const DeviceSettings* settings) {
+void MqttProtocol::publishSettings(const DeviceConfig* settings) {
     if (!_enabled || !_connected) return;
     
     // Настройки — {clientId}/config/{параметр}
-    publish("config/lowTemp", String(settings->low_temp));
-    publish("config/highTemp", String(settings->high_temp));
-    publish("config/lowHum", String(settings->low_hum));
-    publish("config/highHum", String(settings->high_hum));
+    publish("config/lowTemp", String(settings->lowTemp));
+    publish("config/highTemp", String(settings->highTemp));
+    publish("config/lowHum", String(settings->lowHum));
+    publish("config/highHum", String(settings->highHum));
     publish("config/delaySec", String(settings->delay_seconds));
-    publish("config/maxOnTime", String(settings->max_on_time));
+    publish("config/maxOnTime", String(settings->maxOnTime));
     publish("config/sensor_control_mode", settings->sensor_control_mode ? "SENSOR" : "MANUAL");
     publish("config/adaptive_mode", settings->adaptive_mode ? "ON" : "OFF");
     publish("config/boot_state", settings->boot_state ? "ON" : "OFF");

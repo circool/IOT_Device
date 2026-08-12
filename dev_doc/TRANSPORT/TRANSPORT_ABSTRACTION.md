@@ -184,7 +184,7 @@ typedef struct Transport {
     
     // ===== ПУБЛИКАЦИЯ (устройство → внешний мир) =====
     void (*publishState)(const DeviceState* state);
-    void (*publishSettings)(const DeviceSettings* settings);
+    void (*publishSettings)(const DeviceConfig* settings);
     
     // ===== КОЛБЭКИ (внешний мир → устройство) =====
     void (*onCommand)(TransportCommandCallback callback);
@@ -222,13 +222,13 @@ typedef struct {
     char deviceId[32];
     
     // ===== WiFi (только если USE_WIFI == 1) =====
-    #if USE_WIFI == 1
+    #ifdef USE_WIFI
         char wifiSsid[32];
         char wifiPassword[64];
     #endif
     
     // ===== MQTT (только если USE_MQTT == 1) =====
-    #if USE_MQTT == 1
+    #ifdef USE_MQTT
         char mqttBroker[64];
         uint16_t mqttPort;
         char mqttUser[32];
@@ -237,7 +237,7 @@ typedef struct {
     #endif
     
     // ===== Zigbee (только если USE_ZIGBEE == 1) =====
-    #if USE_ZIGBEE == 1
+    #ifdef USE_ZIGBEE
         uint16_t zigbeePanId;
         uint8_t zigbeeChannel;
         char zigbeeNetworkKey[32];
@@ -253,20 +253,20 @@ typedef struct {
 } TransportConfig;
 ```
 
-### 6.2. DeviceSettings — бизнес-настройки устройства (сохраняются в EEPROM)
+### 6.2. DeviceConfig — бизнес-настройки устройства (сохраняются в EEPROM)
 
 ```cpp
 typedef struct {
     bool sensor_control_mode;  // TRUE = SENSOR, FALSE = MANUAL
     bool adaptive_mode;        // TRUE = адаптивный режим включён
-    float low_temp;
-    float high_temp;
-    float low_hum;
-    float high_hum;
+    float lowTemp;
+    float highTemp;
+    float lowHum;
+    float highHum;
     uint32_t delay_seconds;
-    uint32_t max_on_time;
+    uint32_t maxOnTime;
     uint8_t boot_state;        // 0 = OFF, 1 = ON
-} DeviceSettings;
+} DeviceConfig;
 ```
 
 ### 6.3. DeviceState — оперативное состояние устройства
@@ -443,7 +443,7 @@ typedef struct {
     bool gateway_ok;       // Сервис доступен (MQTT/Coordinator/Border Router)
     bool setup_mode;       // Идёт настройка
     
-    #if USE_WIFI == 1
+    #ifdef USE_WIFI
         int8_t link_quality;  // RSSI в dBm (-100..0), только для WiFi
     #endif
     
@@ -533,7 +533,7 @@ typedef struct {
 #include "transport.h"
 
 // Подключаем реализации в зависимости от флагов
-#if USE_WIFI == 1
+#ifdef USE_WIFI
     #include "transport_wifi.h"
 #elif USE_ZIGBEE == 1
     #include "transport_zigbee.h"
@@ -546,7 +546,7 @@ typedef struct {
  * @return Указатель на структуру Transport или nullptr
  */
 inline Transport* createTransport() {
-    #if USE_WIFI == 1
+    #ifdef USE_WIFI
         return getWiFiTransport();
     #elif USE_ZIGBEE == 1
         return getZigbeeTransport();
@@ -605,31 +605,31 @@ void setup() {
 ```cpp
 // transport_wifi.cpp — условная компиляция компонентов
 
-#if USE_HTTP == 1
+#ifdef USE_HTTP
     #include "transport_http.h"
     HttpProtocol _http;
 #endif
 
-#if USE_MQTT == 1
+#ifdef USE_MQTT
     #include "transport_mqtt.h"
     MqttProtocol _mqtt;
 #endif
 
-#if USE_BLE_SETUP == 1
+#ifdef USE_BLE
     #include "transport_ble.h"
     BleServer _ble;
 #endif
 
 void WiFiTransport::update() {
-    #if USE_HTTP == 1
+    #ifdef USE_HTTP
         _http.update();
     #endif
 
-    #if USE_MQTT == 1
+    #ifdef USE_MQTT
         _mqtt.update();
     #endif
 
-    #if USE_BLE_SETUP == 1
+    #ifdef USE_BLE
         if (_state == STATE_SETUP_MODE) {
             _ble.update();
         }

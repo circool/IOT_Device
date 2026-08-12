@@ -195,7 +195,7 @@ Data flow:
 |------| ---------|
 |`transport_factory.h`| Фабрика транспортов |
 |`transport_wifi.h/cpp`| WiFi-транспорт |
-|`transport_manager_mqtt.h/cpp`|MQTT-протокол- прикладной протокол WiFi-транспорта|
+|`transport_wifi_mqtt.h/cpp`|MQTT-протокол- прикладной протокол WiFi-транспорта|
 |`transport_manager_http.h/cpp`|HTTP-протокол - прикладной протокол WiFi-транспорта|
 |`html_temoplates.h/cpp`|HTTP-протокол - прикладной протокол WiFi-транспорта|
 |`transport_manager_ota.h/cpp`|OTA-подсистема HTTP-протокола|

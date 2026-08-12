@@ -177,7 +177,7 @@ void HttpProtocol::updateState(const DeviceState* state) {
     _cachedState = *state;  // Сохраняем последнее состояние
 }
 
-void HttpProtocol::updateSettings(const DeviceSettings* settings) {
+void HttpProtocol::updateSettings(const DeviceConfig* settings) {
     _cachedSettings = *settings;  // Сохраняем последние настройки
 }
 ```
@@ -229,7 +229,7 @@ extern const char HTML_STYLE[] PROGMEM;
   - Текстовое поле
   - Числовое поле
   - Чекбокс
-- Блоки не знают о бизнес-логике — они работают только с переданными структурами (`DeviceState`, `DeviceSettings`).
+- Блоки не знают о бизнес-логике — они работают только с переданными структурами (`DeviceState`, `DeviceConfig`).
 
 ```cpp
 // Пример: компоновка страницы состояния из блоков
@@ -287,7 +287,7 @@ HTTP-протокол передаёт команды оркестратору �
 | `/set?state=on` | Включить | `CMD_STATE(true)` |
 | `/set?state=off` | Выключить | `CMD_STATE(false)` |
 | `/set?speed=75` | Скорость 75% | `CMD_SPEED(75)` |
-| `/set?sensorControlMode=1` | Включить AUTO | `CMD_SET_SENSOR_CONTROL_MODE(true)` |
+| `/set?sensorMode=1` | Включить AUTO | `CMD_SET_SENSOR_CONTROL_MODE(true)` |
 | `/set?adaptiveMode=1` | Включить адаптивный | `CMD_SET_ADAPTIVE_MODE(true)` |
 
 ### 9.2. Передача конфигурации
@@ -314,14 +314,14 @@ void HttpProtocol::handleSaveTransport() {
 
 ```cpp
 void HttpProtocol::handleSaveDevice() {
-    DeviceSettings settings;
+    DeviceConfig settings;
     settings.lowTemp = _server->arg("lowTemp").toFloat();
     settings.highTemp = _server->arg("highTemp").toFloat();
     settings.lowHum = _server->arg("lowHum").toFloat();
     settings.highHum = _server->arg("highHum").toFloat();
     settings.delaySeconds = _server->arg("delaySeconds").toInt();
     settings.maxOnTime = _server->arg("maxOnTime").toInt();
-    settings.sensorControlMode = _server->arg("sensorControlMode") == "1";
+    settings.sensorMode = _server->arg("sensorMode") == "1";
     settings.adaptiveMode = _server->arg("adaptiveMode") == "1";
     settings.bootState = _server->arg("bootState") == "1";
     // ...

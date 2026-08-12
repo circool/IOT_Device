@@ -277,11 +277,11 @@ void WiFiTransport::setMode(bool setupMode) {
 
 ```cpp
 void WiFiTransport::publishState(const DeviceState* state) {
-    #if USE_HTTP == 1
+    #ifdef USE_HTTP
         _http.updateState(state);   // HTTP кэширует состояние
     #endif
     
-    #if USE_MQTT == 1
+    #ifdef USE_MQTT
         _mqtt.publishState(state);  // MQTT публикует в топики
     #endif
 }

@@ -1,17 +1,69 @@
-#ifndef ZIGBEE_TRANSPORT_H
-#define ZIGBEE_TRANSPORT_H
+/**
+ * @file transport_zigbee.h
+ * @brief Zigbee-транспорт — заглушка
+ */
 
+#ifndef TRANSPORT_ZIGBEE_H
+#define TRANSPORT_ZIGBEE_H
+
+#include "config_manager.h"
+#include "settings.h"
 #include "transport.h"
+#include "transport_types.h"
 
 // ============================================================================
-// ZIGBEE ТРАНСПОРТ — ЗАГЛУШКА (реальная реализация позже)
+// ZIGBEE-ТРАНСПОРТ (с заглушками)
 // ============================================================================
+
+#ifdef USE_ZIGBEE
 
 /**
- * @brief Получить глобальный экземпляр ZigBee транспорта
- * @return Указатель на структуру Transport с заполненными методами
- * @note Пока что все методы — заглушки (возвращают false или ничего не делают)
+ * @brief Zigbee-транспорт (заглушка)
+ * @details Все методы только логируют вызовы. Используется как заглушка
+ *          до реализации реального Zigbee-стека.
+ */
+typedef struct ZigbeeTransport {
+  Transport base;
+
+  // ===== СОСТОЯНИЕ =====
+  bool initialized;
+  bool connected;
+  const TransportConfig* config;
+
+  // ===== ВНУТРЕННЕЕ СОСТОЯНИЕ ТРАНСПОРТА =====
+  TransportState _state;
+  TransportEventCallback _eventCallback;
+  void* _eventContext;
+} ZigbeeTransport;
+
+/**
+ * @brief Получить глобальный экземпляр Zigbee-транспорта
+ * @return Указатель на структуру Transport
  */
 Transport* getZigbeeTransport();
 
-#endif  // ZIGBEE_TRANSPORT_H
+#else  // USE_ZIGBEE == 0
+
+// ============================================================================
+// ЗАГЛУШКИ (USE_ZIGBEE == 0)
+// ============================================================================
+
+/**
+ * @brief Заглушка ZigbeeTransport — Zigbee-транспорт отключён
+ * @details Используется при TRANSPORT_TYPE != ZIGBEE
+ */
+typedef struct ZigbeeTransport {
+  Transport base;
+} ZigbeeTransport;
+
+/**
+ * @brief Заглушка — Zigbee-транспорт отключён
+ * @return Всегда возвращает nullptr
+ */
+inline Transport* getZigbeeTransport() {
+  return nullptr;
+}
+
+#endif  // USE_ZIGBEE
+
+#endif  // TRANSPORT_ZIGBEE_H

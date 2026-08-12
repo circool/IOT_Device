@@ -177,7 +177,7 @@ static void transport_publishState(const DeviceState* state) {
     // Отправить состояние в сеть
 }
 
-static void transport_publishSettings(const DeviceSettings* settings) {
+static void transport_publishSettings(const DeviceConfig* settings) {
     XLOG_DEBUG(CAT_TRANSPORT, "[%s] publishSettings() called", getTransportName());
     // Отправить настройки в сеть
 }
@@ -239,12 +239,12 @@ Transport* get<Name>Transport() {
 #include "settings.h"
 #include "transport.h"
 
-#if USE_<NAME> == 1
+#ifdef USE_<NAME>
     #include "transport_<name>.h"
 #endif
 
 inline Transport* createTransport() {
-    #if USE_WIFI == 1
+    #ifdef USE_WIFI
         return getWiFiTransport();
     #elif USE_ZIGBEE == 1
         return getZigbeeTransport();

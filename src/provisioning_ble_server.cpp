@@ -5,17 +5,16 @@
 
 #include "provisioning_ble_server.h"
 #include "logger.h"
-#include "provisioning_manager.h"
 #include "settings.h"
+#include "transport_manager_provisioning.h"
 
-
-
+#ifdef USE_BLE
 
 #ifdef ESP32
 BleProvisioningServer* g_bleServer = nullptr;
 
 #include <WiFi.h>
-#include <WiFiProv.h>  // Этот заголовок есть для всех ESP32 (включая C6)
+#include <WiFiProv.h>
 
 // Определяем, какие макросы использовать
 // Для ESP32-C6/H2 используем NETWORK_PROV_*, для остальных — WIFI_PROV_*
@@ -35,9 +34,13 @@ static const uint8_t PROV_UUID[16] = {0xb4, 0xdf, 0x5a, 0x1c, 0x3f, 0x6b,
 
 static BleWifiConfig g_receivedConfig;
 static bool g_credentialsReceived = false;
+static ProvisioningManager* g_provManager = nullptr;
 
 static void SysProvEvent(arduino_event_t* sys_event) {
-  auto& prov = ProvisioningManager::getInstance();
+  if (!g_provManager) {
+    XLOG_WARN(CAT_BLE, "ProvisioningManager not set");
+    return;
+  }
 
   switch (sys_event->event_id) {
     case ARDUINO_EVENT_PROV_CRED_RECV: {
@@ -58,7 +61,7 @@ static void SysProvEvent(arduino_event_t* sys_event) {
 
     case ARDUINO_EVENT_PROV_CRED_FAIL: {
       XLOG_WARN(CAT_BLE, "Credentials failed");
-      prov.onBleStatus(ARDUINO_EVENT_PROV_CRED_FAIL);
+      g_provManager->onBleError();
       break;
     }
 
@@ -66,18 +69,8 @@ static void SysProvEvent(arduino_event_t* sys_event) {
       XLOG_DEBUG(CAT_BLE, "Provisioning successful");
 
       if (g_credentialsReceived) {
-        ProvisioningData data;
-        memset(&data, 0, sizeof(data));
-        data.type = 0;
-
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
-        strncpy(data.wifiSsid, g_receivedConfig.wifiSsid,
-                sizeof(data.wifiSsid) - 1);
-        strncpy(data.wifiPassword, g_receivedConfig.wifiPassword,
-                sizeof(data.wifiPassword) - 1);
-#endif
-
-        prov.onDataReceived(data);
+        g_provManager->onDataReceived(g_receivedConfig.wifiSsid,
+                                      g_receivedConfig.wifiPassword);
         g_credentialsReceived = false;
       }
       break;
@@ -109,10 +102,16 @@ BleProvisioningServer::~BleProvisioningServer() {
   stop();
 }
 
-bool BleProvisioningServer::begin() {
+bool BleProvisioningServer::begin(ProvisioningManager* manager) {
   if (_active)
     return true;
 
+  if (!manager) {
+    XLOG_ERROR(CAT_BLE, "ProvisioningManager is null");
+    return false;
+  }
+
+  g_provManager = manager;
   g_credentialsReceived = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
 
@@ -140,9 +139,11 @@ void BleProvisioningServer::stop() {
   _active = false;
   g_credentialsReceived = false;
   memset(&g_receivedConfig, 0, sizeof(g_receivedConfig));
+  g_provManager = nullptr;
 
   WiFi.removeEvent(SysProvEvent);
   XLOG_DEBUG(CAT_BLE, "BLE provisioning stopped");
 }
 
 #endif
+#endif // USE_BLE

@@ -118,8 +118,8 @@
 | `[ TURN ON ]` | Device: OFF | `/set?state=on` |
 | `[ -20% ]` | Speed > 0 | `/set?speed={speed-20}` |
 | `[ +20% ]` | Speed < 100 | `/set?speed={speed+20}` |
-| `[ TURN MANUAL MODE ]` | Mode: SENSOR | `/set?sensorControlMode=0` |
-| `[ TURN SENSOR MODE ]` | Mode: MANUAL | `/set?sensorControlMode=1` |
+| `[ TURN MANUAL MODE ]` | Mode: SENSOR | `/set?sensorMode=0` |
+| `[ TURN SENSOR MODE ]` | Mode: MANUAL | `/set?sensorMode=1` |
 | `[ TURN ADAPTIVE OFF ]` | Adaptive: ON | `/set?adaptiveMode=0` |
 | `[ TURN ADAPTIVE ON ]` | Adaptive: OFF | `/set?adaptiveMode=1` |
 
@@ -416,7 +416,7 @@ Last reset: WATCHDOG
 | `highHum` | number | ✅ | `HUM_MIN`–`HUM_MAX` | Верхний порог влажности |
 | `delaySeconds` | number | ✅ | 0–86400 | Задержка включения |
 | `maxOnTime` | number | ✅ | 0–86400 | Аварийное отключение |
-| `sensorControlMode` | checkbox | ❌ | 0/1 | SENSOR / MANUAL |
+| `sensorMode` | checkbox | ❌ | 0/1 | SENSOR / MANUAL |
 | `adaptiveMode` | checkbox | ❌ | 0/1 | Адаптивный режим |
 | `bootState` | checkbox | ❌ | 0/1 | Состояние при старте |
 | `confirmSave` | checkbox | ✅ | — | Подтверждение сохранения |
@@ -460,13 +460,13 @@ Last reset: WATCHDOG
 |----------|-----|----------|------------|--------------|
 | `state` | `on`/`off` | — | Включить/выключить актуатор | TYPE 1, 3 |
 | `speed` | number | 0–100 | Установить скорость | TYPE 1 |
-| `sensorControlMode` | 0/1 | — | Включить/выключить SENSOR | TYPE 1 |
+| `sensorMode` | 0/1 | — | Включить/выключить SENSOR | TYPE 1 |
 | `adaptiveMode` | 0/1 | — | Включить/выключить адаптивный | TYPE 1 |
 
 **Примеры:**
 - `/set?state=on` — включить
 - `/set?speed=75` — скорость 75%
-- `/set?sensorControlMode=1` — включить SENSOR
+- `/set?sensorMode=1` — включить SENSOR
 
 ---
 

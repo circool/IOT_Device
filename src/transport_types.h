@@ -1,39 +1,33 @@
+/**
+ * @file transport_types.h
+ * @brief Типы данных для транспортной абстракции
+ */
+
 #ifndef TRANSPORT_TYPES_H
 #define TRANSPORT_TYPES_H
 
+#include <stdbool.h>
 #include <stdint.h>
+#include "common_types.h"
 
 // ============================================================================
-// ТИПЫ КОЛБЭКОВ (единые для всех транспортов)
+// КОМАНДЫ
 // ============================================================================
 
-/** @brief Колбэк с булевым параметром */
-typedef void (*TransportBoolCallback)(bool value, void* context);
 
-/** @brief Колбэк с целочисленным параметром */
-typedef void (*TransportIntCallback)(int value, void* context);
-
-/** @brief Колбэк с 32-битным беззнаковым параметром */
-typedef void (*TransportUintCallback)(uint32_t value, void* context);
-
-/** @brief Колбэк с float-параметром */
-typedef void (*TransportFloatCallback)(float value, void* context);
-
-/** @brief Колбэк без параметров */
-typedef void (*TransportVoidCallback)(void* context);
 
 // ============================================================================
-// КОНТЕЙНЕР ДЛЯ КОЛБЭКА С КОНТЕКСТОМ
+// ТИПЫ КОЛБЭКОВ
 // ============================================================================
 
 /**
- * @brief Простая структура для хранения колбэка и контекста
- * @note Без std::function — экономия RAM (~32 байта на колбэк)
+ * @brief Колбэк для событий транспорта
+ * @param event Указатель на структуру события (TransportEventData)
+ * @param context Контекст, переданный при регистрации
  */
-template <typename T>
-struct TransportCallback {
-  T func = nullptr;
-  void* context = nullptr;
-};
+typedef void (*TransportEventCallback)(const TransportEventData* event,
+                                       void* context);
+
+
 
 #endif  // TRANSPORT_TYPES_H

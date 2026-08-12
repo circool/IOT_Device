@@ -6,7 +6,7 @@
 #include "web_ota_manager.h"
 #include "logger.h"
 
-#if FEATURE_OTA_ENABLED == 1
+#ifdef USE_OTA
 
 #include <ElegantOTA.h>
 

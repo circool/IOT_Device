@@ -15,7 +15,7 @@
 - [1. Назначение](#1-назначение)
 - [2. Структуры данных](#2-структуры-данных)
   - [2.1. TransportConfig](#21-transportconfig)
-  - [2.2. DeviceSettings](#22-devicesettings)
+  - [2.2. DeviceConfig](#22-DeviceConfig)
   - [2.3. DeviceState](#23-devicestate)
 - [3. Права доступа](#3-права-доступа)
 - [4. Жизненный цикл](#4-жизненный-цикл)
@@ -47,13 +47,13 @@ typedef struct {
     char deviceId[32];
     
     // ===== WiFi (USE_WIFI == 1) =====
-    #if USE_WIFI == 1
+    #ifdef USE_WIFI
         char wifiSsid[32];
         char wifiPassword[64];
     #endif
     
     // ===== MQTT (USE_MQTT == 1) =====
-    #if USE_MQTT == 1
+    #ifdef USE_MQTT
         char mqttBroker[64];
         uint16_t mqttPort;
         char mqttUser[32];
@@ -62,7 +62,7 @@ typedef struct {
     #endif
     
     // ===== Zigbee (USE_ZIGBEE == 1) =====
-    #if USE_ZIGBEE == 1
+    #ifdef USE_ZIGBEE
         uint16_t zigbeePanId;
         uint8_t zigbeeChannel;
         char zigbeeNetworkKey[32];
@@ -88,7 +88,7 @@ typedef struct {
 
 ---
 
-### 2.2. DeviceSettings
+### 2.2. DeviceConfig
 
 **Назначение:** Бизнес-настройки устройства.
 
@@ -100,14 +100,14 @@ typedef struct {
 typedef struct {
     bool sensor_control_mode;  // TRUE = SENSOR, FALSE = MANUAL
     bool adaptive_mode;        // TRUE = адаптивный режим включён
-    float low_temp;
-    float high_temp;
-    float low_hum;
-    float high_hum;
+    float lowTemp;
+    float highTemp;
+    float lowHum;
+    float highHum;
     uint32_t delay_seconds;
-    uint32_t max_on_time;
+    uint32_t maxOnTime;
     uint8_t boot_state;        // 0 = OFF, 1 = ON
-} DeviceSettings;
+} DeviceConfig;
 ```
 
 **Кто имеет право писать:**
@@ -159,7 +159,7 @@ typedef struct {
 | Структура | Пишет | Читает |
 |-----------|-------|--------|
 | **TransportConfig** | Оркестратор, HTTP | Транспорт, HTTP |
-| **DeviceSettings** | DeviceController, HTTP | DeviceController, HTTP, MQTT |
+| **DeviceConfig** | DeviceController, HTTP | DeviceController, HTTP, MQTT |
 | **DeviceState** | DeviceController | Транспорт, HTTP, MQTT, LED, Оркестратор |
 
 ---
@@ -176,7 +176,7 @@ typedef struct {
    b. Транспорт перезапускается с новыми параметрами
 ```
 
-### 4.2. DeviceSettings
+### 4.2. DeviceConfig
 
 ```
 1. Загрузка из EEPROM (при старте)
@@ -204,7 +204,7 @@ typedef struct {
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                              ConfigManager                                  │
 │                                                                             │
-│  • Хранит TransportConfig и DeviceSettings в EEPROM                        │
+│  • Хранит TransportConfig и DeviceConfig в EEPROM                        │
 │  • Загружает при старте                                                    │
 │  • Сохраняет при изменении                                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
@@ -217,9 +217,9 @@ typedef struct {
 │  Transport        │    │  DeviceController │    │  HTTP/MQTT (чтение)     │
 │                   │    │                   │    │                         │
 │  • Читает         │    │  • Читает         │    │  • Читают для           │
-│    TransportConfig│    │    DeviceSettings │    │    отображения          │
+│    TransportConfig│    │    DeviceConfig │    │    отображения          │
 │  • НЕ читает      │    │  • Пишет          │    │  • НЕ пишут напрямую    │
-│    DeviceSettings │    │    DeviceState    │    │                         │
+│    DeviceConfig │    │    DeviceState    │    │                         │
 └───────────────────┘    └───────────────────┘    └─────────────────────────┘
 ```
 

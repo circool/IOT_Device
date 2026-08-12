@@ -1,274 +1,241 @@
+/**
+ * @file transport_zigbee.cpp
+ * @version 0.12
+ * @brief Zigbee-транспорт — заглушка
+ * @note Заглушка — Zigbee ещё не реализован. Все методы логируют вызовы.
+ */
+
 #include "transport_zigbee.h"
 #include "logger.h"
+#include "settings.h"
 
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE
-
-static Transport g_zigbeeTransport;
-static bool g_initialized = false;
+#ifdef USE_ZIGBEE
 
 // ============================================================================
-// КОНТЕЙНЕРЫ ДЛЯ КОЛБЭКОВ (заглушки)
+// СТАТИЧЕСКИЙ ЭКЗЕМПЛЯР
 // ============================================================================
 
-static TransportCallback<TransportBoolCallback> _onState;
-static TransportCallback<TransportIntCallback> _onSpeed;
-static TransportCallback<TransportIntCallback> _onDelaySec;
-static TransportCallback<TransportUintCallback> _onMaxOnTime;
-static TransportCallback<TransportBoolCallback> _onSensorControlMode;
-
-#if DEVICE_TYPE == 1
-static TransportCallback<TransportBoolCallback> _onAdaptiveMode;
-static TransportCallback<TransportFloatCallback> _onLowTemp;
-static TransportCallback<TransportFloatCallback> _onHighTemp;
-static TransportCallback<TransportFloatCallback> _onLowHum;
-static TransportCallback<TransportFloatCallback> _onHighHum;
-#endif
-
-#if MQTT_RESET_ENABLED == 1
-static TransportCallback<TransportVoidCallback> _onReset;
-#endif
+static ZigbeeTransport g_zigbeeTransport;
 
 // ============================================================================
-// РЕАЛИЗАЦИЯ МЕТОДОВ ТРАНСПОРТА (ЗАГЛУШКИ)
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================================
 
-static bool zigbee_begin(Client* client, const ConfigData* config) {
+/**
+ * @brief Получить имя транспорта для логов
+ * @return Строка "Zigbee (stub)"
+ */
+static const char* transport_getName() {
+  return "Zigbee (stub)";
+}
+
+/**
+ * @brief Заглушка — установка указателя на конфигурацию устройства
+ * @param config Указатель на DeviceConfig
+ */
+static void transport_setDeviceConfig(const DeviceConfig* config) {
+  (void)config;
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] setDeviceConfig() (STUB)");
+}
+
+/**
+ * @brief Заглушка — установка указателя на состояние устройства
+ * @param state Указатель на DeviceState
+ */
+static void transport_setDeviceState(const DeviceState* state) {
+  (void)state;
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] setDeviceState() (STUB)");
+}
+
+// ============================================================================
+// УВЕДОМЛЕНИЕ ОБ ИЗМЕНЕНИИ СОСТОЯНИЯ (заглушка)
+// ============================================================================
+
+static void notifyStateChanged() {
+  if (!g_zigbeeTransport._eventCallback)
+    return;
+
+  TransportEventData event;
+  event.event = STATE_CHANGED;
+  event.state = &g_zigbeeTransport._state;
+  event.transport = nullptr;
+  event.deviceState = nullptr;
+  event.device = nullptr;
+  g_zigbeeTransport._eventCallback(&event, g_zigbeeTransport._eventContext);
+}
+
+// ============================================================================
+// УПРАВЛЕНИЕ (заглушки)
+// ============================================================================
+
+static bool transport_begin(Client* client,
+                            const TransportConfig* config,
+                            const TransportState*& outState) {
   (void)client;
   (void)config;
-  XLOG_WARN(CAT_MAIN, "ZigBee transport: begin() not implemented yet");
-  return false;
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] begin() called (STUB — not implemented)");
+  XLOG_WARN(CAT_TRANSPORT, "[ZIGBEE] Zigbee transport is not implemented yet");
+
+  g_zigbeeTransport.initialized = true;
+  g_zigbeeTransport.connected = false;
+
+  // Инициализация состояния
+  g_zigbeeTransport._state.link_ok = false;
+  g_zigbeeTransport._state.gateway_ok = false;
+  g_zigbeeTransport._state.setup_mode = false;
+
+  // Передаём указатель на состояние
+  outState = &g_zigbeeTransport._state;
+
+  // Уведомляем о начальном состоянии
+  notifyStateChanged();
+
+  return false;  // Заглушка всегда возвращает false
 }
 
-static void zigbee_update() {
-  // TODO: реальная обработка ZigBee
-}
-
-static bool zigbee_isConnected() {
-  return false;  // всегда отключено, пока нет реализации
-}
-
-static void zigbee_disconnect() {
-  // TODO
-}
-
-static const char* zigbee_getName() {
-  return "ZigBee (stub)";
-}
-
-// ============================================================================
-// ПУБЛИКАЦИЯ (ЗАГЛУШКИ)
-// ============================================================================
-
-static void zigbee_publishOnline() {
-  // TODO
-}
-
-static void zigbee_publishState(bool on) {
-  (void)on;
-  // TODO
-}
-
-static void zigbee_publishSpeed(int percent) {
-  (void)percent;
-  // TODO
-}
-
-static void zigbee_publishDelaySec(int seconds) {
-  (void)seconds;
-  // TODO
-}
-
-static void zigbee_publishMaxOnTime(uint32_t seconds) {
-  (void)seconds;
-  // TODO
-}
-
-static void zigbee_publishSensorControlMode(bool enabled) {
-  (void)enabled;
-  // TODO
-}
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-static void zigbee_publishSensor(float temp, float hum) {
-  (void)temp;
-  (void)hum;
-  // TODO
-}
-#endif
-
-#if DEVICE_TYPE == 1
-static void zigbee_publishAdaptiveMode(bool enabled) {
-  (void)enabled;
-  // TODO
-}
-
-static void zigbee_publishThresholds(float lowTemp,
-                                     float highTemp,
-                                     float lowHum,
-                                     float highHum) {
-  (void)lowTemp;
-  (void)highTemp;
-  (void)lowHum;
-  (void)highHum;
-  // TODO
-}
-#endif
-
-static void zigbee_publishRSSI(int rssi) {
-  (void)rssi;
-  // TODO
-}
-
-static void zigbee_publishVersion(const char* version) {
-  (void)version;
-  // TODO
-}
-
-static void zigbee_publishResetReason(const char* reason) {
-  (void)reason;
-  // TODO
-}
-
-// ============================================================================
-// РЕГИСТРАЦИЯ КОЛБЭКОВ (ЗАГЛУШКИ) — просто сохраняем колбэки, но не используем
-// ============================================================================
-
-static void zigbee_onState(TransportBoolCallback callback, void* context) {
-  _onState.func = callback;
-  _onState.context = context;
-  // TODO: реальная подписка
-}
-
-static void zigbee_onSpeed(TransportIntCallback callback, void* context) {
-  _onSpeed.func = callback;
-  _onSpeed.context = context;
-  // TODO
-}
-
-static void zigbee_onDelaySec(TransportIntCallback callback, void* context) {
-  _onDelaySec.func = callback;
-  _onDelaySec.context = context;
-  // TODO
-}
-
-static void zigbee_onMaxOnTime(TransportUintCallback callback, void* context) {
-  _onMaxOnTime.func = callback;
-  _onMaxOnTime.context = context;
-  // TODO
-}
-
-static void zigbee_onSensorControlMode(TransportBoolCallback callback,
-                                       void* context) {
-  _onSensorControlMode.func = callback;
-  _onSensorControlMode.context = context;
-  // TODO
-}
-
-#if DEVICE_TYPE == 1
-static void zigbee_onAdaptiveMode(TransportBoolCallback callback,
-                                  void* context) {
-  _onAdaptiveMode.func = callback;
-  _onAdaptiveMode.context = context;
-  // TODO
-}
-
-static void zigbee_onLowTemp(TransportFloatCallback callback, void* context) {
-  _onLowTemp.func = callback;
-  _onLowTemp.context = context;
-  // TODO
-}
-
-static void zigbee_onHighTemp(TransportFloatCallback callback, void* context) {
-  _onHighTemp.func = callback;
-  _onHighTemp.context = context;
-  // TODO
-}
-
-static void zigbee_onLowHum(TransportFloatCallback callback, void* context) {
-  _onLowHum.func = callback;
-  _onLowHum.context = context;
-  // TODO
-}
-
-static void zigbee_onHighHum(TransportFloatCallback callback, void* context) {
-  _onHighHum.func = callback;
-  _onHighHum.context = context;
-  // TODO
-}
-#endif
-
-#if MQTT_RESET_ENABLED == 1
-static void zigbee_onReset(TransportVoidCallback callback, void* context) {
-  _onReset.func = callback;
-  _onReset.context = context;
-  // TODO
-}
-#endif
-
-// ============================================================================
-// ИНИЦИАЛИЗАЦИЯ ТРАНСПОРТА
-// ============================================================================
-
-Transport* getZigbeeTransport() {
-  if (g_initialized) {
-    return &g_zigbeeTransport;
+static void transport_update() {
+  if (!g_zigbeeTransport.initialized)
+    return;
+  static unsigned long lastLog = 0;
+  if (millis() - lastLog > 10000) {
+    lastLog = millis();
+    XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] update() (STUB)");
   }
-
-  // Управление
-  g_zigbeeTransport.begin = zigbee_begin;
-  g_zigbeeTransport.update = zigbee_update;
-  g_zigbeeTransport.isConnected = zigbee_isConnected;
-  g_zigbeeTransport.disconnect = zigbee_disconnect;
-  g_zigbeeTransport.getName = zigbee_getName;
-
-  // Публикация
-  g_zigbeeTransport.publishOnline = zigbee_publishOnline;
-  g_zigbeeTransport.publishState = zigbee_publishState;
-  g_zigbeeTransport.publishSpeed = zigbee_publishSpeed;
-  g_zigbeeTransport.publishDelaySec = zigbee_publishDelaySec;
-  g_zigbeeTransport.publishMaxOnTime = zigbee_publishMaxOnTime;
-  g_zigbeeTransport.publishSensorControlMode = zigbee_publishSensorControlMode;
-
-#if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
-  g_zigbeeTransport.publishSensor = zigbee_publishSensor;
-#endif
-
-#if DEVICE_TYPE == 1
-  g_zigbeeTransport.publishAdaptiveMode = zigbee_publishAdaptiveMode;
-  g_zigbeeTransport.publishThresholds = zigbee_publishThresholds;
-#endif
-
-  g_zigbeeTransport.publishRSSI = zigbee_publishRSSI;
-  g_zigbeeTransport.publishVersion = zigbee_publishVersion;
-  g_zigbeeTransport.publishResetReason = zigbee_publishResetReason;
-
-  // Колбэки
-  g_zigbeeTransport.onState = zigbee_onState;
-  g_zigbeeTransport.onSpeed = zigbee_onSpeed;
-  g_zigbeeTransport.onDelaySec = zigbee_onDelaySec;
-  g_zigbeeTransport.onMaxOnTime = zigbee_onMaxOnTime;
-  g_zigbeeTransport.onSensorControlMode = zigbee_onSensorControlMode;
-
-#if DEVICE_TYPE == 1
-  g_zigbeeTransport.onAdaptiveMode = zigbee_onAdaptiveMode;
-  g_zigbeeTransport.onLowTemp = zigbee_onLowTemp;
-  g_zigbeeTransport.onHighTemp = zigbee_onHighTemp;
-  g_zigbeeTransport.onLowHum = zigbee_onLowHum;
-  g_zigbeeTransport.onHighHum = zigbee_onHighHum;
-#endif
-
-#if MQTT_RESET_ENABLED == 1
-  g_zigbeeTransport.onReset = zigbee_onReset;
-#endif
-
-  g_initialized = true;
-  return &g_zigbeeTransport;
 }
 
-#else  // TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE == 0
+static bool transport_isConnected() {
+  return false;  // Заглушка всегда возвращает false
+}
+
+static void transport_disconnect() {
+  XLOG_INFO(CAT_TRANSPORT, "[ZIGBEE] disconnect() called (STUB)");
+  g_zigbeeTransport.connected = false;
+  g_zigbeeTransport._state.link_ok = false;
+  notifyStateChanged();
+}
+
+// ============================================================================
+// ПУБЛИКАЦИЯ (заглушки)
+// ============================================================================
+
+static void transport_publishOnline() {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishOnline() (STUB)");
+}
+
+static void transport_publishState(bool on) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishState(%s) (STUB)",
+             on ? "ON" : "OFF");
+}
+
+static void transport_publishSpeed(int percent) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishSpeed(%d%%) (STUB)", percent);
+}
+
+static void transport_publishDelaySec(int seconds) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishDelaySec(%d) (STUB)", seconds);
+}
+
+static void transport_publishMaxOnTime(uint32_t seconds) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishMaxOnTime(%lu) (STUB)", seconds);
+}
+
+static void transport_publishSensorControlMode(bool enabled) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishSensorControlMode(%s) (STUB)",
+             enabled ? "AUTO" : "MANUAL");
+}
+
+static void transport_publishSensor(float temp, float hum) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishSensor(%.1f°C, %.1f%%) (STUB)",
+             temp, hum);
+}
+
+static void transport_publishAdaptiveMode(bool enabled) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishAdaptiveMode(%s) (STUB)",
+             enabled ? "ON" : "OFF");
+}
+
+static void transport_publishThresholds(float lowTemp,
+                                        float highTemp,
+                                        float lowHum,
+                                        float highHum) {
+  XLOG_DEBUG(CAT_TRANSPORT,
+             "[ZIGBEE] publishThresholds(T:%.1f-%.1f, H:%.1f-%.1f) (STUB)",
+             lowTemp, highTemp, lowHum, highHum);
+}
+
+static void transport_publishRSSI(int rssi) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishRSSI(%d dBm) (STUB)", rssi);
+}
+
+static void transport_publishVersion(const char* version) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishVersion(%s) (STUB)", version);
+}
+
+static void transport_publishResetReason(const char* reason) {
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishResetReason(%s) (STUB)", reason);
+}
+
+static void transport_publishFullState(const DeviceState* state) {
+  (void)state;
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishFullState() (STUB)");
+}
+
+static void transport_publishConfig(const DeviceConfig* config) {
+  (void)config;
+  XLOG_DEBUG(CAT_TRANSPORT, "[ZIGBEE] publishConfig() (STUB)");
+}
+
+// ============================================================================
+// КОЛБЭКИ (заглушки)
+// ============================================================================
+
+static void transport_onEvent(TransportEventCallback callback, void* context) {
+  XLOG_DEBUG(CAT_TRANSPORT,
+             "[ZIGBEE] onEvent() registered (STUB — will not receive events)");
+  g_zigbeeTransport._eventCallback = callback;
+  g_zigbeeTransport._eventContext = context;
+}
+
+// ============================================================================
+// ИНИЦИАЛИЗАЦИЯ СТРУКТУРЫ TRANSPORT
+// ============================================================================
+
+static Transport g_transportImpl = {
+    // Управление
+    .begin = transport_begin,
+    .setDeviceConfig = transport_setDeviceConfig,
+    .setDeviceState = transport_setDeviceState,
+    .update = transport_update,
+    .isConnected = transport_isConnected,
+    .disconnect = transport_disconnect,
+    .getName = transport_getName,
+
+    // Публикация
+    .publishOnline = transport_publishOnline,
+    .publishState = transport_publishState,
+    .publishSpeed = transport_publishSpeed,
+    .publishDelaySec = transport_publishDelaySec,
+    .publishMaxOnTime = transport_publishMaxOnTime,
+    .publishSensorControlMode = transport_publishSensorControlMode,
+    .publishSensor = transport_publishSensor,
+    .publishAdaptiveMode = transport_publishAdaptiveMode,
+    .publishThresholds = transport_publishThresholds,
+    .publishRSSI = transport_publishRSSI,
+    .publishVersion = transport_publishVersion,
+    .publishResetReason = transport_publishResetReason,
+    .publishFullState = transport_publishFullState,
+    .publishConfig = transport_publishConfig,
+
+    // Колбэк
+    .onEvent = transport_onEvent,
+};
+
+// ============================================================================
+// ПУБЛИЧНАЯ ФУНКЦИЯ
+// ============================================================================
 
 Transport* getZigbeeTransport() {
-  return nullptr;
+  return &g_transportImpl;
 }
 
-#endif
+#endif  // USE_ZIGBEE

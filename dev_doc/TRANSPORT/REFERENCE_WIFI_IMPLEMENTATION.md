@@ -41,15 +41,15 @@
 #include "transport.h"
 #include "transport_types.h"
 
-#if USE_HTTP == 1
+#ifdef USE_HTTP
     #include "transport_http.h"
 #endif
 
-#if USE_MQTT == 1
+#ifdef USE_MQTT
     #include "transport_mqtt.h"
 #endif
 
-#if USE_BLE_SETUP == 1
+#ifdef USE_BLE
     #include "transport_ble.h"
 #endif
 
@@ -70,15 +70,15 @@ typedef struct WiFiTransport {
     unsigned long stateStartTime;
     
     // ===== ПРОТОКОЛЫ (экземпляры) =====
-    #if USE_HTTP == 1
+    #ifdef USE_HTTP
         HttpProtocol http;
     #endif
     
-    #if USE_MQTT == 1
+    #ifdef USE_MQTT
         MqttProtocol mqtt;
     #endif
     
-    #if USE_BLE_SETUP == 1
+    #ifdef USE_BLE
         BleServer ble;
     #endif
     
@@ -112,15 +112,15 @@ static bool transport_begin(const TransportConfig* config) {
     g_wifiTransport.stateStartTime = millis();
     
     // ===== ИНИЦИАЛИЗАЦИЯ ПРОТОКОЛОВ =====
-    #if USE_HTTP == 1
+    #ifdef USE_HTTP
         g_wifiTransport.http.init();
     #endif
     
-    #if USE_MQTT == 1
+    #ifdef USE_MQTT
         g_wifiTransport.mqtt.init();
     #endif
     
-    #if USE_BLE_SETUP == 1
+    #ifdef USE_BLE
         g_wifiTransport.ble.init();
     #endif
     
@@ -155,15 +155,15 @@ static void transport_update() {
     }
     
     // ===== ПЕРИОДИЧЕСКАЯ ОБРАБОТКА ПРОТОКОЛОВ =====
-    #if USE_HTTP == 1
+    #ifdef USE_HTTP
         g_wifiTransport.http.update();
     #endif
     
-    #if USE_MQTT == 1
+    #ifdef USE_MQTT
         g_wifiTransport.mqtt.update();
     #endif
     
-    #if USE_BLE_SETUP == 1
+    #ifdef USE_BLE
         g_wifiTransport.ble.update();
     #endif
     
@@ -252,11 +252,11 @@ static void handleReconnecting() {
 
 static void handleSetupMode() {
     // Обработка настройки
-    #if USE_AP_SETUP == 1
+    #ifdef USE_AP
         // AP активен, HTTP показывает страницу ввода
     #endif
     
-    #if USE_BLE_SETUP == 1
+    #ifdef USE_BLE
         // BLE активен
     #endif
 }
@@ -281,15 +281,15 @@ static void setMode(bool setupMode) {
         WiFi.softAP(g_wifiTransport.config->deviceId);
         
         // 2. Управляем протоколами
-        #if USE_HTTP == 1
+        #ifdef USE_HTTP
             g_wifiTransport.http.setMode(HTTP_MODE_SETUP);
         #endif
         
-        #if USE_MQTT == 1
+        #ifdef USE_MQTT
             g_wifiTransport.mqtt.setEnabled(false);
         #endif
         
-        #if USE_BLE_SETUP == 1
+        #ifdef USE_BLE
             g_wifiTransport.ble.start(g_wifiTransport.config->deviceId);
         #endif
         
@@ -309,16 +309,16 @@ static void setMode(bool setupMode) {
                    g_wifiTransport.config->wifiPassword);
         
         // 2. Управляем протоколами
-        #if USE_HTTP == 1
+        #ifdef USE_HTTP
             g_wifiTransport.http.setMode(HTTP_MODE_NORMAL);
         #endif
         
-        #if USE_MQTT == 1
+        #ifdef USE_MQTT
             g_wifiTransport.mqtt.setEnabled(true);
             g_wifiTransport.mqtt.begin(g_wifiTransport.config);
         #endif
         
-        #if USE_BLE_SETUP == 1
+        #ifdef USE_BLE
             g_wifiTransport.ble.stop();
         #endif
         
@@ -344,27 +344,27 @@ static void transport_publishState(const DeviceState* state) {
     
     XLOG_DEBUG(CAT_WIFI, "publishState() called");
     
-    #if USE_HTTP == 1
+    #ifdef USE_HTTP
         g_wifiTransport.http.updateState(state);
     #endif
     
-    #if USE_MQTT == 1
+    #ifdef USE_MQTT
         g_wifiTransport.mqtt.updateState(state);
     #endif
 }
 
-static void transport_publishSettings(const DeviceSettings* settings) {
+static void transport_publishSettings(const DeviceConfig* settings) {
     if (!g_wifiTransport.connected) {
         return;
     }
     
     XLOG_DEBUG(CAT_WIFI, "publishSettings() called");
     
-    #if USE_HTTP == 1
+    #ifdef USE_HTTP
         g_wifiTransport.http.updateSettings(settings);
     #endif
     
-    #if USE_MQTT == 1
+    #ifdef USE_MQTT
         g_wifiTransport.mqtt.updateSettings(settings);
     #endif
 }

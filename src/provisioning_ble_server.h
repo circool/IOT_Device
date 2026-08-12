@@ -1,5 +1,5 @@
 /**
- * @file provisioning_ble_server.cpp
+ * @file provisioning_ble_server.h
  * @brief BLE-сервер для провизионинга
  */
 
@@ -16,12 +16,13 @@
 #define MAX_RETRIES 3
 #endif
 
-
-
 struct BleWifiConfig {
   char wifiSsid[32];
   char wifiPassword[64];
 };
+
+// Предобъявление класса
+class ProvisioningManager;
 
 #if defined(ESP32) && !defined(ESP8266)
 
@@ -30,7 +31,7 @@ class BleProvisioningServer {
   explicit BleProvisioningServer(const char* deviceName = nullptr);
   ~BleProvisioningServer();
 
-  bool begin();
+  bool begin(ProvisioningManager* manager);
   void stop();
   bool isActive() const { return _active; }
 
@@ -50,12 +51,14 @@ class BleProvisioningServer {
   }
   ~BleProvisioningServer() {}
 
-  bool begin() { return false; }
+  bool begin(ProvisioningManager* manager) {
+    (void)manager;
+    return false;
+  }
   void stop() {}
   bool isActive() const { return false; }
 };
 
-// Заглушка для g_bleServer
 inline BleProvisioningServer* g_bleServer = nullptr;
 
 #endif
