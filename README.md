@@ -79,7 +79,7 @@
 | Датчик (опционально) | AHT10 или DHT11/DHT22 | I2C или 1-Wire |
 | Исполнительное реле | Твердотельное реле G3MB-202P | Для реализации ШИМ |
 | Питание | AC-DC 220V → 3.3V | Подключается параллельно освещению |
-| Кнопка сброса | Тактовая на замыкание | GPIO0 → GND |
+| Кнопка управления | Тактовая на замыкание | GPIO0 → GND |
 | Светодиод индикации | Любой | С резистором 220-470 Ом (GPIO2* → GND, инверсия) |
 
 ### Назначение пинов
@@ -90,7 +90,7 @@
 | AHT10 SDA | GPIO4 | GPIO21 |
 | AHT10 SCL | GPIO5 | GPIO22 |
 | DHT11/22 | GPIO4* | GPIO16* | Однопроводной датчик (GPIO → DATA) |
-| Кнопка сброса | GPIO0 | GPIO0 |
+| Кнопка управления | GPIO0 | GPIO0 |
 | Светодиод индикации связи | GPIO2** | GPIO2** |
 
 **Важно:** Для работы ШИМ-регулировки обязательно используйте **твердотельное реле (SSR)**, а не механическое!
@@ -170,7 +170,7 @@ pio run -e esp32 -t upload
 // Аппаратные пины
 #define SWITCH_PIN 4     // Пин управления (ESP32)
 #define STATUS_LED_PIN 2 // LED индикации (0 = отключён)
-#define RESET_PIN 0      // Кнопка сброса
+#define BUTTON_PIN 0      // Кнопка управления
 
 // Функционал
 #define FEATURE_WIFI_ENABLED 1
@@ -329,7 +329,7 @@ build_flags =
 # WEB возможности (требуют FEATURE_WEB_ENABLED=1)
 -DFEATURE_WEB_STATUS_ENABLED=1    # Страница статуса
 -DWEB_SHOW_RSSI=1                 # Отображать RSSI на странице
--DWEB_RESET_ENABLED=1             # Кнопка сброса в веб-интерфейсе
+-DWEB_RESET_ENABLED=1             # Кнопка управления в веб-интерфейсе
 
 # Настройки точки доступа (AP)
 -DWIFI_FALLBACK_TIMEOUT_MS=12000    # Таймаут до перехода в AP (мс)
@@ -484,9 +484,9 @@ build_flags =
 
 ```cpp
 // credentials.h
-#define SSID_NAME "MyWiFi"
+#define WIFI_SSID "MyWiFi"
 #define WIFI_PASSWORD "MyPassword"
-#define MQTT_ADDRESS "192.168.1.100"
+#define MQTT_BROKER "192.168.1.100"
 #define MQTT_PORT 1883
 #define MQTT_USER "user"
 #define MQTT_PASSWORD "pass"
@@ -515,7 +515,7 @@ build_flags =
 | `{prefix}/fan/adaptiveMode` | Dev → Broker | Адаптивный режим |
 | `{prefix}/fan/delaySec` | Dev → Broker | Задержка включения |
 | `{prefix}/fan/maxOnTime` | Dev → Broker | Аварийное отключение |
-| `{prefix}/fan/sensorControlMode` | Dev → Broker | Режим датчика |
+| `{prefix}/fan/sensorMode` | Dev → Broker | Режим датчика |
 | `{prefix}/sensor/temperature` | Dev → Broker | Температура |
 | `{prefix}/sensor/humidity` | Dev → Broker | Влажность |
 | `{prefix}/sensor/lowTemp` | Dev → Broker | Нижний порог T |
@@ -541,11 +541,11 @@ build_flags =
 
 ### Режимы работы
 
-1. **Режим датчика** (`sensorControlMode = 1`):
+1. **Режим датчика** (`sensorMode = 1`):
    - Включение: температура ≥ `highTemp` **ИЛИ** влажность ≥ `highHum`
    - Выключение: температура ≤ `lowTemp` **И** влажность ≤ `lowHum`
 
-2. **Ручной режим** (`sensorControlMode = 0`):
+2. **Ручной режим** (`sensorMode = 0`):
    - Игнорирует датчик
    - Управление только через MQTT/Web
 
