@@ -421,7 +421,7 @@ void printConfig(const TransportConfig& transport, const DeviceConfig& device) {
 
 #if DEVICE_TYPE == 1
   XLOG_INFO(CAT_CONFIG, "  Sensor Control Mode: %s",
-            device.sensorControlMode ? "ON" : "OFF");
+            device.sensorMode ? "ON" : "OFF");
   XLOG_INFO(CAT_CONFIG, "  Adaptive Mode: %s",
             device.adaptiveMode ? "ON" : "OFF");
   XLOG_INFO(CAT_CONFIG, "  Low Temp: %.1f°C", device.lowTemp);

@@ -29,7 +29,7 @@ void ButtonManager::init() {
   _currentStage = BUTTON_IDLE;
   _lastState = false;
 
-  XLOG_INFO(CAT_BUTTON, "Button initialized: pin=%d, inverted=%d", BUTTON_PIN,
+  XLOG_DEBUG(CAT_BUTTON, "Button initialized: pin=%d, inverted=%d", BUTTON_PIN,
             BUTTON_INVERTED);
 }
 

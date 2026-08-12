@@ -20,6 +20,10 @@
 #ifndef SETTINGS_H
 #define SETTINGS_H
 
+#include <stddef.h>  // для size_t
+#include <stdint.h>  // для uint8_t, uint16_t, uint32_t
+#include "credentials.h"
+
 // Макросы для наглядности
 #define TRANSPORT_TYPE_NONE 0
 #define TRANSPORT_TYPE_WIFI 1
@@ -78,14 +82,17 @@
 // 1. ВЕРСИЯ И ТИП УСТРОЙСТВА
 // ============================================================================
 
+
+#ifndef VERSION
 /**
  * @brief Версия прошивки
  * @details Формат: X.Y.Z
  */
-#ifndef VERSION
 #define VERSION "1.0"
 #endif
 
+
+#ifndef DEVICE_TYPE
 /**
  * @brief Тип устройства
  * @values
@@ -93,7 +100,6 @@
  *   - 2 – Sensor (автономный датчик)
  *   - 3 – Switch (управляемый выключатель)
  */
-#ifndef DEVICE_TYPE
 #define DEVICE_TYPE 1
 #endif
 
@@ -125,7 +131,6 @@
  *   - 3: THREAD   — Thread (802.15.4 + 6LoWPAN) — для Matter over Thread
  */
 
-
 #ifndef TRANSPORT_TYPE
 // ZigBee по умолчанию для платформ с аппаратной поддержкой
 #if PLATFORM_ESP32C6 || PLATFORM_ESP32H2
@@ -133,6 +138,10 @@
 #else
 #define TRANSPORT_TYPE TRANSPORT_TYPE_WIFI
 #endif
+#endif
+
+#if TRANSPORT_TYPE == 1
+#define USE_WIFI
 #endif
 
 // ============================================================================
@@ -153,44 +162,61 @@
 #endif
 #endif
 
+
+#ifndef FEATURE_WEB_STATUS_ENABLED
 /**
  * @brief Включить веб-интерфейс по умолчанию
  * @details Требует TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI (WIFI)
  *          Может работать одновременно с FEATURE_MQTT_ENABLED
  */
-#ifndef FEATURE_WEB_STATUS_ENABLED
 #define FEATURE_WEB_STATUS_ENABLED 1
 #endif
 
 #if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
+
+#ifndef FEATURE_WEB_ENABLED
 /** @brief Веб-интерфейс нужен для провизионинга
  * @todo: найти место где можно безопасно переиниировать эту константу
  */
-#ifndef FEATURE_WEB_ENABLED
 #define FEATURE_WEB_ENABLED 1
 #endif
 #endif  // PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
 
+
+#ifndef FEATURE_MATTER_ENABLED
 /**
  * @brief Включить Matter
  * @details Требует TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI (WIFI) ИЛИ 3 (THREAD)
  *          Поддерживается на ESP32-C6/H2 (перспективно)
  */
-#ifndef FEATURE_MATTER_ENABLED
 #define FEATURE_MATTER_ENABLED 0
 #endif
 
 // ============================================================================
-// 4. ФУНКЦИОНАЛЬНЫЕ ВОЗМОЖНОСТИ (FEATURES)
+// ФУНКЦИОНАЛЬНЫЕ ВОЗМОЖНОСТИ (FEATURES)
 // ============================================================================
+// Установка значений по умолчанию и определение внутренних констант USE_
 
+
+#ifndef FEATURE_LOGGER_ENABLED
 /**
- * @brief Включить логирование
+ * @brief Включить логирование по умолчанию
  * @details Если 0 — весь код логирования исключается.
  *          Настройки (уровень, категории, цвет) определяются в logger.h
  */
-#ifndef FEATURE_LOGGER_ENABLED
 #define FEATURE_LOGGER_ENABLED 1
+#endif
+#if FEATURE_LOGGER_ENABLED == 1
+// Использовать функции логирования
+#define USE_LOGGER
+#endif
+
+#ifndef FEATURE_RESTART_ENABLED
+#define FEATURE_RESTART_ENABLED 1
+#endif
+#if FEATURE_RESTART_ENABLED == 1
+// Использовать менеджер перезагрузки
+#define USE_RESTART
 #endif
 
 /**
@@ -200,6 +226,10 @@
  */
 #ifndef FEATURE_LED_ENABLED
 #define FEATURE_LED_ENABLED 1
+#endif
+#if FEATURE_LED_ENABLED == 1
+// Включить светодиодную индикацию
+#define USE_LED
 #endif
 
 /**
@@ -211,6 +241,10 @@
 #ifndef FEATURE_SENSOR_ENABLED
 #define FEATURE_SENSOR_ENABLED 1
 #endif
+#if FEATURE_SENSOR_ENABLED == 1
+// Включить поддержку датчика
+#define USE_SENSOR
+#endif
 
 /**
  * @brief Выключить OTA-обновления по умолчанию
@@ -218,7 +252,11 @@
  * @note Требует FEATURE_WEB_ENABLED=1
  */
 #ifndef FEATURE_OTA_ENABLED
-#define FEATURE_OTA_ENABLED 0
+#define FEATURE_OTA_ENABLED 1
+#endif
+#if FEATURE_OTA_ENABLED == 1
+// Включить OTA-обновления
+#define USE_OTA
 #endif
 
 /**
@@ -229,6 +267,10 @@
 #ifndef FEATURE_WDT_ENABLED
 #define FEATURE_WDT_ENABLED 1
 #endif
+#if FEATURE_WDT_ENABLED == 1
+// Включить Watchdog Timer
+#define USE_WDT
+#endif
 
 /**
  * @brief Включить сканирование WiFi при старте (отладка)
@@ -238,18 +280,64 @@
 #ifndef FEATURE_SCANNING_WIFI_ENABLED
 #define FEATURE_SCANNING_WIFI_ENABLED 0
 #endif
+#if FEATURE_SCANNING_WIFI_ENABLED == 1
+#ifdef USE_WIFI
+// Сканировать сети для отладки
+#define USE_SCANNING_WIFI
+#endif
+#endif
 
 /**
- * @brief Включить сброс настроек через кнопку
- * @details Если 0 — кнопка сброса игнорируется
- * @note Пин кнопки определяется в main.cpp
+ * @brief Включить управление кнопкой
+ * @details Если 0 — кнопка управления игнорируется
+ * @note Пин кнопки определяется в button.cpp
  */
-#ifndef FEATURE_RESET_BUTTON_ENABLED
-#define FEATURE_RESET_BUTTON_ENABLED 1
+#ifndef FEATURE_BUTTON_ENABLED
+#define FEATURE_BUTTON_ENABLED 1
+#endif
+#if FEATURE_BUTTON_ENABLED == 1
+// Включить управление кнопкой
+#define USE_BUTTON
 #endif
 
 // ============================================================================
-// 5. PROVISIONING (МЕТОД НАСТРОЙКИ)
+// 4.1. ВНУТРЕННИЕ ФЛАГИ (вычисляются на основе пользовательских)
+// ============================================================================
+
+/**
+ * @brief USE_MQTT — реально ли MQTT будет работать
+ * @details Учитывает FEATURE_MQTT_ENABLED и TRANSPORT_TYPE
+ *          Используется в коде для условной компиляции блоков MQTT
+ */
+#ifndef USE_MQTT
+// Использовать транспорт MQTT
+#define USE_MQTT \
+  (FEATURE_MQTT_ENABLED == 1 && TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI)
+#endif
+
+/**
+ * @brief USE_WEB — реально ли Web будет работать
+ * @details Учитывает FEATURE_WEB_ENABLED и TRANSPORT_TYPE
+ *          Используется в коде для условной компиляции блоков Web
+ */
+#ifndef USE_WEB
+#define USE_WEB \
+  (FEATURE_WEB_ENABLED == 1 && TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI)
+#endif
+
+/**
+ * @brief USE_OTA — реально ли OTA будет работать
+ * @details Учитывает FEATURE_OTA_ENABLED, FEATURE_WEB_ENABLED и TRANSPORT_TYPE
+ *          Используется в коде для условной компиляции блоков OTA
+ */
+#ifndef USE_OTA
+#define USE_OTA                                            \
+  (FEATURE_OTA_ENABLED == 1 && FEATURE_WEB_ENABLED == 1 && \
+   TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI)
+#endif
+
+// ============================================================================
+// 5. МЕТОД НАСТРОЙКИ WIFI/ZIGBEE
 // ============================================================================
 
 /**
@@ -264,6 +352,7 @@
  * @note ESP8266 не поддерживает BLE
  */
 #ifndef PROVISIONING_METHOD
+// Провизионинг - 0=None, 1=BLE, 2=AP, 3 = AP+BLE
 #define PROVISIONING_METHOD 2  // AP по умолчанию
 #endif
 
@@ -271,18 +360,16 @@
  * @brief Включить AP-провизионинг (производная константа)
  */
 #if PROVISIONING_METHOD == 2 || PROVISIONING_METHOD == 3
-#define USE_AP_PROVISIONING 1
-#else
-#define USE_AP_PROVISIONING 0
+// Включить AP-провизионинг
+#define USE_AP
 #endif
 
 /**
  * @brief Включить BLE-провизионинг (производная константа)
  */
 #if PROVISIONING_METHOD == 1 || PROVISIONING_METHOD == 3
-#define USE_BLE_PROVISIONING 1
-#else
-#define USE_BLE_PROVISIONING 0
+// Включить BLE-провизионинг
+#define USE_BLE
 #endif
 
 // ============================================================================
@@ -299,7 +386,8 @@
 // ----------------------------------------------------------------------------
 // 6.2. Проверка платформы для ZigBee и Thread
 // ----------------------------------------------------------------------------
-#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE || TRANSPORT_TYPE == TRANSPORT_TYPE_THREAD
+#if TRANSPORT_TYPE == TRANSPORT_TYPE_ZIGBEE || \
+    TRANSPORT_TYPE == TRANSPORT_TYPE_THREAD
 #if !PLATFORM_ESP32C6 && !PLATFORM_ESP32H2
 #error \
     "TRANSPORT_TYPE=2 (ZIGBEE) or 3 (THREAD) is only supported on ESP32-C6 and ESP32-H2"
@@ -319,7 +407,8 @@
 
 // Matter требует WiFi или Thread
 #if FEATURE_MATTER_ENABLED == 1
-#if TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI && TRANSPORT_TYPE != TRANSPORT_TYPE_THREAD
+#if TRANSPORT_TYPE != TRANSPORT_TYPE_WIFI && \
+    TRANSPORT_TYPE != TRANSPORT_TYPE_THREAD
 #error \
     "FEATURE_MATTER_ENABLED requires TRANSPORT_TYPE=TRANSPORT_TYPE_WIFI or TRANSPORT_TYPE_THREAD"
 #endif
@@ -402,8 +491,62 @@
 #if TRANSPORT_TYPE == TRANSPORT_TYPE_WIFI
 #if FEATURE_MQTT_ENABLED == 0 && FEATURE_WEB_STATUS_ENABLED == 0 && \
     FEATURE_MATTER_ENABLED == 0
-#warning "TRANSPORT_TYPE=1 (WIFI) selected but no application protocol (MQTT/WEB/MATTER) is enabled"
+#warning \
+    "TRANSPORT_TYPE=1 (WIFI) selected but no application protocol (MQTT/WEB/MATTER) is enabled"
 #endif
 #endif
+
+// ============================================================================
+// ВЫЛИДАЦИЯ ЗНАЧЕНИЙ - ДОПУСТИМЫЕ ДИАПАЗОНЫ
+// ============================================================================
+
+constexpr size_t DEVICE_ID_MIN_LEN = 1;
+constexpr size_t DEVICE_ID_MAX_LEN = 31;
+
+#ifdef USE_WIFI
+constexpr size_t WIFI_SSID_MIN_LEN = 1;
+constexpr size_t WIFI_SSID_MAX_LEN = 31;
+constexpr size_t WIFI_PASSWORD_MAX_LEN = 63;
+#endif
+
+// ============================================================================
+// MQTT (USE_MQTT)
+// ============================================================================
+
+#ifdef USE_MQTT
+constexpr size_t MQTT_BROKER_MIN_LEN = 1;
+constexpr size_t MQTT_BROKER_MAX_LEN = 63;
+constexpr uint16_t MQTT_PORT_MIN = 1;
+constexpr uint16_t MQTT_PORT_MAX = 65535;
+constexpr size_t MQTT_CLIENT_ID_MIN_LEN = 1;
+constexpr size_t MQTT_CLIENT_ID_MAX_LEN = 23;
+#endif
+
+// ============================================================================
+// ZigBee (USE_ZIGBEE)
+// ============================================================================
+// @deprecated - нет практического применения
+#ifdef USE_ZIGBEE
+constexpr uint16_t ZIGBEE_PAN_ID_MIN = 0x0000;
+constexpr uint16_t ZIGBEE_PAN_ID_MAX = 0xFFFF;
+constexpr uint8_t ZIGBEE_CHANNEL_MIN = 11;
+constexpr uint8_t ZIGBEE_CHANNEL_MAX = 26;
+#endif
+
+// ============================================================================
+// ДИАПАЗОНЫ ДЛЯ ВСЕХ ТИПОВ УСТРОЙСТВ
+// ============================================================================
+
+constexpr float TEMP_MIN = -40.0f;
+constexpr float TEMP_MAX = 60.0f;
+constexpr float HUM_MIN = 0.0f;
+constexpr float HUM_MAX = 100.0f;
+constexpr uint8_t SPEED_PERCENT_MIN = 0;
+constexpr uint8_t SPEED_PERCENT_MAX = 100;
+constexpr uint32_t DELAY_SECONDS_MIN = 0;
+constexpr uint32_t DELAY_SECONDS_MAX = 3600;
+constexpr uint32_t MAX_ON_TIME_MIN = 0;
+constexpr uint32_t MAX_ON_TIME_MAX = 86400;
+
 
 #endif  // SETTINGS_H

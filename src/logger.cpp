@@ -1,112 +1,31 @@
 /**
  * @file logger.cpp
  * @brief Реализация логгера
+ * @version 0.12
+ * @date 10.08.2026
  */
 
 #include "logger.h"
-#include <stdarg.h>
-#include <stdio.h>
 
 // ============================================================================
-// СИНГЛТОН
+// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
 // ============================================================================
 
-Logger& Logger::getInstance() {
-  static Logger instance;
-  return instance;
-}
+static struct {
+  LogLevel level;
+  uint32_t categories;
+  bool useColor;
+  bool initialized;
+} s_log = {.level = XLOG_LEVEL_INFO,
+           .categories = CAT_ALL,
+           .useColor = true,
+           .initialized = false};
 
 // ============================================================================
-// ПУБЛИЧНЫЕ МЕТОДЫ
+// ПРИВАТНЫЕ ФУНКЦИИ
 // ============================================================================
 
-void Logger::init(LogLevel level, uint32_t categories, bool useColor) {
-  _currentLevel = level;
-  _enabledCategories = categories;
-  _useColor = useColor;
-  _initialized = true;
-
-  Serial.begin(MONITOR_SPEED);
-  delay(100);
-
-  log(XLOG_LEVEL_INFO, CAT_CONFIG,
-      "\n\n\nLogger initialized (level=%d, categories=0x%08X)", (int)level,
-      categories);
-}
-
-void Logger::set_level(LogLevel level) {
-  _currentLevel = level;
-}
-
-void Logger::set_categories(uint32_t categories) {
-  _enabledCategories = categories;
-}
-
-void Logger::is_enabled(bool enabled) {
-  _useColor = enabled;
-}
-
-bool Logger::isEnabled(LogLevel level, LogCategory category) const {
-  if (!_initialized)
-    return false;
-  if (level > _currentLevel)
-    return false;
-  if (!(_enabledCategories & category))
-    return false;
-  return true;
-}
-
-void Logger::log(LogLevel level,
-                 LogCategory category,
-                 const char* format,
-                 ...) {
-  if (!isEnabled(level, category))
-    return;
-
-  char buffer[256];
-  va_list args;
-  va_start(args, format);
-  vsnprintf(buffer, sizeof(buffer), format, args);
-  va_end(args);
-
-  char output[340];
-  const char* color = _useColor ? getColorForLevel(level) : "";
-  const char* reset = _useColor ? ANSI_RESET : "";
-
-  unsigned long uptime = millis();
-
-  if (_useColor) {
-    snprintf(output, sizeof(output), "%s [%6lu] [%s] [%s] %s%s\n", color,uptime, 
-             levelToString(level), categoryToString(category), buffer, reset);
-  } else {
-    snprintf(output, sizeof(output), "[%6lu] [%s] [%s] %s\n", uptime,
-             levelToString(level), categoryToString(category), buffer);
-  }
-  Serial.print(output);
-}
-
-// @deprecated нарушает запрет динамической памяти
-void Logger::log(LogLevel level, LogCategory category, const String& message) {
-  if (!isEnabled(level, category))
-    return;
-
-  const char* color = _useColor ? getColorForLevel(level) : "";
-  const char* reset = _useColor ? ANSI_RESET : "";
-
-  if (_useColor) {
-    Serial.printf("%s[%s] [%s] %s%s\n", color, levelToString(level),
-                  categoryToString(category), message.c_str(), reset);
-  } else {
-    Serial.printf("[%s] [%s] %s\n", levelToString(level),
-                  categoryToString(category), message.c_str());
-  }
-}
-
-// ============================================================================
-// ПРИВАТНЫЕ МЕТОДЫ
-// ============================================================================
-
-const char* Logger::levelToString(LogLevel level) const {
+static const char* _level_to_string(LogLevel level) {
   switch (level) {
     case XLOG_LEVEL_ERROR:
       return "ERROR";
@@ -121,7 +40,7 @@ const char* Logger::levelToString(LogLevel level) const {
   }
 }
 
-const char* Logger::categoryToString(LogCategory category) const {
+static const char* _category_to_string(LogCategory category) {
   switch (category) {
     case CAT_CONFIG:
       return "CONFIG";
@@ -153,20 +72,24 @@ const char* Logger::categoryToString(LogCategory category) const {
       return "PROV";
     case CAT_BLE:
       return "BLE";
-    case CAT_RESET_BTN:
-      return "RESET_BTN";
+    case CAT_BUTTON:
+      return "BUTTON";
     case CAT_RESTART:
       return "RESTART";
     case CAT_SYSTEM:
       return "SYSTEM";
     case CAT_DEVICE:
       return "DEVCTRL";
+    case CAT_TRANSPORT:
+      return "TRANSPORT";
+    case CAT_STATE:
+      return "STATE";
     default:
       return "???";
   }
 }
 
-const char* Logger::getColorForLevel(LogLevel level) const {
+static const char* _color_for_level(LogLevel level) {
   switch (level) {
     case XLOG_LEVEL_ERROR:
       return ANSI_BRIGHT_RED;
@@ -178,5 +101,73 @@ const char* Logger::getColorForLevel(LogLevel level) const {
       return ANSI_BLUE;
     default:
       return ANSI_RESET;
+  }
+}
+
+// ============================================================================
+// ПУБЛИЧНЫЕ ФУНКЦИИ
+// ============================================================================
+
+void log_init(LogLevel level, uint32_t categories, bool useColor) {
+  s_log.level = level;
+  s_log.categories = categories;
+  s_log.useColor = useColor;
+  s_log.initialized = true;
+
+  Serial.begin(MONITOR_SPEED);
+  delay(100);
+
+  log_message(XLOG_LEVEL_INFO, CAT_CONFIG,
+              "Logger initialized (level=%d, categories=0x%08X)", (int)level,
+              categories);
+}
+
+void log_set_level(LogLevel level) {
+  s_log.level = level;
+}
+
+void log_set_categories(uint32_t categories) {
+  s_log.categories = categories;
+}
+
+void log_set_color(bool enabled) {
+  s_log.useColor = enabled;
+}
+
+bool log_is_enabled(LogLevel level, LogCategory category) {
+  if (!s_log.initialized)
+    return false;
+  if (level > s_log.level)
+    return false;
+  if (!(s_log.categories & category))
+    return false;
+  return true;
+}
+
+void log_message(LogLevel level,
+                 LogCategory category,
+                 const char* format,
+                 ...) {
+  if (!log_is_enabled(level, category))
+    return;
+
+  char buffer[256];
+  va_list args;
+  va_start(args, format);
+  vsnprintf(buffer, sizeof(buffer), format, args);
+  va_end(args);
+
+  unsigned long uptime = millis();
+
+  const char* color = s_log.useColor ? _color_for_level(level) : "";
+  const char* reset = s_log.useColor ? ANSI_RESET : "";
+
+  if (s_log.useColor) {
+    Serial.printf("%s[%6lu] [%s] [%s] %s%s\n", color, uptime,
+                  _level_to_string(level), _category_to_string(category),
+                  buffer, reset);
+  } else {
+    Serial.printf("[%6lu] [%s] [%s] %s\n", uptime, _level_to_string(level),
+                  _category_to_string(category), buffer);
   }
 }

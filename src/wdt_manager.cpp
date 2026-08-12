@@ -7,7 +7,16 @@
 #include "logger.h"
 #include "settings.h"
 
-#if FEATURE_WDT_ENABLED == 1
+#ifdef USE_WDT
+
+// ============================================================================
+// НАСТРОЙКИ
+// ============================================================================
+
+#ifndef WDT_TIMER_MS
+// Время срабатывания WatchDog
+#define WDT_TIMER_MS 5000
+#endif
 
 // ============================================================================
 // ОПРЕДЕЛЕНИЕ API WDT
@@ -34,11 +43,13 @@
 #endif
 
 #else
+// Использовать аппаратный WatchDog
 #define USE_HARDWARE_WDT 0
 #define USE_NEW_TASK_WDT_API 0
 #endif
 
 #else
+// Не использовать аппаратный WatchDog
 #define USE_HARDWARE_WDT 0
 #define USE_NEW_TASK_WDT_API 0
 #endif
@@ -201,21 +212,21 @@ static void wdt_impl_stop() {}
 // ПУБЛИЧНЫЕ ФУНКЦИИ
 // ============================================================================
 
-void wdt_init() {
+void wdtInit() {
   wdt_impl_init();
   XLOG_INFO(CAT_WDT, "Watchdog initialized (timeout: %d ms)", WDT_TIMER_MS);
 }
 
-void wdt_feed() {
+void wdtFeed() {
   wdt_impl_feed();
 }
 
-void wdt_stop() {
+void wdtStop() {
   wdt_impl_stop();
 }
 
-void wdt_start() {
+void wdtStart() {
   wdt_impl_init();
 }
 
-#endif  // FEATURE_WDT_ENABLED == 1
+#endif  // USE_WDT

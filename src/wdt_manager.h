@@ -9,47 +9,59 @@
 #include <Arduino.h>
 #include "settings.h"
 
-// ============================================================================
-// НАСТРОЙКИ
-// ============================================================================
 
-/** @brief Включить аппаратный сторожевой таймер по умолчанию */
-#ifndef FEATURE_WDT_ENABLED
-#define FEATURE_WDT_ENABLED 1
-#endif
-
-#ifndef WDT_TIMER_MS
-#define WDT_TIMER_MS 5000
-#endif
 
 // ============================================================================
 // API
 // ============================================================================
 
-#if FEATURE_WDT_ENABLED == 1
+#ifdef USE_WDT
 
-void wdt_init();
-void wdt_feed();
-void wdt_start();
-void wdt_stop();
+/*
+ *
+ * @brief Инициализация сторожевого таймера* @details Настраивает WDT с
+        таймаутом WDT_TIMER_MS.* Вызывается один раз в
+        setup().
+*/
+    void wdtInit();
 
-#else  // FEATURE_WDT_ENABLED == 0
+/**
+ * @brief Сброс сторожевого таймера
+ * @details Вызывается в loop() для предотвращения срабатывания WDT.
+ *          Если WDT не сбрасывать в течение WDT_TIMER_MS, устройство
+ * перезагрузится.
+ */
+void wdtFeed();
+
+/**
+ * @brief Остановка сторожевого таймера
+ * @details Используется перед перезагрузкой или при входе в Deep Sleep.
+ */
+void wdtStop();
+
+/**
+ * @brief Запуск сторожевого таймера
+ * @details Повторная инициализация после остановки.
+ */
+void wdtStart();
+
+#else  // USE_WDT
 
 // ============================================================================
 // ЗАГЛУШКИ
 // ============================================================================
 
 // Заглушка — WDT отключён (FEATURE_WDT_ENABLED == 0)
-inline void wdt_init() {}
+inline void wdtInit() {}
 
 // Заглушка — WDT отключён (FEATURE_WDT_ENABLED == 0)
-inline void wdt_feed() {}
+inline void wdtFeed() {}
 
 // Заглушка — WDT отключён (FEATURE_WDT_ENABLED == 0)
-inline void wdt_start() {}
+inline void wdtStart() {}
 
 // Заглушка — WDT отключён (FEATURE_WDT_ENABLED == 0)
-inline void wdt_stop() {}
+inline void wdtStop() {}
 
 #endif  // FEATURE_WDT_ENABLED
 

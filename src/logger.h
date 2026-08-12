@@ -2,12 +2,15 @@
  * @file logger.h
  * @brief Логирование
  * @details Единая система логирования с поддержкой уровней, категорий и цветов
+ * @version 0.12
+ * @date 10.08.2026
  */
 
 #ifndef LOGGER_H
 #define LOGGER_H
 
 #include <Arduino.h>
+#include <stdarg.h>
 #include "settings.h"
 
 #ifndef MONITOR_SPEED
@@ -68,9 +71,6 @@
 // УРОВНИ ЛОГИРОВАНИЯ
 // ============================================================================
 
-/**
- * @brief Уровни логирования
- */
 enum LogLevel : uint8_t {
   XLOG_LEVEL_NONE = 0,
   XLOG_LEVEL_ERROR = 1,
@@ -83,121 +83,87 @@ enum LogLevel : uint8_t {
 // КАТЕГОРИИ ЛОГИРОВАНИЯ
 // ============================================================================
 
-/**
- * @brief Категории (тэги) для фильтрации
- */
 enum LogCategory : uint32_t {
   CAT_NONE = 0,
-  CAT_CONFIG = 1 << 0,         // 1
-  CAT_SENSOR = 1 << 1,         // 2
-  CAT_FAN = 1 << 2,            // 4
-  CAT_SWITCH = 1 << 3,         // 8
-  CAT_ACTUATOR = 1 << 4,       // 16
-  CAT_MQTT = 1 << 5,           // 32
-  CAT_WIFI = 1 << 6,           // 64
-  CAT_WEB = 1 << 7,            // 128
-  CAT_OTA = 1 << 8,            // 256
-  CAT_LED = 1 << 9,            // 512
-  CAT_WDT = 1 << 10,           // 1024
-  CAT_AP = 1 << 11,            // 2048
-  CAT_MAIN = 1 << 12,          // 4096
-  CAT_PROVISIONING = 1 << 13,  // 8192
-  CAT_BLE = 1 << 14,           // 16384
-  CAT_RESET_BTN = 1 << 15,     // 32768
-  CAT_RESTART = 1 << 16,       // 65536
-  CAT_SYSTEM = 1 << 17,        // 131072
+  CAT_CONFIG = 1 << 0,
+  CAT_SENSOR = 1 << 1,
+  CAT_FAN = 1 << 2,
+  CAT_SWITCH = 1 << 3,
+  CAT_ACTUATOR = 1 << 4,
+  CAT_MQTT = 1 << 5,
+  CAT_WIFI = 1 << 6,
+  CAT_WEB = 1 << 7,
+  CAT_OTA = 1 << 8,
+  CAT_LED = 1 << 9,
+  CAT_WDT = 1 << 10,
+  CAT_AP = 1 << 11,
+  CAT_MAIN = 1 << 12,
+  CAT_PROVISIONING = 1 << 13,
+  CAT_BLE = 1 << 14,
+  CAT_BUTTON = 1 << 15,
+  CAT_RESTART = 1 << 16,
+  CAT_SYSTEM = 1 << 17,
   CAT_DEVICE = 1 << 18,
+  CAT_TRANSPORT = 1 << 19,
+  CAT_STATE = 1 << 20,
   CAT_ALL = 0xFFFFFFFF
 };
 
 // ============================================================================
-// КЛАСС LOGGER
+// API
 // ============================================================================
 
 /**
- * @brief Единый логгер для всего проекта
- * @details Синглтон с поддержкой уровней, категорий и цветного вывода
+ * @brief Инициализация логгера
+ * @param level Максимальный уровень для вывода
+ * @param categories Битовая маска разрешённых категорий
+ * @param useColor Использовать ANSI-цвета
  */
-class Logger {
- public:
-  /**
-   * @brief Получить экземпляр логгера
-   */
-  static Logger& getInstance();
+void log_init(LogLevel level = (LogLevel)XLOG_LEVEL,
+              uint32_t categories = XLOG_CATEGORIES,
+              bool useColor = XLOG_USE_COLOR);
 
-  /**
-   * @brief Инициализация логгера
-   * @param level Максимальный уровень для вывода
-   * @param categories Битовая маска разрешённых категорий
-   * @param useColor Использовать ANSI-цвета
-   */
-  void init(LogLevel level = XLOG_LEVEL_INFO,
-             uint32_t categories = CAT_ALL,
-             bool useColor = true);
+/**
+ * @brief Установить уровень логирования
+ */
+void log_set_level(LogLevel level);
 
-  /**
-   * @brief Установить уровень логирования
-   */
-  void set_level(LogLevel level);
+/**
+ * @brief Установить разрешённые категории
+ */
+void log_set_categories(uint32_t categories);
 
-  /**
-   * @brief Установить разрешённые категории
-   */
-  void set_categories(uint32_t categories);
+/**
+ * @brief Включить/выключить цвета
+ */
+void log_set_color(bool enabled);
 
-  /**
-   * @brief Включить/выключить цвета
-   */
-  void is_enabled(bool enabled);
+/**
+ * @brief Проверить, нужно ли логировать данный уровень/категорию
+ */
+bool log_is_enabled(LogLevel level, LogCategory category);
 
-  /**
-   * @brief Основной метод логирования (printf-стиль)
-   */
-  void log(LogLevel level, LogCategory category, const char* format, ...);
-
-  /**
-   * @brief Логирование готовой строки
-   * @deprecated нарушает запрет динамической памяти
-   */
-  void log(LogLevel level, LogCategory category, const String& message);
-
-  /**
-   * @brief Проверить, нужно ли логировать данный уровень/категорию
-   */
-  bool isEnabled(LogLevel level, LogCategory category) const;
-
- private:
-  Logger() = default;
-  ~Logger() = default;
-  Logger(const Logger&) = delete;
-  Logger& operator=(const Logger&) = delete;
-
-  const char* levelToString(LogLevel level) const;
-  const char* categoryToString(LogCategory category) const;
-  const char* getColorForLevel(LogLevel level) const;
-
-  LogLevel _currentLevel = XLOG_LEVEL_INFO;
-  uint32_t _enabledCategories = CAT_ALL;
-  bool _useColor = true;
-  bool _initialized = false;
-};
+/**
+ * @brief Основной метод логирования (printf-стиль)
+ */
+void log_message(LogLevel level, LogCategory category, const char* format, ...);
 
 // ============================================================================
 // УДОБНЫЕ МАКРОСЫ
 // ============================================================================
 
 #define XLOG_ERROR(cat, fmt, ...) \
-  Logger::getInstance().log(XLOG_LEVEL_ERROR, cat, fmt, ##__VA_ARGS__)
+  log_message(XLOG_LEVEL_ERROR, cat, fmt, ##__VA_ARGS__)
 
 #define XLOG_WARN(cat, fmt, ...) \
-  Logger::getInstance().log(XLOG_LEVEL_WARN, cat, fmt, ##__VA_ARGS__)
+  log_message(XLOG_LEVEL_WARN, cat, fmt, ##__VA_ARGS__)
 
 #define XLOG_INFO(cat, fmt, ...) \
-  Logger::getInstance().log(XLOG_LEVEL_INFO, cat, fmt, ##__VA_ARGS__)
+  log_message(XLOG_LEVEL_INFO, cat, fmt, ##__VA_ARGS__)
 
 #define XLOG_DEBUG(cat, fmt, ...) \
-  Logger::getInstance().log(XLOG_LEVEL_DEBUG, cat, fmt, ##__VA_ARGS__)
+  log_message(XLOG_LEVEL_DEBUG, cat, fmt, ##__VA_ARGS__)
 
-#define XLOG_ENABLED(level, cat) Logger::getInstance().isEnabled(level, cat)
+#define XLOG_ENABLED(level, cat) log_is_enabled(level, cat)
 
 #endif  // LOGGER_H

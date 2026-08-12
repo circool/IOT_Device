@@ -25,7 +25,7 @@ void LedManager::init() {
 
   _setPinState(false);
 
-  XLOG_INFO(CAT_LED, "LED initialized: pin=%d, inverted=%d, interval=%dms",
+  XLOG_DEBUG(CAT_LED, "LED initialized: pin=%d, inverted=%d, interval=%dms",
             STATUS_LED_PIN, LED_INVERTED, LED_SERIES_INTERVAL_MS);
 }
 

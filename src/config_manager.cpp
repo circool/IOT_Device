@@ -1,7 +1,7 @@
 /**
  * @file config_manager.cpp
  * @brief Реализация менеджера конфигурации
- * @version 0.11
+ * @version 0.12
  * @date 08.08.2026
  */
 
@@ -108,8 +108,8 @@ static constexpr uint8_t DEFAULT_SPEED_PERCENT = 50;
 #endif
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 3
-static constexpr uint32_t DEFAULT_DELAY_SECONDS = 0;
-static constexpr uint32_t DEFAULT_MAX_ON_TIME = 3600;
+static constexpr uint32_t DEFAULT_DELAY_SECONDS = 10;
+static constexpr uint32_t DEFAULT_MAX_ON_TIME = 0;
 static constexpr bool DEFAULT_BOOT_STATE = false;
 #endif
 
@@ -442,7 +442,7 @@ void ConfigManager::reset(DeviceConfig& settings) {
   DeviceConfig defaults = {};
 
 #if DEVICE_TYPE == 1
-  defaults.sensorControlMode = DEFAULT_SENSOR_CONTROL_MODE;
+  defaults.sensorMode = DEFAULT_SENSOR_CONTROL_MODE;
   defaults.adaptiveMode = DEFAULT_ADAPTIVE_MODE;
   defaults.lowTemp = DEFAULT_LOW_TEMP;
   defaults.highTemp = DEFAULT_HIGH_TEMP;
@@ -610,16 +610,16 @@ bool ConfigManager::validateTransportConfig(TransportConfig& config) const {
 bool ConfigManager::validateDeviceConfig(DeviceConfig& settings) const {
 #if DEVICE_TYPE == 1
   // Проверка lowTemp
-  if (settings.lowTemp < LOW_TEMP_MIN || settings.lowTemp > LOW_TEMP_MAX) {
+  if (settings.lowTemp < TEMP_MIN || settings.lowTemp > TEMP_MAX) {
     XLOG_WARN(CAT_CONFIG, "Invalid lowTemp: %.1f (min=%.1f, max=%.1f)",
-              settings.lowTemp, LOW_TEMP_MIN, LOW_TEMP_MAX);
+              settings.lowTemp, TEMP_MIN, TEMP_MAX);
     return false;
   }
 
   // Проверка highTemp
-  if (settings.highTemp < HIGH_TEMP_MIN || settings.highTemp > HIGH_TEMP_MAX) {
+  if (settings.highTemp < TEMP_MIN || settings.highTemp > TEMP_MAX) {
     XLOG_WARN(CAT_CONFIG, "Invalid highTemp: %.1f (min=%.1f, max=%.1f)",
-              settings.highTemp, HIGH_TEMP_MIN, HIGH_TEMP_MAX);
+              settings.highTemp, TEMP_MIN, TEMP_MAX);
     return false;
   }
 
@@ -631,16 +631,16 @@ bool ConfigManager::validateDeviceConfig(DeviceConfig& settings) const {
   }
 
   // Проверка lowHum
-  if (settings.lowHum < LOW_HUM_MIN || settings.lowHum > LOW_HUM_MAX) {
+  if (settings.lowHum < HUM_MIN || settings.lowHum > HUM_MAX) {
     XLOG_WARN(CAT_CONFIG, "Invalid lowHum: %.1f (min=%.1f, max=%.1f)",
-              settings.lowHum, LOW_HUM_MIN, LOW_HUM_MAX);
+              settings.lowHum, HUM_MIN, HUM_MAX);
     return false;
   }
 
   // Проверка highHum
-  if (settings.highHum < HIGH_HUM_MIN || settings.highHum > HIGH_HUM_MAX) {
+  if (settings.highHum < HUM_MIN || settings.highHum > HUM_MAX) {
     XLOG_WARN(CAT_CONFIG, "Invalid highHum: %.1f (min=%.1f, max=%.1f)",
-              settings.highHum, HIGH_HUM_MIN, HIGH_HUM_MAX);
+              settings.highHum, HUM_MIN, HUM_MAX);
     return false;
   }
 
