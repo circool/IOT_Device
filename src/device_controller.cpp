@@ -64,8 +64,8 @@ void DeviceController::init(const DeviceConfig* config,
     _state.sensorMode = false;
     _state.adaptiveMode = false;
   } else {
-    _state.manualMode = !_config->sensorControlMode;
-    _state.sensorMode = _config->sensorControlMode;
+    _state.manualMode = !_config->sensorMode;
+    _state.sensorMode = _config->sensorMode;
     _state.adaptiveMode = _config->adaptiveMode;
   }
 
@@ -79,12 +79,12 @@ void DeviceController::init(const DeviceConfig* config,
   _delayTimerStart = 0;
 
   applyStateToActuator();
-  _changed = true;
+  // _changed = true;
 
   // ===== ПЕРЕДАЁМ УКАЗАТЕЛЬ НА _state НАРУЖУ =====
   outState = &_state;
 
-  notifyChange(0xFFFFFFFF);
+  // notifyChange(0xFFFFFFFF);
 
   XLOG_INFO(CAT_DEVICE, "Init complete: isOn=%d, speed=%d, manualMode=%d",
             _state.isOn, _state.speed, _state.manualMode);
