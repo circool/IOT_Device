@@ -109,7 +109,7 @@ typedef struct {
 ```cpp
 typedef struct {
 #if DEVICE_TYPE == 1
-    bool sensorControlMode;
+    bool sensorMode;
     bool adaptiveMode;
     float lowTemp;
     float highTemp;

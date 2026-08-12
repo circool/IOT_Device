@@ -175,7 +175,7 @@ void loop() {
     
     // 2. Определение режима
     if (stage == BUTTON_IDLE) {
-        // Кнопка не нажата — логика по StateProvider
+        // Кнопка не нажата — логика по StateProvider ( @deprecated)
         if (g_stateProvider.link_ok && g_stateProvider.gateway_ok) {
             g_ledManager.setMode(LED_ON);
         } else if (!g_stateProvider.link_ok) {
