@@ -224,7 +224,7 @@ static void handleNormalMode() {
     int rssi = WiFi.RSSI();
     if (rssi != lastRssi) {
         lastRssi = rssi;
-        StateProvider::getInstance().set_link_quality(rssi);
+        StateProvider::getInstance().set_link_quality(rssi);// @deprecated StateProvider see TransportState
     }
 }
 
@@ -296,8 +296,8 @@ static void setMode(bool setupMode) {
         // 3. Обновляем состояние и флаги
         g_wifiTransport.state = STATE_SETUP_MODE;
         g_wifiTransport.connected = false;
-        StateProvider::getInstance().set_setup_mode(true);
-        StateProvider::getInstance().set_link_ok(false);
+        StateProvider::getInstance().set_setup_mode(true);// @deprecated StateProvider see TransportState
+        StateProvider::getInstance().set_link_ok(false);// @deprecated StateProvider see TransportState
         
     } else {
         // ===== ОБЫЧНЫЙ РЕЖИМ (STA) =====
@@ -326,7 +326,7 @@ static void setMode(bool setupMode) {
         g_wifiTransport.state = STATE_CONNECTING;
         g_wifiTransport.reconnectAttempts = 0;
         g_wifiTransport.stateStartTime = millis();
-        StateProvider::getInstance().set_setup_mode(false);
+        StateProvider::getInstance().set_setup_mode(false);// @deprecated StateProvider see TransportState
         // link_ok будет установлен после успешного подключения
     }
 }

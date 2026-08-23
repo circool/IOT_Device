@@ -53,9 +53,9 @@
 
 | Тип | Формат | Пример | Топики |
 |-----|--------|--------|--------|
-| `ON` / `OFF` | Строка | `ON` | `state`, `adaptive_active`, `sensor_mode` |
+| `ON` / `OFF` | Строка | `ON` | `state`, `adaptiveMode`, `sensorMode` |
 | Число | Десятичное | `75` | `speed`, `delaySec`, `maxOnTime`, `rssi` |
-| `SENSOR` / `MANUAL` | Строка | `SENSOR` | `sensor_mode`, `sensor_control_mode` |
+| `SENSOR` / `MANUAL` | Строка | `SENSOR` | `sensorMode`, `sensorMode` |
 | Число с плавающей точкой | Десятичное | `24.5` | `temperature`, `humidity`, `lowTemp`, `highTemp` |
 | Статус | Строка | `Online` / `Offline` | `status` |
 
@@ -70,7 +70,7 @@
 | `{clientId}/status` | LWT | 1 | ✅ | `Online` / `Offline` |
 | `{clientId}/version` | static | 0 | ✅ | Версия прошивки |
 | `{clientId}/rssi` | dynamic | 0 | ❌ | Сила сигнала WiFi (dBm) |
-| `{clientId}/last_reset` | event | 0 | ❌ | Причина последней нештатной перезагрузки |
+| `{clientId}/lastReset` | event | 0 | ❌ | Причина последней нештатной перезагрузки |
 
 ### 4.2. TYPE 1 (вентилятор с датчиком)
 
@@ -82,8 +82,8 @@
 | `{clientId}/speed` | dynamic | 0 | ✅ | 0-100% |
 | `{clientId}/temperature` | dynamic | 0 | ❌ | °C |
 | `{clientId}/humidity` | dynamic | 0 | ❌ | % |
-| `{clientId}/sensor_mode` | dynamic | 0 | ✅ | `SENSOR` / `MANUAL` |
-| `{clientId}/adaptive_active` | dynamic | 0 | ✅ | `ON` / `OFF` |
+| `{clientId}/sensorMode` | dynamic | 0 | ✅ | `SENSOR` / `MANUAL` |
+| `{clientId}/adaptiveMode` | dynamic | 0 | ✅ | `ON` / `OFF` |
 | `{clientId}/delay_remain` | dynamic | 0 | ❌ | Остаток задержки (сек) |
 | `{clientId}/max_on_remain` | dynamic | 0 | ❌ | Остаток аварийного таймера (сек) |
 
@@ -97,9 +97,9 @@
 | `{clientId}/config/highHum` | dynamic | 0 | ✅ | Верхний порог влажности |
 | `{clientId}/config/delaySec` | dynamic | 0 | ✅ | Задержка отложенного включения (сек) |
 | `{clientId}/config/maxOnTime` | dynamic | 0 | ✅ | Таймер аварийного отключения (сек) |
-| `{clientId}/config/sensor_control_mode` | dynamic | 0 | ✅ | `SENSOR` / `MANUAL` |
-| `{clientId}/config/adaptive_mode` | dynamic | 0 | ✅ | `ON` / `OFF` |
-| `{clientId}/config/boot_state` | dynamic | 0 | ✅ | `ON` / `OFF` |
+| `{clientId}/config/sensorMode` | dynamic | 0 | ✅ | `SENSOR` / `MANUAL` |
+| `{clientId}/config/adaptiveMode` | dynamic | 0 | ✅ | `ON` / `OFF` |
+| `{clientId}/config/bootState` | dynamic | 0 | ✅ | `ON` / `OFF` |
 
 ### 4.3. TYPE 2 (автономный датчик)
 
@@ -126,7 +126,7 @@
 |-------|-----|-----|--------|----------|
 | `{clientId}/config/delaySec` | dynamic | 0 | ✅ | Задержка отложенного включения (сек) |
 | `{clientId}/config/maxOnTime` | dynamic | 0 | ✅ | Таймер аварийного отключения (сек) |
-| `{clientId}/config/boot_state` | dynamic | 0 | ✅ | `ON` / `OFF` |
+| `{clientId}/config/bootState` | dynamic | 0 | ✅ | `ON` / `OFF` |
 
 ---
 
@@ -140,8 +140,8 @@
 |-------|----------|-----|----------|--------|--------------|
 | `{clientId}/c/state` | Состояние | `ON`/`OFF` | — | ❌ | TYPE 1, 3 |
 | `{clientId}/c/speed` | Скорость | uint8_t | 0-100 | ❌ | TYPE 1 |
-| `{clientId}/c/sensor_mode` | Режим | `SENSOR`/`MANUAL` | — | ❌ | TYPE 1 |
-| `{clientId}/c/adaptive_mode` | Адаптивный | `ON`/`OFF` | — | ❌ | TYPE 1 |
+| `{clientId}/c/sensorMode` | Режим | `SENSOR`/`MANUAL` | — | ❌ | TYPE 1 |
+| `{clientId}/c/adaptiveMode` | Адаптивный | `ON`/`OFF` | — | ❌ | TYPE 1 |
 
 ### 5.2. Команды настройки (`{clientId}/c/config/{параметр}`)
 
@@ -153,9 +153,9 @@
 | `{clientId}/c/config/highHum` | Верхний порог влажности | float | 0..100 | ❌ | TYPE 1 |
 | `{clientId}/c/config/delaySec` | Задержка включения | int | 0-86400 | ❌ | TYPE 1, 3 |
 | `{clientId}/c/config/maxOnTime` | Аварийное отключение | uint32_t | 0-86400 | ❌ | TYPE 1, 3 |
-| `{clientId}/c/config/boot_state` | Состояние при старте | `ON`/`OFF` | — | ❌ | TYPE 1, 3 |
-| `{clientId}/c/config/sensor_control_mode` | Режим SENSOR/MANUAL | `SENSOR`/`MANUAL` | — | ❌ | TYPE 1 |
-| `{clientId}/c/config/adaptive_mode` | Адаптивный режим | `ON`/`OFF` | — | ❌ | TYPE 1 |
+| `{clientId}/c/config/bootState` | Состояние при старте | `ON`/`OFF` | — | ❌ | TYPE 1, 3 |
+| `{clientId}/c/config/sensorMode` | Режим SENSOR/MANUAL | `SENSOR`/`MANUAL` | — | ❌ | TYPE 1 |
+| `{clientId}/c/config/adaptiveMode` | Адаптивный режим | `ON`/`OFF` | — | ❌ | TYPE 1 |
 
 ---
 

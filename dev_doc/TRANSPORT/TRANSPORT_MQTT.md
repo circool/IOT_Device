@@ -167,14 +167,14 @@ void MqttProtocol::publishState(const DeviceState* state) {
     publish("speed", String(state->speed));
     publish("temperature", String(state->temperature));
     publish("humidity", String(state->humidity));
-    publish("sensor_mode", state->sensor_mode ? "SENSOR" : "MANUAL");
-    publish("adaptive_active", state->adaptive_active ? "ON" : "OFF");
+    publish("sensorMode", state->sensorMode ? "SENSOR" : "MANUAL");
+    publish("adaptiveMode", state->adaptiveMode ? "ON" : "OFF");
     publish("delay_remain", String(state->delay_remain));
     publish("max_on_remain", String(state->max_on_remain));
     
     // CHECK ENGINE: публикуем только если есть причина
     if (state->reset_reason && strlen(state->reset_reason) > 0) {
-        publish("last_reset", state->reset_reason);
+        publish("lastReset", state->reset_reason);
     }
 }
 
@@ -186,11 +186,11 @@ void MqttProtocol::publishSettings(const DeviceConfig* settings) {
     publish("config/highTemp", String(settings->highTemp));
     publish("config/lowHum", String(settings->lowHum));
     publish("config/highHum", String(settings->highHum));
-    publish("config/delaySec", String(settings->delay_seconds));
+    publish("config/delaySec", String(settings->delaySec));
     publish("config/maxOnTime", String(settings->maxOnTime));
-    publish("config/sensor_control_mode", settings->sensor_control_mode ? "SENSOR" : "MANUAL");
-    publish("config/adaptive_mode", settings->adaptive_mode ? "ON" : "OFF");
-    publish("config/boot_state", settings->boot_state ? "ON" : "OFF");
+    publish("config/sensorMode", settings->sensorMode ? "SENSOR" : "MANUAL");
+    publish("config/adaptiveMode", settings->adaptiveMode ? "ON" : "OFF");
+    publish("config/bootState", settings->bootState ? "ON" : "OFF");
 }
 ```
 
@@ -245,8 +245,8 @@ void MqttProtocol::subscribe() {
     // Команды управления — {clientId}/c/{параметр}
     subscribe("c/state");
     subscribe("c/speed");
-    subscribe("c/sensor_mode");
-    subscribe("c/adaptive_mode");
+    subscribe("c/sensorMode");
+    subscribe("c/adaptiveMode");
     
     // Команды настройки — {clientId}/c/config/{параметр}
     subscribe("c/config/lowTemp");
@@ -255,9 +255,9 @@ void MqttProtocol::subscribe() {
     subscribe("c/config/highHum");
     subscribe("c/config/delaySec");
     subscribe("c/config/maxOnTime");
-    subscribe("c/config/boot_state");
-    subscribe("c/config/sensor_control_mode");
-    subscribe("c/config/adaptive_mode");
+    subscribe("c/config/bootState");
+    subscribe("c/config/sensorMode");
+    subscribe("c/config/adaptiveMode");
 }
 
 void MqttProtocol::subscribe(const char* topic) {
@@ -283,10 +283,10 @@ void MqttProtocol::callback(char* topic, byte* payload, unsigned int length) {
     } else if (strstr(topic, "/c/speed") != nullptr) {
         cmd = CMD_SPEED;
         data.intVal = message.toInt();
-    } else if (strstr(topic, "/c/sensor_mode") != nullptr) {
+    } else if (strstr(topic, "/c/sensorMode") != nullptr) {
         cmd = CMD_SET_SENSOR_CONTROL_MODE;
         data.boolVal = (message == "SENSOR");
-    } else if (strstr(topic, "/c/adaptive_mode") != nullptr) {
+    } else if (strstr(topic, "/c/adaptiveMode") != nullptr) {
         cmd = CMD_SET_ADAPTIVE_MODE;
         data.boolVal = (message == "ON");
     } else if (strstr(topic, "/c/config/lowTemp") != nullptr) {
@@ -307,13 +307,13 @@ void MqttProtocol::callback(char* topic, byte* payload, unsigned int length) {
     } else if (strstr(topic, "/c/config/maxOnTime") != nullptr) {
         cmd = CMD_SET_MAX_ON_TIME;
         data.u32Val = message.toInt();
-    } else if (strstr(topic, "/c/config/boot_state") != nullptr) {
+    } else if (strstr(topic, "/c/config/bootState") != nullptr) {
         cmd = CMD_SET_BOOT_STATE;
         data.boolVal = (message == "ON");
-    } else if (strstr(topic, "/c/config/sensor_control_mode") != nullptr) {
+    } else if (strstr(topic, "/c/config/sensorMode") != nullptr) {
         cmd = CMD_SET_SENSOR_CONTROL_MODE;
         data.boolVal = (message == "SENSOR");
-    } else if (strstr(topic, "/c/config/adaptive_mode") != nullptr) {
+    } else if (strstr(topic, "/c/config/adaptiveMode") != nullptr) {
         cmd = CMD_SET_ADAPTIVE_MODE;
         data.boolVal = (message == "ON");
     } else {

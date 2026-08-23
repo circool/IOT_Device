@@ -45,7 +45,6 @@
 
 #include "transport.h"
 #include "transport_types.h"
-#include "state_provider.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -110,7 +109,7 @@ static bool transport_begin(const TransportConfig* config) {
     // 1. Проверяем конфигурацию
     if (/* нет конфигурации для среды */) {
         // Переключаемся в режим настройки
-        StateProvider::getInstance().set_setup_mode(true);
+        StateProvider::getInstance().set_setup_mode(true); // @deprecated StateProvider see TransportState
         g_<name>Transport.connected = false;
         return true;
     }
@@ -120,10 +119,10 @@ static bool transport_begin(const TransportConfig* config) {
     g_<name>Transport.connected = result;
     
     // 3. Обновляем флаги
-    StateProvider::getInstance().set_link_ok(result);
+    StateProvider::getInstance().set_link_ok(result);// @deprecated StateProvider see TransportState
     
     if (result) {
-        StateProvider::getInstance().set_setup_mode(false);
+        StateProvider::getInstance().set_setup_mode(false);// @deprecated StateProvider see TransportState
     }
     
     return result;
@@ -134,7 +133,7 @@ static void transport_update() {
         return;
     }
     
-    const DeviceState* state = StateProvider::getInstance().get_state();
+    const DeviceState* state = StateProvider::getInstance().get_state();// @deprecated StateProvider see TransportState
     
     // ===== РЕЖИМ НАСТРОЙКИ =====
     if (state->setup_mode) {
@@ -157,7 +156,7 @@ static bool transport_isConnected() {
 static void transport_disconnect() {
     XLOG_INFO(CAT_TRANSPORT, "[%s] disconnect() called", getTransportName());
     g_<name>Transport.connected = false;
-    StateProvider::getInstance().set_link_ok(false);
+    StateProvider::getInstance().set_link_ok(false);// @deprecated @deprecated StateProvider see TransportState
 }
 
 static const char* transport_getName() {

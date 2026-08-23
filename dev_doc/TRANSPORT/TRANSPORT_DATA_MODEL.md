@@ -98,15 +98,15 @@ typedef struct {
 
 ```cpp
 typedef struct {
-    bool sensor_control_mode;  // TRUE = SENSOR, FALSE = MANUAL
-    bool adaptive_mode;        // TRUE = адаптивный режим включён
+    bool sensorMode;  // TRUE = SENSOR, FALSE = MANUAL
+    bool adaptiveMode;        // TRUE = адаптивный режим включён
     float lowTemp;
     float highTemp;
     float lowHum;
     float highHum;
-    uint32_t delay_seconds;
+    uint32_t delaySec;
     uint32_t maxOnTime;
-    uint8_t boot_state;        // 0 = OFF, 1 = ON
+    uint8_t bootState;        // 0 = OFF, 1 = ON
 } DeviceConfig;
 ```
 
@@ -136,7 +136,7 @@ typedef struct {
     float temperature;
     float humidity;
     bool manual_mode;        // TRUE = пользователь переключил вручную
-    bool adaptive_active;    // TRUE = адаптивный режим активен
+    bool adaptiveMode;    // TRUE = адаптивный режим активен
     uint32_t delay_remain;   // Остаток таймера задержки (сек)
     uint32_t max_on_remain;  // Остаток аварийного таймера (сек)
 } DeviceState;

@@ -203,9 +203,9 @@ void MatterTransport::setMode(bool setupMode) {
         _connected = false;
         
         // Обновляем флаги
-        StateProvider::getInstance().set_setup_mode(true);
-        StateProvider::getInstance().set_link_ok(false);
-        StateProvider::getInstance().set_gateway_ok(false);
+        StateProvider::getInstance().set_setup_mode(true);// @deprecated StateProvider see TransportState
+        StateProvider::getInstance().set_link_ok(false);// @deprecated StateProvider see TransportState
+        StateProvider::getInstance().set_gateway_ok(false);// @deprecated StateProvider see TransportState
         
         // Запускаем Commissioning
         matter_start_setup();
@@ -218,9 +218,9 @@ void MatterTransport::setMode(bool setupMode) {
         _connected = true;
         
         // Обновляем флаги
-        StateProvider::getInstance().set_setup_mode(false);
-        StateProvider::getInstance().set_link_ok(true);
-        StateProvider::getInstance().set_gateway_ok(true);
+        StateProvider::getInstance().set_setup_mode(false);// @deprecated StateProvider see TransportState
+        StateProvider::getInstance().set_link_ok(true);// @deprecated StateProvider see TransportState
+        StateProvider::getInstance().set_gateway_ok(true);// @deprecated StateProvider see TransportState
         
         // Регистрируем endpoints
         registerEndpoints();
@@ -343,7 +343,7 @@ void MatterTransport::onConfigUpdate(const TransportConfig* config) {
 
 ## 8. Управление флагами состояния
 
-Matter-транспорт устанавливает флаги в `StateProvider`:
+Matter-транспорт устанавливает флаги в TransportState
 
 | Флаг | Кто устанавливает | Когда |
 |------|-------------------|-------|
@@ -356,7 +356,7 @@ void MatterTransport::updateFlags() {
     // Флаги обновляются внутри setMode()
     // Дополнительные проверки для gateway_ok
     bool controllerOk = matter_is_controller_available();
-    StateProvider::getInstance().set_gateway_ok(controllerOk);
+    StateProvider::getInstance().set_gateway_ok(controllerOk);// @deprecated StateProvider see TransportState
 }
 ```
 

@@ -38,7 +38,7 @@
 - Прикладными протоколами (HTTP, MQTT) — напрямую
 - BLE-сервером (в режиме настройки)
 
-**WiFi-транспорт устанавливает флаги в `StateProvider`:**
+**WiFi-транспорт устанавливает флаги в `TransportState`:**
 - `link_ok` — состояние WiFi-среды
 - `link_quality` — уровень сигнала (RSSI)
 - `setup_mode` — режим настройки активен
@@ -254,9 +254,9 @@ void WiFiTransport::setMode(bool setupMode) {
     _mqtt.setEnabled(false);           // Остановить MQTT
     _ble.start();                      // Запустить BLE (если включён)
     
-    // 3. Устанавливаем флаги в StateProvider
-    StateProvider::getInstance().set_setup_mode(true);
-    StateProvider::getInstance().set_link_ok(false);  // AP не считается link_ok
+    // 3. Устанавливаем флаги в TransportState// @deprecated StateProvider see TransportState
+    TransportState::getInstance().set_setup_mode(true);// @deprecated StateProvider see TransportState
+    StateProvider::getInstance().set_link_ok(false);  // AP не считается link_ok // @deprecated StateProvider see TransportState
   } else {
     WiFi.mode(WIFI_STA);
     WiFi.begin(_config.wifiSsid, _config.wifiPassword);
@@ -323,7 +323,7 @@ void WiFiTransport::publishState(const DeviceState* state) {
 
 ### 7.6. Управление флагами состояния
 
-WiFi-транспорт устанавливает в `StateProvider` только флаги, относящиеся к среде:
+WiFi-транспорт устанавливает в `TransportState` только флаги, относящиеся к среде:
 
 | Флаг | Кто устанавливает | Когда |
 |------|-------------------|-------|
@@ -339,10 +339,10 @@ WiFi-транспорт устанавливает в `StateProvider` тольк
 ```cpp
 void WiFiTransport::updateFlags() {
     bool wifiOk = (WiFi.status() == WL_CONNECTED);
-    StateProvider::getInstance().set_link_ok(wifiOk);
+    StateProvider::getInstance().set_link_ok(wifiOk);// @deprecated StateProvider see TransportState
     
     if (wifiOk) {
-        StateProvider::getInstance().set_link_quality(WiFi.RSSI());
+        StateProvider::getInstance().set_link_quality(WiFi.RSSI());// @deprecated StateProvider see TransportState
     }
     
     // gateway_ok устанавливает MQTT-протокол, не WiFi-транспорт

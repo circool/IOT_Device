@@ -1,3 +1,12 @@
+```cpp
+/**
+ * @file CREDENTIALS.md
+ * @brief Заводские настройки
+ * @version 0.11
+ * @date 10.08.2026
+ */
+```
+
 # CREDENTIALS.md
 
 ## Заводские настройки (credentials.h)

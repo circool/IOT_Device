@@ -32,7 +32,7 @@
 | **1.10** | **Рефакторинг HTML-шаблонов** | ... | ✅ | 🟡 Средний |
 | **1.11** | **Привести ProvisioningManager к единому интерфейсу слоёв** | ... | ⬜ | 🟡 Средний |
 | **1.12** | **Привести имена функций Web-слоя к `snake_case`** | ... | ✅ | 🟡 Средний |
-| **1.13** | **Рефакторинг IWebStatusProvider (подготовка к StateProvider)** | | ⬜ | 🟡 Средний |
+| **1.13** | **Рефакторинг IWebStatusProvider (подготовка к StateProvider)** | | ✅ | 🟡 Средний |
 | 1.13.1 | `web_status_provider.h` | Добавить `DeviceController*` в конструкторы провайдеров | ⬜ | |
 | 1.13.2 | `web_status_provider.cpp` | Переделать `isDeviceOn()` — читать из `_controller->get_state()->is_on` | ⬜ | |
 | 1.13.3 | `web_status_provider.cpp` | Переделать `getSpeedPercent()` — читать из `_controller->get_state()->speed` | ⬜ | |
@@ -62,7 +62,7 @@
 | 1.14.10.2 | `mqtt_manager.cpp` | В `reconnect()` заменить `system_state_set_bit(STATE_MQTT_OK)` на `StateProvider::getInstance().update_connection(state->wifi_connected, true, state->wifi_rssi)` при успешном подключении | ✅ | |
 | 1.14.10.3 | `mqtt_manager.cpp` | В `disconnect()` или при потере соединения заменить `system_state_clear_bit(STATE_MQTT_OK)` на `StateProvider::getInstance().update_connection(state->wifi_connected, false, state->wifi_rssi)` | ✅ | |
 | 1.14.11 | `provisioning_manager.cpp` | Обновлять StateProvider при изменении режима | ✅ | |
-| 1.14.12 | `reset_button_manager.cpp` | Обновлять StateProvider при нажатии кнопки | ✅ | |
+| 1.14.12 | `button_manager.cpp` | Обновлять StateProvider при нажатии кнопки | ✅ | |
 | 1.14.13 | `main.cpp` | Читать StateProvider для определения режима | ✅ | |
 | 1.14.14 | `sensor.cpp` | Обновлять StateProvider после чтения датчика | ⬜ | |
 | 1.14.15 | `restart_manager.cpp` | Обновлять StateProvider при запросе перезагрузки | ✅ | |
@@ -81,7 +81,7 @@
 | 1.15.7 | `LED_MANAGER.md` | Обновить описание LED | ⬜ | |
 | 1.15.8 | `WIFI_MANAGER.md` | Обновить описание WiFi | ⬜ | |
 | 1.15.9 | `RESTART_MANAGER.md` | Обновить описание перезагрузок | ⬜ | |
-| 1.15.10| `RESET_BUTTON_MANAGER.md` | Обновить описание кнопки | ⬜ | |
+| 1.15.10| `BUTTON_MANAGER.md` | Обновить описание кнопки | ⬜ | |
 | 1.15.11| `WDT_MANAGER.md` | Обновить описание WDT | ⬜ | |
 | 1.15.12| `LOGGER.md` | Обновить описание логирования | ⬜ | |
 | 1.15.13| `PROJECT.md` | Обновить описание проекта | ⬜ | |

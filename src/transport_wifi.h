@@ -66,7 +66,7 @@ typedef struct WiFiTransport {
   const TransportState* transportState;  ///< Состояние транспорта (для Web)
 
   // ===== ВНУТРЕННЕЕ СОСТОЯНИЕ ТРАНСПОРТА =====
-  TransportState _state;  ///< Состояние (link_ok/gateway_ok/setup_mode)
+  TransportState _state;                  ///< Состояние (link_ok/gateway_ok/setup_mode)
   TransportEventCallback _eventCallback;  ///< Колбэк для событий
   void* _eventContext;                    ///< Контекст колбэка
 

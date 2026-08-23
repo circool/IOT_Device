@@ -381,7 +381,7 @@ void MQTTManager::publishVersion(const char* version) {
 void MQTTManager::publishResetReason(const char* reason) {
   if (!isConnected())
     return;
-  snprintf(_topics.reset, sizeof(_topics.reset), "%s/last_reset", _clientId);
+  snprintf(_topics.reset, sizeof(_topics.reset), "%s/lastReset", _clientId);
   _mqttClient.publish(_topics.reset, reason);
   XLOG_DEBUG(CAT_MQTT, "publishResetReason(%s) → %s = %s", reason,
              _topics.reset, reason);

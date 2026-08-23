@@ -3,6 +3,7 @@
  * @file WDT_MANAGER.md
  * @brief Сторожевой таймер
  * @note Статус: Закончен
+ * @version 0.11
  * @todo Необходима актуализация - см STATUS_PROVIDER.md
  */
 ```

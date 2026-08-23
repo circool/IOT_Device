@@ -175,9 +175,9 @@ DeviceController → publishState() → Transport
 |-----------|------------|
 | **Logger** | — |
 | **ConfigManager** | Logger |
-| **DeviceController** | ConfigManager, StateProvider |
-| **Transport** | ConfigManager, StateProvider, DeviceController (через колбэки) |
-| **LED** | StateProvider |
+| **DeviceController** | ConfigManager, TransportState |
+| **Transport** | ConfigManager, TransportState, DeviceController (через колбэки) |
+| **LED** | TransportState |
 
 **Важно:** Transport не должен зависеть от DeviceController напрямую — только через колбэки.
 
@@ -189,7 +189,7 @@ DeviceController → publishState() → Transport
 |--------|---------|---------|
 | `transport->update()` до инициализации | Транспорт не создан | Проверить `if (g_transport)` перед вызовом |
 | `DeviceController` не обрабатывает команды | Колбэк не зарегистрирован | Проверить `g_transport->onCommand()` в `setup()` |
-| LED показывает неправильное состояние | StateProvider не обновлён | Проверить, что транспорт обновляет `link_ok` и `setup_mode` |
+| LED показывает неправильное состояние | TransportState не обновлён | Проверить, что транспорт обновляет `link_ok` и `setup_mode` |
 
 ---
 

@@ -313,8 +313,8 @@
 **CSS-класс:** `.block .info`
 
 **Данные:**
-- Режим (`sensor_control_mode`): SENSOR / MANUAL
-- Адаптивный режим (`adaptive_mode`): ON / OFF
+- Режим (`sensorMode`): SENSOR / MANUAL
+- Адаптивный режим (`adaptiveMode`): ON / OFF
 
 ---
 

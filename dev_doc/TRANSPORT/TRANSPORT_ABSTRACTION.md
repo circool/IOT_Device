@@ -257,15 +257,15 @@ typedef struct {
 
 ```cpp
 typedef struct {
-    bool sensor_control_mode;  // TRUE = SENSOR, FALSE = MANUAL
-    bool adaptive_mode;        // TRUE = адаптивный режим включён
+    bool sensorMode;  // TRUE = SENSOR, FALSE = MANUAL
+    bool adaptiveMode;        // TRUE = адаптивный режим включён
     float lowTemp;
     float highTemp;
     float lowHum;
     float highHum;
-    uint32_t delay_seconds;
+    uint32_t delaySec;
     uint32_t maxOnTime;
-    uint8_t boot_state;        // 0 = OFF, 1 = ON
+    uint8_t bootState;        // 0 = OFF, 1 = ON
 } DeviceConfig;
 ```
 
@@ -277,8 +277,8 @@ ypedef struct {
     uint8_t speed;           // 0-100%
     float temperature;
     float humidity;
-    bool sensor_mode;        // TRUE = SENSOR, FALSE = MANUAL
-    bool adaptive_active;    // TRUE = адаптивный режим активен
+    bool sensorMode;        // TRUE = SENSOR, FALSE = MANUAL
+    bool adaptiveMode;    // TRUE = адаптивный режим активен
     uint32_t delay_remain;   // Остаток таймера задержки (сек)
     uint32_t max_on_remain;  // Остаток аварийного таймера (сек)
     const char* reset_reason; // Причина последней перезагрузки (NULL = нет причин)
@@ -405,7 +405,7 @@ _onConfigUpdate(&_transportConfig);
 
 ## 10. Управление флагами состояния
 
-Транспорт обновляет следующие флаги в `StateProvider`:
+Транспорт обновляет следующие флаги в `TransportState`
 
 ### 10.1. Флаги состояния
 
@@ -436,7 +436,7 @@ _onConfigUpdate(&_transportConfig);
    - Его работа полностью зависит от `link_ok`
 
 ```cpp
-// StateProvider должен реализовать следующие флаги
+// // TransportState должен реализовать следующие флаги
 typedef struct {
     // ===== ОБЩИЕ ФЛАГИ (для всех транспортов) =====
     bool link_ok;          // Среда есть (WiFi/Zigbee/Thread)

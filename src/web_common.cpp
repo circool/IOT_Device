@@ -267,7 +267,7 @@ void renderWifiBlock(char* buf,
 
   char temp[256];
 
-  snprintf(temp, sizeof(temp), "<h2>WiFi Settings</h2>");
+  snprintf(temp, sizeof(temp), "<h3>WiFi Settings</h3>");
   SAFE_STRCAT(buf, temp, size);
 
   // SSID
@@ -303,7 +303,7 @@ void renderMQTTBlock(char* buf, size_t size, const TransportConfig* config) {
 #if FEATURE_MQTT_ENABLED == 1
   char temp[256];
 
-  snprintf(temp, sizeof(temp), "<h2>MQTT Settings</h2>");
+  snprintf(temp, sizeof(temp), "<h3>MQTT Settings</h3>");
   SAFE_STRCAT(buf, temp, size);
 
   // Broker

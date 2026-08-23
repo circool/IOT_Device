@@ -1,5 +1,3 @@
-### **LED_MANAGER.md**
-
 ```cpp
 /**
  * @file LED_MANAGER.md

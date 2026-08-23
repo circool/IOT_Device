@@ -219,40 +219,43 @@ void WebManager::handleRoot() {
   char block[512];
   char temp[512];
 
+  const DeviceState& state = *_deviceState;
+  const DeviceConfig& cfg = *_deviceConfig;
+  const TransportState& tState = *_transportState;
+
   snprintf(temp, sizeof(temp), "<h1>%s %s</h1>", getDeviceId(), VERSION);
   _server->sendContent(temp);
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   char val[16];
-  snprintf(val, sizeof(val), "%.1f°C", _deviceState->temperature);
+  snprintf(val, sizeof(val), "%.1f°C", state.temperature);
   TextBlockParams t{"Temperature", val, "", "info"};
   render(block, sizeof(block), t);
   _server->sendContent(block);
 
-  snprintf(val, sizeof(val), "%.1f%%", _deviceState->humidity);
+  snprintf(val, sizeof(val), "%.1f%%", state.humidity);
   TextBlockParams h{"Humidity", val, "", "info"};
   render(block, sizeof(block), h);
   _server->sendContent(block);
 #endif
 
-  StatusBlockParams s{_deviceState->isOn, _deviceState->isOn ? "ON" : "OFF"};
+  StatusBlockParams s{state.isOn, state.isOn ? "ON" : "OFF"};
   render(block, sizeof(block), s);
   _server->sendContent(block);
 
-  if (_deviceState->speed > 0) {
+  if (state.speed > 0) {
     char sp[16];
-    snprintf(sp, sizeof(sp), "%d%%", _deviceState->speed);
+    snprintf(sp, sizeof(sp), "%d%%", state.speed);
     TextBlockParams spd{"Speed", sp, "", "info"};
     render(block, sizeof(block), spd);
     _server->sendContent(block);
   }
 
-  TextBlockParams mode{"Mode", _deviceConfig->sensorMode ? "AUTO" : "MANUAL",
-                       "", "info"};
+  TextBlockParams mode{"Mode", cfg.sensorMode ? "AUTO" : "MANUAL", "", "info"};
   render(block, sizeof(block), mode);
   _server->sendContent(block);
 
-  if (_deviceConfig->adaptiveMode) {
+  if (cfg.adaptiveMode) {
     TextBlockParams ad{"Adaptive", "ON", "", "success"};
     render(block, sizeof(block), ad);
     _server->sendContent(block);
@@ -270,15 +273,15 @@ void WebManager::handleRoot() {
            "</table>"
            "</div>",
            getDeviceId(), VERSION,
-           _transportState->link_ok ? "Connected" : "Disconnected", _rssi);
+           tState.link_ok ? "Connected" : "Disconnected", _rssi);
   _server->sendContent(temp);
 
   _server->sendContent("<div style='margin-top:20px;'>");
   ButtonParams settings{"Settings", "/config", "link-btn"};
   render(block, sizeof(block), settings);
   _server->sendContent(block);
-  ButtonParams toggle{_deviceState->isOn ? "Turn OFF" : "Turn ON",
-                      _deviceState->isOn ? "/set?state=off" : "/set?state=on",
+  ButtonParams toggle{state.isOn ? "Turn OFF" : "Turn ON",
+                      state.isOn ? "/set?state=off" : "/set?state=on",
                       "link-btn"};
   render(block, sizeof(block), toggle);
   _server->sendContent(block);
@@ -323,8 +326,8 @@ void WebManager::handleSave() {
     return;
   }
 
-  DeviceConfig newDeviceConfig;
-  memset(&newDeviceConfig, 0, sizeof(DeviceConfig));
+  const DeviceConfig& cfg = *_deviceConfig;
+  DeviceConfig newDeviceConfig = cfg;
   bool valid = true;
   char errorMsg[128] = {0};
 
@@ -576,11 +579,14 @@ void WebManager::handleSet() {
     return;
   }
 
+  const DeviceState& state = *_deviceState;
+  const DeviceConfig& cfg = *_deviceConfig;
+
   DeviceState newState = {};
-  newState.speed = _deviceState->speed;
-  newState.isOn = _deviceState->isOn;
-  newState.sensorMode = _deviceConfig->sensorMode;
-  newState.adaptiveMode = _deviceConfig->adaptiveMode;
+  newState.speed = state.speed;
+  newState.isOn = state.isOn;
+  newState.sensorMode = cfg.sensorMode;
+  newState.adaptiveMode = cfg.adaptiveMode;
 
   bool hasChanges = false;
   char resultMsg[64] = "Command executed";
@@ -781,39 +787,41 @@ void WebManager::sendConfigPage(const char* errorMsg, const char* successMsg) {
 
   char block[3072];
 
-  // ===== ФОРМА НАСТРОЕК =====
+  // ===== ФОРМА 1: ТРАНСПОРТ =====
   _server->sendContent("<div class='block'>");
-  
-  
-  
-  _server->sendContent("<form method='POST' action='/save?transport'>");
+  _server->sendContent("<h2>Transport</h2>");
+  _server->sendContent("<form method='POST' action='/savewifi'>");
 
   renderWifiBlock(block, sizeof(block), _transportConfig, PAGE_MODE_NORMAL);
   _server->sendContent(block);
 
   renderMQTTBlock(block, sizeof(block), _transportConfig);
   _server->sendContent(block);
-  
+
   renderConfirmBlock(block, sizeof(block));
   _server->sendContent(block);
- 
-  _server->sendContent("<input type='submit' value='Save transport'>");
-  _server->sendContent("</form></div><div class='block'>");
+
+  _server->sendContent("<input type='submit' value='Save Transport'>");
+  _server->sendContent("</form>");
+  _server->sendContent("</div>");
+
+  // ===== ФОРМА 2: УСТРОЙСТВО =====
   
-  
-  
-  
-  _server->sendContent("<form method='POST' action='/save?device'>");
+  _server->sendContent("<div class='block'>");
+  _server->sendContent("<h2>Device</h2>");
+  _server->sendContent("<form method='POST' action='/save'>");
+
   renderDeviceSettingsBlock(block, sizeof(block));
   _server->sendContent(block);
 
   renderConfirmBlock(block, sizeof(block));
   _server->sendContent(block);
-  
-  _server->sendContent("<input type='submit' value='Save Device'>");
-  _server->sendContent("</form></div>");
 
-  // ===== КНОПКА HOME (ВНЕ ФОРМЫ) =====
+  _server->sendContent("<input type='submit' value='Save Device'>");
+  _server->sendContent("</form>");
+  _server->sendContent("</div>");
+
+  // ===== КНОПКА HOME (ВНЕ ФОРМ) =====
   _server->sendContent("<div style='margin-top:20px;'>");
   ButtonParams homeBtn{"Home", "/", "link-btn"};
   render(block, sizeof(block), homeBtn);
@@ -850,11 +858,15 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
       buf[0] = '\0';
     return;
   }
+
+  // ===== ССЫЛКА НА КОНФИГУРАЦИЮ =====
+  const DeviceConfig& cfg = *_deviceConfig;
+
   buf[0] = '\0';
   char temp[1024];
   char numStr[32];
 
-  snprintf(temp, sizeof(temp), "<h2>Device Settings</h2>");
+  snprintf(temp, sizeof(temp), "<h3>Device Settings</h3>");
   SAFE_STRCAT(buf, temp, size);
 
 #if DEVICE_TYPE == 1
@@ -864,7 +876,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   lowTempField.name = "lowTemp";
   snprintf(temp, sizeof(temp), "%.1f..%.1f", TEMP_MIN, TEMP_MAX);
   lowTempField.note = temp;
-  snprintf(numStr, sizeof(numStr), "%.1f", _deviceConfig->lowTemp);
+  snprintf(numStr, sizeof(numStr), "%.1f", cfg.lowTemp);
   lowTempField.value = numStr;
   lowTempField.placeholder = "27.0";
   snprintf(temp, sizeof(temp), "%.1f", TEMP_MIN);
@@ -881,7 +893,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   highTempField.name = "highTemp";
   snprintf(temp, sizeof(temp), "%.1f..%.1f", TEMP_MIN, TEMP_MAX);
   highTempField.note = temp;
-  snprintf(numStr, sizeof(numStr), "%.1f", _deviceConfig->highTemp);
+  snprintf(numStr, sizeof(numStr), "%.1f", cfg.highTemp);
   highTempField.value = numStr;
   highTempField.placeholder = "29.0";
   snprintf(temp, sizeof(temp), "%.1f", TEMP_MIN);
@@ -899,7 +911,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   lowHumField.name = "lowHum";
   snprintf(temp, sizeof(temp), "%.1f..%.1f", HUM_MIN, HUM_MAX);
   lowHumField.note = temp;
-  snprintf(numStr, sizeof(numStr), "%.1f", _deviceConfig->lowHum);
+  snprintf(numStr, sizeof(numStr), "%.1f", cfg.lowHum);
   lowHumField.value = numStr;
   lowHumField.placeholder = "55.0";
   snprintf(temp, sizeof(temp), "%.1f", HUM_MIN);
@@ -916,7 +928,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   highHumField.name = "highHum";
   snprintf(temp, sizeof(temp), "%.1f..%.1f", HUM_MIN, HUM_MAX);
   highHumField.note = temp;
-  snprintf(numStr, sizeof(numStr), "%.1f", _deviceConfig->highHum);
+  snprintf(numStr, sizeof(numStr), "%.1f", cfg.highHum);
   highHumField.value = numStr;
   highHumField.placeholder = "60.0";
   snprintf(temp, sizeof(temp), "%.1f", HUM_MIN);
@@ -934,7 +946,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   speedField.name = "speedPercent";
   snprintf(temp, sizeof(temp), "%d..%d", SPEED_PERCENT_MIN, SPEED_PERCENT_MAX);
   speedField.note = temp;
-  snprintf(numStr, sizeof(numStr), "%d", _deviceConfig->speedPercent);
+  snprintf(numStr, sizeof(numStr), "%d", cfg.speedPercent);
   speedField.value = numStr;
   speedField.placeholder = "50";
   snprintf(temp, sizeof(temp), "%d", SPEED_PERCENT_MIN);
@@ -951,7 +963,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   sensorModeField.label = "Sensor Control Mode (AUTO)";
   sensorModeField.name = "sensorMode";
   sensorModeField.note = "Enable to use sensor for automatic control";
-  sensorModeField.checked = _deviceConfig->sensorMode;
+  sensorModeField.checked = cfg.sensorMode;
   sensorModeField.required = false;
   render(temp, sizeof(temp), sensorModeField);
   SAFE_STRCAT(buf, temp, size);
@@ -960,7 +972,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   adaptiveField.label = "Adaptive Mode";
   adaptiveField.name = "adaptiveMode";
   adaptiveField.note = "Automatically adjust speed based on readings";
-  adaptiveField.checked = _deviceConfig->adaptiveMode;
+  adaptiveField.checked = cfg.adaptiveMode;
   adaptiveField.required = false;
   render(temp, sizeof(temp), adaptiveField);
   SAFE_STRCAT(buf, temp, size);
@@ -973,7 +985,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   delayField.name = "delaySeconds";
   snprintf(temp, sizeof(temp), "%d..%d", DELAY_SECONDS_MIN, DELAY_SECONDS_MAX);
   delayField.note = temp;
-  snprintf(numStr, sizeof(numStr), "%d", _deviceConfig->delaySeconds);
+  snprintf(numStr, sizeof(numStr), "%d", cfg.delaySeconds);
   delayField.value = numStr;
   delayField.placeholder = "60";
   snprintf(temp, sizeof(temp), "%d", DELAY_SECONDS_MIN);
@@ -991,7 +1003,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   maxOnField.name = "maxOnTime";
   snprintf(temp, sizeof(temp), "%d..%d", MAX_ON_TIME_MIN, MAX_ON_TIME_MAX);
   maxOnField.note = temp;
-  snprintf(numStr, sizeof(numStr), "%lu", _deviceConfig->maxOnTime);
+  snprintf(numStr, sizeof(numStr), "%lu", cfg.maxOnTime);
   maxOnField.value = numStr;
   maxOnField.placeholder = "3600";
   snprintf(temp, sizeof(temp), "%d", MAX_ON_TIME_MIN);
@@ -1008,7 +1020,7 @@ void WebManager::renderDeviceSettingsBlock(char* buf, size_t size) {
   bootField.label = "Boot State (ON after reboot)";
   bootField.name = "bootState";
   bootField.note = "If enabled, device starts with ON state";
-  bootField.checked = (_deviceConfig->bootState == 1);
+  bootField.checked = (cfg.bootState == 1);
   bootField.required = false;
   render(temp, sizeof(temp), bootField);
   SAFE_STRCAT(buf, temp, size);
@@ -1045,6 +1057,10 @@ void WebManager::buildStatusPage(char* buf, size_t size) {
     return;
   }
 
+  const DeviceState& state = *_deviceState;
+  const DeviceConfig& cfg = *_deviceConfig;
+  const TransportState& tState = *_transportState;
+
   char temp[512];
 
   snprintf(temp, sizeof(temp), "<h1>%s %s</h1>", getDeviceId(), VERSION);
@@ -1052,35 +1068,34 @@ void WebManager::buildStatusPage(char* buf, size_t size) {
 
 #if DEVICE_TYPE == 1 || DEVICE_TYPE == 2
   char val[16];
-  snprintf(val, sizeof(val), "%.1f°C", _deviceState->temperature);
+  snprintf(val, sizeof(val), "%.1f°C", state.temperature);
   TextBlockParams t{"Temperature", val, "", "info"};
   render(temp, sizeof(temp), t);
   SAFE_STRCAT(buf, temp, size);
 
-  snprintf(val, sizeof(val), "%.1f%%", _deviceState->humidity);
+  snprintf(val, sizeof(val), "%.1f%%", state.humidity);
   TextBlockParams h{"Humidity", val, "", "info"};
   render(temp, sizeof(temp), h);
   SAFE_STRCAT(buf, temp, size);
 #endif
 
-  StatusBlockParams s{_deviceState->isOn, _deviceState->isOn ? "ON" : "OFF"};
+  StatusBlockParams s{state.isOn, state.isOn ? "ON" : "OFF"};
   render(temp, sizeof(temp), s);
   SAFE_STRCAT(buf, temp, size);
 
-  if (_deviceState->speed > 0) {
+  if (state.speed > 0) {
     char sp[16];
-    snprintf(sp, sizeof(sp), "%d%%", _deviceState->speed);
+    snprintf(sp, sizeof(sp), "%d%%", state.speed);
     TextBlockParams spd{"Speed", sp, "", "info"};
     render(temp, sizeof(temp), spd);
     SAFE_STRCAT(buf, temp, size);
   }
 
-  TextBlockParams mode{"Mode", _deviceConfig->sensorMode ? "AUTO" : "MANUAL",
-                       "", "info"};
+  TextBlockParams mode{"Mode", cfg.sensorMode ? "AUTO" : "MANUAL", "", "info"};
   render(temp, sizeof(temp), mode);
   SAFE_STRCAT(buf, temp, size);
 
-  if (_deviceConfig->adaptiveMode) {
+  if (cfg.adaptiveMode) {
     TextBlockParams ad{"Adaptive", "ON", "", "success"};
     render(temp, sizeof(temp), ad);
     SAFE_STRCAT(buf, temp, size);
@@ -1098,7 +1113,7 @@ void WebManager::buildStatusPage(char* buf, size_t size) {
            "</table>"
            "</div>",
            getDeviceId(), VERSION,
-           _transportState->link_ok ? "Connected" : "Disconnected", _rssi);
+           tState.link_ok ? "Connected" : "Disconnected", _rssi);
   SAFE_STRCAT(buf, temp, size);
 
   snprintf(temp, sizeof(temp),
@@ -1106,9 +1121,9 @@ void WebManager::buildStatusPage(char* buf, size_t size) {
            "<a href='/config' class='link-btn'>Settings</a>");
   SAFE_STRCAT(buf, temp, size);
 
-  ButtonParams toggleBtn{
-      _deviceState->isOn ? "Turn OFF" : "Turn ON",
-      _deviceState->isOn ? "/set?state=off" : "/set?state=on", "link-btn"};
+  ButtonParams toggleBtn{state.isOn ? "Turn OFF" : "Turn ON",
+                         state.isOn ? "/set?state=off" : "/set?state=on",
+                         "link-btn"};
   render(temp, sizeof(temp), toggleBtn);
   SAFE_STRCAT(buf, temp, size);
 

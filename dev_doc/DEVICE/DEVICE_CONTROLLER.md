@@ -80,7 +80,6 @@
 **DeviceController НЕ ЗНАЕТ:**
 - О ConfigManager (получает ссылку на Config через `init()`)
 - О транспорте (MQTT, Web, Zigbee, Matter)
-- О StateProvider
 - О пинах (управляет через Actuator)
 
 ---

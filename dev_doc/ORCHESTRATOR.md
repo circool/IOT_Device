@@ -3,7 +3,8 @@
  * @file ORCHESTRATOR.md
  * @brief Оркестратор. Общее описание
  * @note Статус: В процессе
-  * @todo Необходима актуализация - см STATUS_PROVIDER.md
+ * @version 0.11
+ * @todo Необходима актуализация - см STATUS_PROVIDER.md
  */
 ```
 # ORCHESTRATOR.md
